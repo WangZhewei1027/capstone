@@ -23,12 +23,12 @@ async function chatWithOpenAI(userInput) {
     {
       role: "system",
       content:
-        "Generate a single HTML file with JavaScript demonstrating the user given concept. Only respond in a single HTML file.",
+        "Generate a single HTML file with JavaScript demonstrating the user-given concept. Only respond in a single HTML file.",
     },
     { role: "user", content: userInput },
   ];
 
-  const model = "claude-opus-4-20250514"; // 替换为你想使用的模型名称
+  const model = "claude-sonnet-4-20250514"; // 替换为你想使用的模型名称
   const raw = await client.chat.completions.create({
     messages,
     model: model,
@@ -136,6 +136,7 @@ async function main() {
       answer: assistantMessage,
       messages: messages,
       evaluation: { score: null, notes: "" }, // 预留的评价字段
+      tags: ["9/24"], // 预留的标签字段
     };
     await persistQA(data, "data.json");
     console.log("已保存为HTML文件，打开下面的链接查看效果：");

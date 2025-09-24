@@ -1,0 +1,348 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-Means Clustering Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .primary-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .primary-btn:hover {
+            background-color: #45a049;
+        }
+        .secondary-btn {
+            background-color: #2196F3;
+            color: white;
+        }
+        .secondary-btn:hover {
+            background-color: #1976D2;
+        }
+        .danger-btn {
+            background-color: #f44336;
+            color: white;
+        }
+        .danger-btn:hover {
+            background-color: #d32f2f;
+        }
+        input[type="number"] {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        canvas {
+            border: 2px solid #333;
+            cursor: crosshair;
+            display: block;
+            margin: 0 auto;
+        }
+        .info {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #e3f2fd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .iteration-counter {
+            font-weight: bold;
+            color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>K-Means Clustering Visualization</h1>
+        
+        <div class="controls">
+            <label>K (clusters): <input type="number" id="kValue" value="3" min="1" max="8"></label>
+            <button class="secondary-btn" onclick="generateRandomPoints()">Generate Random Points</button>
+            <button class="primary-btn" onclick="startKMeans()">Start K-Means</button>
+            <button class="secondary-btn" onclick="stepKMeans()">Step Through</button>
+            <button class="danger-btn" onclick="clearCanvas()">Clear All</button>
+        </div>
+        
+        <canvas id="canvas" width="800" height="600"></canvas>
+        
+        <div class="info">
+            <div class="iteration-counter" id="iterationCounter">Iteration: 0</div>
+            <p><strong>Instructions:</strong></p>
+            <ul>
+                <li>Click on the canvas to add data points</li>
+                <li>Set the number of clusters (K) and click "Start K-Means"</li>
+                <li>Use "Step Through" to see the algorithm progress step by step</li>
+                <li>Watch as centroids (large circles) move and points get assigned to clusters</li>
+            </ul>
+            <p><strong>Colors:</strong> Each cluster is represented by a different color. Centroids are large circles, data points are small circles.</p>
+        </div>
+    </div>
+
+    <script>
+        class KMeansVisualizer {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.points = [];
+                this.centroids = [];
+                this.clusters = [];
+                this.k = 3;
+                this.iteration = 0;
+                this.isRunning = false;
+                this.colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'];
+                
+                this.canvas.addEventListener('click', (e) => this.addPoint(e));
+                this.setupCanvas();
+            }
+            
+            setupCanvas() {
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+            
+            addPoint(e) {
+                if (this.isRunning) return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                this.points.push({x, y, cluster: -1});
+                this.drawPoints();
+            }
+            
+            generateRandomPoints(count = 30) {
+                if (this.isRunning) return;
+                
+                this.points = [];
+                for (let i = 0; i < count; i++) {
+                    this.points.push({
+                        x: Math.random() * (this.canvas.width - 40) + 20,
+                        y: Math.random() * (this.canvas.height - 40) + 20,
+                        cluster: -1
+                    });
+                }
+                this.drawPoints();
+            }
+            
+            initializeCentroids() {
+                this.centroids = [];
+                for (let i = 0; i < this.k; i++) {
+                    this.centroids.push({
+                        x: Math.random() * (this.canvas.width - 40) + 20,
+                        y: Math.random() * (this.canvas.height - 40) + 20
+                    });
+                }
+            }
+            
+            distance(p1, p2) {
+                return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+            }
+            
+            assignPointsToClusters() {
+                let changed = false;
+                
+                for (let point of this.points) {
+                    let minDistance = Infinity;
+                    let closestCluster = 0;
+                    
+                    for (let i = 0; i < this.centroids.length; i++) {
+                        const dist = this.distance(point, this.centroids[i]);
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            closestCluster = i;
+                        }
+                    }
+                    
+                    if (point.cluster !== closestCluster) {
+                        changed = true;
+                        point.cluster = closestCluster;
+                    }
+                }
+                
+                return changed;
+            }
+            
+            updateCentroids() {
+                const newCentroids = [];
+                
+                for (let i = 0; i < this.k; i++) {
+                    const clusterPoints = this.points.filter(p => p.cluster === i);
+                    
+                    if (clusterPoints.length > 0) {
+                        const sumX = clusterPoints.reduce((sum, p) => sum + p.x, 0);
+                        const sumY = clusterPoints.reduce((sum, p) => sum + p.y, 0);
+                        
+                        newCentroids.push({
+                            x: sumX / clusterPoints.length,
+                            y: sumY / clusterPoints.length
+                        });
+                    } else {
+                        // Keep the old centroid if no points assigned
+                        newCentroids.push({...this.centroids[i]});
+                    }
+                }
+                
+                this.centroids = newCentroids;
+            }
+            
+            drawPoints() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.setupCanvas();
+                
+                // Draw points
+                for (let point of this.points) {
+                    this.ctx.fillStyle = point.cluster >= 0 ? this.colors[point.cluster % this.colors.length] : '#666666';
+                    this.ctx.beginPath();
+                    this.ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = '#333333';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.stroke();
+                }
+                
+                // Draw centroids
+                for (let i = 0; i < this.centroids.length; i++) {
+                    const centroid = this.centroids[i];
+                    this.ctx.fillStyle = this.colors[i % this.colors.length];
+                    this.ctx.beginPath();
+                    this.ctx.arc(centroid.x, centroid.y, 15, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = '#000000';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.stroke();
+                    
+                    // Draw cross in centroid
+                    this.ctx.strokeStyle = '#000000';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(centroid.x - 6, centroid.y);
+                    this.ctx.lineTo(centroid.x + 6, centroid.y);
+                    this.ctx.moveTo(centroid.x, centroid.y - 6);
+                    this.ctx.lineTo(centroid.x, centroid.y + 6);
+                    this.ctx.stroke();
+                }
+            }
+            
+            async startKMeans() {
+                if (this.points.length === 0) {
+                    alert('Please add some points first!');
+                    return;
+                }
+                
+                this.k = parseInt(document.getElementById('kValue').value);
+                this.isRunning = true;
+                this.iteration = 0;
+                
+                this.initializeCentroids();
+                this.drawPoints();
+                
+                let maxIterations = 100;
+                let converged = false;
+                
+                while (!converged && this.iteration < maxIterations) {
+                    await this.sleep(500); // Pause for visualization
+                    
+                    const changed = this.assignPointsToClusters();
+                    this.updateCentroids();
+                    this.iteration++;
+                    
+                    document.getElementById('iterationCounter').textContent = `Iteration: ${this.iteration}`;
+                    this.drawPoints();
+                    
+                    if (!changed) {
+                        converged = true;
+                        alert(`K-Means converged after ${this.iteration} iterations!`);
+                    }
+                }
+                
+                if (this.iteration >= maxIterations) {
+                    alert(`K-Means stopped after ${maxIterations} iterations (max limit reached)`);
+                }
+                
+                this.isRunning = false;
+            }
+            
+            stepKMeans() {
+                if (this.points.length === 0) {
+                    alert('Please add some points first!');
+                    return;
+                }
+                
+                if (this.iteration === 0) {
+                    this.k = parseInt(document.getElementById('kValue').value);
+                    this.initializeCentroids();
+                }
+                
+                const changed = this.assignPointsToClusters();
+                this.updateCentroids();
+                this.iteration++;
+                
+                document.getElementById('iterationCounter').textContent = `Iteration: ${this.iteration}`;
+                this.drawPoints();
+                
+                if (!changed) {
+                    alert(`K-Means converged after ${this.iteration} iterations!`);
+                }
+            }
+            
+            clearCanvas() {
+                this.points = [];
+                this.centroids = [];
+                this.clusters = [];
+                this.iteration = 0;
+                this.isRunning = false;
+                document.getElementById('iterationCounter').textContent = 'Iteration: 0';
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.setupCanvas();
+            }
+            
+            sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+        }
+        
+        // Initialize the visualizer
+        const kmeans = new KMeansVisualizer();
+        
+        // Bind functions to global scope for HTML onclick handlers
+        window.generateRandomPoints = () => kmeans.generateRandomPoints();
+        window.startKMeans = () => kmeans.startKMeans();
+        window.stepKMeans = () => kmeans.stepKMeans();
+        window.clearCanvas = () => kmeans.clearCanvas();
+        
+        // Generate some initial random points
+        kmeans.generateRandomPoints(25);
+    </script>
+</body>
+</html>
+```

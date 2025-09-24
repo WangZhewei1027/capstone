@@ -1,0 +1,413 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-Means Clustering Demonstration</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #1a2a4d;
+            margin-bottom: 20px;
+        }
+
+        #controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            width: 90%;
+            max-width: 960px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        label {
+            font-weight: 500;
+        }
+
+        input[type="number"] {
+            width: 60px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+            text-align: center;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            background-color: #a0a0a0;
+            cursor: not-allowed;
+        }
+
+        #reset-btn {
+            background-color: #dc3545;
+        }
+        #reset-btn:hover {
+            background-color: #c82333;
+        }
+
+        #canvas-container {
+            width: 90%;
+            max-width: 960px;
+            aspect-ratio: 4 / 3;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden; /* Ensures canvas corners are rounded */
+        }
+        
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background-color: #fff;
+        }
+
+        #status {
+            margin-top: 15px;
+            font-size: 1.1em;
+            color: #555;
+            min-height: 1.5em;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>K-Means Clustering Visualizer</h1>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="k-input">Clusters (K):</label>
+            <input type="number" id="k-input" value="4" min="2" max="20">
+        </div>
+        <div class="control-group">
+            <label for="points-input">Data Points:</label>
+            <input type="number" id="points-input" value="300" min="10" max="2000">
+        </div>
+        <button id="generate-btn">1. Generate Data</button>
+        <button id="init-centroids-btn" disabled>2. Initialize Centroids</button>
+        <button id="step-btn" disabled>3. Run One Step</button>
+        <button id="run-btn" disabled>4. Run to Completion</button>
+        <button id="reset-btn">Reset</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="kmeans-canvas"></canvas>
+    </div>
+
+    <div id="status">Ready. Generate data to begin.</div>
+
+    <script>
+        const canvas = document.getElementById('kmeans-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- UI Elements ---
+        const kInput = document.getElementById('k-input');
+        const pointsInput = document.getElementById('points-input');
+        const generateBtn = document.getElementById('generate-btn');
+        const initCentroidsBtn = document.getElementById('init-centroids-btn');
+        const stepBtn = document.getElementById('step-btn');
+        const runBtn = document.getElementById('run-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const statusEl = document.getElementById('status');
+        
+        // --- State Variables ---
+        let points = [];
+        let centroids = [];
+        let k = 4;
+        let numPoints = 300;
+        let animationFrameId = null;
+        let iterationCount = 0;
+        
+        // Predefined colors for clusters for better visualization
+        const COLORS = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', 
+            '#e377c2', '#7f7f7f', '#bcbd22', '#17becf', '#aec7e8', '#ffbb78', 
+            '#98df8a', '#ff9896', '#c5b0d5', '#c49c94', '#f7b6d2', '#c7c7c7', 
+            '#dbdb8d', '#9edae5'
+        ];
+
+        // --- Initialization ---
+        function init() {
+            // Set canvas dimensions based on its container
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            
+            attachEventListeners();
+            updateFromInputs();
+            reset();
+        }
+
+        function updateFromInputs() {
+            k = parseInt(kInput.value, 10);
+            numPoints = parseInt(pointsInput.value, 10);
+        }
+
+        function attachEventListeners() {
+            generateBtn.addEventListener('click', generateRandomPoints);
+            initCentroidsBtn.addEventListener('click', initializeCentroids);
+            stepBtn.addEventListener('click', runSingleStep);
+            runBtn.addEventListener('click', runFullAlgorithm);
+            resetBtn.addEventListener('click', reset);
+            kInput.addEventListener('change', updateFromInputs);
+            pointsInput.addEventListener('change', updateFromInputs);
+        }
+
+        // --- Core K-Means Logic ---
+
+        function generateRandomPoints() {
+            reset(true); // Soft reset: keep inputs
+            updateFromInputs();
+            points = [];
+            for (let i = 0; i < numPoints; i++) {
+                points.push({
+                    x: Math.random() * canvas.clientWidth,
+                    y: Math.random() * canvas.clientHeight,
+                    cluster: null
+                });
+            }
+            statusEl.textContent = 'Data generated. Now initialize centroids.';
+            updateButtonStates('pointsGenerated');
+            draw();
+        }
+
+        function initializeCentroids() {
+            stopAnimation();
+            updateFromInputs();
+            centroids = [];
+            iterationCount = 0;
+            // Reset cluster assignment for all points
+            points.forEach(p => p.cluster = null);
+
+            // Pick K random points as initial centroids
+            const usedIndices = new Set();
+            while (centroids.length < k && centroids.length < points.length) {
+                const idx = Math.floor(Math.random() * points.length);
+                if (!usedIndices.has(idx)) {
+                    usedIndices.add(idx);
+                    centroids.push({
+                        x: points[idx].x,
+                        y: points[idx].y,
+                        color: COLORS[centroids.length % COLORS.length],
+                        points: []
+                    });
+                }
+            }
+            statusEl.textContent = 'Centroids initialized. Ready to run steps.';
+            updateButtonStates('centroidsInitialized');
+            draw();
+        }
+
+        /**
+         * Assignment Step: Assign each point to the nearest centroid.
+         * @returns {boolean} - True if any point changed its cluster, false otherwise.
+         */
+        function assignPointsToClusters() {
+            let changed = false;
+            // Clear centroid point lists
+            centroids.forEach(c => c.points = []);
+
+            points.forEach(point => {
+                let minDistance = Infinity;
+                let nearestCentroidIndex = -1;
+
+                centroids.forEach((centroid, index) => {
+                    const dist = distance(point, centroid);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        nearestCentroidIndex = index;
+                    }
+                });
+
+                if (point.cluster !== nearestCentroidIndex) {
+                    changed = true;
+                }
+                point.cluster = nearestCentroidIndex;
+                if (nearestCentroidIndex !== -1) {
+                    centroids[nearestCentroidIndex].points.push(point);
+                }
+            });
+            return changed;
+        }
+
+        /**
+         * Update Step: Recalculate the position of each centroid based on the mean of its assigned points.
+         */
+        function updateCentroids() {
+            centroids.forEach(centroid => {
+                if (centroid.points.length === 0) {
+                    // Optional: re-initialize runaway centroids. For now, we leave them.
+                    return;
+                }
+                let sumX = 0;
+                let sumY = 0;
+                centroid.points.forEach(point => {
+                    sumX += point.x;
+                    sumY += point.y;
+                });
+                centroid.x = sumX / centroid.points.length;
+                centroid.y = sumY / centroid.points.length;
+            });
+        }
+        
+        function runSingleStep() {
+            stopAnimation();
+            iterationCount++;
+            const changed = assignPointsToClusters();
+            if (changed) {
+                updateCentroids();
+                statusEl.textContent = `Iteration: ${iterationCount}. Points reassigned.`;
+            } else {
+                statusEl.textContent = `Converged after ${iterationCount} iterations.`;
+                updateButtonStates('converged');
+            }
+            draw();
+        }
+
+        function runFullAlgorithm() {
+            stopAnimation();
+            updateButtonStates('running');
+            statusEl.textContent = 'Running...';
+            
+            function animationLoop() {
+                iterationCount++;
+                const changed = assignPointsToClusters();
+                if (changed) {
+                    updateCentroids();
+                    statusEl.textContent = `Running... Iteration: ${iterationCount}`;
+                    draw();
+                    animationFrameId = requestAnimationFrame(animationLoop);
+                } else {
+                    statusEl.textContent = `Converged after ${iterationCount} iterations.`;
+                    updateButtonStates('converged');
+                    draw();
+                }
+            }
+            animationFrameId = requestAnimationFrame(animationLoop);
+        }
+
+
+        // --- Drawing and Helper Functions ---
+        
+        function draw() {
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw points
+            points.forEach(point => {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+                ctx.fillStyle = point.cluster !== null ? centroids[point.cluster].color : '#cccccc';
+                ctx.fill();
+            });
+
+            // Draw centroids
+            centroids.forEach(centroid => {
+                ctx.beginPath();
+                // Draw a cross shape for the centroid
+                const size = 10;
+                ctx.moveTo(centroid.x - size, centroid.y);
+                ctx.lineTo(centroid.x + size, centroid.y);
+                ctx.moveTo(centroid.x, centroid.y - size);
+                ctx.lineTo(centroid.x, centroid.y + size);
+                
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                ctx.strokeStyle = centroid.color;
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+            });
+        }
+
+        function distance(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        function stopAnimation() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }
+
+        function reset(soft = false) {
+            stopAnimation();
+            points = [];
+            centroids = [];
+            iterationCount = 0;
+            if (!soft) {
+                kInput.value = 4;
+                pointsInput.value = 300;
+                updateFromInputs();
+            }
+            statusEl.textContent = 'Ready. Generate data to begin.';
+            updateButtonStates('initial');
+            ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+        }
+        
+        function updateButtonStates(state) {
+            generateBtn.disabled = state === 'running';
+            initCentroidsBtn.disabled = !(state === 'pointsGenerated' || state === 'centroidsInitialized' || state === 'converged');
+            stepBtn.disabled = !(state === 'centroidsInitialized' || state === 'converged'); // Allow step even after convergence to see nothing happens
+            runBtn.disabled = !(state === 'centroidsInitialized');
+            
+            // Only enable reset when there's something to reset
+            resetBtn.disabled = state === 'initial';
+        }
+
+        // --- Start the application ---
+        window.addEventListener('load', init);
+        window.addEventListener('resize', init);
+    </script>
+</body>
+</html>
+```
