@@ -28,16 +28,65 @@ async function chatWithOpenAI(userInput) {
     { role: "user", content: userInput },
   ];
 
-  const model = "claude-sonnet-4-20250514"; // 替换为你想使用的模型名称
-  const chatCompletion = await client.chat.completions.create({
+  const model = "claude-opus-4-20250514"; // 替换为你想使用的模型名称
+  const raw = await client.chat.completions.create({
     messages,
     model: model,
   });
-  console.log(chatCompletion);
+
+  // Some gateways return slightly different shapes. Normalize here.
+  const normalizeAssistantMessage = (resp) => {
+    // If it's a stringified JSON, parse it first
+    if (typeof resp === "string") {
+      try {
+        resp = JSON.parse(resp);
+      } catch {
+        return { role: "assistant", content: resp };
+      }
+    }
+
+    // OpenAI-compatible shape: choices[0].message
+    const msg = resp?.choices?.[0]?.message;
+    if (msg?.content) return msg;
+
+    // Some proxies put text directly under choices[0].text
+    const text = resp?.choices?.[0]?.text;
+    if (typeof text === "string") return { role: "assistant", content: text };
+
+    // Anthropic-like shape: content string at top-level
+    if (typeof resp?.content === "string")
+      return { role: "assistant", content: resp.content };
+
+    // Fallback to output_text if present
+    if (typeof resp?.output_text === "string")
+      return { role: "assistant", content: resp.output_text };
+
+    // Last resort: stringify entire response
+    return {
+      role: "assistant",
+      content: typeof resp === "object" ? JSON.stringify(resp) : String(resp),
+    };
+  };
+
+  const assistantMessage = normalizeAssistantMessage(raw);
+
+  if (!assistantMessage?.content) {
+    throw new Error(
+      "Unexpected API response shape; no assistant content found."
+    );
+  }
+
+  // Log a compact preview for debugging
+  console.log("[DEBUG] Received completion:", {
+    hasChoices: !!raw?.choices,
+    firstChoiceKeys: raw?.choices?.[0] ? Object.keys(raw.choices[0]) : null,
+    contentPreview: assistantMessage.content.slice(0, 80) + "...",
+  });
+
   return {
-    assistantMessage: chatCompletion?.choices[0]?.message,
+    assistantMessage,
     messages: [...messages],
-    model: model,
+    model,
   };
 }
 
@@ -60,7 +109,10 @@ async function persistQA(data, filename = "data.json") {
   try {
     await fs.mkdir("./html", { recursive: true });
     const htmlFilename = `./html/${data.id}.html`;
-    await fs.writeFile(htmlFilename, data.answer.content);
+    await fs.writeFile(
+      htmlFilename,
+      typeof data.answer === "string" ? data.answer : data.answer?.content ?? ""
+    );
   } catch (err) {
     console.error("创建HTML文件出错：", err);
   }
@@ -83,6 +135,7 @@ async function main() {
       question: userInput,
       answer: assistantMessage,
       messages: messages,
+      evaluation: { score: null, notes: "" }, // 预留的评价字段
     };
     await persistQA(data, "data.json");
     console.log("已保存为HTML文件，打开下面的链接查看效果：");
