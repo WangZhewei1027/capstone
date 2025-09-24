@@ -1,8 +1,12 @@
+# 使用方法
+
 用的node v20
 
 npm install安装所有包
 
 node add.mjs 就可以调接口并记录
+
+node analyze.mjs可以分析实验结果（通过tag筛选数据）
 
 不要手动保存html！VS Code的自动格式化可能搞坏一些东西
 
@@ -50,17 +54,43 @@ K-means clustering
 
 **实验结果**
 
-每个组合生成一条，应有5*3=15条实验记录
+每个组合生成一条，至少应有5*3=15条实验记录；实际多于15条
 
-#### 实验效果总结：
+#### 实验结果：
 
+筛选标签: "9/24"
+匹配到记录数: 18，其中有评分的记录数: 18
 
+== 按 model 统计 ==
+model                     count  mean   min  max  stdev
+------------------------  -----  -----  ---  ---  -----
+claude-sonnet-4-20250514  3      4.333  4    5    0.471
+deepseek-r1               3      3.000  2    4    0.816
+gemini-2.5-pro            4      3.250  2    5    1.090
+gpt-5-mini                4      4.250  3    5    0.829
+o3-mini-high              4      3.000  3    3    0.000
 
-#### 想法：
+== 按 question 统计 ==
+question            count  mean   min  max  stdev
+------------------  -----  -----  ---  ---  -----
+Bubble Sort         6      3.667  3    5    0.745
+K-means clustering  7      3.143  2    4    0.639
+Linked List         5      4.000  2    5    1.265
 
-可以写一个预处理函数，只匹配`<html></html>`标签对，过滤掉一些奇怪的东西
+已导出: /Users/wangzhewei/Working/capstone/stats_by_model.csv
+已导出: /Users/wangzhewei/Working/capstone/stats_by_question.csv
+
+#### 观察以及想法：
+
+- 可以写一个预处理函数，只匹配`<html></html>`标签对，过滤掉一些奇怪的东西
+- 复杂概念生成失败率高：K-means clustering 至少失败了两次（直接504错误）
+- 对于gpt，o3表现没有gpt5好。o3视觉上非常粗糙。可能是o3注重推理而不是视觉上的工程化表现？
+- Bubble Sort和Linked List有几个表现非常亮眼，K-means clustering不管是主观上还是客观上都差一截
+- Linked List表现不稳定。stdev值确实非常高。
 
 #### 评分标准方面的思考：
+
+现在还是过于主观。一下是细化的想法：
 
 UI方面：
 - 美观（是否有配色，还是只用的html基础元素）
