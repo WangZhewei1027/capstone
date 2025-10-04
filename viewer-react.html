@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HTML Files Viewer - React Edition</title>
+
+    <!-- React CDN -->
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+    <!-- Babel for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        text-align: center;
+        color: white;
+        margin-bottom: 30px;
+        font-size: 2.5rem;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      .workspace-selector {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      select {
+        padding: 12px 20px;
+        font-size: 16px;
+        border: none;
+        border-radius: 25px;
+        background: white;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      select:hover {
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+      }
+
+      .grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        padding: 20px 0;
+      }
+
+      .html-card {
+        background: white;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+      }
+
+      .html-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+      }
+
+      .card-preview {
+        width: 100%;
+        height: 200px;
+        border: none;
+        background: #f8f9fa;
+      }
+
+      .card-info {
+        padding: 12px;
+      }
+
+      .card-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+        word-break: break-all;
+      }
+
+      .card-model {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 5px;
+      }
+
+      .card-timestamp {
+        font-size: 0.8rem;
+        color: #999;
+      }
+
+      .card-messages {
+        margin-top: 10px;
+        font-size: 0.85rem;
+      }
+
+      .message-item {
+        margin-bottom: 6px;
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+
+      .message-system {
+        background: #e3f2fd;
+        border-left: 3px solid #2196f3;
+      }
+
+      .message-user {
+        background: #f3e5f5;
+        border-left: 3px solid #9c27b0;
+      }
+
+      .message-role {
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+      }
+
+      .message-content {
+        font-size: 0.8rem;
+        line-height: 1.3;
+        word-break: break-word;
+      }
+
+      .loading {
+        text-align: center;
+        color: white;
+        font-size: 1.1rem;
+        margin-top: 30px;
+      }
+
+      .error {
+        text-align: center;
+        color: #ff6b6b;
+        font-size: 1.1rem;
+        margin-top: 30px;
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+      }
+
+      .no-files {
+        text-align: center;
+        color: white;
+        font-size: 1.2rem;
+        margin-top: 50px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect } = React;
+
+      // WorkspaceSelector Component
+      const WorkspaceSelector = ({
+        onWorkspaceChange,
+        workspaces,
+        loading,
+        error,
+      }) => {
+        return (
+          <div className="workspace-selector">
+            <select
+              onChange={(e) => onWorkspaceChange(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">选择工作空间...</option>
+              {workspaces.map((workspace) => (
+                <option
+                  key={workspace.name}
+                  value={workspace.name}
+                  disabled={!workspace.hasData}
+                >
+                  {workspace.name}
+                  {workspace.hasData ? "" : " (数据不完整)"}
+                </option>
+              ))}
+            </select>
+            {error && (
+              <div className="error" style={{ marginTop: "10px" }}>
+                {error}
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      // Message Component
+      const Message = ({ message }) => {
+        const roleClass = `message-${message.role}`;
+        const roleText =
+          message.role === "system"
+            ? "系统"
+            : message.role === "user"
+            ? "用户"
+            : message.role;
+
+        return (
+          <div className={`message-item ${roleClass}`}>
+            <div className="message-role">{roleText}</div>
+            <div className="message-content">{message.content}</div>
+          </div>
+        );
+      };
+
+      // HtmlCard Component
+      const HtmlCard = ({ data, workspace, fileId }) => {
+        const handleClick = () => {
+          window.open(`./workspace/${workspace}/html/${fileId}.html`, "_blank");
+        };
+
+        return (
+          <div className="html-card" onClick={handleClick}>
+            <iframe
+              className="card-preview"
+              src={`./workspace/${workspace}/html/${fileId}.html`}
+              scrolling="no"
+              title={`Preview of ${fileId}`}
+            />
+            <div className="card-info">
+              <div className="card-title">{fileId}</div>
+              <div className="card-model">模型: {data.model}</div>
+              <div className="card-timestamp">
+                {new Date(data.timestamp).toLocaleString("zh-CN")}
+              </div>
+              {data.messages && data.messages.length > 0 && (
+                <div className="card-messages">
+                  {data.messages.map((message, index) => (
+                    <Message key={index} message={message} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      // GridContainer Component
+      const GridContainer = ({
+        htmlFiles,
+        currentData,
+        workspace,
+        loading,
+      }) => {
+        if (loading) {
+          return <div className="loading">加载中...</div>;
+        }
+
+        if (htmlFiles.length === 0) {
+          return <div className="no-files">当前工作空间没有HTML文件</div>;
+        }
+
+        return (
+          <div className="grid-container">
+            {htmlFiles.map((fileId) => {
+              const data = currentData[fileId];
+              if (!data) return null;
+
+              return (
+                <HtmlCard
+                  key={fileId}
+                  data={data}
+                  workspace={workspace}
+                  fileId={fileId}
+                />
+              );
+            })}
+          </div>
+        );
+      };
+
+      // Main App Component
+      const App = () => {
+        const [workspaces, setWorkspaces] = useState([]);
+        const [currentWorkspace, setCurrentWorkspace] = useState("");
+        const [currentData, setCurrentData] = useState({});
+        const [htmlFiles, setHtmlFiles] = useState([]);
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState("");
+
+        // Load workspaces on mount
+        useEffect(() => {
+          loadWorkspaces();
+        }, []);
+
+        const loadWorkspaces = async () => {
+          try {
+            // 尝试从API获取工作空间列表
+            const response = await fetch(
+              "http://localhost:3000/api/workspaces"
+            );
+            if (!response.ok) {
+              throw new Error("API服务器未启动或无法访问");
+            }
+
+            const workspaceData = await response.json();
+            setWorkspaces(workspaceData);
+            console.log(`✅ 成功加载 ${workspaceData.length} 个工作空间`);
+          } catch (apiError) {
+            console.warn("API不可用，使用备用方案:", apiError.message);
+
+            // 备用方案：手动添加已知工作空间
+            const fallbackWorkspaces = [
+              { name: "10-04", hasData: true },
+              { name: "test", hasData: true },
+            ];
+            setWorkspaces(fallbackWorkspaces);
+
+            setError(
+              "API服务器未启动，使用离线模式。请运行 'node api.mjs' 启动服务器以获得完整功能。"
+            );
+          }
+        };
+
+        const loadWorkspaceData = async (workspace) => {
+          if (!workspace) {
+            setHtmlFiles([]);
+            setCurrentData({});
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+
+          try {
+            // 首先尝试从API获取数据
+            let data;
+            try {
+              const apiResponse = await fetch(
+                `http://localhost:3000/api/workspaces/${workspace}/data`
+              );
+              if (apiResponse.ok) {
+                data = await apiResponse.json();
+                console.log(`✅ 从API加载工作空间 ${workspace} 的数据`);
+              } else {
+                throw new Error("API响应失败");
+              }
+            } catch (apiError) {
+              console.warn("API不可用，使用直接访问:", apiError.message);
+              // 备用方案：直接访问文件
+              const dataResponse = await fetch(
+                `./workspace/${workspace}/data/data.json`
+              );
+              if (!dataResponse.ok) {
+                throw new Error(`无法加载 ${workspace} 的数据文件`);
+              }
+              data = await dataResponse.json();
+            }
+
+            const newCurrentData = {};
+            // 将数据按ID索引
+            data.forEach((item) => {
+              newCurrentData[item.id] = item;
+            });
+
+            setCurrentData(newCurrentData);
+            // 获取HTML文件列表（根据数据推断）
+            const fileIds = data.map((item) => item.id);
+            setHtmlFiles(fileIds);
+
+            // 显示统计信息（如果API可用）
+            try {
+              const statsResponse = await fetch(
+                `http://localhost:3000/api/workspaces/${workspace}/stats`
+              );
+              if (statsResponse.ok) {
+                const stats = await statsResponse.json();
+                console.log(`📊 工作空间统计:`, stats);
+              }
+            } catch (statsError) {
+              // 统计信息获取失败不影响主要功能
+            }
+          } catch (error) {
+            setError(error.message);
+            console.error("加载数据失败:", error);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const handleWorkspaceChange = (workspace) => {
+          setCurrentWorkspace(workspace);
+          loadWorkspaceData(workspace);
+        };
+
+        return (
+          <div className="container">
+            <h1>HTML Files Viewer - React Edition</h1>
+
+            <WorkspaceSelector
+              onWorkspaceChange={handleWorkspaceChange}
+              workspaces={workspaces}
+              loading={loading}
+              error={error}
+            />
+
+            <GridContainer
+              htmlFiles={htmlFiles}
+              currentData={currentData}
+              workspace={currentWorkspace}
+              loading={loading}
+            />
+          </div>
+        );
+      };
+
+      // Render the app
+      ReactDOM.render(<App />, document.getElementById("root"));
+    </script>
+  </body>
+</html>

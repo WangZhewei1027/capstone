@@ -16,11 +16,19 @@ node add.mjs -h 来查看使用方法
 
 node add.mjs --workspace "10-04" --model "gpt-4o-mini" --question "bubble sort" --system "Generate a single HTML file with JavaScript demonstrating the user-given concept. Only respond in a single HTML file."
 
-查看面板：
+### 查看面板：
 
-http://127.0.0.1:5500/viewer.html 可以快速可视化查看效果。但是workspace要手动添加
+# 1. 安装依赖
+npm install
 
-const workspaces = ["10-04", "test"];
+# 2. 启动API服务器（推荐）
+npm run api
+
+# 3. 启动前端服务器
+启动liver server
+
+# 4. 访问React版本
+http://localhost:5500/viewer-react.html
 
 ## 注意事项
 
