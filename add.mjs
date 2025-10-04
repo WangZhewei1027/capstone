@@ -4,6 +4,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { v1 as uuidv1 } from "uuid";
 import "dotenv/config";
+import process from "node:process";
 
 // 读取模型列表
 const modelListData = await fs.readFile("./model-list.json", "utf-8");
@@ -16,6 +17,70 @@ const client = new OpenAI({
 
 let workspace = "default";
 
+// 解析命令行参数
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const parsed = {
+    workspace: null,
+    model: null,
+    question: null,
+    help: false,
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    switch (arg) {
+      case "--workspace":
+      case "-w":
+        parsed.workspace = args[++i];
+        break;
+      case "--model":
+      case "-m":
+        parsed.model = args[++i];
+        break;
+      case "--question":
+      case "-q":
+        parsed.question = args[++i];
+        break;
+      case "--help":
+      case "-h":
+        parsed.help = true;
+        break;
+      default:
+        if (!arg.startsWith("--") && !arg.startsWith("-")) {
+          // 如果没有指定参数，将第一个非选项参数作为问题
+          if (!parsed.question) {
+            parsed.question = arg;
+          }
+        }
+        break;
+    }
+  }
+
+  return parsed;
+}
+
+// 显示帮助信息
+function showHelp() {
+  console.log(`
+使用方法: node add.mjs [选项]
+
+选项:
+  -w, --workspace <name>    指定工作空间名称
+  -m, --model <model>       指定模型名称或编号
+  -q, --question <text>     指定问题内容
+  -h, --help               显示此帮助信息
+
+示例:
+  node add.mjs --workspace "10-04" --model "gpt-4o-mini" --question "创建一个冒泡排序演示"
+  node add.mjs -w "test" -m 1 -q "制作一个计算器"
+  node add.mjs "创建一个时钟" (直接指定问题)
+
+可用模型:
+${modelList.map((model, index) => `  ${index + 1}. ${model}`).join("\n")}
+`);
+}
+
 async function promptInput(query) {
   const rl = createInterface({ input, output });
   try {
@@ -25,7 +90,30 @@ async function promptInput(query) {
   }
 }
 
-async function selectModel() {
+async function selectModel(preSelectedModel = null) {
+  // 如果通过参数预选择了模型
+  if (preSelectedModel) {
+    // 检查是否是数字（模型编号）
+    const modelNumber = parseInt(preSelectedModel);
+    if (
+      !isNaN(modelNumber) &&
+      modelNumber >= 1 &&
+      modelNumber <= modelList.length
+    ) {
+      const selectedModel = modelList[modelNumber - 1];
+      console.log(`已选择模型: ${selectedModel}\n`);
+      return selectedModel;
+    }
+
+    // 检查是否是模型名称
+    if (modelList.includes(preSelectedModel)) {
+      console.log(`已选择模型: ${preSelectedModel}\n`);
+      return preSelectedModel;
+    }
+
+    console.log(`警告: 未找到模型 "${preSelectedModel}"，将显示选择列表`);
+  }
+
   console.log("\n可用的模型列表：");
   modelList.forEach((model, index) => {
     console.log(`${index + 1}. ${model}`);
@@ -174,11 +262,25 @@ async function persistQA(data, filename = "data.json") {
 }
 
 async function main() {
-  workspace = await promptInput("请输入工作空间: ");
+  const args = parseArgs();
+
+  // 显示帮助信息
+  if (args.help) {
+    showHelp();
+    return;
+  }
+
+  // 获取工作空间
+  if (args.workspace) {
+    workspace = args.workspace;
+    console.log(`使用工作空间: ${workspace}`);
+  } else {
+    workspace = await promptInput("请输入工作空间: ");
+  }
 
   let selectedModel;
   try {
-    selectedModel = await selectModel();
+    selectedModel = await selectModel(args.model);
   } catch (err) {
     console.error("选择模型时出错：", err);
     return;
@@ -186,7 +288,12 @@ async function main() {
 
   let userInput;
   try {
-    userInput = await promptInput("请输入提问内容: ");
+    if (args.question) {
+      userInput = args.question;
+      console.log(`使用问题: ${userInput}`);
+    } else {
+      userInput = await promptInput("请输入提问内容: ");
+    }
   } catch (err) {
     console.error("获取用户输入时出错：", err);
     return;
