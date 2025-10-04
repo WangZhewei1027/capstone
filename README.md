@@ -12,12 +12,18 @@ node add.mjs -h 来查看使用方法
 
 手动按提示操作：node add.mjs
 
-一次性输入参数：node add.mjs --workspace "10-04" --model "gpt-5-mini" --question "创建一个冒泡排序演示"
+一次性输入参数：
+
+node add.mjs --workspace "10-04" --model "gpt-4o-mini" --question "bubble sort" --system "Generate a single HTML file with JavaScript demonstrating the user-given concept. Only respond in a single HTML file."
+
+查看面板：
 
 http://127.0.0.1:5500/viewer.html 可以快速可视化查看效果。但是workspace要手动添加
 
+const workspaces = ["10-04", "test"];
+
 ## 注意事项
-    
+
 不要手动查看或保存html！！！VS Code的自动格式化可能搞坏一些东西
 
 
