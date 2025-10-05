@@ -4,10 +4,10 @@ const run = promisify(exec);
 
 // 定义任务列表
 const tasks = [
-  { workspace: "10-04-0003", model: "gpt-4o-mini", question: "bubble sort" },
-  { workspace: "10-04-0003", model: "gpt-4o-mini", question: "quick sort" },
+  { workspace: "10-04-0004", model: "gpt-4o-mini", question: "bubble sort" },
+  { workspace: "10-04-0004", model: "gpt-4o-mini", question: "quick sort" },
   {
-    workspace: "10-04-0003",
+    workspace: "10-04-0004",
     model: "gpt-4o-mini",
     question: "linked list demo",
   },

@@ -29,7 +29,7 @@ node add.mjs --workspace "10-04" --model "gpt-4o-mini" --question "bubble sort" 
 # 1. 安装依赖
 npm install
 
-# 2. 启动API服务器（推荐）
+# 2. 启动API服务器
 npm run api
 
 # 3. 启动前端服务器
