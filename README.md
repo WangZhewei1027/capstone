@@ -8,15 +8,19 @@ npm install安装所有包
 
 ### add.mjs
 
-node add.mjs -h 来查看使用方法
+node add.mjs -h 来查看帮助
+
+使用方法一：
 
 手动按提示操作：node add.mjs
+
+使用方法二：
 
 一次性输入参数：
 
 node add.mjs --workspace "10-04" --model "gpt-4o-mini" --question "bubble sort" --system "Generate a single HTML file with JavaScript demonstrating the user-given concept. Only respond in a single HTML file."
 
-### 查看面板：
+### 可视化查看面板：
 
 # 1. 安装依赖
 npm install
@@ -29,6 +33,7 @@ npm run api
 
 # 4. 访问React版本
 http://localhost:5500/viewer-react.html
+
 
 ## 注意事项
 
