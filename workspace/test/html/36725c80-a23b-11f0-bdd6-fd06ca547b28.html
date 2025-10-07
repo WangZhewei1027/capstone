@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Linear Regression Demo (OLS and Gradient Descent)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1221;
+      --panel: #171a2b;
+      --text: #e7e9f3;
+      --muted: #a9adc9;
+      --accent: #5dc2ff;
+      --accent2: #ffb74d;
+      --good: #4caf50;
+      --bad: #ef5350;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 12px;
+      height: 100%;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+    .canvas-wrap {
+      background: var(--panel);
+      border-radius: 10px;
+      position: relative;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+      overflow: hidden;
+    }
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid #272a3f;
+      background: #121427;
+    }
+    .toolbar small {
+      color: var(--muted);
+    }
+    .pane {
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+      overflow: auto;
+    }
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    h2 {
+      margin: 16px 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .group {
+      border: 1px solid #272a3f;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 140px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .row:last-child { margin-bottom: 0; }
+    label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid #30344a;
+      background: #121427;
+      color: var(--text);
+      outline: none;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+    button {
+      appearance: none;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #2b2f48;
+      background: #1a1d33;
+      color: var(--text);
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.05s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+    button:hover { background: #222642; }
+    button:active { transform: translateY(1px) scale(0.99); }
+    button.primary {
+      background: linear-gradient(180deg, #258dff, #1f6fe0);
+      border-color: #1f6fe0;
+    }
+    button.warn {
+      background: linear-gradient(180deg, #f25555, #d44444);
+      border-color: #d44444;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .stat {
+      border: 1px solid #272a3f;
+      border-radius: 8px;
+      padding: 10px;
+      background: #121427;
+    }
+    .stat .k {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.2px;
+    }
+    .stat .v {
+      font-size: 18px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .legend {
+      display: flex;
+      gap: 12px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid #272a3f;
+      background: #121427;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .blue { background: var(--accent); }
+    .orange { background: var(--accent2); }
+    .green { background: var(--good); }
+    .red { background: var(--bad); }
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .kbd {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono";
+      background: #0c0e1a;
+      border: 1px solid #2b2f48;
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-size: 12px;
+      color: var(--text);
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="canvas-wrap">
+      <div class="toolbar">
+        <div style="flex: 1;">
+          <strong>Linear Regression</strong>
+          <small>Click to add points. Drag to move. Right-click to delete.</small>
+        </div>
+        <label><input type="checkbox" id="toggleResiduals"> Show residuals</label>
+        <label style="margin-left: 12px;"><input type="checkbox" id="toggleMean"> Show mean point</label>
+      </div>
+      <canvas id="canvas" width="900" height="540" aria-label="Linear Regression Canvas"></canvas>
+      <div class="legend">
+        <div><span class="dot blue"></span>OLS best-fit line</div>
+        <div><span class="dot orange"></span>Gradient Descent line</div>
+        <div><span class="dot green"></span>Points</div>
+        <div><span class="dot red"></span>Residuals</div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <h1>Controls and Metrics</h1>
+
+      <div class="controls">
+        <div class="group">
+          <h2>Fit method</h2>
+          <div class="row">
+            <label>Method</label>
+            <div>
+              <label><input type="radio" name="method" value="ols" checked> Analytic OLS</label>
+              <label style="margin-left: 12px;"><input type="radio" name="method" value="gd"> Gradient Descent</label>
+            </div>
+            <div></div>
+          </div>
+
+          <div id="gdControls">
+            <div class="row">
+              <label>Learning rate</label>
+              <input type="range" id="lr" min="0.0001" max="0.3" step="0.0001" value="0.02">
+              <div><span id="lrVal">0.02</span></div>
+            </div>
+            <div class="row">
+              <label>Steps per tick</label>
+              <input type="range" id="stepsPerTick" min="1" max="200" step="1" value="20">
+              <div><span id="stepsVal">20</span></div>
+            </div>
+            <div class="row">
+              <label>Initialize</label>
+              <div>
+                <button id="initZero">Reset to 0</button>
+                <button id="initOLS">Snap to OLS</button>
+              </div>
+              <div></div>
+            </div>
+            <div class="row">
+              <label>Training</label>
+              <div>
+                <button class="primary" id="toggleTrain">Start</button>
+                <button id="stepOnce">Step once</button>
+              </div>
+              <div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <h2>Data generator</h2>
+          <div class="row">
+            <label>Number of points</label>
+            <input type="number" id="nPts" min="2" max="200" step="1" value="40">
+            <div></div>
+          </div>
+          <div class="row">
+            <label>True slope (m)</label>
+            <input type="number" id="trueM" min="-3" max="3" step="0.1" value="0.8">
+            <div></div>
+          </div>
+          <div class="row">
+            <label>True intercept (b)</label>
+            <input type="number" id="trueB" min="-5" max="5" step="0.1" value="1.2">
+            <div></div>
+          </div>
+          <div class="row">
+            <label>Noise (σ)</label>
+            <input type="number" id="noise" min="0" max="5" step="0.1" value="0.6">
+            <div></div>
+          </div>
+          <div class="row">
+            <label>Actions</label>
+            <div>
+              <button id="generate" class="primary">Generate linear data</button>
+              <button id="clear" class="warn">Clear</button>
+            </div>
+            <div></div>
+          </div>
+          <div class="note">
+            Points are sampled as y = m⋅x + b + N(0, σ²) for x ∈ [0, 10]. Use the canvas to add, drag, or remove points.
+          </div>
+        </div>
+
+        <div class="group">
+          <h2>Metrics</h2>
+          <div class="stats">
+            <div class="stat">
+              <div class="k">Points</div>
+              <div class="v" id="statN">0</div>
+            </div>
+            <div class="stat">
+              <div class="k">Mean (x̄, ȳ)</div>
+              <div class="v" id="statMean">—</div>
+            </div>
+            <div class="stat">
+              <div class="k">Slope (m)</div>
+              <div class="v" id="statM">—</div>
+            </div>
+            <div class="stat">
+              <div class="k">Intercept (b)</div>
+              <div class="v" id="statB">—</div>
+            </div>
+            <div class="stat">
+              <div class="k">MSE</div>
+              <div class="v" id="statMSE">—</div>
+            </div>
+            <div class="stat">
+              <div class="k">R²</div>
+              <div class="v" id="statR2">—</div>
+            </div>
+          </div>
+          <div class="note">
+            OLS uses the closed-form solution m = cov(x,y) / var(x), b = ȳ - m⋅x̄. Gradient Descent minimizes MSE by iteratively updating m and b.
+          </div>
+          <div class="note">
+            Tip: Hold <span class="kbd">Shift</span> while dragging a point to move it only vertically.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Canvas and coordinate system
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Device pixel ratio setup for sharp rendering
+    function setupCanvasScale() {
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth || canvas.width;
+      const cssH = canvas.clientHeight || canvas.height;
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    // Data domain
+    const domain = { xMin: 0, xMax: 10, yMin: 0, yMax: 10 };
+    // Plot margins (px)
+    const margin = { left: 48, right: 20, top: 20, bottom: 40 };
+
+    // Points store
+    let points = [];
+
+    // OLS results
+    let ols = { m: 0, b: 0, mse: 0, r2: 0, meanX: 0, meanY: 0, valid: false };
+
+    // Gradient Descent state
+    let gd = { m: 0, b: 0, running: false, iter: 0, mse: 0 };
+    let lr = parseFloat(document.getElementById('lr').value);
+    let stepsPerTick = parseInt(document.getElementById('stepsPerTick').value, 10);
+
+    // Toggles
+    const showResidualsEl = document.getElementById('toggleResiduals');
+    const showMeanEl = document.getElementById('toggleMean');
+
+    // Controls
+    const methodRadios = document.querySelectorAll('input[name="method"]');
+    const gdControls = document.getElementById('gdControls');
+    const lrEl = document.getElementById('lr');
+    const lrValEl = document.getElementById('lrVal');
+    const stepsEl = document.getElementById('stepsPerTick');
+    const stepsValEl = document.getElementById('stepsVal');
+    const toggleTrainBtn = document.getElementById('toggleTrain');
+    const stepOnceBtn = document.getElementById('stepOnce');
+    const initZeroBtn = document.getElementById('initZero');
+    const initOLSBtn = document.getElementById('initOLS');
+
+    // Generator controls
+    const nPtsEl = document.getElementById('nPts');
+    const trueMEl = document.getElementById('trueM');
+    const trueBEl = document.getElementById('trueB');
+    const noiseEl = document.getElementById('noise');
+    const generateBtn = document.getElementById('generate');
+    const clearBtn = document.getElementById('clear');
+
+    // Stats display
+    const statN = document.getElementById('statN');
+    const statMean = document.getElementById('statMean');
+    const statM = document.getElementById('statM');
+    const statB = document.getElementById('statB');
+    const statMSE = document.getElementById('statMSE');
+    const statR2 = document.getElementById('statR2');
+
+    // Utilities
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function nearlyZero(v, eps = 1e-12) { return Math.abs(v) < eps; }
+
+    function dataToPx(x, y) {
+      const plotW = canvas.width / (window.devicePixelRatio || 1) - margin.left - margin.right;
+      const plotH = canvas.height / (window.devicePixelRatio || 1) - margin.top - margin.bottom;
+      const nx = (x - domain.xMin) / (domain.xMax - domain.xMin);
+      const ny = (y - domain.yMin) / (domain.yMax - domain.yMin);
+      const px = margin.left + nx * plotW;
+      const py = margin.top + (1 - ny) * plotH;
+      return { x: px, y: py };
+    }
+
+    function pxToData(px, py) {
+      const plotW = canvas.width / (window.devicePixelRatio || 1) - margin.left - margin.right;
+      const plotH = canvas.height / (window.devicePixelRatio || 1) - margin.top - margin.bottom;
+      const nx = clamp((px - margin.left) / plotW, 0, 1);
+      const ny = clamp(1 - (py - margin.top) / plotH, 0, 1);
+      const x = domain.xMin + nx * (domain.xMax - domain.xMin);
+      const y = domain.yMin + ny * (domain.yMax - domain.yMin);
+      return { x, y };
+    }
+
+    function gaussianNoise(std) {
+      // Box-Muller transform
+      let u = 0, v = 0;
+      while (u === 0) u = Math.random();
+      while (v === 0) v = Math.random();
+      const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      return z * std;
+    }
+
+    // OLS Computation
+    function computeOLS() {
+      const n = points.length;
+      if (n === 0) {
+        ols = { m: 0, b: 0, mse: 0, r2: 0, meanX: 0, meanY: 0, valid: false };
+        return;
+      }
+      let sumX = 0, sumY = 0;
+      for (const p of points) { sumX += p.x; sumY += p.y; }
+      const meanX = sumX / n;
+      const meanY = sumY / n;
+
+      let covXY = 0, varX = 0;
+      for (const p of points) {
+        const dx = p.x - meanX;
+        const dy = p.y - meanY;
+        covXY += dx * dy;
+        varX += dx * dx;
+      }
+
+      let m = 0, b = meanY;
+      if (!nearlyZero(varX)) {
+        m = covXY / varX;
+        b = meanY - m * meanX;
+      }
+
+      // Metrics
+      let ssr = 0, sst = 0;
+      for (const p of points) {
+        const yHat = m * p.x + b;
+        const r = p.y - yHat;
+        ssr += r * r;
+        const dy = p.y - meanY;
+        sst += dy * dy;
+      }
+      const mse = n > 0 ? ssr / n : 0;
+      const r2 = nearlyZero(sst) ? 1 : 1 - (ssr / sst);
+
+      ols = { m, b, mse, r2, meanX, meanY, valid: n >= 2 && !nearlyZero(varX) };
+    }
+
+    // Gradient Descent step
+    function gdStep() {
+      const n = points.length;
+      if (n === 0) return;
+      let gradM = 0, gradB = 0, mseAccum = 0;
+      for (const p of points) {
+        const yHat = gd.m * p.x + gd.b;
+        const e = yHat - p.y;
+        gradM += e * p.x;
+        gradB += e;
+        mseAccum += e * e;
+      }
+      gradM = (2 / n) * gradM;
+      gradB = (2 / n) * gradB;
+      gd.m -= lr * gradM;
+      gd.b -= lr * gradB;
+      gd.mse = mseAccum / n;
+      gd.iter++;
+    }
+
+    // Drawing
+    function draw() {
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      ctx.clearRect(0, 0, w, h);
+
+      // Background gradient
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, '#151833');
+      g.addColorStop(1, '#10132a');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+
+      drawAxes();
+      drawPoints();
+
+      // Lines
+      const method = getMethod();
+      // Always draw both lines for comparison, with opacity depending on selection
+      const showOLS = true;
+      const showGD = true;
+
+      if (showOLS) drawLine(ols.m, ols.b, 'rgba(93, 194, 255, ' + (method === 'ols' ? '1' : '0.35') + ')', 3);
+      if (showGD) drawLine(gd.m, gd.b, 'rgba(255, 183, 77, ' + (method === 'gd' ? '1' : '0.35') + ')', 3);
+
+      // Residuals
+      if (showResidualsEl.checked) {
+        const m = method === 'ols' ? ols.m : gd.m;
+        const b = method === 'ols' ? ols.b : gd.b;
+        drawResiduals(m, b);
+      }
+
+      // Mean point
+      if (showMeanEl.checked && points.length) {
+        const mx = ols.meanX;
+        const my = ols.meanY;
+        const p = dataToPx(mx, my);
+        ctx.fillStyle = '#a9adc9';
+        ctx.strokeStyle = '#a9adc9';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // crosshair
+        ctx.beginPath();
+        ctx.moveTo(p.x - 8, p.y);
+        ctx.lineTo(p.x + 8, p.y);
+        ctx.moveTo(p.x, p.y - 8);
+        ctx.lineTo(p.x, p.y + 8);
+        ctx.stroke();
+      }
+
+      updateStats();
+    }
+
+    function drawAxes() {
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      const plotW = w - margin.left - margin.right;
+      const plotH = h - margin.top - margin.bottom;
+
+      // Plot area
+      ctx.fillStyle = '#121427';
+      ctx.strokeStyle = '#272a3f';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(margin.left, margin.top, plotW, plotH);
+      ctx.fill();
+      ctx.stroke();
+
+      // Grid and ticks
+      const ticks = 10;
+      ctx.font = '12px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      for (let i = 0; i <= ticks; i++) {
+        const t = domain.xMin + i * (domain.xMax - domain.xMin) / ticks;
+        const px = margin.left + (i / ticks) * plotW;
+        ctx.strokeStyle = i % 5 === 0 ? '#2b2f48' : '#222642';
+        ctx.beginPath();
+        ctx.moveTo(px, margin.top);
+        ctx.lineTo(px, margin.top + plotH);
+        ctx.stroke();
+        ctx.fillStyle = '#a9adc9';
+        ctx.fillText(t.toFixed(1), px, margin.top + plotH + 6);
+      }
+
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i <= ticks; i++) {
+        const t = domain.yMin + i * (domain.yMax - domain.yMin) / ticks;
+        const py = margin.top + ((ticks - i) / ticks) * plotH;
+        ctx.strokeStyle = i % 5 === 0 ? '#2b2f48' : '#222642';
+        ctx.beginPath();
+        ctx.moveTo(margin.left, py);
+        ctx.lineTo(margin.left + plotW, py);
+        ctx.stroke();
+        ctx.fillStyle = '#a9adc9';
+        ctx.fillText(t.toFixed(1), margin.left - 6, py);
+      }
+
+      // Axis labels
+      ctx.fillStyle = '#a9adc9';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('x', margin.left + plotW / 2, h - 8);
+      ctx.save();
+      ctx.translate(16, margin.top + plotH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText('y', 0, 0);
+      ctx.restore();
+    }
+
+    function drawPoints() {
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        const pix = dataToPx(p.x, p.y);
+        ctx.fillStyle = '#4caf50';
+        ctx.strokeStyle = '#1b5e20';
+        ctx.beginPath();
+        ctx.arc(pix.x, pix.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    function drawLine(m, b, color, width = 2) {
+      const x1 = domain.xMin, x2 = domain.xMax;
+      let y1 = m * x1 + b;
+      let y2 = m * x2 + b;
+
+      // Clip to plot area bounds for visual nicety
+      const yMin = domain.yMin, yMax = domain.yMax;
+      // We still draw even if out of bounds; mapping handles.
+
+      const p1 = dataToPx(x1, y1);
+      const p2 = dataToPx(x2, y2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    }
+
+    function drawResiduals(m, b) {
+      ctx.strokeStyle = '#ef5350';
+      ctx.lineWidth = 1.25;
+      ctx.setLineDash([5, 4]);
+      for (const p of points) {
+        const yHat = m * p.x + b;
+        const a = dataToPx(p.x, p.y);
+        const bpx = dataToPx(p.x, yHat);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(bpx.x, bpx.y);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+
+    function updateStats() {
+      statN.textContent = points.length;
+      statMean.textContent = points.length ? `(${ols.meanX.toFixed(3)}, ${ols.meanY.toFixed(3)})` : '—';
+
+      const method = getMethod();
+      const m = method === 'ols' ? ols.m : gd.m;
+      const b = method === 'ols' ? ols.b : gd.b;
+
+      const mse = method === 'ols' ? ols.mse : gd.mse;
+      const r2 = method === 'ols' ? ols.r2 : computeR2(m, b);
+
+      statM.textContent = points.length ? m.toFixed(5) : '—';
+      statB.textContent = points.length ? b.toFixed(5) : '—';
+      statMSE.textContent = points.length ? mse.toFixed(5) : '—';
+      statR2.textContent = points.length ? r2.toFixed(5) : '—';
+    }
+
+    function computeR2(m, b) {
+      const n = points.length;
+      if (n === 0) return 0;
+      let sumY = 0;
+      for (const p of points) sumY += p.y;
+      const meanY = sumY / n;
+      let ssr = 0, sst = 0;
+      for (const p of points) {
+        const yHat = m * p.x + b;
+        const r = p.y - yHat;
+        ssr += r * r;
+        const dy = p.y - meanY;
+        sst += dy * dy;
+      }
+      return nearlyZero(sst) ? 1 : 1 - ssr / sst;
+    }
+
+    function getMethod() {
+      for (const r of methodRadios) if (r.checked) return r.value;
+      return 'ols';
+    }
+
+    // Interaction: add, drag, delete
+    let draggingIndex = -1;
+    let dragStart = null;
+
+    function findNearestPoint(px, py, radiusPx = 10) {
+      let bestIdx = -1, bestDist = Infinity;
+      for (let i = 0; i < points.length; i++) {
+        const p = dataToPx(points[i].x, points[i].y);
+        const dx = p.x - px, dy = p.y - py;
+        const d = Math.hypot(dx, dy);
+        if (d < radiusPx && d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      return bestIdx;
+    }
+
+    canvas.addEventListener('mousedown', (ev) => {
+      const rect = canvas.getBoundingClientRect();
+      const px = ev.clientX - rect.left;
+      const py = ev.clientY - rect.top;
+
+      const idx = findNearestPoint(px, py, 9);
+      if (ev.button === 0) {
+        if (idx !== -1) {
+          draggingIndex = idx;
+          dragStart = { x: px, y: py };
+        } else {
+          const d = pxToData(px, py);
+          points.push({ x: d.x, y: d.y });
+          computeOLS();
+          draw();
+        }
+      }
+    });
+
+    window.addEventListener('mousemove', (ev) => {
+      if (draggingIndex !== -1) {
+        const rect = canvas.getBoundingClientRect();
+        const px = ev.clientX - rect.left;
+        const py = ev.clientY - rect.top;
+        const d = pxToData(px, py);
+        if (ev.shiftKey) {
+          // Vertical-only drag
+          points[draggingIndex].y = d.y;
+        } else {
+          points[draggingIndex].x = d.x;
+          points[draggingIndex].y = d.y;
+        }
+        computeOLS();
+        draw();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      draggingIndex = -1;
+      dragStart = null;
+    });
+
+    canvas.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const px = ev.clientX - rect.left;
+      const py = ev.clientY - rect.top;
+      const idx = findNearestPoint(px, py, 10);
+      if (idx !== -1) {
+        points.splice(idx, 1);
+        computeOLS();
+        draw();
+      }
+    });
+
+    // Controls logic
+    for (const r of methodRadios) {
+      r.addEventListener('change', () => {
+        const m = getMethod();
+        gdControls.style.display = m === 'gd' ? 'block' : 'block'; // keep visible but method indicates active line
+        draw();
+      });
+    }
+
+    lrEl.addEventListener('input', () => {
+      lr = parseFloat(lrEl.value);
+      lrValEl.textContent = lr.toFixed(4);
+    });
+    stepsEl.addEventListener('input', () => {
+      stepsPerTick = parseInt(stepsEl.value, 10);
+      stepsValEl.textContent = stepsPerTick;
+    });
+
+    toggleTrainBtn.addEventListener('click', () => {
+      gd.running = !gd.running;
+      toggleTrainBtn.textContent = gd.running ? 'Pause' : 'Start';
+    });
+
+    stepOnceBtn.addEventListener('click', () => {
+      if (points.length) {
+        gdStep();
+        draw();
+      }
+    });
+
+    initZeroBtn.addEventListener('click', () => {
+      gd.m = 0;
+      gd.b = 0;
+      gd.iter = 0;
+      gd.mse = computeR2(gd.m, gd.b); // not mse; just trigger update
+      draw();
+    });
+
+    initOLSBtn.addEventListener('click', () => {
+      computeOLS();
+      gd.m = ols.m;
+      gd.b = ols.b;
+      gd.iter = 0;
+      gd.mse = ols.mse;
+      draw();
+    });
+
+    generateBtn.addEventListener('click', () => {
+      const n = clamp(parseInt(nPtsEl.value, 10) || 30, 2, 500);
+      const m = parseFloat(trueMEl.value) || 1;
+      const b = parseFloat(trueBEl.value) || 0;
+      const sigma = clamp(parseFloat(noiseEl.value) || 0, 0, 10);
+      points = [];
+      for (let i = 0; i < n; i++) {
+        const x = Math.random() * (domain.xMax - domain.xMin) + domain.xMin;
+        const y = m * x + b + gaussianNoise(sigma);
+        points.push({ x: clamp(x, domain.xMin, domain.xMax), y: clamp(y, domain.yMin, domain.yMax) });
+      }
+      computeOLS();
+      // Re-init GD to OLS for a fair start
+      gd.m = ols.m;
+      gd.b = ols.b;
+      gd.iter = 0;
+      gd.mse = ols.mse;
+      draw();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      points = [];
+      computeOLS();
+      draw();
+    });
+
+    showResidualsEl.addEventListener('change', draw);
+    showMeanEl.addEventListener('change', draw);
+
+    // Animation loop for GD
+    function tick() {
+      if (gd.running && points.length) {
+        for (let i = 0; i < stepsPerTick; i++) gdStep();
+      }
+      draw();
+      requestAnimationFrame(tick);
+    }
+
+    // Resize handling
+    function onResize() {
+      setupCanvasScale();
+      draw();
+    }
+    window.addEventListener('resize', onResize);
+
+    // Initialize
+    setupCanvasScale();
+    // Seed some data
+    (function seed() {
+      const n = 40, m = 0.8, b = 1.2, sigma = 0.6;
+      for (let i = 0; i < n; i++) {
+        const x = Math.random() * 10;
+        const y = m * x + b + gaussianNoise(sigma);
+        points.push({ x: clamp(x, domain.xMin, domain.xMax), y: clamp(y, domain.yMin, domain.yMax) });
+      }
+      computeOLS();
+      gd.m = ols.m;
+      gd.b = ols.b;
+      gd.iter = 0;
+      gd.mse = ols.mse;
+      draw();
+    })();
+
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
