@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>核电站工作原理交互演示（简化科普）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0e1320;
+    --panel:#141a2b;
+    --accent:#3fb4ff;
+    --accent2:#ffb13f;
+    --ok:#3fff9a;
+    --warn:#ffd13f;
+    --alert:#ff5460;
+    --text:#e6eef7;
+    --muted:#a9b6c9;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  header{padding:16px 24px; border-bottom:1px solid #223; background:linear-gradient(180deg,#111629,#0e1320)}
+  header h1{margin:0; font-size:20px}
+  header p{margin:6px 0 0; font-size:13px; color:var(--muted)}
+  main{display:flex; gap:16px; padding:16px; height:calc(100% - 86px)}
+  .board{flex:2; background:var(--panel); border:1px solid #223; border-radius:12px; position:relative; overflow:hidden}
+  .side{flex:1; display:flex; flex-direction:column; gap:12px}
+  .card{background:var(--panel); border:1px solid #223; border-radius:12px; padding:14px}
+  .card h3{margin:0 0 8px; font-size:16px}
+  .controls .row{margin:10px 0}
+  .controls label{display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted); margin-bottom:6px}
+  input[type=range]{width:100%}
+  .gauge{display:grid; grid-template-columns: 1fr auto; gap:6px; align-items:center; margin:6px 0}
+  .bar{height:10px; background:#1b2336; border-radius:6px; overflow:hidden}
+  .bar span{display:block; height:100%}
+  .bar .primary{background:linear-gradient(90deg,#ffb13f,#ff543f)}
+  .bar .secondary{background:linear-gradient(90deg,#3fb4ff,#00e0ff)}
+  .bar .green{background:linear-gradient(90deg,#3fff9a,#23d16f)}
+  .bar .purple{background:linear-gradient(90deg,#a685ff,#7a4bff)}
+  .kv{display:flex; justify-content:space-between; font-size:13px; color:var(--muted)}
+  .legend{position:absolute; top:10px; left:10px; display:flex; gap:10px; font-size:12px; align-items:center}
+  .tag{padding:4px 8px; border-radius:999px; border:1px solid #334; background:#11192d}
+  .tag .dot{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:-1px}
+  .dot-orange{background:var(--accent2)}
+  .dot-blue{background:var(--accent)}
+  .dot-green{background:var(--ok)}
+  .diagram{
+    position:absolute; inset:0; padding:16px;
+  }
+  svg{width:100%; height:100%}
+  .comp-label{font-size:12px; fill:#cfe3ff; pointer-events:none}
+  .hint{position:absolute; bottom:10px; left:10px; right:10px; font-size:12px; color:var(--muted)}
+  .status{display:flex; gap:8px; flex-wrap:wrap}
+  .pill{padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid #334; background:#11192d}
+  .pill.ok{color:#b6ffd6; border-color:#235}
+  .pill.warn{color:#fff1b6; border-color:#554; background:#1d1a0f}
+  .pill.alert{color:#ffd7db; border-color:#633; background:#1d0f11}
+  button{background:#1a2135; color:#e6eef7; border:1px solid #334; border-radius:8px; padding:8px 10px; cursor:pointer}
+  button:hover{border-color:#3fb4ff}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .small{font-size:12px; color:var(--muted)}
+  .foot{font-size:11px; color:#91a3bf}
+  .tooltip{
+    position:absolute; padding:10px; background:#0f1525; border:1px solid #334; color:#e6eef7; border-radius:10px; pointer-events:none; transform:translate(-50%,-120%); white-space:nowrap; font-size:12px; z-index:2
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>核电站工作原理（交互演示，简化科普模型）</h1>
+  <p>通过调节控制棒、冷却剂泵、蒸汽阀门和冷凝/冷却强度，观察反应堆热功率、蒸汽产生、涡轮发电与冷凝回水的动态关系。此演示为科普用途，非工程指南。</p>
+</header>
+<main>
+  <section class="board">
+    <div class="legend">
+      <span class="tag"><span class="dot dot-orange"></span>一回路（堆芯→蒸汽发生器）</span>
+      <span class="tag"><span class="dot dot-blue"></span>二回路（蒸汽→涡轮→冷凝）</span>
+      <span class="tag"><span class="dot dot-green"></span>电力输出</span>
+    </div>
+    <div class="diagram" id="diagram">
+      <svg viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet">
+        <!-- Background grid -->
+        <defs>
+          <linearGradient id="hotGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#ffb13f"/>
+            <stop offset="100%" stop-color="#ff543f"/>
+          </linearGradient>
+          <linearGradient id="steamGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#3fb4ff"/>
+            <stop offset="100%" stop-color="#00e0ff"/>
+          </linearGradient>
+          <linearGradient id="powerGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#3fff9a"/>
+            <stop offset="100%" stop-color="#23d16f"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2.5" result="b"/>
+            <feMerge>
+              <feMergeNode in="b"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+
+        <!-- Reactor Core -->
+        <rect id="core" x="70" y="180" width="200" height="300" rx="24" fill="#1c2438" stroke="#334" stroke-width="2"/>
+        <text x="170" y="160" text-anchor="middle" class="comp-label">反应堆堆芯</text>
+        <!-- Core heat glow -->
+        <rect id="coreHeat" x="85" y="195" width="170" height="270" rx="20" fill="url(#hotGrad)" opacity="0.25" filter="url(#glow)"/>
+
+        <!-- Primary loop piping to Steam Generator -->
+        <path id="primaryPipe" d="M 270 250 C 350 250 420 250 500 250 L 500 220 L 650 220"
+              stroke="url(#hotGrad)" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.9"/>
+        <path id="primaryReturn" d="M 650 440 L 500 440 L 500 470 C 420 470 350 470 270 470"
+              stroke="url(#hotGrad)" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.9"/>
+
+        <!-- Steam Generator (heat exchanger) -->
+        <rect id="steamGen" x="650" y="180" width="170" height="320" rx="20" fill="#1c2438" stroke="#334" stroke-width="2"/>
+        <text x="735" y="160" text-anchor="middle" class="comp-label">蒸汽发生器 / 换热器</text>
+
+        <!-- Secondary loop: steam to turbine -->
+        <path id="steamPipe" d="M 820 240 C 900 240 980 240 1060 240" stroke="url(#steamGrad)" stroke-width="10" fill="none" stroke-linecap="round"/>
+        <!-- Turbine -->
+        <rect id="turbine" x="1060" y="200" width="110" height="90" rx="14" fill="#1c2438" stroke="#334" stroke-width="2"/>
+        <text x="1115" y="190" text-anchor="middle" class="comp-label">蒸汽涡轮</text>
+        <circle id="turbineRotor" cx="1115" cy="245" r="25" fill="#2a3350" stroke="#446" stroke-width="2"/>
+        <line id="blade1" x1="1115" y1="245" x2="1115" y2="215" stroke="#7aa7ff" stroke-width="6" stroke-linecap="round"/>
+        <line id="blade2" x1="1115" y1="245" x2="1140" y2="245" stroke="#7aa7ff" stroke-width="6" stroke-linecap="round"/>
+        <line id="blade3" x1="1115" y1="245" x2="1115" y2="275" stroke="#7aa7ff" stroke-width="6" stroke-linecap="round"/>
+
+        <!-- Generator -->
+        <rect id="generator" x="1020" y="310" width="190" height="90" rx="14" fill="#1c2438" stroke="#334" stroke-width="2"/>
+        <text x="1115" y="300" text-anchor="middle" class="comp-label">发电机</text>
+        <path id="powerFlow" d="M 1020 355 L 980 355 L 940 355" stroke="url(#powerGrad)" stroke-width="8" fill="none" stroke-linecap="round"/>
+        <text id="powerLabel" x="930" y="355" class="comp-label" text-anchor="end">电力输出</text>
+
+        <!-- Condenser -->
+        <rect id="condenser" x="800" y="350" width="200" height="120" rx="16" fill="#1c2438" stroke="#334" stroke-width="2"/>
+        <text x="900" y="340" text-anchor="middle" class="comp-label">冷凝器</text>
+
+        <!-- Steam return to condenser -->
+        <path id="steamToCond" d="M 1060 240 C 990 260 940 280 900 320" stroke="url(#steamGrad)" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.7"/>
+
+        <!-- Return feedwater to steam generator -->
+        <path id="feedwaterPipe" d="M 900 470 C 800 470 720 470 650 470" stroke="#5ac8ff" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.7"/>
+
+        <!-- Cooling tower -->
+        <path id="coolTower" d="M 840 520 C 830 520 820 580 820 620 C 820 670 930 670 930 620 C 930 580 920 520 910 520 Z"
+              fill="#1c2438" stroke="#334" stroke-width="2"/>
+        <text x="875" y="510" text-anchor="middle" class="comp-label">冷却塔/海水冷却</text>
+        <path id="coolWaterPipe" d="M 900 410 C 870 420 860 450 860 500" stroke="#7fffd4" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.8"/>
+
+        <!-- Labels inside core and steam generator -->
+        <text id="coreTempText" x="170" y="340" text-anchor="middle" class="comp-label">堆芯温度: - °C</text>
+        <text id="secTempText" x="735" y="340" text-anchor="middle" class="comp-label">二回路蒸汽温度: - °C</text>
+      </svg>
+    </div>
+    <div class="hint">提示：拖动右侧滑块，观察流动粗细、颜色与旋转速度的变化；当温度或压力过高时，系统会自动触发停堆（SCRAM）。本模型只展示基本能量流，不代表真实参数。</div>
+  </section>
+
+  <section class="side">
+    <div class="card controls">
+      <h3>可调参数</h3>
+      <div class="row">
+        <label>
+          <span>控制棒插入程度（吸收中子，降低反应性）</span>
+          <span id="insertVal">40%</span>
+        </label>
+        <input type="range" min="0" max="100" value="40" id="insert">
+      </div>
+      <div class="row">
+        <label>
+          <span>一回路冷却剂泵速（带走堆芯热量）</span>
+          <span id="pumpVal">70%</span>
+        </label>
+        <input type="range" min="0" max="100" value="70" id="pump">
+      </div>
+      <div class="row">
+        <label>
+          <span>蒸汽阀门/涡轮负荷（将蒸汽送入涡轮）</span>
+          <span id="valveVal">60%</span>
+        </label>
+        <input type="range" min="0" max="100" value="60" id="valve">
+      </div>
+      <div class="row">
+        <label>
+          <span>冷凝与冷却强度（提高真空并冷却蒸汽）</span>
+          <span id="coolVal">70%</span>
+        </label>
+        <input type="range" min="0" max="100" value="70" id="cool">
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <button id="scramBtn">人工停堆（SCRAM）</button>
+        <button id="resetBtn">复位</button>
+        <button id="pauseBtn">暂停</button>
+      </div>
+      <div class="small" style="margin-top:8px">
+        说明：控制棒插入越多，链式裂变越弱；冷却剂泵越强，换热越充分；阀门越开，涡轮做功越多；冷凝越强，蒸汽被更快冷却、维持较低背压。
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>实时状态</h3>
+      <div class="status" id="statusRow">
+        <span class="pill ok" id="reactivityPill">反应性 正常</span>
+        <span class="pill ok" id="tempPill">温度 正常</span>
+        <span class="pill ok" id="pressPill">压力 正常</span>
+        <span class="pill ok" id="scramPill">停堆 未触发</span>
+      </div>
+
+      <div class="gauge">
+        <div>堆芯热功率（MWth）</div>
+        <div id="qgenVal">-</div>
+      </div>
+      <div class="bar"><span class="primary" id="qgenBar" style="width:0%"></span></div>
+
+      <div class="gauge">
+        <div>涡轮机械功（MW）</div>
+        <div id="qturbVal">-</div>
+      </div>
+      <div class="bar"><span class="secondary" id="qturbBar" style="width:0%"></span></div>
+
+      <div class="gauge">
+        <div>电力输出（MWe）</div>
+        <div id="pelecVal">-</div>
+      </div>
+      <div class="bar"><span class="green" id="pelecBar" style="width:0%"></span></div>
+
+      <div class="gauge">
+        <div>热-电效率（%）</div>
+        <div id="effVal">-</div>
+      </div>
+      <div class="bar"><span class="purple" id="effBar" style="width:0%"></span></div>
+
+      <div class="grid" style="margin-top:10px">
+        <div class="kv"><span>堆芯温度（°C）</span><span id="tcoreVal">-</span></div>
+        <div class="kv"><span>蒸汽温度（°C）</span><span id="tsecVal">-</span></div>
+        <div class="kv"><span>蒸汽压力（bar）</span><span id="psteamVal">-</span></div>
+        <div class="kv"><span>换热量（MW）</span><span id="qtransVal">-</span></div>
+        <div class="kv"><span>冷凝量（MW）</span><span id="qcondVal">-</span></div>
+        <div class="kv"><span>反应性（相对值）</span><span id="reactVal">-</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>原理概要</h3>
+      <ul class="small">
+        <li>堆芯内燃料发生裂变，释放中子与热能。控制棒吸收中子，调节链式反应强度（反应性）。</li>
+        <li>一回路在高压下将热量带至蒸汽发生器，通过换热使二回路水产生蒸汽。</li>
+        <li>蒸汽推动涡轮旋转，带动发电机将机械能转换为电能。</li>
+        <li>蒸汽在冷凝器中被冷却成水，回到蒸汽发生器（闭式循环）。</li>
+        <li>安全特性：温度升高会引入负反馈（反应性降低）；超过阈值自动停堆（SCRAM）。</li>
+      </ul>
+      <div class="foot">免责声明：本演示为简化科普模型，数值与结构均为示意，不用于任何实际工程设计或操作。</div>
+    </div>
+  </section>
+</main>
+
+<!-- Tooltips for components -->
+<div id="tt" class="tooltip" style="display:none"></div>
+
+<script>
+(function(){
+  // State and constants (simplified model, not physically exact)
+  const state = {
+    insert: 0.40,     // 控制棒插入比例 [0..1]
+    pump: 0.70,       // 一回路泵速 [0..1]
+    valve: 0.60,      // 蒸汽阀门/涡轮负荷 [0..1]
+    cooling: 0.70,    // 冷凝/冷却强度 [0..1]
+    T_core: 320,      // 堆芯温度 °C
+    T_sec: 200,       // 二回路蒸汽侧平均温度 °C
+    Q_gen: 0,         // 堆芯热功率 MWth
+    Q_trans: 0,       // 换热至二回路 MW
+    Q_turb: 0,        // 涡轮机械功 MW
+    Q_cond: 0,        // 冷凝器移走热量 MW
+    P_elec: 0,        // 电力输出 MWe
+    P_steam_bar: 1.0, // 蒸汽压力 bar（示意）
+    scram: false,     // 是否停堆
+    paused: false
+  };
+
+  // Constants
+  const P_MAX = 3000;            // 最大堆芯热功率（MWth，示意）
+  const ALPHA_T = 0.001;         // 温度负反馈系数（示意）
+  const K_TRANS = 12;            // 换热系数（MW/°C，示意）
+  const C_CORE = 500;            // 堆芯热容（MW per °C/s，示意）
+  const K_TURBINE = 8;           // 涡轮做功系数（MW/°C，示意）
+  const ETA_ELEC = 0.36;         // 热-电转换效率（典型 ~33-37%）
+  const K_COND = 10;             // 冷凝器换热系数（MW/°C，示意）
+  const C_SEC = 220;             // 二回路热容（MW per °C/s，示意）
+  const DT = 0.2;                // 时间步长（秒）
+  const T_AMB = 30;              // 环境温度（冷源）
+  const T_BOIL = 100;            // 沸点简化阈值
+
+  // DOM references
+  const el = {
+    insert: document.getElementById('insert'),
+    pump: document.getElementById('pump'),
+    valve: document.getElementById('valve'),
+    cool: document.getElementById('cool'),
+    insertVal: document.getElementById('insertVal'),
+    pumpVal: document.getElementById('pumpVal'),
+    valveVal: document.getElementById('valveVal'),
+    coolVal: document.getElementById('coolVal'),
+    qgenVal: document.getElementById('qgenVal'),
+    qturbVal: document.getElementById('qturbVal'),
+    pelecVal: document.getElementById('pelecVal'),
+    effVal: document.getElementById('effVal'),
+    tcoreVal: document.getElementById('tcoreVal'),
+    tsecVal: document.getElementById('tsecVal'),
+    qtransVal: document.getElementById('qtransVal'),
+    qcondVal: document.getElementById('qcondVal'),
+    psteamVal: document.getElementById('psteamVal'),
+    reactVal: document.getElementById('reactVal'),
+    qgenBar: document.getElementById('qgenBar'),
+    qturbBar: document.getElementById('qturbBar'),
+    pelecBar: document.getElementById('pelecBar'),
+    effBar: document.getElementById('effBar'),
+    statusRow: document.getElementById('statusRow'),
+    reactivityPill: document.getElementById('reactivityPill'),
+    tempPill: document.getElementById('tempPill'),
+    pressPill: document.getElementById('pressPill'),
+    scramPill: document.getElementById('scramPill'),
+    scramBtn: document.getElementById('scramBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    pauseBtn: document.getElementById('pauseBtn'),
+    coreHeat: document.getElementById('coreHeat'),
+    primaryPipe: document.getElementById('primaryPipe'),
+    primaryReturn: document.getElementById('primaryReturn'),
+    steamPipe: document.getElementById('steamPipe'),
+    steamToCond: document.getElementById('steamToCond'),
+    feedwaterPipe: document.getElementById('feedwaterPipe'),
+    coolWaterPipe: document.getElementById('coolWaterPipe'),
+    turbineRotor: document.getElementById('turbineRotor'),
+    blade1: document.getElementById('blade1'),
+    blade2: document.getElementById('blade2'),
+    blade3: document.getElementById('blade3'),
+    coreTempText: document.getElementById('coreTempText'),
+    secTempText: document.getElementById('secTempText'),
+    tt: document.getElementById('tt'),
+    diagram: document.getElementById('diagram'),
+    powerFlow: document.getElementById('powerFlow'),
+    powerLabel: document.getElementById('powerLabel')
+  };
+
+  // Hook sliders
+  function updateSliderLabels(){
+    el.insertVal.textContent = Math.round(state.insert*100) + '%';
+    el.pumpVal.textContent   = Math.round(state.pump*100) + '%';
+    el.valveVal.textContent  = Math.round(state.valve*100) + '%';
+    el.coolVal.textContent   = Math.round(state.cooling*100) + '%';
+  }
+  ['insert','pump','valve','cool'].forEach(id=>{
+    const ref = el[id];
+    ref.addEventListener('input', ()=>{
+      state[id==='cool'?'cooling':id] = Number(ref.value)/100;
+      if(id==='insert') state.scram = false; // manual change clears scram flag unless auto triggers again
+      updateSliderLabels();
+    });
+  });
+  updateSliderLabels();
+
+  // Buttons
+  el.scramBtn.addEventListener('click', ()=>{
+    triggerScram('人工停堆');
+  });
+  el.resetBtn.addEventListener('click', resetAll);
+  el.pauseBtn.addEventListener('click', ()=>{
+    state.paused = !state.paused;
+    el.pauseBtn.textContent = state.paused ? '继续' : '暂停';
+  });
+
+  function triggerScram(reason){
+    state.scram = true;
+    state.insert = 1.0;
+    el.insert.value = 100;
+    updateSliderLabels();
+    note('scram', `SCRAM 已触发：${reason}`);
+  }
+
+  function resetAll(){
+    state.insert = 0.40;
+    state.pump = 0.70;
+    state.valve = 0.60;
+    state.cooling = 0.70;
+    state.T_core = 320;
+    state.T_sec = 200;
+    state.scram = false;
+    el.insert.value = 40;
+    el.pump.value = 70;
+    el.valve.value = 60;
+    el.cool.value = 70;
+    el.pauseBtn.textContent = '暂停';
+    state.paused = false;
+    updateSliderLabels();
+  }
+
+  // Tooltip descriptions
+  const compHints = [
+    {id:'core', text:'堆芯：燃料发生裂变，释放热能；控制棒吸收中子调节反应性。'},
+    {id:'primaryPipe', text:'一回路：高压冷却剂带走堆芯热量至蒸汽发生器。'},
+    {id:'steamGen', text:'蒸汽发生器：一回路与二回路换热，使二回路水变成蒸汽。'},
+    {id:'steamPipe', text:'蒸汽管道：高温蒸汽送往涡轮。阀门开度越大，流量越高。'},
+    {id:'turbine', text:'蒸汽涡轮：蒸汽膨胀做功，带动发电机旋转。'},
+    {id:'generator', text:'发电机：将机械能转化为电能。'},
+    {id:'condenser', text:'冷凝器：将蒸汽冷却成水，维持涡轮背压与循环。'},
+    {id:'coolTower', text:'冷却塔/海水冷却：将多余热量散至环境。'},
+    {id:'feedwaterPipe', text:'回水管道：冷凝后的水回到蒸汽发生器。'}
+  ];
+  compHints.forEach(h=>{
+    const node = document.getElementById(h.id);
+    if(!node) return;
+    node.style.cursor = 'help';
+    node.addEventListener('mousemove',(e)=>showTip(e.clientX, e.clientY, h.text));
+    node.addEventListener('mouseleave', hideTip);
+  });
+  function showTip(x,y,text){
+    el.tt.textContent = text;
+    el.tt.style.display='block';
+    const rect = el.diagram.getBoundingClientRect();
+    el.tt.style.left = (x - rect.left) + 'px';
+    el.tt.style.top  = (y - rect.top) + 'px';
+  }
+  function hideTip(){ el.tt.style.display='none'; }
+
+  // Visual helpers
+  function setStrokeWidth(elm, w){
+    elm.setAttribute('stroke-width', String(w));
+  }
+  function setOpacity(elm, op){
+    elm.setAttribute('opacity', String(op));
+  }
+  function setPowerFlowWidth(val){
+    const w = 4 + 10*Math.min(1, val/1200);
+    setStrokeWidth(el.powerFlow, w);
+    el.powerLabel.textContent = '电力输出';
+  }
+
+  // Note status changes
+  function note(type, msg){
+    // Just update pills for now
+    if(type==='scram'){
+      el.scramPill.textContent = '停堆 已触发';
+      el.scramPill.className = 'pill alert';
+    }
+  }
+
+  // Simulation loop
+  let t = 0, rot = 0;
+  function step(){
+    if(state.paused){ requestAnimationFrame(step); return; }
+
+    // Reactivity with negative temperature feedback
+    const baseR = Math.max(0, 1 - state.insert);
+    const feedback = Math.max(0.05, 1 - ALPHA_T*(state.T_core - 300)); // hotter core => lower reactivity
+    const R = baseR * feedback;
+    // Auto SCRAM if too hot or pressure too high
+    if(state.T_core > 800 || state.T_sec > 360 || state.P_steam_bar > 90){
+      if(!state.scram) triggerScram('温度/压力异常');
+    }
+    const R_eff = state.scram ? R * 0.05 : R;
+
+    // Core heat generation
+    state.Q_gen = P_MAX * R_eff;
+
+    // Heat transfer to secondary
+    const deltaTS = Math.max(0, state.T_core - state.T_sec);
+    const Q_trans_cap = K_TRANS * state.pump * deltaTS;
+    state.Q_trans = Math.min(Q_trans_cap, state.Q_gen + 200); // cannot exceed generation too much
+
+    // Core temperature dynamics
+    const dT_core = (state.Q_gen - state.Q_trans) / C_CORE * DT;
+    state.T_core = clamp(state.T_core + dT_core, T_AMB, 1200);
+
+    // Secondary side: turbine and condenser
+    state.Q_turb = K_TURBINE * state.valve * Math.max(0, state.T_sec - T_BOIL);
+    state.Q_cond = K_COND * state.cooling * Math.max(0, state.T_sec - T_AMB);
+
+    // Secondary temperature dynamics
+    const dT_sec = (state.Q_trans - state.Q_turb - state.Q_cond) / C_SEC * DT;
+    state.T_sec = clamp(state.T_sec + dT_sec, T_AMB, 450);
+
+    // Steam pressure (illustrative relation to temperature and valve)
+    const pressBase = 1 + 0.25*Math.max(0, state.T_sec - T_BOIL); // rough relation °C => bar
+    const valveRelief = 0.6*state.valve;                           // opening reduces pressure
+    state.P_steam_bar = clamp(pressBase * (1 - valveRelief), 1, 120);
+
+    // Electrical power
+    state.P_elec = ETA_ELEC * state.Q_turb;
+
+    // Efficiency
+    const eff = state.Q_gen>1 ? (state.P_elec/state.Q_gen) : 0;
+
+    // Update visuals
+    updateUI(R_eff, eff);
+
+    t += DT;
+    requestAnimationFrame(step);
+  }
+
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+  function updateUI(R_eff, eff){
+    // Numbers
+    el.qgenVal.textContent = fmtMW(state.Q_gen);
+    el.qturbVal.textContent = fmtMW(state.Q_turb);
+    el.pelecVal.textContent = fmtMW(state.P_elec);
+    el.qtransVal.textContent = fmtMW(state.Q_trans);
+    el.qcondVal.textContent = fmtMW(state.Q_cond);
+    el.tcoreVal.textContent = Math.round(state.T_core) + ' °C';
+    el.tsecVal.textContent = Math.round(state.T_sec) + ' °C';
+    el.psteamVal.textContent = state.P_steam_bar.toFixed(1) + ' bar';
+    el.reactVal.textContent = R_eff.toFixed(2);
+
+    // Bars
+    el.qgenBar.style.width = (100 * state.Q_gen / P_MAX) + '%';
+    el.qturbBar.style.width = (100 * state.Q_turb / (P_MAX*0.7)) + '%';
+    el.pelecBar.style.width = (100 * state.P_elec / (P_MAX*0.4)) + '%';
+    el.effBar.style.width = (100 * eff) + '%';
+    el.effVal.textContent = (100*eff).toFixed(1) + ' %';
+
+    // Pipe thicknesses as flows
+    const primaryW = 6 + 10*state.pump * clamp(state.Q_trans/P_MAX, 0, 1);
+    const returnW  = primaryW;
+    setStrokeWidth(el.primaryPipe, primaryW);
+    setStrokeWidth(el.primaryReturn, returnW);
+    setOpacity(el.primaryPipe, 0.8 + 0.2*state.pump);
+    setOpacity(el.primaryReturn, 0.8 + 0.2*state.pump);
+
+    const steamW = 5 + 10*clamp(state.Q_turb/(P_MAX*0.7), 0, 1);
+    setStrokeWidth(el.steamPipe, steamW);
+    setStrokeWidth(el.steamToCond, steamW);
+    setStrokeWidth(el.feedwaterPipe, 5 + 8*clamp(state.Q_cond/(P_MAX*0.7), 0, 1));
+    setStrokeWidth(el.coolWaterPipe, 5 + 8*state.cooling);
+
+    setPowerFlowWidth(state.P_elec);
+
+    // Core heat glow intensity
+    const glowOp = clamp(0.15 + 0.5*(state.Q_gen/P_MAX), 0.15, 0.75);
+    el.coreHeat.setAttribute('opacity', glowOp.toFixed(3));
+
+    // Turbine rotation
+    const rpmFactor = clamp(state.Q_turb/(P_MAX*0.5), 0, 1);
+    rot += 0.12 + 0.6*rpmFactor;
+    const cx = 1115, cy = 245, r = 25;
+    const angle = rot;
+    const s = Math.sin(angle), c = Math.cos(angle);
+    // Rotate blades around rotor center
+    setLineAngle(el.blade1, cx, cy, r, angle);
+    setLineAngle(el.blade2, cx, cy, r, angle + Math.PI*2/3);
+    setLineAngle(el.blade3, cx, cy, r, angle + Math.PI*4/3);
+
+    // Text overlays in diagram
+    el.coreTempText.textContent = `堆芯温度: ${Math.round(state.T_core)} °C`;
+    el.secTempText.textContent = `二回路蒸汽温度: ${Math.round(state.T_sec)} °C`;
+
+    // Pills / status
+    const rpill = el.reactivityPill, tpill = el.tempPill, ppill = el.pressPill, sp = el.scramPill;
+    rpill.textContent = R_eff>0.02 ? '反应性 正常' : '反应性 很低';
+    rpill.className = 'pill ' + (R_eff>0.02 ? 'ok' : 'warn');
+
+    const tempState = state.T_core>800 ? 'alert' : state.T_core>600 ? 'warn' : 'ok';
+    tpill.textContent = '温度 ' + (tempState==='ok' ? '正常' : tempState==='warn' ? '偏高' : '过高');
+    tpill.className = 'pill ' + tempState;
+
+    const pressState = state.P_steam_bar>60 ? 'alert' : state.P_steam_bar>40 ? 'warn' : 'ok';
+    ppill.textContent = '压力 ' + (pressState==='ok' ? '正常' : pressState==='warn' ? '偏高' : '过高');
+    ppill.className = 'pill ' + pressState;
+
+    if(state.scram){
+      sp.textContent = '停堆 已触发';
+      sp.className = 'pill alert';
+    }else{
+      sp.textContent = '停堆 未触发';
+      sp.className = 'pill ok';
+    }
+  }
+
+  function setLineAngle(line, cx, cy, r, angle){
+    const x2 = cx + r*Math.cos(angle);
+    const y2 = cy + r*Math.sin(angle);
+    line.setAttribute('x1', String(cx));
+    line.setAttribute('y1', String(cy));
+    line.setAttribute('x2', String(x2));
+    line.setAttribute('y2', String(y2));
+  }
+
+  function fmtMW(v){
+    if(!isFinite(v)) return '-';
+    return Math.max(0, v).toFixed(0) + ' MW';
+  }
+
+  // Start loop
+  requestAnimationFrame(step);
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>CPU工作原理互动演示：取指-译码-执行</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #101317;
+      --panel: #171b22;
+      --text: #e6e6e6;
+      --muted: #a8b0bf;
+      --accent: #4cc9f0;
+      --accent2: #89ffdd;
+      --warn: #ffad5a;
+      --error: #ff6b6b;
+      --ok: #78e08f;
+      --read: #3ddc97;
+      --write: #ff7b7b;
+      --fetch: #4cc9f0;
+      --decode: #f5cd79;
+      --exec: #78e08f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    h1,h2,h3 { margin: 0 0 8px 0; font-weight: 700; }
+    h1 { font-size: 22px; }
+    h2 { font-size: 18px; color: var(--accent); }
+    p { margin: 6px 0; color: var(--muted); }
+    a { color: var(--accent2); }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      gap: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid #222836;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    }
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .controls > * { margin: 2px 0; }
+    button, select, input[type="number"], input[type="text"] {
+      background: #0f1319;
+      color: var(--text);
+      border: 1px solid #2a3140;
+      border-radius: 8px;
+      padding: 8px 10px;
+      outline: none;
+      font-size: 13px;
+    }
+    button {
+      cursor: pointer;
+      transition: transform .05s ease, background .1s ease;
+    }
+    button:hover { background: #0b0f14; }
+    button:active { transform: scale(0.98); }
+    button.primary { background: #122235; border-color: #214060; }
+    button.warning { background: #2b1f12; border-color: #6e4a1b; color: #ffcc8a; }
+    button.danger { background: #2b1414; border-color: #6b2b2b; color: #ffc6c6; }
+    .pill {
+      border-radius: 30px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .stage { background: #122235; border: 1px solid #214060; }
+    .stage.fetch { background: rgba(76,201,240,0.12); border-color: rgba(76,201,240,0.45); color: var(--fetch); }
+    .stage.decode { background: rgba(245,205,121,0.12); border-color: rgba(245,205,121,0.45); color: var(--decode); }
+    .stage.exec { background: rgba(120,224,143,0.12); border-color: rgba(120,224,143,0.45); color: var(--exec); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 6px;
+    }
+    .cell {
+      position: relative;
+      background: #0f1319;
+      border: 1px solid #2a3140;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 12px;
+      min-height: 46px;
+    }
+    .cell .addr {
+      position: absolute; top: 4px; left: 6px;
+      font-size: 10px; color: #6e768a;
+    }
+    .cell .val {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 13px; letter-spacing: 0.2px;
+    }
+    .cell.pc { box-shadow: inset 0 0 0 2px var(--accent); }
+    .cell.mar { box-shadow: inset 0 0 0 2px var(--warn); }
+    .cell.read { background: rgba(61,220,151,0.13); border-color: rgba(61,220,151,0.5); }
+    .cell.write { background: rgba(255,123,123,0.13); border-color: rgba(255,123,123,0.5); }
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted);
+    }
+    .legend .box {
+      width: 12px; height: 12px; border-radius: 2px; display: inline-block; margin-right: 6px;
+      vertical-align: -2px;
+    }
+    .box.pc { box-shadow: inset 0 0 0 2px var(--accent); background: transparent; }
+    .box.mar { box-shadow: inset 0 0 0 2px var(--warn); background: transparent; }
+    .box.read { background: rgba(61,220,151,0.4); }
+    .box.write { background: rgba(255,123,123,0.4); }
+    .regs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .reg {
+      background: #0f1319;
+      border: 1px solid #2a3140;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .reg .name { font-size: 12px; color: #a8b0bf; }
+    .reg .value {
+      font-size: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      margin-top: 4px;
+    }
+    .flags { display: flex; gap: 6px; margin-top: 4px; }
+    .flag {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid #2a3140;
+      background: #0f1319;
+      color: #8892a0;
+    }
+    .flag.on { border-color: #3ddc97; color: #3ddc97; background: rgba(61,220,151,0.12); }
+    .statusline {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12px; color: var(--muted);
+    }
+    .log {
+      background: #0f1319;
+      border: 1px solid #2a3140;
+      border-radius: 8px;
+      padding: 8px;
+      height: 160px;
+      overflow: auto;
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .log .op { margin: 2px 0; }
+    .log .t { color: #6e768a; margin-right: 6px; }
+    textarea {
+      width: 100%; min-height: 220px;
+      background: #0f1319;
+      color: var(--text);
+      border: 1px solid #2a3140;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+    .hint { font-size: 12px; color: var(--muted); }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 11px;
+      border: 1px solid #2a3140;
+      color: #9fb4ce;
+      background: #0f1319;
+    }
+    .footer { font-size: 12px; color: var(--muted); text-align: center; padding: 12px; }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: repeat(6, 1fr); }
+      .regs { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: repeat(4, 1fr); }
+      .regs { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div>
+        <h1>CPU工作原理互动演示：取指、译码、执行与寄存器/总线</h1>
+        <p>本示例模拟一个简单的8位CPU（非流水线）如何通过时钟驱动完成指令的取指、译码、执行。可逐步观察寄存器、内存、ALU运算与控制信号对应的“微操作”。</p>
+      </div>
+      <div class="pill stage" id="stagePill">阶段：等待</div>
+    </div>
+
+    <div class="card">
+      <h2>控制台</h2>
+      <div class="controls">
+        <select id="programSelect" title="示例程序">
+          <option value="add">示例1：加法，将A+B存入R</option>
+          <option value="branch">示例2：条件分支，X为0则OUT=1否则OUT=0</option>
+          <option value="loop">示例3：循环计数，ACC自减到0</option>
+        </select>
+        <button class="primary" id="loadExampleBtn">载入示例</button>
+        <button class="primary" id="assembleBtn">汇编并加载到内存</button>
+        <button id="resetBtn">复位</button>
+        <button id="stepBtn">单步微操作</button>
+        <button id="runPauseBtn">运行</button>
+        <label class="badge">速度
+          <input type="range" id="speedRange" min="0" max="1000" value="400" style="vertical-align: middle; width: 160px; margin-left: 6px;">
+        </label>
+        <label class="badge"><input type="checkbox" id="autoScrollLog" checked> 自动滚动日志</label>
+      </div>
+      <p class="hint">操作提示：点“单步微操作”可以一拍一拍地观察如“MAR←PC”“MDR←MEM[MAR]”“IR←MDR”“ACC←ACC+MDR”等；点“运行”以设定速度连续执行。</p>
+    </div>
+
+    <div class="card">
+      <h2>寄存器与ALU</h2>
+      <div class="regs">
+        <div class="reg"><div class="name">PC（程序计数器）</div><div class="value" id="regPC">0</div></div>
+        <div class="reg"><div class="name">IR（指令寄存器）</div><div class="value" id="regIR">0x00 NOP</div></div>
+        <div class="reg"><div class="name">OPERAND（操作数寄存器）</div><div class="value" id="regOP">—</div></div>
+        <div class="reg"><div class="name">ACC（累加器，ALU输入/输出）</div><div class="value" id="regACC">0</div></div>
+
+        <div class="reg"><div class="name">MAR（存储器地址寄存器）</div><div class="value" id="regMAR">—</div></div>
+        <div class="reg"><div class="name">MDR（存储器数据寄存器）</div><div class="value" id="regMDR">—</div></div>
+        <div class="reg"><div class="name">FLAGS（标志位）</div>
+          <div class="flags">
+            <div class="flag" id="flagZ">Z 零</div>
+            <div class="flag" id="flagN">N 负</div>
+            <div class="flag" id="flagC">C 进位</div>
+          </div>
+        </div>
+        <div class="reg"><div class="name">当前指令（人类可读）</div><div class="value" id="humanIR">—</div></div>
+      </div>
+      <div class="statusline">
+        <div>时钟步（微操作计数）：<span id="tickCount">0</span>；指令计数：<span id="instCount">0</span></div>
+        <div>CPU状态：<span id="cpuState">空闲</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>内存（64字节）</h2>
+      <div class="legend">
+        <span><span class="box pc"></span>PC位置</span>
+        <span><span class="box mar"></span>MAR位置</span>
+        <span><span class="box read"></span>最近读</span>
+        <span><span class="box write"></span>最近写</span>
+      </div>
+      <div class="grid" id="memoryGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>微操作日志</h2>
+      <div class="log" id="log"></div>
+      <div class="controls" style="margin-top: 6px;">
+        <button id="clearLogBtn">清空日志</button>
+        <span class="badge" id="stageBadge">阶段：—</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>汇编编辑器（简单指令集）</h2>
+      <p class="hint">支持指令：NOP, HLT, LDI #imm, LDA addr/label, STA addr/label, ADD addr/label, SUB addr/label, JMP addr/label, JZ addr/label, INC, DEC；支持标签"LAB:"与数据".BYTE 值"。每条带操作数的指令编码为2字节（指令+操作数）。</p>
+      <textarea id="asmEditor"></textarea>
+      <div class="controls" style="margin-top: 6px;">
+        <button class="primary" id="assembleBtn2">汇编并加载</button>
+        <button id="disasmBtn">反汇编内存</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>原理简述</h2>
+      <ul>
+        <li>时钟驱动：每一次“微操作”代表一个或多个时钟周期完成的基本数据通路动作（例如寄存器间传送、内存读写）。</li>
+        <li>取指（Fetch）：MAR←PC，MDR←MEM[MAR]，IR←MDR，PC←PC+1；若指令需要操作数，再取操作数字节到OPERAND。</li>
+        <li>译码（Decode）：控制单元解析IR，决定是否需要操作数以及随后执行的控制信号序列。</li>
+        <li>执行（Execute）：根据指令类型，驱动ALU与数据通路。例如LDA会从内存把数据送入ACC，ADD会用ALU完成ACC←ACC+MDR并更新标志位。</li>
+        <li>标志位：Z（结果为零）、N（最高位为1，视为负）、C（加法进位/减法借位）。分支指令JZ会依据Z决定是否修改PC。</li>
+      </ul>
+    </div>
+
+    <div class="footer">本演示旨在帮助直观理解CPU的工作流程与微操作，指令集与实现为教学用简化模型。</div>
+  </div>
+
+  <script>
+    // 简易8位CPU演示器
+    const MEM_SIZE = 64;
+    const OPCODES = {
+      NOP: 0x00,
+      LDI: 0x01,   // immediate
+      LDA: 0x02,   // addr
+      STA: 0x03,   // addr
+      ADD: 0x04,   // addr
+      SUB: 0x05,   // addr
+      JMP: 0x06,   // addr
+      JZ:  0x07,   // addr
+      INC: 0x08,   // none
+      DEC: 0x09,   // none
+      HLT: 0xFF
+    };
+    const MNEMONIC = Object.fromEntries(Object.entries(OPCODES).map(([k,v]) => [v,k]));
+    const HAS_OPERAND = new Set([OPCODES.LDI, OPCODES.LDA, OPCODES.STA, OPCODES.ADD, OPCODES.SUB, OPCODES.JMP, OPCODES.JZ]);
+    const NO_OPERAND = new Set([OPCODES.NOP, OPCODES.INC, OPCODES.DEC, OPCODES.HLT]);
+
+    const state = {
+      memory: new Uint8Array(MEM_SIZE),
+      PC: 0, IR: null, OPERAND: null,
+      ACC: 0, MAR: null, MDR: null,
+      Z: false, N: false, C: false,
+      tick: 0, inst: 0, running: false, halted: false,
+      stage: '等待', // Fetch / Decode / Execute
+      microQueue: [],
+      lastRead: null,
+      lastWrite: null,
+      intervalId: null,
+    };
+
+    // UI Elements
+    const grid = document.getElementById('memoryGrid');
+    const regPC = document.getElementById('regPC');
+    const regIR = document.getElementById('regIR');
+    const regOP = document.getElementById('regOP');
+    const regACC = document.getElementById('regACC');
+    const regMAR = document.getElementById('regMAR');
+    const regMDR = document.getElementById('regMDR');
+    const flagZ = document.getElementById('flagZ');
+    const flagN = document.getElementById('flagN');
+    const flagC = document.getElementById('flagC');
+    const humanIR = document.getElementById('humanIR');
+    const tickCount = document.getElementById('tickCount');
+    const instCount = document.getElementById('instCount');
+    const cpuState = document.getElementById('cpuState');
+    const logEl = document.getElementById('log');
+    const stagePill = document.getElementById('stagePill');
+    const stageBadge = document.getElementById('stageBadge');
+
+    const programSelect = document.getElementById('programSelect');
+    const asmEditor = document.getElementById('asmEditor');
+    const speedRange = document.getElementById('speedRange');
+    const autoScrollLog = document.getElementById('autoScrollLog');
+    const loadExampleBtn = document.getElementById('loadExampleBtn');
+    const assembleBtn = document.getElementById('assembleBtn');
+    const assembleBtn2 = document.getElementById('assembleBtn2');
+    const resetBtn = document.getElementById('resetBtn');
+    const stepBtn = document.getElementById('stepBtn');
+    const runPauseBtn = document.getElementById('runPauseBtn');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    const disasmBtn = document.getElementById('disasmBtn');
+
+    // Build memory grid
+    function buildGrid() {
+      grid.innerHTML = '';
+      for (let i = 0; i < MEM_SIZE; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.addr = i;
+        const addr = document.createElement('div');
+        addr.className = 'addr';
+        addr.textContent = `@${i}`;
+        const val = document.createElement('div');
+        val.className = 'val';
+        val.textContent = '0';
+        cell.appendChild(addr);
+        cell.appendChild(val);
+        grid.appendChild(cell);
+      }
+    }
+    buildGrid();
+
+    function clamp8(x) {
+      return ((x % 256) + 256) % 256;
+    }
+
+    function updateFlagsFromValue(v, carry=null) {
+      state.Z = (v & 0xFF) === 0;
+      state.N = ((v & 0x80) !== 0);
+      if (carry !== null) state.C = !!carry;
+    }
+
+    function render() {
+      // Registers
+      regPC.textContent = state.PC;
+      const irName = state.IR == null ? '—' : `${toHex(state.IR)} ${MNEMONIC[state.IR] ?? '???'}`;
+      regIR.textContent = irName;
+      regOP.textContent = state.OPERAND == null ? '—' : `${state.OPERAND} (${toHex(state.OPERAND)})`;
+      regACC.textContent = `${state.ACC} (${toHex(state.ACC)})`;
+      regMAR.textContent = state.MAR == null ? '—' : state.MAR;
+      regMDR.textContent = state.MDR == null ? '—' : `${state.MDR} (${toHex(state.MDR)})`;
+
+      flagZ.classList.toggle('on', state.Z);
+      flagN.classList.toggle('on', state.N);
+      flagC.classList.toggle('on', state.C);
+
+      humanIR.textContent = decodeHumanInstruction(state.IR, state.OPERAND);
+
+      tickCount.textContent = state.tick;
+      instCount.textContent = state.inst;
+      cpuState.textContent = state.halted ? '已停止(HLT)' : (state.running ? '运行中' : '就绪');
+      stageBadge.textContent = `阶段：${state.stage}`;
+      stagePill.textContent = `阶段：${state.stage}`;
+      stagePill.className = `pill stage ${stageClass(state.stage)}`;
+
+      // Memory grid
+      for (const cell of grid.children) {
+        const addr = +cell.dataset.addr;
+        const valNode = cell.querySelector('.val');
+        valNode.textContent = `${state.memory[addr]} (${toHex(state.memory[addr])})`;
+        cell.classList.remove('pc','mar','read','write');
+        if (addr === state.PC) cell.classList.add('pc');
+        if (addr === state.MAR) cell.classList.add('mar');
+        if (addr === state.lastRead) cell.classList.add('read');
+        if (addr === state.lastWrite) cell.classList.add('write');
+      }
+    }
+
+    function toHex(n) {
+      if (n == null) return '—';
+      return '0x' + clamp8(n).toString(16).toUpperCase().padStart(2,'0');
+    }
+
+    function stageClass(stage) {
+      if (stage.startsWith('取指')) return 'fetch';
+      if (stage.startsWith('译码')) return 'decode';
+      if (stage.startsWith('执行')) return 'exec';
+      return '';
+    }
+
+    function log(text) {
+      const line = document.createElement('div');
+      line.className = 'op';
+      const tspan = document.createElement('span');
+      tspan.className = 't';
+      tspan.textContent = `[T${String(state.tick).padStart(4,'0')}] `;
+      line.appendChild(tspan);
+      line.appendChild(document.createTextNode(text));
+      logEl.appendChild(line);
+      if (autoScrollLog.checked) {
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    function resetCPU(keepMemory=false) {
+      if (!keepMemory) state.memory.fill(0);
+      state.PC = 0;
+      state.IR = null;
+      state.OPERAND = null;
+      state.ACC = 0;
+      state.MAR = null;
+      state.MDR = null;
+      state.Z = false; state.N = false; state.C = false;
+      state.tick = 0; state.inst = 0;
+      state.running = false; state.halted = false;
+      state.stage = '等待';
+      state.microQueue = [];
+      state.lastRead = null;
+      state.lastWrite = null;
+      stopRun();
+      render();
+      log('复位完成。');
+    }
+
+    function stopRun() {
+      state.running = false;
+      if (state.intervalId) {
+        clearInterval(state.intervalId);
+        state.intervalId = null;
+      }
+      runPauseBtn.textContent = '运行';
+      render();
+    }
+
+    function startRun() {
+      if (state.halted) return;
+      state.running = true;
+      runPauseBtn.textContent = '暂停';
+      const delay = Math.max(10, +speedRange.value);
+      state.intervalId = setInterval(() => {
+        if (state.halted) {
+          stopRun();
+          return;
+        }
+        stepMicro();
+      }, delay);
+    }
+
+    function stepMicro() {
+      // If no micro-steps queued, schedule next instruction fetch sequence
+      if (state.microQueue.length === 0) {
+        queueFetchSequence();
+      }
+      const step = state.microQueue.shift();
+      if (!step) return; // nothing
+      state.tick++;
+      // Execute micro-op function
+      try {
+        step.fn();
+        state.stage = step.stage;
+        if (step.desc) log(step.desc);
+      } catch (e) {
+        log('错误：' + e.message);
+        state.halted = true;
+        stopRun();
+      }
+      render();
+
+      // If after executing microQueue becomes empty and instruction fully executed, bump inst count
+      if (state.microQueue.length === 0 && step.isLast) {
+        state.inst++;
+      }
+    }
+
+    function queueFetchSequence() {
+      if (state.halted) return;
+      // Fetch opcode
+      const steps = [];
+      steps.push({
+        stage: '取指：读指令',
+        desc: 'MAR ← PC',
+        fn: () => { state.MAR = state.PC; },
+        isLast: false
+      });
+      steps.push({
+        stage: '取指：读指令',
+        desc: 'MDR ← MEM[MAR]',
+        fn: () => {
+          checkAddress(state.MAR);
+          state.MDR = state.memory[state.MAR];
+          state.lastRead = state.MAR;
+        },
+        isLast: false
+      });
+      steps.push({
+        stage: '取指：读指令',
+        desc: 'IR ← MDR；PC ← PC + 1',
+        fn: () => {
+          state.IR = state.MDR;
+          state.PC = incPC(state.PC);
+          state.MDR = null;
+        },
+        isLast: false
+      });
+
+      // Decode and optional operand fetch
+      steps.push({
+        stage: '译码：检查是否需要操作数',
+        desc: `译码 ${MNEMONIC[state.IR] ?? '???'} 指令`,
+        fn: () => {},
+        isLast: false
+      });
+
+      if (HAS_OPERAND.has(state.IR)) {
+        steps.push({
+          stage: '取指：读操作数',
+          desc: 'MAR ← PC',
+          fn: () => { state.MAR = state.PC; },
+          isLast: false
+        });
+        steps.push({
+          stage: '取指：读操作数',
+          desc: 'MDR ← MEM[MAR]',
+          fn: () => {
+            checkAddress(state.MAR);
+            state.MDR = state.memory[state.MAR];
+            state.lastRead = state.MAR;
+          },
+          isLast: false
+        });
+        steps.push({
+          stage: '取指：读操作数',
+          desc: 'OPERAND ← MDR；PC ← PC + 1',
+          fn: () => {
+            state.OPERAND = state.MDR;
+            state.PC = incPC(state.PC);
+            state.MDR = null;
+          },
+          isLast: false
+        });
+      } else {
+        steps.push({
+          stage: '译码：无操作数',
+          desc: '该指令无需操作数',
+          fn: () => {},
+          isLast: false
+        });
+      }
+
+      // Execute sequence based on opcode
+      const execSteps = buildExecSteps(state.IR, state.OPERAND);
+      steps.push(...execSteps);
+      // Mark the last step as isLast to count inst++
+      if (steps.length > 0) {
+        steps[steps.length - 1].isLast = true;
+      }
+      state.microQueue.push(...steps);
+    }
+
+    function buildExecSteps(op, operand) {
+      const s = [];
+      const setStage = (desc, fn) => ({ stage: '执行：执行指令', desc, fn, isLast: false });
+
+      if (op === OPCODES.NOP) {
+        s.push(setStage('NOP（不执行操作）', () => {}));
+      }
+      else if (op === OPCODES.HLT) {
+        s.push(setStage('HLT（停止）', () => { state.halted = true; }));
+      }
+      else if (op === OPCODES.LDI) {
+        s.push(setStage(`ACC ← #${operand}`, () => {
+          state.ACC = clamp8(operand);
+          updateFlagsFromValue(state.ACC);
+        }));
+      }
+      else if (op === OPCODES.LDA) {
+        s.push(setStage('MAR ← OPERAND', () => { state.MAR = operand; }));
+        s.push(setStage('MDR ← MEM[MAR]', () => {
+          checkAddress(state.MAR);
+          state.MDR = state.memory[state.MAR];
+          state.lastRead = state.MAR;
+        }));
+        s.push(setStage('ACC ← MDR', () => {
+          state.ACC = clamp8(state.MDR);
+          state.MDR = null;
+          updateFlagsFromValue(state.ACC);
+        }));
+      }
+      else if (op === OPCODES.STA) {
+        s.push(setStage('MAR ← OPERAND', () => { state.MAR = operand; }));
+        s.push(setStage('MDR ← ACC', () => { state.MDR = state.ACC; }));
+        s.push(setStage('MEM[MAR] ← MDR', () => {
+          checkAddress(state.MAR);
+          state.memory[state.MAR] = clamp8(state.MDR);
+          state.lastWrite = state.MAR;
+          state.MDR = null;
+        }));
+      }
+      else if (op === OPCODES.ADD) {
+        s.push(setStage('MAR ← OPERAND', () => { state.MAR = operand; }));
+        s.push(setStage('MDR ← MEM[MAR]', () => {
+          checkAddress(state.MAR);
+          state.MDR = state.memory[state.MAR];
+          state.lastRead = state.MAR;
+        }));
+        s.push(setStage('ACC ← ACC + MDR（ALU加法）', () => {
+          const sum = state.ACC + state.MDR;
+          state.C = sum > 0xFF;
+          state.ACC = clamp8(sum);
+          state.MDR = null;
+          updateFlagsFromValue(state.ACC, state.C);
+        }));
+      }
+      else if (op === OPCODES.SUB) {
+        s.push(setStage('MAR ← OPERAND', () => { state.MAR = operand; }));
+        s.push(setStage('MDR ← MEM[MAR]', () => {
+          checkAddress(state.MAR);
+          state.MDR = state.memory[state.MAR];
+          state.lastRead = state.MAR;
+        }));
+        s.push(setStage('ACC ← ACC - MDR（ALU减法）', () => {
+          const diff = state.ACC - state.MDR;
+          state.C = diff < 0; // 借位
+          state.ACC = clamp8(diff);
+          state.MDR = null;
+          updateFlagsFromValue(state.ACC, state.C);
+        }));
+      }
+      else if (op === OPCODES.JMP) {
+        s.push(setStage(`PC ← ${operand}`, () => {
+          checkAddress(operand);
+          state.PC = operand;
+        }));
+      }
+      else if (op === OPCODES.JZ) {
+        s.push(setStage(`若Z=1则PC ← ${operand}`, () => {
+          if (state.Z) {
+            checkAddress(operand);
+            state.PC = operand;
+          }
+        }));
+      }
+      else if (op === OPCODES.INC) {
+        s.push(setStage('ACC ← ACC + 1', () => {
+          const sum = state.ACC + 1;
+          state.C = sum > 0xFF;
+          state.ACC = clamp8(sum);
+          updateFlagsFromValue(state.ACC, state.C);
+        }));
+      }
+      else if (op === OPCODES.DEC) {
+        s.push(setStage('ACC ← ACC - 1', () => {
+          const diff = state.ACC - 1;
+          state.C = diff < 0;
+          state.ACC = clamp8(diff);
+          updateFlagsFromValue(state.ACC, state.C);
+        }));
+      }
+      else {
+        s.push(setStage(`未识别指令 ${toHex(op)}，HLT`, () => { state.halted = true; }));
+      }
+      return s;
+    }
+
+    function decodeHumanInstruction(ir, operand) {
+      if (ir == null) return '—';
+      const name = MNEMONIC[ir] ?? '???';
+      if (NO_OPERAND.has(ir)) return name;
+      if (HAS_OPERAND.has(ir)) {
+        if (ir === OPCODES.LDI) return `LDI #${operand}`;
+        return `${name} ${operand}`;
+      }
+      return name;
+    }
+
+    function incPC(pc) {
+      const next = pc + 1;
+      if (next >= MEM_SIZE) return 0; // 环回
+      return next;
+    }
+
+    function checkAddress(addr) {
+      if (addr < 0 || addr >= MEM_SIZE) {
+        throw new Error(`地址越界：${addr}`);
+      }
+    }
+
+    // Assembler
+    function assemble(source) {
+      const lines = source.split('\n').map(l => l.replace(/\s*;.*$/, '').trim()).filter(l => l.length > 0);
+      const items = []; // {type:'inst'|'data', addr, op, operandSym}
+      const labels = new Map();
+      let addr = 0;
+
+      function putLabel(name) {
+        if (labels.has(name)) throw new Error(`重复标签：${name}`);
+        labels.set(name, addr);
+      }
+
+      // Pass 1: collect labels and sizes
+      for (let raw of lines) {
+        let line = raw;
+        // label
+        if (/^[A-Za-z_]\w*:$/.test(line)) {
+          const lab = line.slice(0, -1);
+          putLabel(lab);
+          continue;
+        }
+        // data
+        if (/^\.(BYTE|byte)\b/.test(line)) {
+          const m = line.match(/^\.(BYTE|byte)\s+(.+)$/);
+          if (!m) throw new Error(`数据格式错误：${line}`);
+          const value = parseValue(m[2]);
+          items.push({ type: 'data', addr, value });
+          addr += 1;
+          continue;
+        }
+        // instruction
+        const tokens = line.split(/\s+/);
+        const mnemonic = tokens[0].toUpperCase();
+        if (!(mnemonic in OPCODES)) throw new Error(`未知指令：${mnemonic}`);
+        const opcode = OPCODES[mnemonic];
+        let operandSym = null;
+        if (HAS_OPERAND.has(opcode)) {
+          if (tokens.length < 2) throw new Error(`指令缺少操作数：${line}`);
+          operandSym = tokens.slice(1).join(' ').trim();
+        }
+        items.push({ type: 'inst', addr, opcode, operandSym, line });
+        addr += 1;
+        if (HAS_OPERAND.has(opcode)) addr += 1; // operand occupies one extra byte
+      }
+
+      // Pass 2: generate bytes into memory
+      const mem = new Uint8Array(MEM_SIZE);
+      mem.fill(0);
+      for (const it of items) {
+        if (it.type === 'data') {
+          mem[it.addr] = clamp8(it.value);
+        } else if (it.type === 'inst') {
+          mem[it.addr] = it.opcode;
+          if (HAS_OPERAND.has(it.opcode)) {
+            const operandAddr = it.addr + 1;
+            const operandVal = resolveOperand(it.operandSym, labels, it.opcode);
+            mem[operandAddr] = clamp8(operandVal);
+          }
+        }
+      }
+      return mem;
+    }
+
+    function parseValue(text) {
+      const t = text.trim();
+      if (/^#/.test(t)) {
+        return parseValue(t.slice(1));
+      }
+      if (/^0x[0-9a-f]+$/i.test(t)) {
+        return parseInt(t, 16);
+      }
+      if (/^\d+$/.test(t)) {
+        return parseInt(t, 10);
+      }
+      throw new Error(`无法解析数值：${text}`);
+    }
+
+    function resolveOperand(sym, labels, opcode) {
+      const t = sym.trim();
+      if (opcode === OPCODES.LDI) {
+        // immediate
+        return parseValue(t);
+      } else {
+        if (/^\d+$/.test(t) || /^0x[0-9a-f]+$/i.test(t)) {
+          return parseValue(t);
+        }
+        if (labels.has(t)) {
+          const addr = labels.get(t);
+          if (addr >= MEM_SIZE) throw new Error(`标签地址超出内存：${t} @${addr}`);
+          return addr;
+        }
+        throw new Error(`未定义标签或地址：${t}`);
+      }
+    }
+
+    function disassemble(memory) {
+      let pc = 0;
+      let out = [];
+      while (pc < MEM_SIZE) {
+        const op = memory[pc];
+        const name = MNEMONIC[op] ?? 'DB';
+        if (op in MNEMONIC) {
+          if (NO_OPERAND.has(op)) {
+            out.push(`${String(pc).padStart(2,'0')}: ${name}`);
+            pc += 1;
+          } else if (HAS_OPERAND.has(op)) {
+            const operand = memory[pc+1];
+            if (op === OPCODES.LDI) {
+              out.push(`${String(pc).padStart(2,'0')}: LDI #${operand}`);
+            } else {
+              out.push(`${String(pc).padStart(2,'0')}: ${name} ${operand}`);
+            }
+            pc += 2;
+          } else {
+            out.push(`${String(pc).padStart(2,'0')}: ${toHex(op)}`);
+            pc += 1;
+          }
+        } else {
+          out.push(`${String(pc).padStart(2,'0')}: .BYTE ${memory[pc]}`);
+          pc += 1;
+        }
+      }
+      return out.join('\n');
+    }
+
+    // Examples
+    const examples = {
+      add:
+`START:
+  LDA A
+  ADD B
+  STA R
+  HLT
+
+A: .BYTE 5
+B: .BYTE 7
+R: .BYTE 0`,
+      branch:
+`START:
+  LDA X
+  JZ ISZERO
+  LDI #0
+  STA OUT
+  JMP END
+
+ISZERO:
+  LDI #1
+  STA OUT
+
+END:
+  HLT
+
+X: .BYTE 0
+OUT: .BYTE 0`,
+      loop:
+`START:
+  LDI #5
+LOOP:
+  DEC
+  JZ END
+  JMP LOOP
+END:
+  STA OUT
+  HLT
+
+OUT: .BYTE 0`
+    };
+
+    function loadExample(name) {
+      asmEditor.value = examples[name] || examples.add;
+      log(`已载入示例程序：${name}`);
+    }
+
+    function loadMemory(mem) {
+      state.memory.set(mem.subarray(0, MEM_SIZE));
+      state.PC = 0;
+      state.IR = null;
+      state.OPERAND = null;
+      state.ACC = 0;
+      state.MAR = null;
+      state.MDR = null;
+      state.Z = false; state.N = false; state.C = false;
+      state.tick = 0; state.inst = 0;
+      state.halted = false;
+      state.microQueue = [];
+      state.stage = '等待';
+      state.lastRead = null;
+      state.lastWrite = null;
+      stopRun();
+      render();
+      log('程序已加载到内存。PC=0。');
+    }
+
+    // Events
+    loadExampleBtn.addEventListener('click', () => {
+      loadExample(programSelect.value);
+    });
+
+    assembleBtn.addEventListener('click', () => {
+      try {
+        const mem = assemble(asmEditor.value);
+        loadMemory(mem);
+      } catch (e) {
+        alert('汇编失败：' + e.message);
+        log('汇编失败：' + e.message);
+      }
+    });
+    assembleBtn2.addEventListener('click', () => assembleBtn.click());
+
+    resetBtn.addEventListener('click', () => resetCPU(true));
+    stepBtn.addEventListener('click', () => {
+      if (state.halted) { log('CPU已停止(HLT)。'); return; }
+      stepMicro();
+    });
+    runPauseBtn.addEventListener('click', () => {
+      if (state.running) stopRun(); else startRun();
+    });
+    speedRange.addEventListener('input', () => {
+      if (state.running) {
+        stopRun(); startRun();
+      }
+    });
+    clearLogBtn.addEventListener('click', () => { logEl.innerHTML = ''; });
+    disasmBtn.addEventListener('click', () => {
+      asmEditor.value = disassemble(state.memory);
+      log('已反汇编当前内存到编辑器。');
+    });
+
+    // Initialize
+    (function init() {
+      loadExample('add');
+      try {
+        const mem = assemble(asmEditor.value);
+        loadMemory(mem);
+      } catch (e) {
+        log('初始化汇编失败：' + e.message);
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>
