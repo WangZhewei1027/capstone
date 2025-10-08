@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kruskal’s Algorithm Visualizer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --text: #e5e7eb;
+    --accent: #38bdf8;
+    --muted: #9ca3af;
+    --edge: #6b7280;
+    --current: #f59e0b;
+    --accept: #22c55e;
+    --reject: #ef4444;
+    --node: #3b82f6;
+  }
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "header header"
+      "sidebar canvas"
+      "footer canvas";
+    height: 100%;
+  }
+  header {
+    grid-area: header;
+    padding: 14px 16px;
+    border-bottom: 1px solid #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 {
+    font-size: 20px;
+    margin: 0;
+  }
+  header .sub {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .sidebar {
+    grid-area: sidebar;
+    padding: 12px;
+    border-right: 1px solid #1f2937;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: auto;
+  }
+  .canvas-wrap {
+    grid-area: canvas;
+    position: relative;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    background: #0b1220;
+  }
+  .svgwrap {
+    position: relative;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(1200px circle at 20% 30%, #0b1220 0, #0b1220 60%, #0a0f1a 100%);
+  }
+  .legend {
+    display: flex;
+    gap: 16px;
+    padding: 8px 10px;
+    border-top: 1px solid #1f2937;
+    background: rgba(17, 24, 39, 0.7);
+    font-size: 13px;
+  }
+  .legend .key {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot {
+    width: 12px; height: 2px; border-radius: 1px;
+    background: var(--edge);
+    display: inline-block;
+  }
+  .dot.current { background: var(--current); }
+  .dot.accept { background: var(--accept); }
+  .dot.reject { background: var(--reject); }
+  .dot.node { width: 10px; height: 10px; border-radius: 50%; background: var(--node); }
+  .panel {
+    background: #0b1220;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .panel h3 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: var(--accent);
+  }
+  .controls {
+    display: grid;
+    gap: 10px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  label {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  input[type="range"] { width: 100%; }
+  input[type="number"] {
+    width: 76px;
+    background: #0b1220;
+    border: 1px solid #1f2937;
+    color: var(--text);
+    padding: 6px 8px;
+    border-radius: 6px;
+  }
+  select, button {
+    background: #0b1220;
+    border: 1px solid #1f2937;
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button.primary {
+    background: #0e7490;
+    border-color: #0ea5a6;
+  }
+  button:disabled {
+    opacity: 0.5; cursor: not-allowed;
+  }
+  .btnrow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .status {
+    background: #0b1220;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 13px;
+  }
+  .status .line { margin-top: 6px; }
+  .code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: #cbd5e1;
+  }
+  .edge-list {
+    max-height: 240px;
+    overflow: auto;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 6px;
+    background: #0b1220;
+  }
+  .edge-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .edge-item:hover { background: rgba(56, 189, 248, 0.08); }
+  .edge-item.current { outline: 1px dashed var(--current); }
+  .edge-item.accepted { background: rgba(34, 197, 94, 0.1); }
+  .edge-item.rejected { background: rgba(239, 68, 68, 0.1); }
+  .sets {
+    background: #0b1220;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 13px;
+  }
+  .sets .group {
+    display: inline-block;
+    padding: 4px 6px;
+    border-radius: 6px;
+    margin: 2px 4px 2px 0;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid #1f2937;
+  }
+  /* SVG styles */
+  .edge-line {
+    stroke: var(--edge);
+    stroke-width: 2px;
+    opacity: 0.8;
+    transition: stroke 120ms ease, opacity 120ms ease;
+  }
+  .edge-line.current { stroke: var(--current); opacity: 1; }
+  .edge-line.accepted { stroke: var(--accept); opacity: 1; stroke-width: 3px; }
+  .edge-line.rejected { stroke: var(--reject); opacity: 0.9; stroke-dasharray: 4 4; }
+  .edge-weight {
+    font-size: 11px;
+    fill: #cbd5e1;
+    pointer-events: none;
+    text-shadow: 0 0 6px rgba(0,0,0,0.8);
+  }
+  .edge-weight.accepted { fill: var(--accept); }
+  .edge-weight.rejected { fill: var(--reject); }
+  .node-circle {
+    fill: var(--node);
+    stroke: #1f2937;
+    stroke-width: 1px;
+  }
+  .node-label {
+    font-size: 12px;
+    fill: white;
+    font-weight: 600;
+    pointer-events: none;
+  }
+  footer {
+    grid-area: footer;
+    border-top: 1px solid #1f2937;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .link {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--accent);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Kruskal’s Algorithm</h1>
+    <span class="sub">Minimum Spanning Tree via greedy edge selection with Union-Find</span>
+  </header>
+
+  <div class="sidebar">
+    <div class="panel">
+      <h3>Graph Settings</h3>
+      <div class="controls">
+        <div class="row">
+          <label for="nodeCount">Nodes</label>
+          <input id="nodeCount" type="number" min="3" max="40" value="12">
+        </div>
+        <div class="row">
+          <label for="density">Extra edge density: <span id="densityVal">0.30</span></label>
+          <input id="density" type="range" min="0" max="1" step="0.05" value="0.30">
+        </div>
+        <div class="row">
+          <label for="weightMode">Edge weight</label>
+          <select id="weightMode">
+            <option value="distance">Euclidean distance</option>
+            <option value="random">Random integers</option>
+          </select>
+        </div>
+        <div class="btnrow">
+          <button id="newGraph" class="primary">New Graph</button>
+          <button id="resetAlgo">Reset</button>
+          <button id="stepBack">Back</button>
+          <button id="stepForward">Step</button>
+        </div>
+        <div class="row">
+          <label for="speed">Auto-play speed: <span id="speedVal">800ms</span></label>
+          <input id="speed" type="range" min="200" max="2000" step="100" value="800">
+        </div>
+        <button id="playPause">Play</button>
+      </div>
+    </div>
+
+    <div class="status">
+      <div><strong>Status:</strong> <span id="statusText">Ready</span></div>
+      <div class="line"><strong>Step:</strong> <span id="stepCount">0</span> / <span id="totalSteps">0</span></div>
+      <div class="line"><strong>Current edge:</strong> <span id="currentEdgeText">-</span></div>
+      <div class="line"><strong>MST weight:</strong> <span id="mstWeight">0</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>Sorted edges (ascending weight)</h3>
+      <div id="edgeList" class="edge-list"></div>
+    </div>
+
+    <div class="sets">
+      <div><strong>Union-Find (Disjoint Sets):</strong></div>
+      <div id="setDisplay"></div>
+      <div style="margin-top:8px; color: var(--muted);">
+        Kruskal sorts edges by weight, then adds the next lightest edge that does not form a cycle (i.e., it connects two different components). Union-Find efficiently checks and merges components.
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <div class="svgwrap">
+      <svg id="svg" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+      </svg>
+    </div>
+    <div class="legend">
+      <div class="key"><span class="dot node"></span> Node</div>
+      <div class="key"><span class="dot"></span> Unprocessed edge</div>
+      <div class="key"><span class="dot current"></span> Current edge</div>
+      <div class="key"><span class="dot accept"></span> Accepted edge</div>
+      <div class="key"><span class="dot reject"></span> Rejected edge</div>
+    </div>
+  </div>
+
+  <footer>
+    Tip: Generate a new graph, then click Step to watch Kruskal pick the next valid lightest edge. Play auto-steps until the MST is complete (n−1 edges).
+  </footer>
+</div>
+
+<script>
+(function() {
+  // Utility
+  const rand = (min, max) => Math.random() * (max - min) + min;
+  const randInt = (min, max) => Math.floor(rand(min, max + 1));
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+  // DSU (Union-Find)
+  class DSU {
+    constructor(n) {
+      this.parent = Array.from({length: n}, (_, i) => i);
+      this.rank = Array(n).fill(0);
+    }
+    find(x) {
+      let p = this.parent[x];
+      if (p !== x) this.parent[x] = this.find(p);
+      return this.parent[x];
+    }
+    union(a, b) {
+      let ra = this.find(a), rb = this.find(b);
+      if (ra === rb) return false;
+      if (this.rank[ra] < this.rank[rb]) {
+        this.parent[ra] = rb;
+      } else if (this.rank[ra] > this.rank[rb]) {
+        this.parent[rb] = ra;
+      } else {
+        this.parent[rb] = ra;
+        this.rank[ra]++;
+      }
+      return true;
+    }
+  }
+
+  // DOM elements
+  const svg = document.getElementById('svg');
+  const nodeCountInput = document.getElementById('nodeCount');
+  const densityInput = document.getElementById('density');
+  const densityVal = document.getElementById('densityVal');
+  const weightModeSel = document.getElementById('weightMode');
+  const newGraphBtn = document.getElementById('newGraph');
+  const resetBtn = document.getElementById('resetAlgo');
+  const stepFwdBtn = document.getElementById('stepForward');
+  const stepBackBtn = document.getElementById('stepBack');
+  const playPauseBtn = document.getElementById('playPause');
+  const speedInput = document.getElementById('speed');
+  const speedVal = document.getElementById('speedVal');
+
+  const statusText = document.getElementById('statusText');
+  const stepCount = document.getElementById('stepCount');
+  const totalSteps = document.getElementById('totalSteps');
+  const currentEdgeText = document.getElementById('currentEdgeText');
+  const mstWeightEl = document.getElementById('mstWeight');
+  const edgeList = document.getElementById('edgeList');
+  const setDisplay = document.getElementById('setDisplay');
+
+  // State
+  let nodes = [];
+  let edges = [];
+  let edgesSorted = [];
+  let dsu = null;
+  let currentIndex = 0;
+  let mstWeight = 0;
+  let autoplayTimer = null;
+  let isPlaying = false;
+
+  // Drawing groups
+  let gEdges, gLabels, gNodes;
+
+  function initSVG() {
+    // Clear
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    svg.appendChild(defs);
+    gEdges  = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    gEdges.setAttribute('id', 'edges');
+    gLabels = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    gLabels.setAttribute('id', 'labels');
+    gNodes  = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    gNodes.setAttribute('id', 'nodes');
+
+    svg.appendChild(gEdges);
+    svg.appendChild(gLabels);
+    svg.appendChild(gNodes);
+  }
+
+  function resizeSVG() {
+    // Fit SVG to container
+    const rect = svg.getBoundingClientRect();
+    svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+  }
+
+  window.addEventListener('resize', () => {
+    resizeSVG();
+    repositionAll();
+  });
+
+  function repositionAll() {
+    for (const edge of edges) {
+      const u = nodes[edge.u], v = nodes[edge.v];
+      edge.line.setAttribute('x1', u.x);
+      edge.line.setAttribute('y1', u.y);
+      edge.line.setAttribute('x2', v.x);
+      edge.line.setAttribute('y2', v.y);
+      const mx = (u.x + v.x) / 2;
+      const my = (u.y + v.y) / 2;
+      edge.label.setAttribute('x', mx);
+      edge.label.setAttribute('y', my);
+    }
+    for (const node of nodes) {
+      node.circle.setAttribute('cx', node.x);
+      node.circle.setAttribute('cy', node.y);
+      node.text.setAttribute('x', node.x);
+      node.text.setAttribute('y', node.y + 4);
+    }
+  }
+
+  // Graph generation: ensure connected by building a random tree, then add random extra edges
+  function generateGraph(n, density, weightMode) {
+    initSVG();
+    resizeSVG();
+    const rect = svg.getBoundingClientRect();
+    const pad = 30;
+
+    // Nodes
+    nodes = [];
+    for (let i = 0; i < n; i++) {
+      nodes.push({
+        id: i,
+        x: rand(pad, rect.width - pad),
+        y: rand(pad, rect.height - pad),
+        circle: null,
+        text: null
+      });
+    }
+
+    // Create at least a spanning tree (connectivity)
+    const baseEdgesSet = new Set();
+    const baseEdges = [];
+    for (let i = 1; i < n; i++) {
+      // connect i to a random previous node
+      const j = randInt(0, i - 1);
+      const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+      if (!baseEdgesSet.has(key)) {
+        baseEdgesSet.add(key);
+        baseEdges.push([i, j]);
+      }
+    }
+
+    // Extra edges with probability density
+    const extraEdges = [];
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const key = `${i}-${j}`;
+        if (baseEdgesSet.has(key)) continue;
+        if (Math.random() < density) {
+          extraEdges.push([i, j]);
+        }
+      }
+    }
+
+    const allPairs = baseEdges.concat(extraEdges);
+
+    // Compute weights
+    edges = [];
+    let eid = 0;
+    for (const [uIdx, vIdx] of allPairs) {
+      const u = nodes[uIdx], v = nodes[vIdx];
+      let w;
+      if (weightMode === 'distance') {
+        w = Math.round(Math.hypot(u.x - v.x, u.y - v.y));
+      } else {
+        w = randInt(1, 99);
+      }
+      edges.push({
+        id: eid++,
+        u: uIdx,
+        v: vIdx,
+        w,
+        line: null,
+        label: null,
+        item: null,
+        state: 'none' // 'none' | 'accepted' | 'rejected'
+      });
+    }
+
+    drawGraph();
+    prepareAlgorithm();
+  }
+
+  function drawGraph() {
+    // Draw edges and weight labels first
+    for (const edge of edges) {
+      const u = nodes[edge.u], v = nodes[edge.v];
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.classList.add('edge-line');
+      line.setAttribute('x1', u.x);
+      line.setAttribute('y1', u.y);
+      line.setAttribute('x2', v.x);
+      line.setAttribute('y2', v.y);
+      line.dataset.eid = edge.id;
+      gEdges.appendChild(line);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.classList.add('edge-weight');
+      label.setAttribute('x', (u.x + v.x) / 2);
+      label.setAttribute('y', (u.y + v.y) / 2);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('alignment-baseline', 'middle');
+      label.textContent = edge.w;
+      gLabels.appendChild(label);
+
+      edge.line = line;
+      edge.label = label;
+
+      line.addEventListener('mouseenter', () => {
+        if (edge.state === 'none') line.classList.add('current');
+      });
+      line.addEventListener('mouseleave', () => {
+        if (edge.state === 'none') line.classList.remove('current');
+      });
+    }
+
+    // Draw nodes
+    for (const node of nodes) {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.classList.add('node-circle');
+      circle.setAttribute('r', 10);
+      circle.setAttribute('cx', node.x);
+      circle.setAttribute('cy', node.y);
+      circle.setAttribute('filter', 'url(#glow)');
+      gNodes.appendChild(circle);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.classList.add('node-label');
+      label.setAttribute('x', node.x);
+      label.setAttribute('y', node.y + 4);
+      label.setAttribute('text-anchor', 'middle');
+      label.textContent = node.id;
+      gNodes.appendChild(label);
+
+      node.circle = circle;
+      node.text = label;
+    }
+
+    buildEdgeList();
+  }
+
+  function buildEdgeList() {
+    edgesSorted = edges.slice().sort((a, b) => a.w - b.w || a.id - b.id);
+    edgeList.innerHTML = '';
+    for (const edge of edgesSorted) {
+      const div = document.createElement('div');
+      div.className = 'edge-item';
+      div.dataset.eid = edge.id;
+      div.innerHTML = `<span>${edge.u}–${edge.v}</span><span class="code">${edge.w}</span>`;
+      div.addEventListener('click', () => {
+        // Flash highlight on the corresponding edge
+        flashEdge(edge);
+      });
+      edge.item = div;
+      edgeList.appendChild(div);
+    }
+    totalSteps.textContent = edgesSorted.length;
+  }
+
+  function flashEdge(edge) {
+    edge.item.classList.add('current');
+    edge.line.classList.add('current');
+    setTimeout(() => {
+      edge.item.classList.remove('current');
+      if (edge.state === 'none') edge.line.classList.remove('current');
+    }, 400);
+  }
+
+  function prepareAlgorithm() {
+    dsu = new DSU(nodes.length);
+    currentIndex = 0;
+    mstWeight = 0;
+    for (const e of edges) {
+      e.state = 'none';
+      e.line.classList.remove('accepted', 'rejected', 'current');
+      e.label.classList.remove('accepted', 'rejected');
+      if (e.item) {
+        e.item.classList.remove('accepted', 'rejected', 'current');
+      }
+    }
+    statusText.textContent = 'Ready';
+    stepCount.textContent = '0';
+    currentEdgeText.textContent = '-';
+    mstWeightEl.textContent = '0';
+    updateSetsDisplay();
+    stopAutoplay();
+    playPauseBtn.textContent = 'Play';
+    playPauseBtn.disabled = false;
+    stepFwdBtn.disabled = false;
+    stepBackBtn.disabled = false;
+    resetBtn.disabled = false;
+  }
+
+  function updateSetsDisplay() {
+    const components = new Map();
+    for (let i = 0; i < nodes.length; i++) {
+      const r = dsu.find(i);
+      if (!components.has(r)) components.set(r, []);
+      components.get(r).push(i);
+    }
+    setDisplay.innerHTML = '';
+    for (const [root, members] of components.entries()) {
+      const div = document.createElement('div');
+      div.className = 'group';
+      div.textContent = `{ ${members.join(', ')} }`;
+      setDisplay.appendChild(div);
+    }
+  }
+
+  function processNextEdge() {
+    if (currentIndex >= edgesSorted.length) {
+      statusText.textContent = 'All edges processed.';
+      stopAutoplay();
+      playPauseBtn.textContent = 'Play';
+      return;
+    }
+    // If MST is complete (n-1 edges)
+    const acceptedCount = edgesSorted.filter(e => e.state === 'accepted').length;
+    if (acceptedCount >= nodes.length - 1) {
+      statusText.textContent = 'MST complete.';
+      stopAutoplay();
+      playPauseBtn.textContent = 'Play';
+      return;
+    }
+
+    const edge = edgesSorted[currentIndex];
+    // Highlight current
+    edge.item.classList.add('current');
+    edge.line.classList.add('current');
+    currentEdgeText.textContent = `${edge.u}–${edge.v} (w=${edge.w})`;
+
+    // Decide using Union-Find
+    const ru = dsu.find(edge.u);
+    const rv = dsu.find(edge.v);
+
+    let accepted = false;
+    if (ru !== rv) {
+      dsu.union(ru, rv);
+      accepted = true;
+    }
+
+    // Apply visual state
+    edge.item.classList.remove('current');
+    edge.line.classList.remove('current');
+    if (accepted) {
+      edge.state = 'accepted';
+      edge.item.classList.add('accepted');
+      edge.line.classList.add('accepted');
+      edge.label.classList.add('accepted');
+      mstWeight += edge.w;
+      mstWeightEl.textContent = mstWeight;
+      statusText.textContent = `Accepted: ${edge.u}–${edge.v} (weight ${edge.w}). No cycle.`;
+    } else {
+      edge.state = 'rejected';
+      edge.item.classList.add('rejected');
+      edge.line.classList.add('rejected');
+      edge.label.classList.add('rejected');
+      statusText.textContent = `Rejected: ${edge.u}–${edge.v}. Cycle detected (same component).`;
+    }
+
+    currentIndex++;
+    stepCount.textContent = String(currentIndex);
+    updateSetsDisplay();
+
+    // Auto stop if MST finished
+    const newAcceptedCount = edgesSorted.filter(e => e.state === 'accepted').length;
+    if (newAcceptedCount >= nodes.length - 1) {
+      statusText.textContent = 'MST complete.';
+      stopAutoplay();
+      playPauseBtn.textContent = 'Play';
+      highlightMST();
+    }
+  }
+
+  function highlightMST() {
+    // Optional subtle glow on accepted edges
+    for (const e of edgesSorted) {
+      if (e.state === 'accepted') {
+        e.line.setAttribute('filter', 'url(#glow)');
+      } else {
+        e.line.removeAttribute('filter');
+      }
+    }
+  }
+
+  function stepBack() {
+    if (currentIndex <= 0) return;
+    // Remove last processed edge
+    currentIndex--;
+    const edge = edgesSorted[currentIndex];
+
+    // Reset edge visuals
+    edge.state = 'none';
+    edge.item.classList.remove('accepted', 'rejected', 'current');
+    edge.line.classList.remove('accepted', 'rejected', 'current');
+    edge.label.classList.remove('accepted', 'rejected');
+
+    // Rebuild DSU and MST weight based on remaining accepted edges up to currentIndex
+    dsu = new DSU(nodes.length);
+    mstWeight = 0;
+    for (let i = 0; i < currentIndex; i++) {
+      const e = edgesSorted[i];
+      if (e.state === 'accepted') {
+        dsu.union(e.u, e.v);
+        mstWeight += e.w;
+      }
+    }
+    mstWeightEl.textContent = mstWeight;
+    stepCount.textContent = String(currentIndex);
+    statusText.textContent = 'Step reverted.';
+    currentEdgeText.textContent = '-';
+    updateSetsDisplay();
+  }
+
+  function startAutoplay() {
+    if (isPlaying) return;
+    isPlaying = true;
+    playPauseBtn.textContent = 'Pause';
+    const interval = parseInt(speedInput.value, 10);
+    autoplayTimer = setInterval(() => {
+      const acceptedCount = edgesSorted.filter(e => e.state === 'accepted').length;
+      if (currentIndex >= edgesSorted.length || acceptedCount >= nodes.length - 1) {
+        stopAutoplay();
+        playPauseBtn.textContent = 'Play';
+        return;
+      }
+      processNextEdge();
+    }, interval);
+  }
+
+  function stopAutoplay() {
+    if (autoplayTimer) clearInterval(autoplayTimer);
+    autoplayTimer = null;
+    isPlaying = false;
+  }
+
+  // Events
+  newGraphBtn.addEventListener('click', () => {
+    const n = clamp(parseInt(nodeCountInput.value, 10) || 12, 3, 40);
+    nodeCountInput.value = n;
+    const density = parseFloat(densityInput.value);
+    const weightMode = weightModeSel.value;
+    generateGraph(n, density, weightMode);
+  });
+
+  resetBtn.addEventListener('click', () => prepareAlgorithm());
+
+  stepFwdBtn.addEventListener('click', () => processNextEdge());
+  stepBackBtn.addEventListener('click', () => stepBack());
+
+  playPauseBtn.addEventListener('click', () => {
+    if (isPlaying) stopAutoplay(); else startAutoplay();
+    playPauseBtn.textContent = isPlaying ? 'Pause' : 'Play';
+  });
+
+  densityInput.addEventListener('input', () => {
+    densityVal.textContent = parseFloat(densityInput.value).toFixed(2);
+  });
+
+  speedInput.addEventListener('input', () => {
+    speedVal.textContent = `${speedInput.value}ms`;
+    if (isPlaying) {
+      stopAutoplay();
+      startAutoplay();
+    }
+  });
+
+  // Initialize with a default graph
+  window.addEventListener('load', () => {
+    generateGraph(parseInt(nodeCountInput.value, 10), parseFloat(densityInput.value), weightModeSel.value);
+  });
+})();
+</script>
+</body>
+</html>

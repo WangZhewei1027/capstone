@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Weighted Graph Visualizer</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #60a5fa;
+      --accent2: #34d399;
+      --warn: #fbbf24;
+      --error: #f87171;
+      --edge: #93c5fd;
+      --node: #f472b6;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    h1 {
+      margin: 0;
+      padding: 16px 20px 4px;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    #desc {
+      padding: 0 20px 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    #layout {
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      gap: 14px;
+      padding: 14px 20px 20px;
+      height: calc(100% - 80px);
+      box-sizing: border-box;
+    }
+    #left, #right {
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    #center {
+      background: #0b1220;
+      border-radius: 10px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    #controls h2, #info h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    button, .btn {
+      appearance: none;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #1f2937;
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: transform 0.05s ease, background 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset;
+    }
+    button:hover { background: #243041; }
+    button:active { transform: translateY(1px); }
+    button.primary { background: #2563eb; }
+    button.primary:hover { background: #1d4ed8; }
+    button.success { background: #10b981; }
+    button.success:hover { background: #059669; }
+    button.warn { background: #f59e0b; }
+    button.warn:hover { background: #d97706; }
+    button.destructive { background: #ef4444; }
+    button.destructive:hover { background: #dc2626; }
+    button.toggle.active {
+      background: #334155;
+      box-shadow: 0 0 0 2px var(--accent) inset;
+    }
+    .small {
+      font-size: 12px;
+      padding: 6px 9px;
+    }
+    #status {
+      margin-top: 8px;
+      background: #0d1726;
+      border-radius: 8px;
+      padding: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      min-height: 18px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+    }
+    #legend {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    #legend .swatch {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      vertical-align: middle;
+      border-radius: 2px;
+      margin-right: 4px;
+    }
+    #graph {
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(1000px 400px at 30% 20%, rgba(96,165,250,0.06), transparent 60%),
+                  radial-gradient(800px 300px at 70% 60%, rgba(52,211,153,0.07), transparent 60%),
+                  #0b1220;
+    }
+    .edge {
+      stroke: var(--edge);
+      stroke-width: 2;
+      opacity: 0.8;
+      transition: stroke 0.2s ease, opacity 0.2s ease;
+    }
+    .edge.highlight {
+      stroke: var(--accent2);
+      stroke-width: 4;
+      opacity: 1.0;
+      filter: drop-shadow(0 0 3px rgba(52,211,153,0.6));
+    }
+    .edgeLabel {
+      fill: #bfdbfe;
+      font-size: 12px;
+      user-select: none;
+      pointer-events: none;
+      paint-order: stroke;
+      stroke: rgba(11,18,32,0.7);
+      stroke-width: 3px;
+    }
+    .node {
+      cursor: grab;
+    }
+    .node circle {
+      fill: var(--node);
+      stroke: #fff;
+      stroke-opacity: 0.15;
+      stroke-width: 2;
+      filter: drop-shadow(0 2px 6px rgba(244,114,182,0.35));
+      transition: fill 0.2s ease, transform 0.05s ease, stroke 0.2s ease;
+    }
+    .node:hover circle {
+      fill: #fb7185;
+    }
+    .node.dragging circle {
+      cursor: grabbing;
+      transform: scale(1.04);
+    }
+    .nodeLabel {
+      fill: #fdf2f8;
+      font-weight: 700;
+      font-size: 13px;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      pointer-events: none;
+      paint-order: stroke;
+      stroke: rgba(11,18,32,0.7);
+      stroke-width: 3px;
+    }
+    .node.selected circle {
+      stroke: var(--accent);
+      stroke-width: 3;
+    }
+    .node.start circle {
+      stroke: var(--accent2);
+      stroke-width: 3;
+    }
+    .node.end circle {
+      stroke: var(--warn);
+      stroke-width: 3;
+    }
+    #infoContent {
+      height: calc(100% - 20px);
+      overflow: auto;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    #distances {
+      margin-top: 8px;
+      padding: 8px;
+      background: #0d1726;
+      border-radius: 8px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+    }
+    .distRow {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      color: #cbd5e1;
+    }
+    .sep {
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 8px 0;
+    }
+    .tip {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Weighted Graph Visualizer</h1>
+  <div id="desc">
+    - Add nodes and weighted edges (costs) and drag to arrange. 
+    - Select a start and end node, then run Dijkstra to find the minimum-cost path. 
+    - Edge weights must be non-negative for Dijkstra. 
+    - Use the sample graph for a quick demonstration.
+  </div>
+  <div id="layout">
+    <div id="left">
+      <div id="controls">
+        <h2>Build</h2>
+        <div class="row">
+          <button id="modeAddNode" class="toggle">Add Node</button>
+          <button id="modeAddEdge" class="toggle">Add Edge</button>
+          <button id="modeSelectPath" class="toggle">Select Start/End</button>
+          <button id="clearSelections" class="small">Clear Selections</button>
+        </div>
+
+        <div class="row">
+          <button id="runDijkstra" class="primary">Run Dijkstra</button>
+          <button id="clearHighlights" class="small">Clear Highlights</button>
+        </div>
+
+        <div class="row">
+          <button id="sampleGraph" class="success">Load Sample Graph</button>
+          <button id="randomGraph" class="small">Random Graph</button>
+          <button id="resetGraph" class="destructive small">Reset</button>
+        </div>
+
+        <div id="legend">
+          <div><span class="swatch" style="background: var(--accent2)"></span>Shortest path edges</div>
+          <div><span class="swatch" style="background: var(--accent)"></span>Start node</div>
+          <div><span class="swatch" style="background: var(--warn)"></span>End node</div>
+          <div class="tip">Tip: In "Add Node" mode, click empty space in the canvas. In "Add Edge" mode, click two nodes.</div>
+        </div>
+
+        <div id="status">Ready.</div>
+      </div>
+    </div>
+
+    <div id="center">
+      <svg id="graph" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+    <div id="right">
+      <div id="info">
+        <h2>Info</h2>
+        <div id="infoContent">
+          Weighted Graph
+          - Nodes represent points; edges represent connections with costs (weights).
+          - Dijkstra's algorithm computes the minimum total weight from a start node to all others (non-negative edges).
+
+          Current Selection
+          - Start: None
+          - End: None
+
+          Distances (from Start)
+          <div id="distances"></div>
+
+          <div class="sep"></div>
+          Algorithm Notes
+          - Dijkstra uses a greedy approach.
+          - It maintains tentative distances and explores the closest unreached node.
+          - Negative edge weights are not supported.
+
+          <div class="sep"></div>
+          Controls Summary
+          - Add Node: click canvas to place a node.
+          - Add Edge: click two nodes; enter a non-negative weight.
+          - Select Start/End: click first for start, second for end.
+          - Run Dijkstra: compute and highlight the shortest path.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const svg = document.getElementById('graph');
+      const status = document.getElementById('status');
+      const distancesPanel = document.getElementById('distances');
+
+      const modeButtons = {
+        addNode: document.getElementById('modeAddNode'),
+        addEdge: document.getElementById('modeAddEdge'),
+        selectPath: document.getElementById('modeSelectPath')
+      };
+
+      const controls = {
+        runDijkstra: document.getElementById('runDijkstra'),
+        clearHighlights: document.getElementById('clearHighlights'),
+        clearSelections: document.getElementById('clearSelections'),
+        sampleGraph: document.getElementById('sampleGraph'),
+        randomGraph: document.getElementById('randomGraph'),
+        resetGraph: document.getElementById('resetGraph')
+      };
+
+      function setStatus(msg, type = 'info') {
+        status.textContent = msg;
+        if (type === 'error') {
+          status.style.color = 'var(--error)';
+        } else if (type === 'warn') {
+          status.style.color = 'var(--warn)';
+        } else {
+          status.style.color = 'var(--muted)';
+        }
+      }
+
+      function idToLabel(id) {
+        // Spreadsheet-style labels: 0->A, 25->Z, 26->AA, 27->AB...
+        let n = id + 1;
+        let s = '';
+        while (n > 0) {
+          const r = (n - 1) % 26;
+          s = String.fromCharCode(65 + r) + s;
+          n = Math.floor((n - 1) / 26);
+        }
+        return s;
+      }
+
+      function midpoint(ax, ay, bx, by) { return [(ax + bx) / 2, (ay + by) / 2]; }
+      function perpOffset(ax, ay, bx, by, d = 14) {
+        const dx = bx - ax, dy = by - ay;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len, ny = dx / len;
+        return [nx * d, ny * d];
+      }
+
+      class GraphModel {
+        constructor() {
+          this.nodes = []; // {id, x, y, label, g, circle, text}
+          this.edges = []; // {id, a, b, weight, line, labelText}
+          this.adj = new Map(); // id -> [{to, weight, edgeId}]
+          this.nextNodeId = 0;
+          this.nextEdgeId = 0;
+          this.startId = null;
+          this.endId = null;
+        }
+
+        reset() {
+          this.nodes.forEach(n => n.g.remove());
+          this.edges.forEach(e => {
+            e.line.remove();
+            e.labelText.remove();
+          });
+          this.nodes = [];
+          this.edges = [];
+          this.adj.clear();
+          this.nextNodeId = 0;
+          this.nextEdgeId = 0;
+          this.startId = null;
+          this.endId = null;
+          distancesPanel.innerHTML = '';
+          setStatus('Graph reset.');
+          updateInfoSelections(null, null);
+        }
+
+        addNode(x, y) {
+          const id = this.nextNodeId++;
+          const label = idToLabel(id);
+
+          const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          g.classList.add('node');
+          g.dataset.id = id;
+
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('r', 18);
+          circle.setAttribute('cx', x);
+          circle.setAttribute('cy', y);
+
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.classList.add('nodeLabel');
+          text.setAttribute('x', x);
+          text.setAttribute('y', y + 1);
+          text.textContent = label;
+
+          g.appendChild(circle);
+          g.appendChild(text);
+          svg.appendChild(g);
+
+          const node = { id, x, y, label, g, circle, text };
+          this.nodes.push(node);
+          this.adj.set(id, []);
+
+          this._attachNodeEvents(node);
+          return node;
+        }
+
+        _attachNodeEvents(node) {
+          let dragging = false;
+          let lastPt = null;
+
+          const onPointerDown = (e) => {
+            dragging = true;
+            node.g.classList.add('dragging');
+            lastPt = getSVGPoint(e);
+            node.g.setPointerCapture(e.pointerId);
+          };
+          const onPointerMove = (e) => {
+            if (!dragging) return;
+            const pt = getSVGPoint(e);
+            const dx = pt.x - lastPt.x;
+            const dy = pt.y - lastPt.y;
+            lastPt = pt;
+            this.moveNode(node.id, node.x + dx, node.y + dy);
+          };
+          const onPointerUp = (e) => {
+            dragging = false;
+            node.g.classList.remove('dragging');
+            node.g.releasePointerCapture(e.pointerId);
+          };
+
+          // Clicks for selection depend on current mode
+          const onClick = (e) => {
+            e.stopPropagation();
+            if (currentMode === 'addEdge') {
+              this._handleAddEdgeClick(node.id);
+            } else if (currentMode === 'selectPath') {
+              this._handleSelectPathClick(node.id);
+            }
+          };
+
+          node.g.addEventListener('pointerdown', onPointerDown);
+          node.g.addEventListener('pointermove', onPointerMove);
+          node.g.addEventListener('pointerup', onPointerUp);
+          node.g.addEventListener('click', onClick);
+        }
+
+        moveNode(id, x, y) {
+          const node = this.nodes.find(n => n.id === id);
+          if (!node) return;
+          node.x = x; node.y = y;
+          node.circle.setAttribute('cx', x);
+          node.circle.setAttribute('cy', y);
+          node.text.setAttribute('x', x);
+          node.text.setAttribute('y', y + 1);
+
+          // Update connected edges
+          for (const e of this.edges) {
+            if (e.a === id || e.b === id) {
+              const a = this.nodes.find(n => n.id === e.a);
+              const b = this.nodes.find(n => n.id === e.b);
+              e.line.setAttribute('x1', a.x);
+              e.line.setAttribute('y1', a.y);
+              e.line.setAttribute('x2', b.x);
+              e.line.setAttribute('y2', b.y);
+
+              const [mx, my] = midpoint(a.x, a.y, b.x, b.y);
+              const [ox, oy] = perpOffset(a.x, a.y, b.x, b.y, 14);
+              e.labelText.setAttribute('x', mx + ox);
+              e.labelText.setAttribute('y', my + oy);
+            }
+          }
+        }
+
+        addEdge(aId, bId, weight) {
+          if (aId === bId) { setStatus('Cannot add edge from a node to itself.', 'error'); return null; }
+          const exists = this.edges.find(e => (e.a === aId && e.b === bId) || (e.a === bId && e.b === aId));
+          if (exists) { setStatus('Edge already exists between selected nodes.', 'warn'); return null; }
+          if (isNaN(weight) || weight < 0) { setStatus('Weight must be a non-negative number.', 'error'); return null; }
+
+          const a = this.nodes.find(n => n.id === aId);
+          const b = this.nodes.find(n => n.id === bId);
+          if (!a || !b) { setStatus('Invalid nodes for edge.', 'error'); return null; }
+
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.classList.add('edge');
+          line.setAttribute('x1', a.x);
+          line.setAttribute('y1', a.y);
+          line.setAttribute('x2', b.x);
+          line.setAttribute('y2', b.y);
+
+          const [mx, my] = midpoint(a.x, a.y, b.x, b.y);
+          const [ox, oy] = perpOffset(a.x, a.y, b.x, b.y, 14);
+          const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          labelText.classList.add('edgeLabel');
+          labelText.setAttribute('x', mx + ox);
+          labelText.setAttribute('y', my + oy);
+          labelText.textContent = formatWeight(weight);
+
+          // Insert lines beneath nodes for layering: place before first node group
+          const firstNodeGroup = this.nodes.length ? this.nodes[0].g : null;
+          if (firstNodeGroup) {
+            svg.insertBefore(line, firstNodeGroup);
+            svg.insertBefore(labelText, firstNodeGroup);
+          } else {
+            svg.appendChild(line);
+            svg.appendChild(labelText);
+          }
+
+          const id = this.nextEdgeId++;
+          const edge = { id, a: aId, b: bId, weight, line, labelText };
+          this.edges.push(edge);
+
+          // Undirected adjacency
+          this.adj.get(aId).push({ to: bId, weight, edgeId: id });
+          this.adj.get(bId).push({ to: aId, weight, edgeId: id });
+          setStatus(`Edge ${a.label} - ${b.label} (w=${weight}) added.`);
+          return edge;
+        }
+
+        clearHighlights() {
+          for (const e of this.edges) {
+            e.line.classList.remove('highlight');
+          }
+          for (const n of this.nodes) {
+            n.g.classList.remove('selected');
+          }
+          setStatus('Highlights cleared.');
+        }
+
+        clearSelections() {
+          this.startId = null;
+          this.endId = null;
+          for (const n of this.nodes) {
+            n.g.classList.remove('start');
+            n.g.classList.remove('end');
+          }
+          distancesPanel.innerHTML = '';
+          updateInfoSelections(null, null);
+          setStatus('Start/End selection cleared.');
+        }
+
+        _handleAddEdgeClick(nodeId) {
+          selectionForEdge.push(nodeId);
+          const node = this.nodes.find(n => n.id === nodeId);
+          node.g.classList.add('selected');
+
+          if (selectionForEdge.length === 2) {
+            const [aId, bId] = selectionForEdge;
+            selectionForEdge = [];
+            this.nodes.forEach(n => n.g.classList.remove('selected'));
+            const input = prompt('Enter edge weight (non-negative number):', '1');
+            if (input === null) { setStatus('Edge creation canceled.', 'warn'); return; }
+            const w = parseFloat(input);
+            this.addEdge(aId, bId, w);
+          } else {
+            setStatus('Select the second node to connect.');
+          }
+        }
+
+        _handleSelectPathClick(nodeId) {
+          if (this.startId === null) {
+            this.startId = nodeId;
+            const node = this.nodes.find(n => n.id === nodeId);
+            node.g.classList.add('start');
+            updateInfoSelections(this.startId, this.endId);
+            setStatus(`Start set to ${node.label}. Select an end node.`);
+          } else if (this.endId === null && nodeId !== this.startId) {
+            this.endId = nodeId;
+            const node = this.nodes.find(n => n.id === nodeId);
+            node.g.classList.add('end');
+            updateInfoSelections(this.startId, this.endId);
+            setStatus(`End set to ${node.label}. Click "Run Dijkstra".`);
+          } else if (nodeId === this.startId) {
+            setStatus('End must be different from start.', 'warn');
+          }
+        }
+
+        runDijkstra() {
+          if (this.startId === null) { setStatus('Select a start node first.', 'warn'); return; }
+          const startLabel = this.nodes.find(n => n.id === this.startId)?.label || '?';
+          const { dist, prev } = dijkstra(this.adj, this.nodes.map(n => n.id), this.startId);
+          renderDistances(this.nodes, dist, this.startId);
+
+          if (this.endId !== null) {
+            const path = reconstructPath(prev, this.startId, this.endId);
+            if (!path || path.length === 0) {
+              setStatus(`No path from ${startLabel} to ${this.nodes.find(n => n.id === this.endId).label}.`, 'warn');
+              return;
+            }
+            // Highlight path edges
+            this.clearHighlights();
+            for (let i = 0; i < path.length - 1; i++) {
+              const a = path[i], b = path[i+1];
+              const edge = this.edges.find(e => (e.a === a && e.b === b) || (e.a === b && e.b === a));
+              if (edge) edge.line.classList.add('highlight');
+            }
+            const total = dist.get(this.endId);
+            setStatus(`Shortest path cost: ${formatWeight(total)}. Path: ${path.map(i => this.nodes.find(n => n.id === i).label).join(' → ')}`);
+          } else {
+            setStatus(`Computed distances from ${startLabel}. Select an end node for a path highlight.`);
+          }
+        }
+      }
+
+      // Utility to get SVG coordinates from event
+      function getSVGPoint(evt) {
+        const pt = svg.createSVGPoint();
+        pt.x = evt.clientX;
+        pt.y = evt.clientY;
+        const screenCTM = svg.getScreenCTM();
+        const inv = screenCTM.inverse();
+        const loc = pt.matrixTransform(inv);
+        return { x: loc.x, y: loc.y };
+      }
+
+      function formatWeight(w) {
+        if (Math.abs(w - Math.round(w)) < 1e-9) return String(Math.round(w));
+        return Number(w.toFixed(2)).toString();
+      }
+
+      function renderDistances(nodes, dist, startId) {
+        distancesPanel.innerHTML = '';
+        const startLabel = nodes.find(n => n.id === startId)?.label || '?';
+        const header = document.createElement('div');
+        header.style.marginBottom = '6px';
+        header.style.color = '#e5e7eb';
+        header.textContent = `From ${startLabel}:`;
+        distancesPanel.appendChild(header);
+
+        const sorted = [...nodes].sort((a, b) => a.label.localeCompare(b.label));
+        for (const n of sorted) {
+          const row = document.createElement('div');
+          row.classList.add('distRow');
+          const l = document.createElement('div');
+          l.textContent = n.label;
+          const r = document.createElement('div');
+          const d = dist.get(n.id);
+          r.textContent = (d === Infinity) ? '∞' : formatWeight(d);
+          distancesPanel.appendChild(row);
+          row.appendChild(l);
+          row.appendChild(r);
+        }
+      }
+
+      function updateInfoSelections(startId, endId) {
+        // This updates the little sentences in the right panel (simple method: replace text nodes)
+        // We keep it minimal: rebuild the "Current Selection" block by manipulating innerHTML
+        const info = document.getElementById('infoContent');
+        const nodesTextStart = (() => {
+          if (startId === null) return 'None';
+          const node = graph.nodes.find(n => n.id === startId);
+          return node ? node.label : 'None';
+        })();
+        const nodesTextEnd = (() => {
+          if (endId === null) return 'None';
+          const node = graph.nodes.find(n => n.id === endId);
+          return node ? node.label : 'None';
+        })();
+
+        // Keep the first section text intact but update the lines in place
+        // Simple approach: find the two "Current Selection" lines by regenerating the block carefully
+        const template =
+          'Weighted Graph\n' +
+          '          - Nodes represent points; edges represent connections with costs (weights).\n' +
+          '          - Dijkstra\'s algorithm computes the minimum total weight from a start node to all others (non-negative edges).\n\n' +
+          '          Current Selection\n' +
+          `          - Start: ${nodesTextStart}\n` +
+          `          - End: ${nodesTextEnd}\n\n` +
+          '          Distances (from Start)';
+        const idx = info.innerHTML.indexOf('Distances (from Start)');
+        // Replace only the "Current Selection" section text by rewriting the top chunk
+        // To avoid over-complication, we simply reset the initial text up to "Distances (from Start)" once.
+        const top = template;
+        info.innerHTML = top + info.innerHTML.substring(idx);
+      }
+
+      // Dijkstra (simple O(V^2 + E)) priority selection by scanning
+      function dijkstra(adj, nodesIds, startId) {
+        const dist = new Map();
+        const prev = new Map();
+        const visited = new Set();
+
+        for (const id of nodesIds) {
+          dist.set(id, Infinity);
+          prev.set(id, null);
+        }
+        dist.set(startId, 0);
+
+        while (visited.size < nodesIds.length) {
+          // Select unvisited with minimal distance
+          let u = null;
+          let minDist = Infinity;
+          for (const id of nodesIds) {
+            if (!visited.has(id) && dist.get(id) < minDist) {
+              minDist = dist.get(id);
+              u = id;
+            }
+          }
+          if (u === null) break; // remaining are unreachable
+          visited.add(u);
+          const neighbors = adj.get(u) || [];
+          for (const { to, weight } of neighbors) {
+            if (visited.has(to)) continue;
+            const alt = dist.get(u) + weight;
+            if (alt < dist.get(to)) {
+              dist.set(to, alt);
+              prev.set(to, u);
+            }
+          }
+        }
+        return { dist, prev };
+      }
+
+      function reconstructPath(prev, startId, endId) {
+        const path = [];
+        let u = endId;
+        if (prev.get(u) === null && u !== startId) return []; // unreachable
+        while (u !== null) {
+          path.unshift(u);
+          if (u === startId) break;
+          u = prev.get(u);
+        }
+        return path;
+      }
+
+      // Modes and interactions
+      let currentMode = null;
+      let selectionForEdge = [];
+      const graph = new GraphModel();
+
+      function setMode(mode) {
+        currentMode = mode;
+        for (const key of Object.keys(modeButtons)) {
+          modeButtons[key].classList.remove('active');
+        }
+        if (mode === 'addNode') modeButtons.addNode.classList.add('active');
+        else if (mode === 'addEdge') modeButtons.addEdge.classList.add('active');
+        else if (mode === 'selectPath') modeButtons.selectPath.classList.add('active');
+
+        if (mode === 'addNode') {
+          setStatus('Add Node: click on empty canvas to place a node.');
+        } else if (mode === 'addEdge') {
+          setStatus('Add Edge: click two nodes to connect them, then enter a weight.');
+          selectionForEdge = [];
+          graph.nodes.forEach(n => n.g.classList.remove('selected'));
+        } else if (mode === 'selectPath') {
+          setStatus('Select Start/End: click a start node, then an end node.');
+        } else {
+          setStatus('Ready.');
+        }
+      }
+
+      // Canvas click for adding nodes
+      svg.addEventListener('click', (e) => {
+        if (currentMode !== 'addNode') return;
+        // Avoid creating node when clicking on existing node groups or labels (stopPropagation handles that mostly)
+        const targetName = e.target.tagName.toLowerCase();
+        if (['circle', 'text', 'line', 'g'].includes(targetName)) return;
+
+        const pt = getSVGPoint(e);
+        const node = graph.addNode(pt.x, pt.y);
+        setStatus(`Node ${node.label} added at (${Math.round(pt.x)}, ${Math.round(pt.y)}).`);
+      });
+
+      // Controls
+      modeButtons.addNode.addEventListener('click', () => setMode('addNode'));
+      modeButtons.addEdge.addEventListener('click', () => setMode('addEdge'));
+      modeButtons.selectPath.addEventListener('click', () => setMode('selectPath'));
+      controls.clearHighlights.addEventListener('click', () => graph.clearHighlights());
+      controls.clearSelections.addEventListener('click', () => graph.clearSelections());
+      controls.runDijkstra.addEventListener('click', () => graph.runDijkstra());
+      controls.resetGraph.addEventListener('click', () => graph.reset());
+
+      controls.sampleGraph.addEventListener('click', () => {
+        graph.reset();
+        const w = 1000, h = 700;
+        const positions = [
+          [w*0.18, h*0.25], [w*0.35, h*0.18], [w*0.52, h*0.22], [w*0.72, h*0.30],
+          [w*0.20, h*0.60], [w*0.38, h*0.52], [w*0.56, h*0.55], [w*0.78, h*0.62]
+        ];
+        positions.forEach(([x, y]) => graph.addNode(x, y));
+        const edges = [
+          [0,1,2], [1,2,4], [2,3,6],
+          [0,4,7], [1,5,5], [2,6,3], [3,7,1],
+          [4,5,2], [5,6,2], [6,7,4],
+          [1,4,9], [2,5,8]
+        ];
+        for (const [a,b,wgt] of edges) graph.addEdge(a,b,wgt);
+
+        setMode('selectPath');
+        graph.startId = 0; graph.nodes[0].g.classList.add('start');
+        graph.endId = 7; graph.nodes[7].g.classList.add('end');
+        updateInfoSelections(graph.startId, graph.endId);
+        setStatus('Sample graph loaded. Start=A, End=H. Click "Run Dijkstra" to see shortest path.');
+      });
+
+      controls.randomGraph.addEventListener('click', () => {
+        graph.reset();
+        const w = 1000, h = 700;
+        const N = 8 + Math.floor(Math.random()*4); // 8-11 nodes
+        for (let i = 0; i < N; i++) {
+          const x = 80 + Math.random()*(w - 160);
+          const y = 80 + Math.random()*(h - 160);
+          graph.addNode(x, y);
+        }
+        // Ensure connectivity by making a random spanning tree
+        const order = [...Array(N).keys()].sort(() => Math.random() - 0.5);
+        for (let i = 1; i < N; i++) {
+          const a = order[i];
+          const b = order[Math.floor(Math.random()*i)];
+          const wgt = 1 + Math.floor(Math.random()*9);
+          graph.addEdge(a, b, wgt);
+        }
+        // Add a few extra random edges
+        const extra = Math.floor(N * 1.2);
+        for (let k = 0; k < extra; k++) {
+          const a = Math.floor(Math.random()*N);
+          let b = Math.floor(Math.random()*N);
+          if (b === a) b = (b+1) % N;
+          const wgt = 1 + Math.floor(Math.random()*9);
+          graph.addEdge(a, b, wgt);
+        }
+        setMode('selectPath');
+        setStatus('Random connected graph generated. Select start/end and run Dijkstra.');
+      });
+
+      // Initialize with sample graph for convenience
+      controls.sampleGraph.click();
+
+      // Helper: keep viewBox responsive to container size
+      function fitViewBox() {
+        const rect = svg.getBoundingClientRect();
+        svg.setAttribute('viewBox', `0 0 1000 700`);
+      }
+      window.addEventListener('resize', fitViewBox);
+      fitViewBox();
+    })();
+  </script>
+</body>
+</html>

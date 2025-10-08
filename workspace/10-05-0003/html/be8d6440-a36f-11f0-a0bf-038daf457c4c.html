@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sliding Window Visualizer</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #171b22;
+    --text: #e6e6e6;
+    --muted: #aeb4be;
+    --accent: #57a6ff;
+    --accent-2: #65d38b;
+    --accent-3: #ff7a7a;
+    --best: #ffd166;
+    --border: #2a313d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    color: var(--text);
+    background: linear-gradient(180deg, #0d1218, #0b1015 120%);
+  }
+  header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(23,27,34,0.9);
+    position: sticky;
+    top: 0;
+    backdrop-filter: blur(8px);
+    z-index: 5;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 20px;
+    letter-spacing: 0.2px;
+  }
+  header p {
+    margin: 6px 0 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .container {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 16px;
+    padding: 16px;
+    min-height: calc(100vh - 82px);
+  }
+  .sidebar, .main {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .sidebar h2, .main h2 { font-size: 16px; margin: 0 0 12px 0; }
+  .section {
+    border-top: 1px dashed var(--border);
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+  .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  label {
+    font-size: 13px;
+    color: var(--muted);
+    min-width: 90px;
+  }
+  input[type="text"], input[type="number"] {
+    flex: 1;
+    background: #0f1319;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 8px;
+    outline: none;
+  }
+  input[type="number"] { max-width: 120px; }
+  .btn {
+    background: #141a22;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .15s ease;
+  }
+  .btn:hover { border-color: #39414e; transform: translateY(-1px); }
+  .btn.primary { background: linear-gradient(180deg, #2a6fff, #1b5deb); border-color: #2753ca; }
+  .btn.green { background: linear-gradient(180deg, #21b573, #149f62); border-color: #1d8a61; }
+  .btn.red { background: linear-gradient(180deg, #e05666, #c64555); border-color: #b13b4a; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 8px; }
+  .tab {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--muted);
+    background: #12161d;
+  }
+  .tab.active {
+    color: var(--text);
+    background: #182231;
+    border-color: #3a4a63;
+  }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+  .array-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    background: #0d1218;
+    position: relative;
+  }
+  .array {
+    display: flex;
+    gap: 8px;
+    min-height: 88px;
+    align-items: center;
+    position: relative;
+  }
+  .box {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    border: 1px solid #2a313d;
+    border-radius: 10px;
+    background: linear-gradient(180deg,#17202c,#121923);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #e9eef5;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+  }
+  .box.in-window {
+    background: linear-gradient(180deg,#1b2a3d,#152230);
+    border-color: #3d5473;
+    box-shadow: 0 0 0 2px rgba(87,166,255,0.12) inset;
+  }
+  .box.window-left { border-left-width: 3px; border-left-color: var(--accent); }
+  .box.window-right { border-right-width: 3px; border-right-color: var(--accent); }
+  .box.best {
+    background: linear-gradient(180deg,#2a2d16,#23250f);
+    border-color: #b59a33;
+    box-shadow: 0 0 0 2px rgba(255,209,102,0.18) inset;
+  }
+  .tag {
+    position: absolute;
+    top: -18px;
+    font-size: 11px;
+    background: #243041;
+    color: #a8c8ff;
+    border: 1px solid #34445c;
+    padding: 2px 5px;
+    border-radius: 5px;
+  }
+  .tag.L { left: 4px; }
+  .tag.R { right: 4px; }
+  .tag.LR { left: 4px; right: 4px; text-align: center; }
+
+  @keyframes pulseGreen {
+    0% { box-shadow: 0 0 0 0 rgba(101,211,139,0.0); transform: scale(1); }
+    35% { box-shadow: 0 0 0 8px rgba(101,211,139,0.15); transform: scale(1.06); }
+    100% { box-shadow: 0 0 0 0 rgba(101,211,139,0.0); transform: scale(1); }
+  }
+  @keyframes pulseRed {
+    0% { box-shadow: 0 0 0 0 rgba(255,122,122,0.0); transform: scale(1); }
+    35% { box-shadow: 0 0 0 8px rgba(255,122,122,0.15); transform: scale(1.06); }
+    100% { box-shadow: 0 0 0 0 rgba(255,122,122,0.0); transform: scale(1); }
+  }
+  .entering { animation: pulseGreen 600ms ease-out; outline: 2px solid rgba(101,211,139,0.35); }
+  .leaving { animation: pulseRed 600ms ease-out; outline: 2px solid rgba(255,122,122,0.35); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; }
+  .spacer { flex: 1 1 auto; }
+  .speed {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px; background: #0f1319; border: 1px solid var(--border); border-radius: 8px;
+  }
+  .speed input[type="range"] { width: 140px; }
+  .statbar {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(120px,1fr));
+    gap: 8px;
+  }
+  .stat {
+    background: #0f1319;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    min-height: 56px;
+  }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 18px; margin-top: 4px; font-weight: 700; }
+  .log {
+    margin-top: 12px;
+    height: 160px;
+    overflow: auto;
+    background: #0d1218;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px;
+    font-size: 12px;
+  }
+  .log .item { color: #cfd6e0; margin: 4px 0; }
+  .code {
+    background: #0d1218;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    margin-top: 12px;
+    overflow: auto;
+  }
+  pre { margin: 0; font-size: 12px; color: #dbe3ee; }
+  .error { color: #ff8b8b; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sliding Window Visualizer</h1>
+  <p>Step through the sliding window technique on arrays: fixed-size windows and variable-size two-pointer windows.</p>
+</header>
+
+<div class="container">
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="tab active" data-tab="fixed">Fixed-size Window</button>
+      <button class="tab" data-tab="variable">Variable-size Window</button>
+    </div>
+
+    <div id="fixed-panel">
+      <h2>Inputs</h2>
+      <div class="row">
+        <label for="arr-fixed">Array</label>
+        <input id="arr-fixed" type="text" value="2,1,5,1,3,2" />
+      </div>
+      <div class="row">
+        <label for="k">Window size (k)</label>
+        <input id="k" type="number" min="1" value="3" />
+      </div>
+      <div class="row">
+        <button id="rand-fixed" class="btn">Randomize</button>
+        <span class="spacer"></span>
+        <span class="error" id="err-fixed"></span>
+      </div>
+      <div class="section">
+        <div class="controls">
+          <button id="start-fixed" class="btn primary">Start</button>
+          <button id="step-fixed" class="btn">Step</button>
+          <button id="play-fixed" class="btn green">Play</button>
+          <button id="pause-fixed" class="btn">Pause</button>
+          <button id="reset-fixed" class="btn red">Reset</button>
+          <span class="spacer"></span>
+          <div class="speed">
+            <span>Speed</span>
+            <input id="speed-fixed" type="range" min="0.25" max="3" step="0.25" value="1" />
+            <span id="speed-label-fixed">1x</span>
+          </div>
+        </div>
+        <div class="hint">Task: compute the maximum sum of any subarray of size k using a sliding window.</div>
+      </div>
+      <div class="section">
+        <h2>Pseudocode</h2>
+        <div class="code">
+          <pre>
+// max sum of any subarray of size k
+sum = sum(arr[0..k-1])
+best = sum
+for i from k to n-1:
+  sum += arr[i]        // enter new
+  sum -= arr[i-k]      // leave old
+  best = max(best, sum)
+          </pre>
+        </div>
+      </div>
+    </div>
+
+    <div id="variable-panel" style="display:none">
+      <h2>Inputs</h2>
+      <div class="row">
+        <label for="arr-var">Array</label>
+        <input id="arr-var" type="text" value="2,1,5,2,3,2" />
+      </div>
+      <div class="row">
+        <label for="target">Target sum (≥)</label>
+        <input id="target" type="number" min="1" value="7" />
+      </div>
+      <div class="row">
+        <button id="rand-var" class="btn">Randomize</button>
+        <span class="spacer"></span>
+        <span class="error" id="err-var"></span>
+      </div>
+      <div class="section">
+        <div class="controls">
+          <button id="start-var" class="btn primary">Start</button>
+          <button id="step-var" class="btn">Step</button>
+          <button id="play-var" class="btn green">Play</button>
+          <button id="pause-var" class="btn">Pause</button>
+          <button id="reset-var" class="btn red">Reset</button>
+          <span class="spacer"></span>
+          <div class="speed">
+            <span>Speed</span>
+            <input id="speed-var" type="range" min="0.25" max="3" step="0.25" value="1" />
+            <span id="speed-label-var">1x</span>
+          </div>
+        </div>
+        <div class="hint">Task: find the shortest subarray with sum ≥ target using an expanding/contracting window.</div>
+      </div>
+      <div class="section">
+        <h2>Pseudocode</h2>
+        <div class="code">
+          <pre>
+// min length subarray with sum ≥ target
+left = 0, sum = 0, bestLen = ∞
+for right from 0 to n-1:
+  sum += arr[right]
+  while sum ≥ target:
+    bestLen = min(bestLen, right-left+1)
+    sum -= arr[left]
+    left += 1
+          </pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <h2>Visualization</h2>
+    <div class="array-wrap">
+      <div id="array" class="array"></div>
+    </div>
+
+    <div class="statbar" id="stats">
+      <div class="stat">
+        <div class="k">Current window</div>
+        <div class="v" id="stat-window">[ - , - ]</div>
+      </div>
+      <div class="stat">
+        <div class="k">Current sum</div>
+        <div class="v" id="stat-sum">0</div>
+      </div>
+      <div class="stat">
+        <div class="k">Best found</div>
+        <div class="v" id="stat-best">—</div>
+      </div>
+      <div class="stat">
+        <div class="k">Ops (add/sub)</div>
+        <div class="v" id="stat-ops">0 / 0</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Step log</h2>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Utility: parse comma-separated numbers
+  function parseArray(str) {
+    if (!str.trim()) return [];
+    const parts = str.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+    const nums = parts.map(Number);
+    if (nums.some(n => Number.isNaN(n))) return null;
+    return nums;
+  }
+
+  // Visual array manager
+  class VisualArray {
+    constructor(container) {
+      this.container = container;
+      this.boxes = [];
+      this.values = [];
+    }
+    render(values) {
+      this.values = values.slice();
+      this.container.innerHTML = '';
+      this.boxes = values.map((v, i) => {
+        const d = document.createElement('div');
+        d.className = 'box';
+        d.dataset.index = i;
+        d.textContent = v;
+        this.container.appendChild(d);
+        return d;
+      });
+    }
+    clearClasses() {
+      this.boxes.forEach(b => {
+        b.classList.remove('in-window','window-left','window-right','best','entering','leaving');
+      });
+      this.boxes.forEach(b => {
+        const tags = b.querySelectorAll('.tag');
+        tags.forEach(t => t.remove());
+      });
+    }
+    setWindow(l, r) {
+      this.boxes.forEach((b, i) => {
+        b.classList.toggle('in-window', i >= l && i <= r);
+        b.classList.toggle('window-left', i === l && l <= r);
+        b.classList.toggle('window-right', i === r && l <= r);
+      });
+    }
+    setPointers(l, r) {
+      // remove previous tags
+      this.boxes.forEach(b => {
+        const tags = b.querySelectorAll('.tag');
+        tags.forEach(t => t.remove());
+      });
+      if (l >= 0 && l < this.boxes.length) {
+        const tl = document.createElement('div');
+        tl.className = 'tag L';
+        tl.textContent = 'L';
+        this.boxes[l].appendChild(tl);
+      }
+      if (r >= 0 && r < this.boxes.length) {
+        if (r === l && r >= 0) {
+          const t = this.boxes[r].querySelector('.tag.L');
+          if (t) { t.className = 'tag LR'; t.textContent = 'L,R'; }
+          else {
+            const both = document.createElement('div');
+            both.className = 'tag LR';
+            both.textContent = 'L,R';
+            this.boxes[r].appendChild(both);
+          }
+        } else {
+          const tr = document.createElement('div');
+          tr.className = 'tag R';
+          tr.textContent = 'R';
+          this.boxes[r].appendChild(tr);
+        }
+      }
+    }
+    flashEnter(i) {
+      if (i >= 0 && i < this.boxes.length) {
+        this.boxes[i].classList.add('entering');
+        setTimeout(() => this.boxes[i].classList.remove('entering'), 650);
+      }
+    }
+    flashLeave(i) {
+      if (i >= 0 && i < this.boxes.length) {
+        this.boxes[i].classList.add('leaving');
+        setTimeout(() => this.boxes[i].classList.remove('leaving'), 650);
+      }
+    }
+    setBestRange(l, r) {
+      this.boxes.forEach((b, i) => {
+        b.classList.toggle('best', i >= l && i <= r && l <= r);
+      });
+    }
+  }
+
+  // Logger
+  class Logger {
+    constructor(el) { this.el = el; this.step = 0; }
+    reset() { this.el.innerHTML = ''; this.step = 0; }
+    log(msg) {
+      this.step++;
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.textContent = `#${this.step} — ${msg}`;
+      this.el.appendChild(item);
+      this.el.scrollTop = this.el.scrollHeight;
+    }
+  }
+
+  // Stats manager
+  class Stats {
+    constructor() {
+      this.elWindow = document.getElementById('stat-window');
+      this.elSum = document.getElementById('stat-sum');
+      this.elBest = document.getElementById('stat-best');
+      this.elOps = document.getElementById('stat-ops');
+    }
+    setWindow(l, r) { this.elWindow.textContent = `[ ${l} , ${r} ]`; }
+    setSum(v) { this.elSum.textContent = `${v}`; }
+    setBest(v) { this.elBest.textContent = `${v}`; }
+    setBestText(t) { this.elBest.textContent = t; }
+    setOps(add, sub) { this.elOps.textContent = `${add} / ${sub}`; }
+    reset() {
+      this.setWindow('-', '-');
+      this.setSum(0);
+      this.setBestText('—');
+      this.setOps(0, 0);
+    }
+  }
+
+  // Fixed-size window simulator: max sum of size k
+  class FixedWindowSimulator {
+    constructor(visual, logger, stats) {
+      this.v = visual; this.log = logger; this.stats = stats;
+      this.timer = null; this.interval = 600;
+      this.reset();
+    }
+    reset() {
+      this.arr = []; this.k = 0; this.n = 0;
+      this.left = 0; this.right = -1; this.sum = 0;
+      this.bestSum = -Infinity; this.bestL = -1; this.bestR = -1;
+      this.started = false; this.done = false;
+      this.opsAdd = 0; this.opsSub = 0;
+      if (this.timer) { clearInterval(this.timer); this.timer = null; }
+      this.v.clearClasses();
+      this.stats.reset();
+      this.log.reset();
+    }
+    init(arr, k) {
+      this.reset();
+      this.arr = arr.slice(); this.n = arr.length; this.k = k|0;
+      this.v.render(this.arr);
+      this.v.setPointers(-1, -1);
+      this.stats.setWindow('-', '-');
+      this.stats.setBestText('—');
+      this.log.log(`Loaded array of length ${this.n}, window size k = ${this.k}`);
+    }
+    setSpeed(mult) {
+      this.interval = Math.round(600 / Math.max(0.1, mult));
+      if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = setInterval(() => this.step(), this.interval);
+      }
+    }
+    start() {
+      if (this.started || this.n === 0 || this.k < 1 || this.k > this.n) return;
+      this.step(); // compute initial sum
+    }
+    step() {
+      if (this.done) return;
+      // Initial setup: compute first window sum
+      if (!this.started) {
+        this.left = 0; this.right = this.k - 1; this.sum = 0;
+        for (let i = 0; i < this.k; i++) {
+          this.sum += this.arr[i]; this.opsAdd++;
+          this.v.flashEnter(i);
+        }
+        this.v.setWindow(this.left, this.right);
+        this.v.setPointers(this.left, this.right);
+        this.bestSum = this.sum; this.bestL = this.left; this.bestR = this.right;
+        this.v.setBestRange(this.bestL, this.bestR);
+        this.stats.setWindow(this.left, this.right);
+        this.stats.setSum(this.sum);
+        this.stats.setBest(this.bestSum);
+        this.stats.setOps(this.opsAdd, this.opsSub);
+        this.log.log(`Init: sum of arr[0..${this.right}] = ${this.sum}`);
+        this.started = true;
+        if (this.k === this.n) {
+          this.done = true;
+          this.log.log(`Done: only one window. Best sum = ${this.bestSum} at [${this.bestL}, ${this.bestR}]`);
+        }
+        return;
+      }
+      // Move window by one to the right
+      if (this.right < this.n - 1) {
+        const leaveIdx = this.left;
+        const enterIdx = this.right + 1;
+        this.v.flashLeave(leaveIdx);
+        this.v.flashEnter(enterIdx);
+        const leaving = this.arr[leaveIdx];
+        const entering = this.arr[enterIdx];
+        this.sum += entering; this.opsAdd++;
+        this.sum -= leaving; this.opsSub++;
+        this.left++; this.right++;
+        this.v.setWindow(this.left, this.right);
+        this.v.setPointers(this.left, this.right);
+        this.stats.setWindow(this.left, this.right);
+        this.stats.setSum(this.sum);
+        this.stats.setOps(this.opsAdd, this.opsSub);
+        this.log.log(`Slide: +${entering} (idx ${enterIdx}), -${leaving} (idx ${leaveIdx}) → sum = ${this.sum}`);
+        if (this.sum > this.bestSum) {
+          this.bestSum = this.sum; this.bestL = this.left; this.bestR = this.right;
+          this.v.setBestRange(this.bestL, this.bestR);
+          this.stats.setBest(this.bestSum);
+          this.log.log(`New best: sum = ${this.bestSum} at [${this.bestL}, ${this.bestR}]`);
+        }
+        if (this.right === this.n - 1) {
+          this.done = true;
+          this.log.log(`Done: best sum = ${this.bestSum} at [${this.bestL}, ${this.bestR}]`);
+        }
+      }
+    }
+    play() {
+      if (this.done) return;
+      if (!this.started) this.start();
+      if (!this.timer) {
+        this.timer = setInterval(() => this.step(), this.interval);
+      }
+    }
+    pause() {
+      if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    }
+  }
+
+  // Variable-size window: min len subarray with sum >= target
+  class VariableWindowSimulator {
+    constructor(visual, logger, stats) {
+      this.v = visual; this.log = logger; this.stats = stats;
+      this.timer = null; this.interval = 600;
+      this.reset();
+    }
+    reset() {
+      this.arr = []; this.n = 0; this.target = 0;
+      this.left = 0; this.right = -1; this.sum = 0;
+      this.bestLen = Infinity; this.bestL = -1; this.bestR = -1;
+      this.done = false; this.started = false;
+      this.wantShrink = false;
+      this.opsAdd = 0; this.opsSub = 0;
+      if (this.timer) { clearInterval(this.timer); this.timer = null; }
+      this.v.clearClasses();
+      this.stats.reset();
+      this.log.reset();
+    }
+    init(arr, target) {
+      this.reset();
+      this.arr = arr.slice(); this.n = arr.length; this.target = target|0;
+      this.v.render(this.arr);
+      this.v.setPointers(0, -1);
+      this.v.setWindow(0, -1); // empty
+      this.stats.setWindow('-', '-');
+      this.stats.setBestText('—');
+      this.log.log(`Loaded array of length ${this.n}, target = ${this.target}`);
+    }
+    setSpeed(mult) {
+      this.interval = Math.round(600 / Math.max(0.1, mult));
+      if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = setInterval(() => this.step(), this.interval);
+      }
+    }
+    start() {
+      if (this.started || this.n === 0) return;
+      this.started = true;
+      this.log.log(`Init: empty window at [0, -1], sum = 0`);
+      this.stats.setWindow(0, -1);
+      this.stats.setSum(0);
+      this.stats.setOps(0, 0);
+    }
+    step() {
+      if (!this.started) this.start();
+      if (this.done) return;
+
+      // If we need to shrink and condition holds, shrink from left
+      if (this.wantShrink && this.sum >= this.target) {
+        const len = this.right - this.left + 1;
+        if (len < this.bestLen) {
+          this.bestLen = len; this.bestL = this.left; this.bestR = this.right;
+          this.v.setBestRange(this.bestL, this.bestR);
+          this.stats.setBest(`${this.bestLen} [${this.bestL}, ${this.bestR}]`);
+          this.log.log(`New best: length = ${this.bestLen} at [${this.bestL}, ${this.bestR}]`);
+        }
+        // shrink
+        const leaveIdx = this.left;
+        const leaving = this.arr[leaveIdx];
+        this.v.flashLeave(leaveIdx);
+        this.sum -= leaving; this.opsSub++;
+        this.left++;
+        this.v.setWindow(this.left, this.right);
+        this.v.setPointers(this.left, this.right);
+        this.stats.setWindow(this.left, this.right);
+        this.stats.setSum(this.sum);
+        this.stats.setOps(this.opsAdd, this.opsSub);
+        this.log.log(`Shrink: -${leaving} (idx ${leaveIdx}) → sum = ${this.sum}`);
+        // continue shrinking next step if still >= target
+        if (this.sum < this.target) this.wantShrink = false;
+        // Not done yet; next step will decide to shrink again or advance R
+        return;
+      }
+
+      // Otherwise, advance right if possible
+      if (this.right < this.n - 1) {
+        this.right++;
+        const enterIdx = this.right;
+        const entering = this.arr[enterIdx];
+        this.v.flashEnter(enterIdx);
+        this.sum += entering; this.opsAdd++;
+        if (this.left > this.right) this.left = this.right; // sanity
+        this.v.setWindow(this.left, this.right);
+        this.v.setPointers(this.left, this.right);
+        this.stats.setWindow(this.left, this.right);
+        this.stats.setSum(this.sum);
+        this.stats.setOps(this.opsAdd, this.opsSub);
+        this.log.log(`Expand: +${entering} (idx ${enterIdx}) → sum = ${this.sum}`);
+        // Decide whether to start shrinking on next steps
+        if (this.sum >= this.target) this.wantShrink = true;
+        // If reached end and can't shrink, we might finish soon
+        if (this.right === this.n - 1 && this.sum < this.target) {
+          // No further shrink possible; continue until done when we can't expand more and sum < target
+          // The done condition handled below after a shrink or if cannot shrink further
+        }
+        return;
+      }
+
+      // No more expansion possible; if cannot shrink, we are done
+      if (this.right === this.n - 1 && !(this.wantShrink && this.sum >= this.target)) {
+        this.done = true;
+        if (this.bestLen === Infinity) {
+          this.stats.setBestText('No subarray meets target');
+          this.log.log(`Done: no subarray with sum ≥ ${this.target}`);
+        } else {
+          this.stats.setBest(`${this.bestLen} [${this.bestL}, ${this.bestR}]`);
+          this.log.log(`Done: best length = ${this.bestLen} at [${this.bestL}, ${this.bestR}]`);
+        }
+      }
+    }
+    play() {
+      if (this.done) return;
+      if (!this.started) this.start();
+      if (!this.timer) {
+        this.timer = setInterval(() => this.step(), this.interval);
+      }
+    }
+    pause() {
+      if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    }
+  }
+
+  // Hook up UI
+  const elArray = document.getElementById('array');
+  const visual = new VisualArray(elArray);
+  const logger = new Logger(document.getElementById('log'));
+  const stats = new Stats();
+
+  // Tabs
+  const tabs = document.querySelectorAll('.tab');
+  const fixedPanel = document.getElementById('fixed-panel');
+  const varPanel = document.getElementById('variable-panel');
+  let mode = 'fixed';
+
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    mode = t.dataset.tab;
+    if (mode === 'fixed') { fixedPanel.style.display = ''; varPanel.style.display = 'none'; initFixedFromUI(); }
+    else { fixedPanel.style.display = 'none'; varPanel.style.display = ''; initVarFromUI(); }
+  }));
+
+  // Fixed UI
+  const inArrFixed = document.getElementById('arr-fixed');
+  const inK = document.getElementById('k');
+  const btnRandFixed = document.getElementById('rand-fixed');
+  const btnStartFixed = document.getElementById('start-fixed');
+  const btnStepFixed = document.getElementById('step-fixed');
+  const btnPlayFixed = document.getElementById('play-fixed');
+  const btnPauseFixed = document.getElementById('pause-fixed');
+  const btnResetFixed = document.getElementById('reset-fixed');
+  const errFixed = document.getElementById('err-fixed');
+  const speedFixed = document.getElementById('speed-fixed');
+  const speedLabelFixed = document.getElementById('speed-label-fixed');
+
+  const fixedSim = new FixedWindowSimulator(visual, logger, stats);
+
+  function randomArray(len=10, min=0, max=9) {
+    return Array.from({length: len}, () => Math.floor(Math.random()*(max-min+1))+min);
+  }
+  function initFixedFromUI() {
+    const arr = parseArray(inArrFixed.value);
+    const k = Number(inK.value);
+    if (!arr) { errFixed.textContent = 'Invalid array'; return; }
+    if (k < 1 || k > arr.length) {
+      errFixed.textContent = 'k must be between 1 and array length';
+    } else {
+      errFixed.textContent = '';
+    }
+    fixedSim.init(arr, k);
+  }
+
+  btnRandFixed.addEventListener('click', () => {
+    const arr = randomArray(10, -5, 9);
+    inArrFixed.value = arr.join(',');
+    inK.value = Math.max(1, Math.min(5, Math.floor(arr.length/2)));
+    initFixedFromUI();
+  });
+  btnStartFixed.addEventListener('click', () => {
+    const arr = parseArray(inArrFixed.value);
+    const k = Number(inK.value);
+    if (!arr) { errFixed.textContent = 'Invalid array'; return; }
+    if (k < 1 || k > arr.length) { errFixed.textContent = 'k must be between 1 and array length'; return; }
+    errFixed.textContent = '';
+    fixedSim.init(arr, k);
+    fixedSim.start();
+  });
+  btnStepFixed.addEventListener('click', () => fixedSim.step());
+  btnPlayFixed.addEventListener('click', () => fixedSim.play());
+  btnPauseFixed.addEventListener('click', () => fixedSim.pause());
+  btnResetFixed.addEventListener('click', () => initFixedFromUI());
+  speedFixed.addEventListener('input', () => {
+    const m = Number(speedFixed.value);
+    speedLabelFixed.textContent = `${m}x`;
+    fixedSim.setSpeed(m);
+  });
+
+  // Variable UI
+  const inArrVar = document.getElementById('arr-var');
+  const inTarget = document.getElementById('target');
+  const btnRandVar = document.getElementById('rand-var');
+  const btnStartVar = document.getElementById('start-var');
+  const btnStepVar = document.getElementById('step-var');
+  const btnPlayVar = document.getElementById('play-var');
+  const btnPauseVar = document.getElementById('pause-var');
+  const btnResetVar = document.getElementById('reset-var');
+  const errVar = document.getElementById('err-var');
+  const speedVar = document.getElementById('speed-var');
+  const speedLabelVar = document.getElementById('speed-label-var');
+
+  const varSim = new VariableWindowSimulator(visual, logger, stats);
+
+  function initVarFromUI() {
+    const arr = parseArray(inArrVar.value);
+    const target = Number(inTarget.value);
+    if (!arr) { errVar.textContent = 'Invalid array'; return; }
+    if (!Number.isFinite(target)) { errVar.textContent = 'Invalid target'; return; }
+    errVar.textContent = '';
+    varSim.init(arr, target);
+  }
+
+  btnRandVar.addEventListener('click', () => {
+    const len = Math.floor(Math.random()*8)+6; // 6..13
+    const arr = randomArray(len, 1, 9);
+    inArrVar.value = arr.join(',');
+    const sum = arr.reduce((a,b)=>a+b,0);
+    inTarget.value = Math.max(5, Math.min(sum, Math.floor(sum*0.6)));
+    initVarFromUI();
+  });
+  btnStartVar.addEventListener('click', () => {
+    const arr = parseArray(inArrVar.value);
+    const target = Number(inTarget.value);
+    if (!arr) { errVar.textContent = 'Invalid array'; return; }
+    if (!Number.isFinite(target)) { errVar.textContent = 'Invalid target'; return; }
+    errVar.textContent = '';
+    varSim.init(arr, target);
+    varSim.start();
+  });
+  btnStepVar.addEventListener('click', () => varSim.step());
+  btnPlayVar.addEventListener('click', () => varSim.play());
+  btnPauseVar.addEventListener('click', () => varSim.pause());
+  btnResetVar.addEventListener('click', () => initVarFromUI());
+  speedVar.addEventListener('input', () => {
+    const m = Number(speedVar.value);
+    speedLabelVar.textContent = `${m}x`;
+    varSim.setSpeed(m);
+  });
+
+  // Initial boot
+  initFixedFromUI();
+</script>
+</body>
+</html>

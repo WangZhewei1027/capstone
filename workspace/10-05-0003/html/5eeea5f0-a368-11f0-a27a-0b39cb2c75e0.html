@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hash Map Visualizer (Separate Chaining)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f172a;
+      --panel:#111827;
+      --panel-2:#0b1220;
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --accent:#22d3ee;
+      --accent-2:#a78bfa;
+      --good:#34d399;
+      --warn:#fbbf24;
+      --bad:#f87171;
+      --chip:#1f2937;
+      --chip-border:#2b364a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.03);
+    }
+    * { box-sizing: border-box; }
+    html,body { height:100%; }
+    body {
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 700px at 10% -10%, #18213a 0%, #0f172a 55%) no-repeat, var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 16px 20px;
+      display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+      position: sticky; top: 0; z-index: 5;
+    }
+    .brand {
+      display:flex; align-items:center; gap:12px; font-weight:700; letter-spacing:.3px;
+    }
+    .brand .logo {
+      width: 36px; height: 36px; border-radius: 9px; background:
+        radial-gradient(circle at 30% 30%, #22d3ee66, transparent 40%),
+        radial-gradient(circle at 70% 70%, #a78bfa66, transparent 40%),
+        linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+      box-shadow: var(--shadow);
+    }
+    .brand small { color: var(--muted); font-weight:500; opacity:.8; }
+    .controls {
+      display:flex; gap:14px; align-items:flex-end; flex-wrap: wrap;
+      padding: 10px 20px 16px 20px;
+    }
+    .control {
+      display:flex; flex-direction:column; gap:8px; min-width: 160px;
+    }
+    .control label { font-size: 12px; color: var(--muted); }
+    input[type=text], input[type=number], select {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 10px 12px; border-radius: 10px; outline:none;
+      box-shadow: var(--shadow);
+    }
+    input[type=range] { width: 220px; }
+    .btn {
+      background: linear-gradient(180deg, #1f2937, #0b1220);
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text); padding: 10px 12px; border-radius: 10px;
+      cursor: pointer; transition: .15s transform ease, .2s background ease;
+      box-shadow: var(--shadow);
+      user-select:none;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn.primary { background: linear-gradient(180deg, #2563eb22, #7c3aed22); border-color:#3b82f622; }
+    .btn.good    { background: linear-gradient(180deg, #10b98122, #0ea5e922); border-color:#34d39933; }
+    .btn.warn    { background: linear-gradient(180deg, #f59e0b22, #f9731622); border-color:#f59e0b33; }
+    .btn.bad     { background: linear-gradient(180deg, #ef444422, #b91c1c22); border-color:#ef444422; }
+
+    .layout {
+      display:grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
+      padding: 0 20px 24px 20px;
+    }
+    @media (max-width: 1100px){ .layout{ grid-template-columns: 1fr; } }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 14px; box-shadow: var(--shadow);
+    }
+    .section-title {
+      padding: 12px 14px; color: var(--muted); font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+
+    /* Buckets grid */
+    #buckets {
+      padding: 12px; display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .bucket {
+      background: var(--panel-2);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 12px; overflow:hidden; display:flex; flex-direction:column;
+      min-height: 82px;
+    }
+    .bucket header {
+      position: relative; top:0; border:none; background:none; box-shadow:none;
+      padding: 8px 10px; display:flex; align-items:center; gap:8px; justify-content:space-between;
+    }
+    .bucket header .idx { font-weight:700; color:#a5b4fc; font-size: 12px; }
+    .bucket header .count { font-size: 12px; color: var(--muted); }
+    .bucket .entries {
+      display:flex; flex-wrap: wrap; gap:8px; padding: 8px 10px 12px 10px; align-items:flex-start;
+      min-height: 48px;
+    }
+    .chip {
+      display:inline-flex; align-items:center; gap:6px; border-radius: 999px;
+      padding: 5px 8px; font-size: 12px; background: var(--chip);
+      border: 1px solid var(--chip-border);
+      color: var(--text); opacity:.95;
+      transition: box-shadow .15s ease, transform .15s ease, opacity .2s ease;
+      box-shadow: 0 1px rgba(255,255,255,.05) inset;
+      max-width: 100%;
+    }
+    .chip .key { font-weight: 600; }
+    .chip .val { color: var(--muted); }
+    .chip .dot { width:10px; height:10px; border-radius:50%; box-shadow: 0 0 0 2px rgba(255,255,255,.05) inset; flex: 0 0 auto; }
+    .chip.glow { box-shadow: 0 0 0 2px rgba(34,211,238,.4), 0 0 20px rgba(34,211,238,.15); transform: translateY(-1px); }
+    .chip.found { box-shadow: 0 0 0 2px rgba(52,211,153,.5), 0 0 20px rgba(52,211,153,.2); }
+    .chip.miss { opacity:.5; }
+    .bucket.highlight { outline: 2px solid rgba(34,211,238,.35); }
+    .bucket.pulse { animation: pulse 0.8s ease; }
+    @keyframes pulse {
+      0%{ box-shadow: 0 0 0 rgba(34,211,238,.0); }
+      50%{ box-shadow: 0 0 0 10px rgba(34,211,238,.15); }
+      100%{ box-shadow: 0 0 0 rgba(34,211,238,.0); }
+    }
+
+    /* Sidebar */
+    .stats, .hash, .log {
+      padding: 10px 12px 12px 12px;
+    }
+    .stat-grid {
+      display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    }
+    .stat {
+      background: var(--panel-2); border: 1px solid rgba(255,255,255,.06);
+      border-radius: 10px; padding: 10px;
+    }
+    .stat .label { color: var(--muted); font-size: 12px; }
+    .stat .value { font-size: 18px; font-weight: 700; margin-top: 6px; }
+
+    .bar {
+      height: 8px; background: #0f172a; border-radius: 6px;
+      border: 1px solid rgba(255,255,255,.06); overflow:hidden;
+    }
+    .bar .fill {
+      height:100%; background: linear-gradient(90deg, #22d3ee, #a78bfa);
+      width: 0%;
+      transition: width .25s ease;
+    }
+
+    .hash-steps {
+      margin-top: 8px; max-height: 220px; overflow:auto; padding-right:4px;
+      border-radius: 8px; border: 1px solid rgba(255,255,255,.06);
+      background: var(--panel-2);
+    }
+    .hash-steps .row {
+      display:flex; gap:10px; padding: 6px 8px; border-bottom: 1px dashed rgba(255,255,255,.05);
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size: 12px;
+    }
+    .hash-steps .row:last-child { border-bottom: none; }
+    .hash-steps .row .i { width: 36px; color: var(--muted); }
+    .hash-steps .row .ch { width: 36px; }
+    .hash-steps .row .code { width: 60px; color: #a5b4fc; }
+    .hash-steps .row .acc { color: #93c5fd; }
+    .hash-summary { margin-top:8px; font-size: 12px; color: var(--muted); }
+
+    .log-list {
+      max-height: 260px; overflow:auto; padding-right:4px; display:flex; flex-direction:column; gap:6px;
+    }
+    .log-item {
+      font-size: 13px; color: #cbd5e1; background: var(--panel-2); border: 1px solid rgba(255,255,255,.06);
+      border-radius: 10px; padding: 8px 10px; display:flex; gap:8px; align-items:flex-start;
+    }
+    .log-item .t { color: var(--muted); font-size: 11px; margin-left:auto; }
+    .badge { font-size: 11px; padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,.06);
+      background: #0b1220; color: var(--muted);
+    }
+    .row-controls { display:flex; gap:8px; align-items:center; flex-wrap: wrap; }
+    .mini { padding: 6px 8px; font-size: 12px; border-radius: 8px; }
+
+    footer {
+      padding: 14px 20px; color: var(--muted); border-top: 1px solid rgba(255,255,255,.06);
+      font-size: 12px;
+    }
+    .inline { display:inline-flex; gap: 6px; align-items:center; }
+    .note { color: var(--muted); font-size: 12px; }
+    .toggle { display:flex; align-items:center; gap:8px; }
+    .toggle input { transform: translateY(1px); }
+    .hint { color: var(--muted); font-size: 12px; }
+
+    .subtle {
+      color: var(--muted); font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        Hash Map Visualizer
+        <div><small>Separate chaining • interactive demo</small></div>
+      </div>
+    </div>
+    <div class="row-controls">
+      <div class="toggle">
+        <input type="checkbox" id="autoResize" checked>
+        <label for="autoResize" class="subtle">Auto-resize</label>
+      </div>
+      <div class="inline subtle">
+        Load factor
+        <input type="range" id="lfRange" min="0.50" max="0.95" step="0.05" value="0.75" />
+        <span id="lfLabel">0.75</span>
+      </div>
+      <div class="inline subtle">
+        Hash
+        <select id="hashSelect">
+          <option value="djb2">djb2</option>
+          <option value="poly31">Polynomial (x*31+c)</option>
+          <option value="sum">Sum of char codes</option>
+        </select>
+      </div>
+      <button class="btn mini" id="btnRehash">Rehash now</button>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="control" style="min-width:200px;flex:1">
+      <label for="keyInput">Key</label>
+      <input type="text" id="keyInput" placeholder="e.g., username, foo, 42" />
+    </div>
+    <div class="control" style="min-width:200px;flex:1">
+      <label for="valInput">Value</label>
+      <input type="text" id="valInput" placeholder="e.g., Alice, bar, any text" />
+    </div>
+    <div class="control" style="min-width:140px">
+      <label>&nbsp;</label>
+      <div class="row-controls">
+        <button class="btn primary" id="btnSet">Put</button>
+        <button class="btn" id="btnGet">Get</button>
+        <button class="btn warn" id="btnHas">Has</button>
+        <button class="btn bad" id="btnDel">Delete</button>
+      </div>
+    </div>
+    <div class="control" style="min-width:220px; max-width: 360px; flex:1">
+      <label>Quick actions</label>
+      <div class="row-controls">
+        <button class="btn good" id="btnRandom">Insert random</button>
+        <button class="btn" id="btnBulk50">Bulk 50</button>
+        <button class="btn" id="btnCollide">Insert colliding keys</button>
+        <button class="btn" id="btnReset">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <div class="section-title">Buckets</div>
+      <div id="buckets"></div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">Inspector & stats</div>
+      <div class="stats">
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="label">Capacity (buckets)</div>
+            <div class="value" id="statCapacity">-</div>
+          </div>
+          <div class="stat">
+            <div class="label">Size (entries)</div>
+            <div class="value" id="statSize">-</div>
+          </div>
+          <div class="stat">
+            <div class="label inline">Load factor
+              <span class="badge" id="statLFThresh">-</span>
+            </div>
+            <div>
+              <div class="bar"><div class="fill" id="lfFill"></div></div>
+              <div class="hint" id="lfText">-</div>
+            </div>
+          </div>
+          <div class="stat">
+            <div class="label">Used buckets</div>
+            <div class="value" id="statUsed">-</div>
+          </div>
+          <div class="stat">
+            <div class="label">Max chain length</div>
+            <div class="value" id="statMaxChain">-</div>
+          </div>
+          <div class="stat">
+            <div class="label">Collisions (insert)</div>
+            <div class="value" id="statCollisions">-</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hash">
+        <div class="inline" style="gap:10px; margin-bottom:6px;">
+          <div class="subtle">Hash explorer</div>
+        </div>
+        <div class="row-controls" style="margin-bottom:8px;">
+          <input id="inspectInput" type="text" placeholder="Type a key to hash..." style="flex:1; min-width:200px;">
+          <button class="btn mini" id="btnCompute">Compute hash</button>
+          <span class="badge" id="inspectIndexBadge" title="Bucket index"></span>
+        </div>
+        <div class="hash-steps" id="hashSteps"></div>
+        <div class="hash-summary" id="hashSummary"></div>
+      </div>
+
+      <div class="log">
+        <div class="inline" style="gap:10px; margin-bottom:6px;">
+          <div class="subtle">Operation log</div>
+          <button class="btn mini" id="btnClearLog" title="Clear log">Clear</button>
+        </div>
+        <div class="log-list" id="logList"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    This interactive demo shows a hash map using separate chaining:
+    keys are hashed to an index and each bucket stores a chain (list) of entries with the same index.
+    Use Put/Get/Delete and watch collisions and chains evolve. Toggle auto-resize and change the hash function to see how distribution changes.
+  </footer>
+
+  <script>
+    // Utility: colors, randoms, time
+    const Utils = {
+      toUInt32(x){ return x >>> 0; },
+      clamp(v, a, b){ return Math.max(a, Math.min(b, v)); },
+      time(){ const d=new Date(); return d.toLocaleTimeString(); },
+      nextPow2(n){
+        n = Math.max(1, n|0);
+        n--;
+        n |= n >> 1; n |= n >> 2; n |= n >> 4; n |= n >> 8; n |= n >> 16;
+        return (n+1) >>> 0;
+      },
+      colorFromHash(h){
+        // derive a pleasant color from hash bits
+        const r = (h & 0xFF);
+        const g = (h >>> 8) & 0xFF;
+        const b = (h >>> 16) & 0xFF;
+        const lighten = 0.6; // mix with 255 for lighter chips
+        const rr = Math.floor(r*lighten + 255*(1-lighten));
+        const gg = Math.floor(g*lighten + 255*(1-lighten));
+        const bb = Math.floor(b*lighten + 255*(1-lighten));
+        return `rgb(${rr}, ${gg}, ${bb})`;
+      },
+      randWord(){
+        const syll = ["ka","zu","mi","ra","to","ne","li","so","va","qu","re","do","pa","xi","no","fa","jo","yu","ti","mo","sa","lu","be","di"];
+        const n = 2 + Math.floor(Math.random()*3);
+        let s=""; for(let i=0;i<n;i++){ s+= syll[Math.floor(Math.random()*syll.length)]; }
+        return s;
+      },
+      randKV(){
+        const k = `${Utils.randWord()}-${Math.floor(Math.random()*999)}`;
+        const v = ["alpha","bravo","charlie","delta","echo","foxtrot","golf","hotel","india"][Math.floor(Math.random()*9)] + " " + Utils.randWord();
+        return [k,v];
+      },
+      collidingKeys(hashName, count, base="X"){
+        // Try to generate strings that collide for simple hash functions.
+        // Works well for "sum" and passable for "poly31" by using anagrams.
+        // For djb2, this is probabilistic; we'll bias by repeating same key with numeric suffix.
+        const keys=[];
+        if(hashName === "sum"){
+          // Same sum: keep sum of char codes constant
+          // Start with a base and vary pairs that keep sum constant (e.g., 'A'(65) <-> 'B'(66) and 'a'(97) <-> '`'(96))
+          let seed = "AAAA"; // sum = 260
+          keys.push(seed);
+          const options = [["A","B","`","a"], ["C","D","e","f"], ["M","N","o","p"], ["X","Y","{","|"]];
+          let made=1;
+          while(made < count){
+            let s = seed.split("");
+            const idx = Math.floor(Math.random()*s.length);
+            const pair = options[Math.floor(Math.random()*options.length)];
+            // Replace two chars to keep sum same
+            s[idx] = pair[0]; // +1
+            const j = (idx+1) % s.length;
+            s[j] = pair[2]; // -1 counterpart
+            keys.push(s.join(""));
+            made++;
+          }
+        } else if(hashName === "poly31"){
+          // Anagrams often collide less here, but for small strings, anagrams differ.
+          // We'll enforce same characters with different order and hope for some collisions in small capacity.
+          const baseChars = (base + "abcd").split("");
+          for(let i=0;i<count;i++){
+            keys.push(baseChars.sort(()=>Math.random()-.5).join("") + i);
+          }
+        } else {
+          // djb2: fallback to same prefix + varying padding that often hit same bucket for small capacities
+          const prefix = base + "-dj";
+          for(let i=0;i<count;i++){
+            keys.push(prefix + ((i%3===0)?"!!!!":"") + i);
+          }
+        }
+        return keys;
+      }
+    };
+
+    // Hash functions + step recorders
+    const Hashers = {
+      sum(key, withSteps=false){
+        let acc = 0>>>0; const steps=[];
+        for(let i=0;i<key.length;i++){
+          const code = key.charCodeAt(i) >>> 0;
+          acc = Utils.toUInt32((acc + code) | 0);
+          if(withSteps) steps.push({i, ch:key[i], code, acc});
+        }
+        return withSteps ? {hash:acc>>>0, steps} : acc>>>0;
+      },
+      poly31(key, withSteps=false){
+        let acc = 0|0; const steps=[];
+        for(let i=0;i<key.length;i++){
+          const code = key.charCodeAt(i) >>> 0;
+          acc = (Math.imul(acc,31) + code) | 0;
+          const u = acc>>>0;
+          if(withSteps) steps.push({i, ch:key[i], code, acc:u});
+        }
+        return withSteps ? {hash:acc>>>0, steps} : acc>>>0;
+      },
+      djb2(key, withSteps=false){
+        let acc = 5381|0; const steps=[];
+        for(let i=0;i<key.length;i++){
+          const code = key.charCodeAt(i) >>> 0;
+          acc = (((acc << 5) + acc) + code) | 0; // acc*33 + code
+          const u = acc>>>0;
+          if(withSteps) steps.push({i, ch:key[i], code, acc:u});
+        }
+        const u = acc>>>0;
+        return withSteps ? {hash:u, steps} : u;
+      },
+      withSteps(name, key){
+        if(name==="sum")   return Hashers.sum(key,true);
+        if(name==="poly31")return Hashers.poly31(key,true);
+        return Hashers.djb2(key,true);
+      },
+      run(name, key){
+        if(name==="sum")   return Hashers.sum(key,false);
+        if(name==="poly31")return Hashers.poly31(key,false);
+        return Hashers.djb2(key,false);
+      }
+    };
+
+    // HashMap with separate chaining
+    class HashMapChaining {
+      constructor({capacity=8, loadFactor=0.75, hashName="djb2", autoResize=true}={}){
+        this.capacity = Math.max(4, Utils.nextPow2(capacity|0));
+        this.buckets = Array.from({length:this.capacity}, ()=>[]);
+        this.size = 0;
+        this.loadFactor = loadFactor;
+        this.hashName = hashName;
+        this.collisionCount = 0;
+        this.autoResize = autoResize;
+      }
+      setHash(name){ this.hashName = name; }
+      setLoadFactor(lf){ this.loadFactor = lf; }
+      setAutoResize(ar){ this.autoResize = !!ar; }
+      _hash(key){ return Hashers.run(this.hashName, key); }
+      _index(hash){ return hash % this.capacity; }
+      clear(){
+        this.buckets = Array.from({length:this.capacity}, ()=>[]);
+        this.size = 0;
+        this.collisionCount = 0;
+      }
+      has(key){
+        key = String(key);
+        const h = this._hash(key);
+        const idx = this._index(h);
+        const bucket = this.buckets[idx];
+        for(const e of bucket){
+          if(e.key === key) return true;
+        }
+        return false;
+      }
+      get(key){
+        key = String(key);
+        const h = this._hash(key);
+        const idx = this._index(h);
+        const bucket = this.buckets[idx];
+        for(let i=0;i<bucket.length;i++){
+          const e = bucket[i];
+          if(e.key === key){
+            return {value:e.value, bucketIndex: idx, entryIndex: i, found: true, hash:h};
+          }
+        }
+        return {value:undefined, bucketIndex: idx, entryIndex: -1, found: false, hash:h};
+      }
+      set(key, value){
+        key = String(key);
+        const h = this._hash(key);
+        const idx = this._index(h);
+        const bucket = this.buckets[idx];
+        // Update if exists
+        for(let i=0;i<bucket.length;i++){
+          const e = bucket[i];
+          if(e.key === key){
+            e.value = value;
+            return {updated:true, inserted:false, bucketIndex:idx, entryIndex:i, hash:h, collision:false};
+          }
+        }
+        // Insert
+        const collision = bucket.length > 0;
+        if(collision) this.collisionCount++;
+        bucket.push({hash:h, key, value});
+        this.size++;
+        // Resize if needed
+        let resized = false, oldCap = this.capacity;
+        if(this.autoResize && (this.size / this.capacity) > this.loadFactor){
+          this._resize(this.capacity * 2);
+          resized = true;
+        }
+        const entryIndex = this.buckets[resized? this._index(h) : idx].length - 1;
+        const newIdx = resized ? this._index(h) : idx;
+        return {updated:false, inserted:true, bucketIndex:newIdx, entryIndex, hash:h, collision, resized, oldCap, newCap:this.capacity};
+      }
+      delete(key){
+        key = String(key);
+        const h = this._hash(key);
+        const idx = this._index(h);
+        const bucket = this.buckets[idx];
+        for(let i=0;i<bucket.length;i++){
+          if(bucket[i].key === key){
+            const removed = bucket.splice(i,1)[0];
+            this.size--;
+            return {removed:true, bucketIndex:idx, entryIndex:i, hash:h, value:removed.value};
+          }
+        }
+        return {removed:false, bucketIndex:idx, entryIndex:-1, hash:h};
+      }
+      entries(){
+        const out = [];
+        for(const bucket of this.buckets){
+          for(const e of bucket) out.push([e.key, e.value]);
+        }
+        return out;
+      }
+      _resize(newCap){
+        newCap = Math.max(4, Utils.nextPow2(newCap|0));
+        const old = this.buckets;
+        this.buckets = Array.from({length:newCap}, ()=>[]);
+        this.capacity = newCap;
+        // Rehash
+        for(const b of old){
+          for(const e of b){
+            const idx = this._index(e.hash);
+            this.buckets[idx].push(e);
+          }
+        }
+      }
+      stats(){
+        let used = 0, maxChain = 0;
+        for(const b of this.buckets){
+          if(b.length>0) used++;
+          if(b.length>maxChain) maxChain = b.length;
+        }
+        return {
+          capacity: this.capacity,
+          size: this.size,
+          usedBuckets: used,
+          maxChain,
+          load: this.size / this.capacity,
+          collisions: this.collisionCount
+        };
+      }
+    }
+
+    // App state
+    const state = {
+      map: new HashMapChaining({capacity:8, loadFactor:0.75, hashName:"djb2", autoResize:true}),
+      highlight: null, // {bucketIndex, entryIndex, mode: 'set'|'get'|'del', found, pathLength}
+      logs: []
+    };
+
+    // DOM refs
+    const el = {
+      buckets: document.getElementById("buckets"),
+      statCapacity: document.getElementById("statCapacity"),
+      statSize: document.getElementById("statSize"),
+      statUsed: document.getElementById("statUsed"),
+      statMaxChain: document.getElementById("statMaxChain"),
+      statCollisions: document.getElementById("statCollisions"),
+      lfFill: document.getElementById("lfFill"),
+      lfText: document.getElementById("lfText"),
+      lfRange: document.getElementById("lfRange"),
+      lfLabel: document.getElementById("lfLabel"),
+      statLFThresh: document.getElementById("statLFThresh"),
+      keyInput: document.getElementById("keyInput"),
+      valInput: document.getElementById("valInput"),
+
+      btnSet: document.getElementById("btnSet"),
+      btnGet: document.getElementById("btnGet"),
+      btnDel: document.getElementById("btnDel"),
+      btnHas: document.getElementById("btnHas"),
+      btnRandom: document.getElementById("btnRandom"),
+      btnBulk50: document.getElementById("btnBulk50"),
+      btnReset: document.getElementById("btnReset"),
+      btnCollide: document.getElementById("btnCollide"),
+
+      autoResize: document.getElementById("autoResize"),
+      btnRehash: document.getElementById("btnRehash"),
+      hashSelect: document.getElementById("hashSelect"),
+
+      inspectInput: document.getElementById("inspectInput"),
+      inspectIndexBadge: document.getElementById("inspectIndexBadge"),
+      btnCompute: document.getElementById("btnCompute"),
+      hashSteps: document.getElementById("hashSteps"),
+      hashSummary: document.getElementById("hashSummary"),
+
+      logList: document.getElementById("logList"),
+      btnClearLog: document.getElementById("btnClearLog"),
+    };
+
+    function render(){
+      renderBuckets();
+      renderStats();
+      renderLog();
+    }
+
+    function renderBuckets(){
+      const {buckets} = state.map;
+      const h = state.highlight;
+      el.buckets.innerHTML = "";
+      for(let i=0;i<buckets.length;i++){
+        const bucket = buckets[i];
+        const wrap = document.createElement("div");
+        wrap.className = "bucket" + (h && h.bucketIndex===i ? " highlight pulse" : "");
+        const header = document.createElement("header");
+        header.innerHTML = `
+          <div class="idx">Bucket ${i}</div>
+          <div class="count">${bucket.length} entr${bucket.length===1?'y':'ies'}</div>
+        `;
+        const entries = document.createElement("div");
+        entries.className = "entries";
+        for(let j=0;j<bucket.length;j++){
+          const e = bucket[j];
+          const chip = document.createElement("div");
+          chip.className = "chip";
+          chip.title = `key="${e.key}" value="${e.value}"\nhash=0x${e.hash.toString(16)} • idx=${i} • pos=${j}`;
+          const dot = document.createElement("span");
+          dot.className = "dot";
+          dot.style.background = Utils.colorFromHash(e.hash);
+          const key = document.createElement("span");
+          key.className = "key";
+          key.textContent = e.key.length>16 ? e.key.slice(0,16)+"…" : e.key;
+          const val = document.createElement("span");
+          val.className = "val";
+          val.textContent = String(e.value).length>14 ? String(e.value).slice(0,14)+"…" : String(e.value);
+          chip.append(dot, key, val);
+
+          // highlight path for last op
+          if(h && h.bucketIndex === i){
+            if(h.mode === 'get' || h.mode === 'del'){
+              if(j <= (h.entryIndex < 0 ? bucket.length-1 : h.entryIndex)){
+                chip.classList.add("glow");
+              }
+              if(h.entryIndex === j && h.found){
+                chip.classList.add("found");
+              }
+              if(!h.found && j === bucket.length-1){
+                chip.classList.add("miss");
+              }
+            } else if(h.mode === 'set'){
+              if(h.entryIndex === j) chip.classList.add("found");
+              if(h.collision && j < h.entryIndex) chip.classList.add("glow");
+            }
+          }
+
+          entries.appendChild(chip);
+        }
+        // empty hint
+        if(bucket.length===0){
+          const empty = document.createElement("div");
+          empty.className = "hint";
+          empty.style.padding = "8px 10px 12px 10px";
+          empty.textContent = "empty";
+          entries.appendChild(empty);
+        }
+
+        wrap.append(header, entries);
+        el.buckets.appendChild(wrap);
+      }
+    }
+
+    function renderStats(){
+      const s = state.map.stats();
+      el.statCapacity.textContent = s.capacity;
+      el.statSize.textContent = s.size;
+      el.statUsed.textContent = s.usedBuckets;
+      el.statMaxChain.textContent = s.maxChain;
+      el.statCollisions.textContent = s.collisions;
+      const thresh = state.map.loadFactor;
+      const pct = Math.min(100, (s.load / thresh) * 100);
+      el.lfFill.style.width = `${pct}%`;
+      el.lfText.textContent = `${(s.load).toFixed(3)} = size/capacity = ${s.size}/${s.capacity}`;
+      el.statLFThresh.textContent = `threshold ${thresh}`;
+      el.inspectIndexBadge.textContent = "";
+    }
+
+    function log(message, kind="info"){
+      const icon = kind==="good" ? "✅" : kind==="warn" ? "⚠️" : kind==="bad" ? "🗑️" : kind==="hash" ? "🔢" : "ℹ️";
+      state.logs.unshift({t:Utils.time(), msg: `${icon} ${message}`});
+      if(state.logs.length > 120) state.logs.pop();
+      renderLog();
+    }
+
+    function renderLog(){
+      el.logList.innerHTML = "";
+      for(const item of state.logs){
+        const div = document.createElement("div");
+        div.className = "log-item";
+        const spanMsg = document.createElement("div");
+        spanMsg.textContent = item.msg;
+        const spanTime = document.createElement("div");
+        spanTime.className = "t";
+        spanTime.textContent = item.t;
+        div.append(spanMsg, spanTime);
+        el.logList.appendChild(div);
+      }
+    }
+
+    // Actions
+    function doSet(){
+      const k = el.keyInput.value.trim();
+      const v = el.valInput.value;
+      if(!k){ shake(el.keyInput); return; }
+      const res = state.map.set(k, v);
+      state.highlight = {
+        bucketIndex: res.bucketIndex, entryIndex: res.entryIndex,
+        mode: 'set', found: true, collision: res.collision
+      };
+      if(res.updated){
+        log(`Put: updated key="${k}" at bucket ${res.bucketIndex}, entry ${res.entryIndex}`, "good");
+      } else {
+        log(`Put: inserted key="${k}" at bucket ${res.bucketIndex}, entry ${res.entryIndex}` + (res.collision?" (collision)":""));
+      }
+      if(res.resized){
+        log(`Auto-resize: capacity ${res.oldCap} → ${res.newCap}`, "warn");
+      }
+      render();
+    }
+
+    function doGet(){
+      const k = el.keyInput.value.trim();
+      if(!k){ shake(el.keyInput); return; }
+      const res = state.map.get(k);
+      state.highlight = {
+        bucketIndex: res.bucketIndex, entryIndex: res.entryIndex,
+        mode: 'get', found: res.found
+      };
+      if(res.found){
+        log(`Get: key="${k}" found at bucket ${res.bucketIndex}, entry ${res.entryIndex}, value="${res.value}"`, "good");
+        el.valInput.value = String(res.value);
+      } else {
+        log(`Get: key="${k}" not found (bucket ${res.bucketIndex})`, "bad");
+      }
+      render();
+    }
+
+    function doHas(){
+      const k = el.keyInput.value.trim();
+      if(!k){ shake(el.keyInput); return; }
+      const r = state.map.get(k);
+      state.highlight = {
+        bucketIndex: r.bucketIndex, entryIndex: r.entryIndex,
+        mode: 'get', found: r.found
+      };
+      log(`Has: key="${k}" = ${r.found ? "true" : "false"} (bucket ${r.bucketIndex})`, r.found ? "good" : "bad");
+      render();
+    }
+
+    function doDel(){
+      const k = el.keyInput.value.trim();
+      if(!k){ shake(el.keyInput); return; }
+      const res = state.map.delete(k);
+      state.highlight = {
+        bucketIndex: res.bucketIndex, entryIndex: res.entryIndex,
+        mode: 'del', found: res.removed
+      };
+      if(res.removed){
+        log(`Delete: key="${k}" removed from bucket ${res.bucketIndex}, entry ${res.entryIndex}`, "bad");
+      } else {
+        log(`Delete: key="${k}" not found (bucket ${res.bucketIndex})`, "warn");
+      }
+      render();
+    }
+
+    function doRandom(){
+      const [k,v] = Utils.randKV();
+      el.keyInput.value = k;
+      el.valInput.value = v;
+      doSet();
+    }
+
+    function doBulk(n=50){
+      for(let i=0;i<n;i++){
+        const [k,v] = Utils.randKV();
+        state.map.set(k, v);
+      }
+      state.highlight = null;
+      log(`Inserted ${n} random entries`, "good");
+      render();
+    }
+
+    function doCollide(){
+      const list = Utils.collidingKeys(state.map.hashName, 10, "C");
+      for(const k of list){
+        state.map.set(k, k.toUpperCase());
+      }
+      state.highlight = null;
+      log(`Inserted ${list.length} keys designed to collide (hash=${state.map.hashName})`, "warn");
+      render();
+    }
+
+    function doReset(){
+      const cap = state.map.capacity;
+      state.map = new HashMapChaining({
+        capacity: cap, loadFactor: state.map.loadFactor,
+        hashName: state.map.hashName, autoResize: state.map.autoResize
+      });
+      state.highlight = null;
+      log("Reset: cleared all entries", "warn");
+      render();
+    }
+
+    function doRehash(){
+      // Rehash at current capacity to redistribute after hash function change
+      const entries = state.map.entries();
+      state.map.clear();
+      for(const [k,v] of entries){
+        state.map.set(k, v);
+      }
+      state.highlight = null;
+      log("Rehashed all entries with current hash function", "hash");
+      render();
+    }
+
+    function shake(input){
+      input.style.transition = "transform .1s ease";
+      input.style.transform = "translateX(4px)";
+      setTimeout(()=> input.style.transform="translateX(-4px)", 60);
+      setTimeout(()=> input.style.transform="", 120);
+    }
+
+    // Hash explorer
+    function computeHashSteps(){
+      const k = el.inspectInput.value;
+      const {hash, steps} = Hashers.withSteps(state.map.hashName, k);
+      const idx = (hash % state.map.capacity) >>> 0;
+      el.hashSteps.innerHTML = "";
+      if(k.length === 0){
+        el.hashSummary.textContent = "Type a key to see how the hash evolves";
+        el.inspectIndexBadge.textContent = "";
+        return;
+      }
+      for(const s of steps){
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `
+          <div class="i">#${s.i}</div>
+          <div class="ch">${s.ch || "␀"}</div>
+          <div class="code">${s.code}</div>
+          <div class="acc">acc = ${s.acc}</div>
+        `;
+        el.hashSteps.appendChild(row);
+      }
+      el.hashSummary.textContent = `final hash = ${hash} (0x${hash.toString(16)}), bucket index = hash % capacity = ${hash} % ${state.map.capacity} = ${idx}`;
+      el.inspectIndexBadge.textContent = `→ bucket ${idx}`;
+    }
+
+    // Bind events
+    el.btnSet.addEventListener("click", doSet);
+    el.btnGet.addEventListener("click", doGet);
+    el.btnDel.addEventListener("click", doDel);
+    el.btnHas.addEventListener("click", doHas);
+
+    el.btnRandom.addEventListener("click", doRandom);
+    el.btnBulk50.addEventListener("click", ()=>doBulk(50));
+    el.btnReset.addEventListener("click", doReset);
+    el.btnCollide.addEventListener("click", doCollide);
+
+    el.lfRange.addEventListener("input", (e)=>{
+      const v = parseFloat(e.target.value);
+      state.map.setLoadFactor(v);
+      el.lfLabel.textContent = v.toFixed(2);
+      renderStats();
+    });
+
+    el.autoResize.addEventListener("change", (e)=>{
+      state.map.setAutoResize(e.target.checked);
+      log(`Auto-resize ${e.target.checked ? "enabled" : "disabled"}`);
+    });
+
+    el.hashSelect.addEventListener("change", (e)=>{
+      state.map.setHash(e.target.value);
+      log(`Hash function set to "${e.target.value}"`, "hash");
+      // Update inspector view if open
+      computeHashSteps();
+      render();
+    });
+
+    el.btnRehash.addEventListener("click", doRehash);
+
+    el.btnCompute.addEventListener("click", computeHashSteps);
+    el.inspectInput.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") computeHashSteps();
+    });
+
+    el.keyInput.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") doSet();
+    });
+    el.valInput.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") doSet();
+    });
+
+    el.btnClearLog.addEventListener("click", ()=>{
+      state.logs = [];
+      renderLog();
+    });
+
+    // Initial render
+    render();
+    log("Ready. Insert keys with Put, then Get/Delete/Has. Change hash function or load factor to observe distribution.");
+
+    // Example seed data
+    (function seed(){
+      const items = [["user","Alice"],["lang","TypeScript"],["color","teal"],["mode","chaining"],["pi","3.14159"]];
+      for(const [k,v] of items) state.map.set(k,v);
+      render();
+    })();
+  </script>
+</body>
+</html>

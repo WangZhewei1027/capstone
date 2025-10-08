@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Hash Table Visualizer</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --accent: #22d3ee;
+    --accent2: #4ade80;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --probe: #fde68a;
+    --hit: #86efac;
+    --collision: #fca5a5;
+    --tomb: #6b7280;
+    --border: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial; }
+  a { color: var(--accent); }
+  h1, h2, h3 { margin: 0; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .header h1 { font-size: 22px; }
+  .subtitle { font-size: 13px; color: var(--muted); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .controls { display: grid; grid-template-columns: repeat(12, 1fr); gap: 10px; align-items: end; }
+  .control { grid-column: span 3; }
+  .control.wide { grid-column: span 6; }
+  .control.full { grid-column: 1 / -1; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  input[type="text"], input[type="number"], select {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: #0b1220; color: var(--text);
+  }
+  input[type="range"] { width: 100%; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn {
+    padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: #0b1220; color: var(--text); cursor: pointer; transition: transform 0.02s ease;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:active { transform: scale(0.98); }
+  .btn.primary { background: #0b2545; border-color: #113a63; color: #bfe2ff; }
+  .btn.warn { background: #3b1d06; border-color: #7a3b0c; color: #f8be6c; }
+  .btn.danger { background: #3a0d0d; border-color: #7a1e1e; color: #ffb3b3; }
+  .switch { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+  .metric { background: #0b1220; border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .metric .big { font-size: 18px; font-weight: 600; color: var(--accent2); }
+  .metric .label { font-size: 12px; color: var(--muted); }
+  .grid-wrap { margin-top: 14px; }
+  .grid {
+    display: grid; gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  .bucket {
+    background: #0b1220; border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px; position: relative; min-height: 56px;
+  }
+  .bucket .index {
+    position: absolute; top: 6px; right: 8px;
+    font-size: 11px; color: var(--muted);
+  }
+  .bucket .title { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .entries { display: flex; flex-wrap: wrap; gap: 6px; }
+  .entry {
+    font-size: 12px; border-radius: 6px; padding: 4px 6px; border: 1px solid var(--border);
+    background: #10192b; color: #d1eaff;
+  }
+  .entry .kv { opacity: 0.9; }
+  .slot-empty { font-size: 12px; color: var(--muted); opacity: 0.7; }
+  .tomb { background: #1f2937; color: #b0b7c3; border-color: #2b3644; }
+  .highlight-probe { outline: 2px dashed var(--warn); outline-offset: -2px; animation: pulse 0.6s ease-in-out; }
+  .highlight-hit { outline: 2px solid var(--accent2); outline-offset: -2px; }
+  .highlight-collision { outline: 2px solid var(--danger); outline-offset: -2px; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+    100% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+  }
+  .log { margin-top: 10px; max-height: 160px; overflow: auto; background: #0b1220; border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 12px; }
+  .log-entry { margin-bottom: 4px; }
+  .legend { display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; margin-right: 6px; }
+  .dot.probe { background: var(--warn); }
+  .dot.hit { background: var(--accent2); }
+  .dot.collision { background: var(--danger); }
+  .dot.tomb { background: var(--tomb); }
+  .desc { margin-bottom: 10px; font-size: 13px; color: var(--muted); }
+  .sep { height: 1px; background: var(--border); margin: 12px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Hash Table Visualizer</h1>
+      <div class="subtitle">Insert, search, delete; observe hashing, collisions, load factor, and resizing.</div>
+    </div>
+    <button class="btn" id="btnTryCollision">Try collision pair (Aa & BB)</button>
+  </div>
+
+  <div class="panel">
+    <div class="desc">
+      A hash table stores key-value pairs and uses a hash function to map keys to bucket indices. Collisions occur when multiple keys hash to the same bucket;
+      different collision resolution strategies like separate chaining or open addressing handle them. Load factor indicates how full the table is and influences performance.
+    </div>
+    <div class="controls">
+      <div class="control">
+        <label>Collision Resolution</label>
+        <select id="modeSelect">
+          <option value="chaining">Separate Chaining (linked buckets)</option>
+          <option value="linear">Open Addressing (Linear Probing)</option>
+        </select>
+      </div>
+      <div class="control">
+        <label>Hash Function</label>
+        <select id="hashSelect">
+          <option value="polynomial31">Polynomial rolling (base 31)</option>
+          <option value="fnv1a">FNV-1a (simplified)</option>
+          <option value="sum">Sum of char codes</option>
+        </select>
+      </div>
+      <div class="control">
+        <label>Number of buckets</label>
+        <input type="number" id="bucketInput" min="4" max="128" step="1" value="16"/>
+      </div>
+      <div class="control">
+        <label>Auto-resize threshold (load factor)</label>
+        <input type="range" id="lfSlider" min="0.45" max="0.95" step="0.05" value="0.75"/>
+        <div class="row" style="justify-content: space-between;">
+          <span class="subtitle">Resize when size/buckets ≥ <span id="lfVal">0.75</span></span>
+          <label class="switch"><input type="checkbox" id="autoResize" checked/> auto-resize</label>
+        </div>
+      </div>
+
+      <div class="control wide">
+        <label>Key</label>
+        <input type="text" id="keyInput" placeholder="e.g., user42 or Aa or 123"/>
+        <div class="row" style="margin-top: 6px;">
+          <label class="switch"><input type="checkbox" id="parseNumber"/> parse numeric keys as numbers</label>
+        </div>
+      </div>
+      <div class="control wide">
+        <label>Value (optional)</label>
+        <input type="text" id="valInput" placeholder="e.g., Alice"/>
+      </div>
+
+      <div class="control full">
+        <div class="row">
+          <button class="btn primary" id="btnInsert">Insert / Upsert</button>
+          <button class="btn" id="btnSearch">Search</button>
+          <button class="btn warn" id="btnDelete">Delete</button>
+          <button class="btn" id="btnRandom">Insert 10 random keys</button>
+          <button class="btn danger" id="btnClear">Clear Table</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">Elements</div>
+        <div class="big" id="mSize">0</div>
+      </div>
+      <div class="metric">
+        <div class="label">Buckets</div>
+        <div class="big" id="mBuckets">16</div>
+      </div>
+      <div class="metric">
+        <div class="label">Load Factor</div>
+        <div class="big" id="mLF">0.00</div>
+      </div>
+      <div class="metric">
+        <div class="label">Collisions (cumulative)</div>
+        <div class="big" id="mCollisions">0</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot probe"></span>probe path</span>
+      <span><span class="dot hit"></span>hit / final slot</span>
+      <span><span class="dot collision"></span>collision</span>
+      <span><span class="dot tomb"></span>tombstone</span>
+    </div>
+
+    <div class="grid-wrap">
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script>
+/* Hash Functions */
+function hashPolynomial31(str) {
+  let h = 0 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (Math.imul(h, 31) + str.charCodeAt(i)) >>> 0;
+  }
+  return h >>> 0;
+}
+function hashSum(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h += str.charCodeAt(i);
+  return h >>> 0;
+}
+function hashFNV1a(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+const HASHES = {
+  polynomial31: hashPolynomial31,
+  sum: hashSum,
+  fnv1a: hashFNV1a
+};
+
+function isNumberLike(s) {
+  return /^-?\d+(\.\d+)?$/.test(s.trim());
+}
+
+function nextBucketCount(n) {
+  // simple grow strategy; not necessarily prime
+  return Math.min(128, Math.max(4, n * 2));
+}
+
+/* Hash Table class */
+class HashTable {
+  constructor(bucketCount = 16, mode = 'chaining', hashName = 'polynomial31') {
+    this.bucketCount = bucketCount;
+    this.mode = mode; // 'chaining' | 'linear'
+    this.hashName = hashName;
+    this.resetBuckets();
+    this.size = 0;
+    this.tombstones = 0;
+    this.collisionsTotal = 0;
+    this.lastOpInfo = null;
+    this.autoResize = true;
+    this.resizeThreshold = 0.75;
+  }
+
+  resetBuckets() {
+    if (this.mode === 'chaining') {
+      this.buckets = Array.from({ length: this.bucketCount }, () => []);
+    } else {
+      this.buckets = Array.from({ length: this.bucketCount }, () => null);
+    }
+  }
+
+  rawHash(key) {
+    if (typeof key === 'number') {
+      const v = Math.floor(key);
+      return (v < 0 ? -v : v) >>> 0;
+    }
+    const s = String(key);
+    const f = HASHES[this.hashName] || HASHES.polynomial31;
+    return f(s) >>> 0;
+  }
+
+  indexForKey(key) {
+    return this.rawHash(key) % this.bucketCount;
+  }
+
+  setMode(mode) {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this.rehash(this.bucketCount);
+  }
+
+  setHash(hashName) {
+    this.hashName = hashName;
+    this.rehash(this.bucketCount);
+  }
+
+  setBucketCount(n) {
+    const newN = Math.max(4, Math.min(128, Math.floor(n)));
+    if (newN === this.bucketCount) return;
+    this.rehash(newN);
+  }
+
+  setAutoResize(enabled, threshold) {
+    this.autoResize = enabled;
+    this.resizeThreshold = threshold ?? this.resizeThreshold;
+    this.maybeResize();
+  }
+
+  maybeResize() {
+    const load = this.size / this.bucketCount;
+    if (this.autoResize && load >= this.resizeThreshold) {
+      this.rehash(nextBucketCount(this.bucketCount));
+      return true;
+    }
+    // Special case for linear probing: too many tombstones degrade probing
+    if (this.mode === 'linear' && this.tombstones > this.bucketCount * 0.25) {
+      this.rehash(this.bucketCount);
+      return true;
+    }
+    return false;
+  }
+
+  rehash(newBucketCount) {
+    const oldEntries = this.entries();
+    this.bucketCount = Math.max(4, Math.min(128, Math.floor(newBucketCount)));
+    this.resetBuckets();
+    this.size = 0;
+    this.tombstones = 0;
+    this.collisionsTotal = 0;
+    for (const { key, value } of oldEntries) {
+      this._insertInternal(key, value);
+    }
+    this.lastOpInfo = { action: 'rehash', bucketCount: this.bucketCount };
+  }
+
+  entries() {
+    const out = [];
+    if (this.mode === 'chaining') {
+      for (const chain of this.buckets) {
+        for (const e of chain) out.push({ key: e.key, value: e.value });
+      }
+    } else {
+      for (const e of this.buckets) {
+        if (e && !e.deleted) out.push({ key: e.key, value: e.value });
+      }
+    }
+    return out;
+  }
+
+  insert(key, value) {
+    const info = this._insertInternal(key, value);
+    this.lastOpInfo = info;
+    this.maybeResize();
+    return info;
+  }
+
+  _insertInternal(key, value) {
+    if (this.mode === 'chaining') {
+      const idx = this.indexForKey(key);
+      const chain = this.buckets[idx];
+      let collisions = chain.length > 0 ? chain.length : 0;
+      let updated = false;
+      let chainPos = -1;
+      for (let i = 0; i < chain.length; i++) {
+        if (this.keysEqual(chain[i].key, key)) {
+          chain[i].value = value;
+          updated = true;
+          chainPos = i;
+          collisions = Math.max(0, chain.length - 1);
+          break;
+        }
+      }
+      if (!updated) {
+        chain.push({ key, value });
+        this.size++;
+        chainPos = chain.length - 1;
+      }
+      if (collisions > 0) this.collisionsTotal += collisions;
+      return {
+        action: updated ? 'upsert' : 'insert', mode: 'chaining',
+        index: idx, chainPos, collisions, key, value,
+        hash: this.rawHash(key), path: [idx]
+      };
+    } else {
+      // linear probing
+      const start = this.indexForKey(key);
+      let firstTombstone = -1;
+      let steps = 0;
+      let updated = false;
+      let finalIndex = -1;
+      const path = [];
+      for (let i = 0; i < this.bucketCount; i++) {
+        const probe = (start + i) % this.bucketCount;
+        path.push(probe);
+        const entry = this.buckets[probe];
+        if (entry == null) {
+          // empty slot
+          finalIndex = (firstTombstone !== -1) ? firstTombstone : probe;
+          if (firstTombstone !== -1) {
+            this.buckets[finalIndex] = { key, value, deleted: false };
+            this.tombstones--;
+          } else {
+            this.buckets[finalIndex] = { key, value, deleted: false };
+          }
+          this.size++;
+          steps = path.length - 1;
+          break;
+        } else if (entry.deleted) {
+          if (firstTombstone === -1) firstTombstone = probe;
+        } else if (this.keysEqual(entry.key, key)) {
+          entry.value = value;
+          updated = true;
+          finalIndex = probe;
+          steps = path.length - 1;
+          break;
+        } else {
+          // collision
+        }
+      }
+      if (finalIndex === -1) {
+        // table is full; try to grow and retry once
+        const grew = this.maybeResize();
+        if (grew) {
+          return this._insertInternal(key, value);
+        } else {
+          return { action: 'insert-failed', mode: 'linear', reason: 'table-full', key, value };
+        }
+      }
+      if (steps > 0) this.collisionsTotal += steps;
+      return {
+        action: updated ? 'upsert' : 'insert', mode: 'linear',
+        startIndex: start, index: finalIndex, collisions: steps, key, value,
+        hash: this.rawHash(key), path
+      };
+    }
+  }
+
+  search(key) {
+    if (this.mode === 'chaining') {
+      const idx = this.indexForKey(key);
+      const chain = this.buckets[idx];
+      let found = false, value = undefined, chainPos = -1;
+      for (let i = 0; i < chain.length; i++) {
+        if (this.keysEqual(chain[i].key, key)) {
+          found = true; value = chain[i].value; chainPos = i; break;
+        }
+      }
+      const info = {
+        action: 'search', mode: 'chaining',
+        index: idx, chainPos, found, value, key,
+        hash: this.rawHash(key), path: [idx]
+      };
+      this.lastOpInfo = info;
+      return info;
+    } else {
+      const start = this.indexForKey(key);
+      const path = [];
+      let found = false, value = undefined, finalIndex = -1;
+      for (let i = 0; i < this.bucketCount; i++) {
+        const probe = (start + i) % this.bucketCount;
+        path.push(probe);
+        const entry = this.buckets[probe];
+        if (entry == null) {
+          // empty slot: stop
+          break;
+        } else if (!entry.deleted && this.keysEqual(entry.key, key)) {
+          found = true; value = entry.value; finalIndex = probe; break;
+        } else {
+          // continue
+        }
+      }
+      const info = {
+        action: 'search', mode: 'linear',
+        startIndex: start, index: finalIndex, found, value, key,
+        hash: this.rawHash(key), path
+      };
+      this.lastOpInfo = info;
+      return info;
+    }
+  }
+
+  delete(key) {
+    if (this.mode === 'chaining') {
+      const idx = this.indexForKey(key);
+      const chain = this.buckets[idx];
+      let deleted = false, chainPos = -1;
+      for (let i = 0; i < chain.length; i++) {
+        if (this.keysEqual(chain[i].key, key)) {
+          chain.splice(i, 1);
+          deleted = true; chainPos = i;
+          this.size--;
+          break;
+        }
+      }
+      const info = {
+        action: 'delete', mode: 'chaining',
+        index: idx, chainPos, deleted, key,
+        hash: this.rawHash(key), path: [idx]
+      };
+      this.lastOpInfo = info;
+      return info;
+    } else {
+      const start = this.indexForKey(key);
+      const path = [];
+      let deleted = false, finalIndex = -1;
+      for (let i = 0; i < this.bucketCount; i++) {
+        const probe = (start + i) % this.bucketCount;
+        path.push(probe);
+        const entry = this.buckets[probe];
+        if (entry == null) {
+          // not found
+          break;
+        } else if (!entry.deleted && this.keysEqual(entry.key, key)) {
+          entry.deleted = true;
+          this.size--;
+          this.tombstones++;
+          deleted = true; finalIndex = probe;
+          break;
+        } else {
+          // continue
+        }
+      }
+      const info = {
+        action: 'delete', mode: 'linear',
+        startIndex: start, index: finalIndex, deleted, key,
+        hash: this.rawHash(key), path
+      };
+      this.lastOpInfo = info;
+      this.maybeResize();
+      return info;
+    }
+  }
+
+  keysEqual(a, b) {
+    // handle number vs string equality consistently
+    if (typeof a === 'number' && typeof b === 'number') return Object.is(a, b);
+    return String(a) === String(b);
+  }
+}
+
+/* UI + Rendering */
+const state = {
+  table: new HashTable(16, 'chaining', 'polynomial31')
+};
+
+const el = {
+  grid: document.getElementById('grid'),
+  mSize: document.getElementById('mSize'),
+  mBuckets: document.getElementById('mBuckets'),
+  mLF: document.getElementById('mLF'),
+  mCollisions: document.getElementById('mCollisions'),
+  modeSelect: document.getElementById('modeSelect'),
+  hashSelect: document.getElementById('hashSelect'),
+  bucketInput: document.getElementById('bucketInput'),
+  lfSlider: document.getElementById('lfSlider'),
+  lfVal: document.getElementById('lfVal'),
+  autoResize: document.getElementById('autoResize'),
+  keyInput: document.getElementById('keyInput'),
+  valInput: document.getElementById('valInput'),
+  parseNumber: document.getElementById('parseNumber'),
+  btnInsert: document.getElementById('btnInsert'),
+  btnSearch: document.getElementById('btnSearch'),
+  btnDelete: document.getElementById('btnDelete'),
+  btnRandom: document.getElementById('btnRandom'),
+  btnClear: document.getElementById('btnClear'),
+  btnTryCollision: document.getElementById('btnTryCollision'),
+  log: document.getElementById('log')
+};
+
+function render() {
+  // Metrics
+  el.mSize.textContent = String(state.table.size);
+  el.mBuckets.textContent = String(state.table.bucketCount);
+  const lf = state.table.size / state.table.bucketCount;
+  el.mLF.textContent = lf.toFixed(2);
+  el.mCollisions.textContent = String(state.table.collisionsTotal);
+
+  // Grid
+  el.grid.innerHTML = '';
+  if (state.table.mode === 'chaining') {
+    state.table.buckets.forEach((chain, idx) => {
+      const bucket = document.createElement('div');
+      bucket.className = 'bucket';
+      bucket.dataset.index = idx;
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = chain.length ? `Chain length: ${chain.length}` : 'Empty';
+      const index = document.createElement('div');
+      index.className = 'index';
+      index.textContent = `#${idx}`;
+      const entries = document.createElement('div');
+      entries.className = 'entries';
+      if (!chain.length) {
+        const empty = document.createElement('div');
+        empty.className = 'slot-empty';
+        empty.textContent = '—';
+        entries.appendChild(empty);
+      } else {
+        chain.forEach(e => {
+          const chip = document.createElement('div');
+          chip.className = 'entry';
+          chip.innerHTML = `<span class="kv">${escapeHtml(String(e.key))} → ${escapeHtml(String(e.value ?? ''))}</span>`;
+          entries.appendChild(chip);
+        });
+      }
+      bucket.appendChild(title);
+      bucket.appendChild(index);
+      bucket.appendChild(entries);
+      el.grid.appendChild(bucket);
+    });
+  } else {
+    state.table.buckets.forEach((e, idx) => {
+      const bucket = document.createElement('div');
+      bucket.className = 'bucket';
+      bucket.dataset.index = idx;
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = e == null ? 'Empty' : (e.deleted ? 'Tombstone' : 'Occupied');
+      const index = document.createElement('div');
+      index.className = 'index';
+      index.textContent = `#${idx}`;
+      const entries = document.createElement('div');
+      entries.className = 'entries';
+      if (e == null) {
+        const empty = document.createElement('div');
+        empty.className = 'slot-empty';
+        empty.textContent = '—';
+        entries.appendChild(empty);
+      } else {
+        const chip = document.createElement('div');
+        chip.className = 'entry' + (e.deleted ? ' tomb' : '');
+        chip.innerHTML = e.deleted
+          ? `<span class="kv">✝ tombstone</span>`
+          : `<span class="kv">${escapeHtml(String(e.key))} → ${escapeHtml(String(e.value ?? ''))}</span>`;
+        entries.appendChild(chip);
+      }
+      bucket.appendChild(title);
+      bucket.appendChild(index);
+      bucket.appendChild(entries);
+      el.grid.appendChild(bucket);
+    });
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function log(msg) {
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = msg;
+  el.log.prepend(div);
+}
+
+function fmtHashInfo(info) {
+  if (!info) return '';
+  const base = `<span style="color:${info.action==='search'?'#9ae6b4':'#93c5fd'}">${info.action}</span>`;
+  const hashStr = (info.hash !== undefined) ? ` hash=${info.hash}` : '';
+  const idxStr = (info.index !== undefined) ? ` index=${info.index}` : (info.startIndex !== undefined ? ` start=${info.startIndex}` : '');
+  const pathStr = info.path ? ` path=[${info.path.join(', ')}]` : '';
+  let tail = '';
+  if (info.action === 'insert' || info.action === 'upsert') {
+    tail = ` collisions=${info.collisions ?? 0}`;
+  } else if (info.action === 'delete') {
+    tail = ` deleted=${info.deleted}`;
+  } else if (info.action === 'search') {
+    tail = ` found=${info.found}${info.found ? ` value=${escapeHtml(String(info.value))}` : ''}`;
+  } else if (info.action === 'rehash') {
+    tail = ` → buckets=${info.bucketCount}`;
+  }
+  return `${base}${hashStr}${idxStr}${pathStr}${tail} key=${escapeHtml(String(info.key ?? ''))}`;
+}
+
+function animatePath(info) {
+  // Remove prior highlights
+  document.querySelectorAll('.bucket').forEach(b => {
+    b.classList.remove('highlight-probe', 'highlight-hit', 'highlight-collision');
+  });
+  const path = info && info.path ? info.path : [];
+  let delay = 0;
+  for (let i = 0; i < path.length; i++) {
+    const idx = path[i];
+    const bucketEl = el.grid.querySelector(`.bucket[data-index="${idx}"]`);
+    if (!bucketEl) continue;
+    setTimeout(() => {
+      bucketEl.classList.add('highlight-probe');
+      setTimeout(() => bucketEl.classList.remove('highlight-probe'), 420);
+    }, delay);
+    delay += 160;
+  }
+  // Final hit or collision markers
+  if (info && (info.index !== undefined || info.path?.length)) {
+    const lastIndex = info.index ?? info.path[info.path.length - 1];
+    const lastBucket = el.grid.querySelector(`.bucket[data-index="${lastIndex}"]`);
+    if (lastBucket) {
+      setTimeout(() => {
+        lastBucket.classList.add('highlight-hit');
+        setTimeout(() => lastBucket.classList.remove('highlight-hit'), 650);
+      }, delay + 120);
+    }
+  }
+  // Collision marker for chaining
+  if (info && info.mode === 'chaining' && (info.collisions ?? 0) > 0) {
+    const bucketEl = el.grid.querySelector(`.bucket[data-index="${info.index}"]`);
+    if (bucketEl) {
+      setTimeout(() => {
+        bucketEl.classList.add('highlight-collision');
+        setTimeout(() => bucketEl.classList.remove('highlight-collision'), 700);
+      }, delay + 80);
+    }
+  }
+}
+
+function getKeyFromInput() {
+  const raw = el.keyInput.value.trim();
+  if (!raw) return null;
+  if (el.parseNumber.checked && isNumberLike(raw)) return Number(raw);
+  return raw;
+}
+
+function handleInsert() {
+  const key = getKeyFromInput();
+  if (key == null) { alert('Enter a key'); return; }
+  const value = el.valInput.value;
+  const info = state.table.insert(key, value);
+  render();
+  animatePath(info);
+  log(fmtHashInfo(info));
+}
+
+function handleSearch() {
+  const key = getKeyFromInput();
+  if (key == null) { alert('Enter a key'); return; }
+  const info = state.table.search(key);
+  render();
+  animatePath(info);
+  log(fmtHashInfo(info));
+}
+
+function handleDelete() {
+  const key = getKeyFromInput();
+  if (key == null) { alert('Enter a key'); return; }
+  const info = state.table.delete(key);
+  render();
+  animatePath(info);
+  log(fmtHashInfo(info));
+}
+
+function handleRandomInsert() {
+  const samples = [];
+  for (let i = 0; i < 10; i++) {
+    const s = randomKey();
+    samples.push(s);
+    state.table.insert(s, randomValue());
+  }
+  render();
+  animatePath(state.table.lastOpInfo);
+  log(`Inserted random keys: ${samples.map(s => escapeHtml(String(s))).join(', ')}`);
+}
+
+function randomKey() {
+  // Mix of numbers and strings
+  const r = Math.random();
+  if (r < 0.4) {
+    // number
+    return Math.floor(Math.random() * 1000);
+  } else {
+    const len = 3 + Math.floor(Math.random() * 3);
+    let s = '';
+    for (let i = 0; i < len; i++) {
+      const ch = 97 + Math.floor(Math.random() * 26);
+      s += String.fromCharCode(ch);
+    }
+    return s;
+  }
+}
+function randomValue() {
+  const animals = ['cat', 'dog', 'owl', 'fox', 'cow', 'ant', 'bee', 'yak', 'emu', 'eel'];
+  return animals[Math.floor(Math.random() * animals.length)];
+}
+
+function handleClear() {
+  state.table.resetBuckets();
+  state.table.size = 0;
+  state.table.tombstones = 0;
+  state.table.collisionsTotal = 0;
+  state.table.lastOpInfo = { action: 'clear' };
+  render();
+  log('Cleared table');
+}
+
+function handleTryCollision() {
+  // Known collision pair for polynomial 31 hash: "Aa" and "BB"
+  el.hashSelect.value = 'polynomial31';
+  state.table.setHash('polynomial31');
+  // For demo, keep current bucket count. Insert both keys.
+  const info1 = state.table.insert('Aa', 'first');
+  const info2 = state.table.insert('BB', 'second');
+  render();
+  animatePath(info2);
+  log('Inserted known collision pair "Aa" and "BB" (Java-style polynomial31) — they produce same raw hash value.');
+  log(fmtHashInfo(info1));
+  log(fmtHashInfo(info2));
+}
+
+/* Event bindings */
+el.modeSelect.addEventListener('change', () => {
+  const mode = el.modeSelect.value;
+  state.table.setMode(mode);
+  render();
+  log(`Switched mode to ${mode}`);
+});
+el.hashSelect.addEventListener('change', () => {
+  const hn = el.hashSelect.value;
+  state.table.setHash(hn);
+  render();
+  log(`Using hash function: ${hn}`);
+});
+el.bucketInput.addEventListener('change', () => {
+  const n = Number(el.bucketInput.value);
+  state.table.setBucketCount(n);
+  render();
+  log(`Bucket count set to ${state.table.bucketCount}`);
+});
+el.lfSlider.addEventListener('input', () => {
+  const v = Number(el.lfSlider.value);
+  el.lfVal.textContent = v.toFixed(2);
+  state.table.setAutoResize(el.autoResize.checked, v);
+  render();
+});
+el.autoResize.addEventListener('change', () => {
+  state.table.setAutoResize(el.autoResize.checked, Number(el.lfSlider.value));
+  render();
+  log(`Auto-resize ${el.autoResize.checked ? 'enabled' : 'disabled'} (threshold ${Number(el.lfSlider.value).toFixed(2)})`);
+});
+
+el.btnInsert.addEventListener('click', handleInsert);
+el.btnSearch.addEventListener('click', handleSearch);
+el.btnDelete.addEventListener('click', handleDelete);
+el.btnRandom.addEventListener('click', handleRandomInsert);
+el.btnClear.addEventListener('click', handleClear);
+el.btnTryCollision.addEventListener('click', handleTryCollision);
+
+/* Initial render */
+render();
+log('Ready. Choose a collision strategy, hash function, and start inserting keys.');
+</script>
+</body>
+</html>

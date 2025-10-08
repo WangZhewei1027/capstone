@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Graph Demo: Directed vs Undirected</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --accent: #60a5fa;
+    --accent2: #34d399;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --danger: #ef4444;
+    --node: #f59e0b;
+    --edge: #93c5fd;
+    --selected: #f472b6;
+    --visited: #10b981;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
+  a { color: var(--accent); }
+  .app {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 12px;
+    height: 100%;
+    padding: 12px;
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 10px 12px;
+    box-shadow: 0 6px 12px rgba(0,0,0,.25);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 18px;
+    letter-spacing: .2px;
+  }
+  header .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 6px 12px rgba(0,0,0,.25);
+    overflow: auto;
+  }
+  .section {
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    padding: 10px;
+  }
+  .section h3 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: .2px;
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    appearance: none;
+    background: #1f2937;
+    color: var(--text);
+    border: 1px solid #374151;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: .15s ease all;
+  }
+  .btn:hover { border-color: var(--accent); color: #fff; }
+  .btn.primary { background: #2563eb; border-color: #1d4ed8; }
+  .btn.primary:hover { background: #1d4ed8; }
+  .btn.danger { background: #7f1d1d; border-color: #991b1b; }
+  .btn.danger:hover { background: #991b1b; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #0b1220; border: 1px solid #253055; border-radius: 999px;
+    padding: 6px 10px; font-size: 12px; color: var(--muted);
+  }
+  label { font-size: 13px; color: var(--text); }
+  input[type="radio"] { accent-color: #60a5fa; }
+  select, input[type="number"] {
+    background: #0b1220; color: var(--text); border: 1px solid #334155;
+    border-radius: 6px; padding: 6px 8px; font-size: 13px; min-width: 140px;
+  }
+  .canvas-wrap {
+    position: relative;
+    background: #0b1220;
+    border: 1px solid #1f2937;
+    border-radius: 12px;
+    box-shadow: 0 6px 12px rgba(0,0,0,.25);
+    overflow: hidden;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .stat {
+    background: #0b1220;
+    border: 1px solid #253055;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 12px;
+  }
+  .stat .label { color: var(--muted); }
+  .adj {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px; white-space: pre-wrap;
+    background: #0b1220; border: 1px solid #253055; border-radius: 8px; padding: 8px;
+    max-height: 240px; overflow: auto;
+  }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+  .legend .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .legend .ln { width: 20px; height: 2px; display: inline-block; background: var(--edge); }
+  .kbd {
+    font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+    background: #0b1220; border: 1px solid #334155; padding: 2px 6px; border-radius: 6px;
+    font-size: 12px; color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Graph (Directed / Undirected)</h1>
+      <div class="subtitle">Interactive visualization with edge creation, dragging, and BFS/DFS traversal</div>
+    </div>
+    <div class="pill" style="margin-left:auto" id="modePill">
+      Mode: <strong id="modeLabel">Directed</strong>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="section">
+      <h3>Graph Type</h3>
+      <div class="row">
+        <label><input type="radio" name="mode" value="directed" checked> Directed (edges have arrows)</label>
+        <label><input type="radio" name="mode" value="undirected"> Undirected (edges are two-way)</label>
+      </div>
+      <div class="legend" style="margin-top:8px;">
+        <span><span class="dot" style="background: var(--node)"></span> Node</span>
+        <span><span class="ln"></span> Edge</span>
+        <span><span class="dot" style="background: var(--selected)"></span> Selected</span>
+        <span><span class="dot" style="background: var(--visited)"></span> Visited (traversal)</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Actions</h3>
+      <div class="row">
+        <button class="btn primary" id="sampleBtn">Load Sample</button>
+        <button class="btn" id="undoBtn" title="Undo last add/remove">Undo</button>
+        <button class="btn danger" id="clearBtn">Clear</button>
+      </div>
+      <div class="hint" style="margin-top:8px;">
+        - Click empty space to add a node. Drag nodes to reposition.<br>
+        - Click a node, then another node to add an edge (uses current mode).<br>
+        - Alt+Click a node to delete it and its incident edges.<br>
+        - Press Esc to clear selection. Shift+Drag to pan.
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Traversal (BFS / DFS)</h3>
+      <div class="row">
+        <label for="startSel">Start node</label>
+        <select id="startSel"></select>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <label><input type="radio" name="traversal" value="bfs" checked> BFS</label>
+        <label><input type="radio" name="traversal" value="dfs"> DFS</label>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn" id="runBtn">Run</button>
+        <button class="btn" id="stopBtn">Stop</button>
+        <button class="btn" id="resetHighlightBtn">Reset Highlight</button>
+      </div>
+      <div class="adj" id="orderBox" style="margin-top:8px;">Order: [ ]</div>
+    </div>
+
+    <div class="section">
+      <h3>Adjacency & Degrees</h3>
+      <div class="stats">
+        <div class="stat"><div class="label">Nodes</div><div id="nodeCount">0</div></div>
+        <div class="stat"><div class="label">Edges</div><div id="edgeCount">0</div></div>
+      </div>
+      <div class="adj" id="adjBox" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="canvas" width="1200" height="800" aria-label="Graph canvas"></canvas>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('canvas');
+  const wrap = document.getElementById('canvasWrap');
+  const ctx = canvas.getContext('2d');
+
+  const R = 20; // node radius
+  const ARROW_LEN = 12;
+  const ARROW_W = 10;
+
+  const state = {
+    nodes: [],             // {id, x, y}
+    edges: [],             // {u, v} directional pairs
+    nextId: 1,
+    selected: null,
+    hovering: null,
+    dragging: null,
+    dragOff: {x:0, y:0},
+    pan: {x:0, y:0},
+    isPanning: false,
+    lastMouse: {x:0, y:0},
+    history: [],           // for undo
+    directedMode: true,
+    anim: null,
+    visited: new Set(),
+    order: [],
+  };
+
+  // DPI scale for crisp canvas
+  function resizeCanvas() {
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    const rect = wrap.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // UI elements
+  const modeRadios = [...document.querySelectorAll('input[name="mode"]')];
+  const modeLabel = document.getElementById('modeLabel');
+  const nodeCountEl = document.getElementById('nodeCount');
+  const edgeCountEl = document.getElementById('edgeCount');
+  const adjBox = document.getElementById('adjBox');
+  const startSel = document.getElementById('startSel');
+  const orderBox = document.getElementById('orderBox');
+  const sampleBtn = document.getElementById('sampleBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const runBtn = document.getElementById('runBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const resetHighlightBtn = document.getElementById('resetHighlightBtn');
+
+  modeRadios.forEach(r => r.addEventListener('change', () => {
+    const val = document.querySelector('input[name="mode"]:checked').value;
+    state.directedMode = (val === 'directed');
+    modeLabel.textContent = state.directedMode ? 'Directed' : 'Undirected';
+    draw();
+    refreshInfo();
+  }));
+
+  sampleBtn.addEventListener('click', loadSample);
+  clearBtn.addEventListener('click', () => {
+    pushHistory();
+    state.nodes = [];
+    state.edges = [];
+    state.nextId = 1;
+    state.selected = null;
+    state.visited.clear();
+    state.order.length = 0;
+    stopAnim();
+    draw();
+    refreshInfo();
+  });
+
+  undoBtn.addEventListener('click', undo);
+
+  runBtn.addEventListener('click', runTraversal);
+  stopBtn.addEventListener('click', stopAnim);
+  resetHighlightBtn.addEventListener('click', () => {
+    state.visited.clear();
+    state.order.length = 0;
+    stopAnim();
+    draw();
+    refreshInfo();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      state.selected = null;
+      draw();
+    }
+  });
+
+  // Canvas interaction
+  canvas.addEventListener('mousemove', onMouseMove);
+  canvas.addEventListener('mousedown', onMouseDown);
+  canvas.addEventListener('mouseup', onMouseUp);
+  canvas.addEventListener('mouseleave', onMouseLeave);
+  canvas.addEventListener('click', onClick);
+
+  function toLocal(x, y) {
+    return { x: x - state.pan.x, y: y - state.pan.y };
+  }
+
+  function onMouseMove(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const {x, y} = toLocal(mx, my);
+    state.lastMouse = { x: mx, y: my };
+
+    if (state.isPanning) {
+      state.pan.x += mx - state.pan.lastX;
+      state.pan.y += my - state.pan.lastY;
+      state.pan.lastX = mx;
+      state.pan.lastY = my;
+      draw();
+      return;
+    }
+
+    if (state.dragging != null) {
+      const n = getNode(state.dragging);
+      if (!n) return;
+      n.x = x - state.dragOff.x;
+      n.y = y - state.dragOff.y;
+      draw();
+      return;
+    }
+
+    state.hovering = pickNode(x, y);
+    draw();
+  }
+
+  function onMouseDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const local = toLocal(mx, my);
+
+    if (e.shiftKey) {
+      state.isPanning = true;
+      state.pan.lastX = mx;
+      state.pan.lastY = my;
+      return;
+    }
+
+    const id = pickNode(local.x, local.y);
+    if (id != null) {
+      const n = getNode(id);
+      state.dragging = id;
+      state.dragOff.x = local.x - n.x;
+      state.dragOff.y = local.y - n.y;
+    }
+  }
+
+  function onMouseUp() {
+    state.isPanning = false;
+    state.dragging = null;
+  }
+
+  function onMouseLeave() {
+    state.isPanning = false;
+    state.dragging = null;
+    state.hovering = null;
+    draw();
+  }
+
+  function onClick(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const local = toLocal(mx, my);
+
+    const clickedId = pickNode(local.x, local.y);
+
+    if (e.altKey) {
+      if (clickedId != null) {
+        pushHistory();
+        removeNode(clickedId);
+        state.selected = null;
+        draw();
+        refreshInfo();
+      }
+      return;
+    }
+
+    if (clickedId == null) {
+      // Add new node
+      pushHistory();
+      addNode(local.x, local.y);
+      draw();
+      refreshInfo();
+    } else {
+      // Edge creation: select then connect
+      if (state.selected == null) {
+        state.selected = clickedId;
+      } else if (state.selected === clickedId) {
+        state.selected = null;
+      } else {
+        pushHistory();
+        if (state.directedMode) {
+          addEdge(state.selected, clickedId);
+        } else {
+          addEdgeUndirected(state.selected, clickedId);
+        }
+        state.selected = null;
+        draw();
+        refreshInfo();
+      }
+    }
+  }
+
+  // Core operations
+  function addNode(x, y) {
+    const id = state.nextId++;
+    state.nodes.push({ id, x, y });
+    updateStartSelect();
+  }
+
+  function removeNode(id) {
+    state.nodes = state.nodes.filter(n => n.id !== id);
+    state.edges = state.edges.filter(e => e.u !== id && e.v !== id);
+    state.visited.delete(id);
+    state.order = state.order.filter(x => x !== id);
+    updateStartSelect();
+  }
+
+  function addEdge(u, v) {
+    if (u === v) return;
+    if (state.edges.some(e => e.u === u && e.v === v)) return;
+    state.edges.push({ u, v });
+  }
+
+  function addEdgeUndirected(a, b) {
+    if (a === b) return;
+    // Prevent duplicates in either orientation
+    if (state.edges.some(e => (e.u === a && e.v === b) || (e.u === b && e.v === a))) return;
+    // We still store a single oriented pair; rendering/adjacency will treat it undirected
+    state.edges.push({ u: a, v: b });
+  }
+
+  function getNode(id) {
+    return state.nodes.find(n => n.id === id);
+  }
+
+  function pickNode(x, y) {
+    // Return node id within radius
+    for (let i = state.nodes.length - 1; i >= 0; i--) {
+      const n = state.nodes[i];
+      const dx = x - n.x, dy = y - n.y;
+      if (dx*dx + dy*dy <= R*R) return n.id;
+    }
+    return null;
+  }
+
+  // Drawing
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.save();
+    ctx.translate(state.pan.x, state.pan.y);
+
+    // Edges
+    if (state.directedMode) {
+      for (const e of state.edges) {
+        const a = getNode(e.u), b = getNode(e.v);
+        if (!a || !b) continue;
+        drawArrowEdge(a, b, e);
+      }
+    } else {
+      // Dedup by unordered pair
+      const drawn = new Set();
+      for (const e of state.edges) {
+        const key = e.u < e.v ? `${e.u}|${e.v}` : `${e.v}|${e.u}`;
+        if (drawn.has(key)) continue;
+        drawn.add(key);
+        const a = getNode(e.u), b = getNode(e.v);
+        if (!a || !b) continue;
+        drawLineEdge(a, b);
+      }
+    }
+
+    // Nodes
+    for (const n of state.nodes) {
+      drawNode(n);
+    }
+
+    // Hover highlight overlay
+    if (state.hovering != null) {
+      const h = getNode(state.hovering);
+      if (h) {
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, R + 4, 0, Math.PI*2);
+        ctx.strokeStyle = '#ffffff22';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  function drawNode(n) {
+    const isSelected = state.selected === n.id;
+    const isVisited = state.visited.has(n.id);
+
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, R, 0, Math.PI*2);
+    const grad = ctx.createRadialGradient(n.x, n.y, 3, n.x, n.y, R);
+    const base = isVisited ? '#10b981' : '#f59e0b';
+    grad.addColorStop(0, shade(base, 1.0));
+    grad.addColorStop(1, shade(base, 0.75));
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = isSelected ? '#f472b6' : '#334155';
+    ctx.stroke();
+
+    ctx.fillStyle = '#0b1220';
+    ctx.font = '12px ui-monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(n.id), n.x, n.y);
+
+    // For directed mode show in/out degree; undirected show degree
+    const deg = computeDegrees();
+    const label = state.directedMode
+      ? `d+:${deg.out[n.id]||0} d-:${deg.in[n.id]||0}`
+      : `deg:${deg.undirected[n.id]||0}`;
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillText(label, n.x, n.y + R + 10);
+  }
+
+  function drawArrowEdge(a, b, e) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1) return;
+    const ux = dx / dist, uy = dy / dist;
+
+    const sx = a.x + ux * R;
+    const sy = a.y + uy * R;
+    const tx = b.x - ux * R;
+    const ty = b.y - uy * R;
+
+    // main line
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(tx, ty);
+    ctx.strokeStyle = '#93c5fd';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // arrowhead
+    const hx = tx, hy = ty;
+    const backX = hx - ux * ARROW_LEN;
+    const backY = hy - uy * ARROW_LEN;
+
+    // Perp vector
+    const px = -uy, py = ux;
+    const leftX = backX + px * (ARROW_W/2);
+    const leftY = backY + py * (ARROW_W/2);
+    const rightX = backX - px * (ARROW_W/2);
+    const rightY = backY - py * (ARROW_W/2);
+
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(leftX, leftY);
+    ctx.lineTo(rightX, rightY);
+    ctx.closePath();
+    ctx.fillStyle = '#93c5fd';
+    ctx.fill();
+  }
+
+  function drawLineEdge(a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1) return;
+    const ux = dx / dist, uy = dy / dist;
+
+    const sx = a.x + ux * R;
+    const sy = a.y + uy * R;
+    const tx = b.x - ux * R;
+    const ty = b.y - uy * R;
+
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(tx, ty);
+    ctx.strokeStyle = '#93c5fd';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function shade(hex, amt) {
+    // simple shade: blend with white by amt
+    const c = hex.replace('#','');
+    const r = parseInt(c.substring(0,2),16);
+    const g = parseInt(c.substring(2,4),16);
+    const b = parseInt(c.substring(4,6),16);
+    const nr = Math.round(r*amt + 255*(1-amt));
+    const ng = Math.round(g*amt + 255*(1-amt));
+    const nb = Math.round(b*amt + 255*(1-amt));
+    return `rgb(${nr},${ng},${nb})`;
+  }
+
+  // Info and adjacency
+  function refreshInfo() {
+    nodeCountEl.textContent = String(state.nodes.length);
+    if (state.directedMode) {
+      edgeCountEl.textContent = String(state.edges.length);
+    } else {
+      // dedup unordered
+      const s = new Set();
+      for (const e of state.edges) {
+        s.add(e.u < e.v ? `${e.u}|${e.v}` : `${e.v}|${e.u}`);
+      }
+      edgeCountEl.textContent = String(s.size);
+    }
+
+    const adj = computeAdjacency();
+    const deg = computeDegrees();
+    let text = '';
+    for (const n of state.nodes) {
+      const neighbors = adj[n.id] || [];
+      if (state.directedMode) {
+        const indeg = deg.in[n.id] || 0;
+        const outdeg = deg.out[n.id] || 0;
+        text += `${n.id} -> { ${neighbors.join(', ')} }    d-:${indeg} d+:${outdeg}\n`;
+      } else {
+        const d = deg.undirected[n.id] || 0;
+        text += `${n.id} : { ${neighbors.join(', ')} }    deg:${d}\n`;
+      }
+    }
+    adjBox.textContent = text.trim();
+
+    orderBox.textContent = `Order: [ ${state.order.join(', ')} ]`;
+    updateStartSelect();
+  }
+
+  function computeAdjacency() {
+    const adj = {};
+    for (const n of state.nodes) adj[n.id] = [];
+    if (state.directedMode) {
+      for (const e of state.edges) {
+        if (!adj[e.u]) adj[e.u] = [];
+        adj[e.u].push(e.v);
+      }
+    } else {
+      // undirected: neighbors both ways, dedup
+      const seen = new Set();
+      for (const e of state.edges) {
+        const a = e.u, b = e.v;
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        adj[a].push(b);
+        adj[b].push(a);
+      }
+      // sort neighbors for consistency
+      for (const k in adj) adj[k].sort((x,y)=>x-y);
+    }
+    return adj;
+  }
+
+  function computeDegrees() {
+    const inDeg = {}, outDeg = {}, undeg = {};
+    for (const n of state.nodes) { inDeg[n.id]=0; outDeg[n.id]=0; undeg[n.id]=0; }
+    if (state.directedMode) {
+      for (const e of state.edges) {
+        outDeg[e.u] = (outDeg[e.u]||0)+1;
+        inDeg[e.v] = (inDeg[e.v]||0)+1;
+      }
+    } else {
+      const s = new Set();
+      for (const e of state.edges) {
+        const key = e.u < e.v ? `${e.u}|${e.v}` : `${e.v}|${e.u}`;
+        if (s.has(key)) continue;
+        s.add(key);
+        undeg[e.u] = (undeg[e.u]||0)+1;
+        undeg[e.v] = (undeg[e.v]||0)+1;
+      }
+    }
+    return { in: inDeg, out: outDeg, undirected: undeg };
+  }
+
+  // Traversal
+  function runTraversal() {
+    if (state.anim) stopAnim();
+
+    const start = Number(startSel.value);
+    if (!start || !getNode(start)) return;
+
+    const kind = document.querySelector('input[name="traversal"]:checked').value;
+    const adj = computeAdjacency();
+
+    state.visited.clear();
+    state.order = [];
+    draw();
+    refreshInfo();
+
+    const delay = 500;
+
+    if (kind === 'bfs') {
+      const q = [start];
+      const seen = new Set([start]);
+      state.anim = setInterval(() => {
+        if (q.length === 0) { stopAnim(); return; }
+        const u = q.shift();
+        state.visited.add(u);
+        state.order.push(u);
+        for (const v of adj[u] || []) {
+          if (!seen.has(v)) { seen.add(v); q.push(v); }
+        }
+        draw();
+        refreshInfo();
+      }, delay);
+    } else {
+      // DFS iterative
+      const stack = [start];
+      const seen = new Set();
+      state.anim = setInterval(() => {
+        if (stack.length === 0) { stopAnim(); return; }
+        const u = stack.pop();
+        if (seen.has(u)) return;
+        seen.add(u);
+        state.visited.add(u);
+        state.order.push(u);
+        const neigh = (adj[u]||[]).slice().reverse(); // mimic recursive push order
+        for (const v of neigh) {
+          if (!seen.has(v)) stack.push(v);
+        }
+        draw();
+        refreshInfo();
+      }, delay);
+    }
+  }
+
+  function stopAnim() {
+    if (state.anim) {
+      clearInterval(state.anim);
+      state.anim = null;
+    }
+  }
+
+  // Start select
+  function updateStartSelect() {
+    const prev = Number(startSel.value) || null;
+    startSel.innerHTML = '';
+    for (const n of state.nodes) {
+      const opt = document.createElement('option');
+      opt.value = String(n.id);
+      opt.textContent = `Node ${n.id}`;
+      startSel.appendChild(opt);
+    }
+    if (prev && getNode(prev)) {
+      startSel.value = String(prev);
+    }
+  }
+
+  // History for undo
+  function pushHistory() {
+    const snapshot = {
+      nodes: state.nodes.map(n => ({...n})),
+      edges: state.edges.map(e => ({...e})),
+      nextId: state.nextId,
+      selected: state.selected,
+      pan: {...state.pan},
+      directedMode: state.directedMode,
+      visited: Array.from(state.visited),
+      order: state.order.slice(),
+    };
+    state.history.push(snapshot);
+    if (state.history.length > 50) state.history.shift();
+  }
+
+  function undo() {
+    const snap = state.history.pop();
+    if (!snap) return;
+    stopAnim();
+    state.nodes = snap.nodes;
+    state.edges = snap.edges;
+    state.nextId = snap.nextId;
+    state.selected = snap.selected;
+    state.pan = snap.pan;
+    state.directedMode = snap.directedMode;
+    state.visited = new Set(snap.visited);
+    state.order = snap.order;
+    document.querySelector(`input[name="mode"][value="${state.directedMode ? 'directed':'undirected'}"]`).checked = true;
+    modeLabel.textContent = state.directedMode ? 'Directed' : 'Undirected';
+    draw();
+    refreshInfo();
+  }
+
+  // Sample graph
+  function loadSample() {
+    pushHistory();
+    state.nodes = [];
+    state.edges = [];
+    state.nextId = 1;
+    state.selected = null;
+    state.pan = {x:0, y:0};
+
+    const cx = wrap.clientWidth / 2;
+    const cy = wrap.clientHeight / 2;
+    const r = Math.min(cx, cy) * 0.6;
+    const count = 8;
+    for (let i=0;i<count;i++){
+      const angle = (i / count) * Math.PI*2;
+      const x = cx + Math.cos(angle) * r;
+      const y = cy + Math.sin(angle) * r;
+      addNode(x, y);
+    }
+    // Directed sample edges (some cycle, some branch)
+    addEdge(1,2); addEdge(2,3); addEdge(3,4); addEdge(4,2); // cycle 2-3-4
+    addEdge(1,5); addEdge(5,6); addEdge(6,7);
+    addEdge(7,8);
+    addEdge(3,7);
+    addEdge(8,4);
+
+    // Reset highlights
+    state.visited.clear();
+    state.order = [];
+    draw();
+    refreshInfo();
+  }
+
+  // Initial setup
+  resizeCanvas();
+  loadSample();
+
+  // Utility: ensure wrap takes remaining height
+  function sizeWrap() {
+    const appRect = document.querySelector('.app').getBoundingClientRect();
+    const headerRect = document.querySelector('header').getBoundingClientRect();
+    const controlsRect = document.querySelector('.controls').getBoundingClientRect();
+    const totalH = window.innerHeight;
+    const avail = totalH - headerRect.height - 24; // padding/gap
+    wrap.style.height = Math.max(300, avail) + 'px';
+    resizeCanvas();
+  }
+  sizeWrap();
+  window.addEventListener('resize', sizeWrap);
+
+})();
+</script>
+</body>
+</html>
