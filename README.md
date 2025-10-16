@@ -18,7 +18,7 @@ node add.mjs -h 来查看帮助
 
 一次性输入参数：
 
-node add.mjs --workspace "10-04" --model "gpt-4o-mini" --question "bubble sort" --system "Generate a single HTML file with JavaScript demonstrating the user-given concept. Only respond in a single HTML file."
+read
 
 ### batch-add.mjs
 

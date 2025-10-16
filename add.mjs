@@ -164,57 +164,40 @@ async function chatWithOpenAI(
   ];
 
   const model = selectedModel; // 使用选择的模型
-  const raw = await client.chat.completions.create({
+
+  // 使用流式输出
+  const stream = await client.chat.completions.create({
     messages,
     model: model,
+    stream: true,
   });
 
-  // Some gateways return slightly different shapes. Normalize here.
-  const normalizeAssistantMessage = (resp) => {
-    // If it's a stringified JSON, parse it first
-    if (typeof resp === "string") {
-      try {
-        resp = JSON.parse(resp);
-      } catch {
-        return { role: "assistant", content: resp };
-      }
+  let fullContent = "";
+  console.log("\n开始生成内容...\n");
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content || "";
+    if (content) {
+      fullContent += content;
+      // 实时显示生成的内容
+      process.stdout.write(content);
     }
+  }
 
-    // OpenAI-compatible shape: choices[0].message
-    const msg = resp?.choices?.[0]?.message;
-    if (msg?.content) return msg;
+  console.log("\n\n生成完成！\n");
 
-    // Some proxies put text directly under choices[0].text
-    const text = resp?.choices?.[0]?.text;
-    if (typeof text === "string") return { role: "assistant", content: text };
-
-    // Anthropic-like shape: content string at top-level
-    if (typeof resp?.content === "string")
-      return { role: "assistant", content: resp.content };
-
-    // Fallback to output_text if present
-    if (typeof resp?.output_text === "string")
-      return { role: "assistant", content: resp.output_text };
-
-    // Last resort: stringify entire response
-    return {
-      role: "assistant",
-      content: typeof resp === "object" ? JSON.stringify(resp) : String(resp),
-    };
+  const assistantMessage = {
+    role: "assistant",
+    content: fullContent,
   };
 
-  const assistantMessage = normalizeAssistantMessage(raw);
-
   if (!assistantMessage?.content) {
-    throw new Error(
-      "Unexpected API response shape; no assistant content found."
-    );
+    throw new Error("No content generated from streaming response.");
   }
 
   // Log a compact preview for debugging
   console.log("[DEBUG] Received completion:", {
-    hasChoices: !!raw?.choices,
-    firstChoiceKeys: raw?.choices?.[0] ? Object.keys(raw.choices[0]) : null,
+    contentLength: assistantMessage.content.length,
     contentPreview: assistantMessage.content.slice(0, 80) + "...",
   });
 

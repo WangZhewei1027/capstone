@@ -1,0 +1,71 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Bubble Sort Visualizer Stable • In-place • O(n²)" [level=1] [ref=e3]:
+      - text: Bubble Sort Visualizer
+      - generic [ref=e4]: Stable • In-place • O(n²)
+  - main [ref=e5]:
+    - generic [ref=e6]:
+      - region "Controls" [ref=e7]:
+        - generic [ref=e8]:
+          - generic [ref=e9]: "Status:"
+          - generic "Status" [ref=e10]: Idle
+        - generic [ref=e11]:
+          - button "Generate new array" [ref=e12] [cursor=pointer]: Generate
+          - button "Start or resume sorting" [ref=e13] [cursor=pointer]: Start
+          - button "Pause sorting" [disabled] [ref=e14]: Pause
+          - button "Step one operation" [ref=e15] [cursor=pointer]: Step
+        - generic [ref=e16]:
+          - generic [ref=e17]: Size
+          - generic [ref=e18]: "20"
+        - slider "Array size" [ref=e19]: "20"
+        - generic [ref=e20]:
+          - generic [ref=e21]: Speed (ms/step)
+          - generic [ref=e22]: 200 ms
+        - slider "Speed in milliseconds per step" [ref=e23]: "200"
+        - status [ref=e24]:
+          - generic [ref=e25]:
+            - generic [ref=e26]: Comparisons
+            - strong [ref=e27]: "0"
+          - generic [ref=e28]:
+            - generic [ref=e29]: Swaps
+            - strong [ref=e30]: "0"
+          - generic [ref=e31]:
+            - generic [ref=e32]: Sorted
+            - strong [ref=e33]: 0/20
+          - generic [ref=e34]:
+            - generic [ref=e35]: Current i, j
+            - strong [ref=e36]: "-, -"
+        - generic [ref=e37]: Bubble sort repeatedly steps through the list, compares adjacent pairs, and swaps them if they are in the wrong order. After each pass, the largest remaining element “bubbles” to its correct position at the end, shrinking the unsorted region.
+        - generic [ref=e38]:
+          - generic [ref=e39]: Comparing
+          - generic [ref=e41]: Swapped
+          - generic [ref=e43]: Sorted
+        - generic [ref=e45]: "Tip: Use Step to observe individual operations. You can change size and regenerate at any time."
+      - region "Visualization" [ref=e46]:
+        - generic "Array bars" [ref=e47]:
+          - generic [ref=e48]:
+            - generic "Index 0, value 75" [ref=e49]: "75"
+            - generic "Index 1, value 92" [ref=e50]: "92"
+            - generic "Index 2, value 75" [ref=e51]: "75"
+            - generic "Index 3, value 65" [ref=e52]: "65"
+            - generic "Index 4, value 44" [ref=e53]: "44"
+            - generic "Index 5, value 36" [ref=e54]: "36"
+            - generic "Index 6, value 52" [ref=e55]: "52"
+            - generic "Index 7, value 30" [ref=e56]: "30"
+            - generic "Index 8, value 80" [ref=e57]: "80"
+            - generic "Index 9, value 13" [ref=e58]: "13"
+            - generic "Index 10, value 42" [ref=e59]: "42"
+            - generic "Index 11, value 8" [ref=e60]: "8"
+            - generic "Index 12, value 63" [ref=e61]: "63"
+            - generic "Index 13, value 89" [ref=e62]: "89"
+            - generic "Index 14, value 52" [ref=e63]: "52"
+            - generic "Index 15, value 78" [ref=e64]: "78"
+            - generic "Index 16, value 23" [ref=e65]: "23"
+            - generic "Index 17, value 20" [ref=e66]: "20"
+            - generic "Index 18, value 23" [ref=e67]: "23"
+            - generic "Index 19, value 57" [ref=e68]: "57"
+          - generic [ref=e69]: State Idle
+```
