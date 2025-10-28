@@ -1,0 +1,69 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Heap (Min/Max) — Interactive Visualization" [level=1] [ref=e3]
+    - paragraph [ref=e4]: Insert, Extract, and Build heaps while watching array ↔ tree mappings and animated sift-up/sift-down.
+  - main [ref=e5]:
+    - region "Heap visualization area" [ref=e6]:
+      - generic [ref=e8]:
+        - generic "node 7 at index 0" [ref=e9]: "7"
+        - generic "node 3 at index 1" [ref=e10]: "3"
+        - generic "node 9 at index 2" [ref=e11]: "9"
+        - generic "node 1 at index 3" [ref=e12]: "1"
+        - generic "node 5 at index 4" [ref=e13]: "5"
+        - generic "node 2 at index 5" [ref=e14]: "2"
+        - generic "node 9 at index 6" [ref=e15]: "9"
+        - generic "node 5 at index 7" [ref=e16]: "5"
+      - generic [ref=e24]:
+        - generic [ref=e25]: Array representation (indices 0 ... n-1)
+        - generic [ref=e26]:
+          - generic "index 0" [ref=e27]: "7"
+          - generic "index 1" [ref=e28]: "3"
+          - generic "index 2" [ref=e29]: "9"
+          - generic "index 3" [ref=e30]: "1"
+          - generic "index 4" [ref=e31]: "5"
+          - generic "index 5" [ref=e32]: "2"
+          - generic "index 6" [ref=e33]: "9"
+          - generic "index 7" [ref=e34]: "5"
+    - complementary "Controls for heap operations" [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e37]: Operations
+        - form "Insert value" [ref=e38]:
+          - spinbutton "Value to insert" [ref=e39]
+          - button "Insert" [ref=e40] [cursor=pointer]
+          - button "Random" [ref=e41] [cursor=pointer]
+        - generic "Other operations" [ref=e42]:
+          - button "Extract Root" [ref=e43] [cursor=pointer]
+          - button "Peek" [ref=e44] [cursor=pointer]
+        - generic [ref=e45]:
+          - generic [ref=e46]: Build / Rebuild
+          - generic [ref=e47]: Enter numbers separated by commas or spaces
+          - textbox "e.g. 5, 3, 8, 1, 2" [ref=e48]
+          - generic [ref=e49]:
+            - button "Build Heap" [ref=e50] [cursor=pointer]
+            - button "Clear" [ref=e51] [cursor=pointer]
+        - generic [ref=e52]:
+          - generic [ref=e53]: Mode & Speed
+          - generic [ref=e54]:
+            - generic [ref=e55]:
+              - checkbox "Toggle min max" [ref=e56]
+              - generic [ref=e57]: Max-Heap
+            - generic "Animation speed (lower = faster)" [ref=e58]:
+              - generic [ref=e59]: Speed
+              - slider [ref=e60]: "400"
+              - generic [ref=e61]: 400ms
+        - generic [ref=e62]:
+          - generic [ref=e63]: Step Mode
+          - generic [ref=e64]: Enable to step through compares/swaps
+          - generic [ref=e65]:
+            - generic [ref=e66]:
+              - checkbox "Step Mode" [ref=e67]
+              - generic [ref=e68]: Step Mode
+            - button "Next Step" [disabled] [ref=e69] [cursor=pointer]
+        - generic [ref=e70]:
+          - generic [ref=e71]: Logs
+          - log [ref=e72]: "10:32:31 PM — Insert requested: 5 10:32:31 PM — Swap: 3 <-> 7 10:32:31 PM — Insert requested: 9 10:32:31 PM — Insert requested: 2 10:32:31 PM — Compare: node 3 (idx 1) with parent 7 (idx 0) 10:32:31 PM — Insert requested: 5 10:32:31 PM — Insert requested: 1 10:32:31 PM — Insert requested: 9 10:32:31 PM — Insert requested: 3 10:32:31 PM — Insert requested: 7"
+        - generic [ref=e73]: "Tip: Press Enter in the value box to insert. Toggle Min/Max to see behavior change."
+```

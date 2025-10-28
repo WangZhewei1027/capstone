@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Binary Tree — Traversals & Structure</title>
+  <style>
+    :root{
+      --safe:24px;
+      --gap:16px;
+      --accent:#0b84ff;
+      --bg:#0f1720;
+      --panel:#0b1220;
+      --muted:#9aa6b2;
+      --success:#2ec4b6;
+      --danger:#ff6b6b;
+      --node-size:44px;
+      --level-gap:90px;
+      --duration:400ms;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#08121a,#071018);color:#e6eef6;font-family:Inter,Segoe UI,Roboto,system-ui,-apple-system,Arial; -webkit-font-smoothing:antialiased;}
+    main{padding:var(--safe);display:flex;gap:var(--gap);min-height:100vh;}
+    /* Left Control Panel */
+    .panel{
+      width:320px;min-width:280px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:20px;box-shadow:0 6px 24px rgba(2,6,23,0.6);display:flex;flex-direction:column;gap:14px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .title{font-size:18px;font-weight:600;color:#fff;margin-bottom:4px}
+    .subtitle{font-size:13px;color:var(--muted);line-height:1.35}
+    .controls{display:flex;flex-direction:column;gap:12px;margin-top:4px}
+    label.input{display:flex;gap:8px;align-items:center}
+    input[type="text"]{flex:1;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#e6eef6;}
+    button{background:var(--accent);color:white;padding:8px 10px;border-radius:8px;border:0;font-weight:600;cursor:pointer;}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
+    .row{display:flex;gap:8px}
+    .small{font-size:13px;color:var(--muted)}
+    .stats{display:flex;gap:12px;align-items:center}
+    .chip{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;font-weight:600;color:#dbe8ff;border:1px solid rgba(255,255,255,0.02)}
+    /* Traversal output */
+    .output{min-height:44px;display:flex;flex-wrap:wrap;gap:8px;padding:8px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.008));border:1px solid rgba(255,255,255,0.02)}
+    .chip.out{background:linear-gradient(90deg,var(--accent),#5fb3ff);color:#02213a;padding:6px 10px;border-radius:999px;font-weight:700}
+    .controls-footer{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+    .speed{display:flex;align-items:center;gap:8px}
+    input[type="range"]{width:100%}
+    /* Right Visualization area */
+    .vis{
+      flex:1;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px;min-height:360px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,0.03)
+    }
+    .canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:300px;position:relative}
+    svg{width:100%;height:100%;display:block}
+    /* node styles */
+    .node circle{fill:#041227;stroke:rgba(255,255,255,0.06);stroke-width:2;transition:transform var(--duration) ease, stroke var(--duration) ease, fill var(--duration) ease;}
+    .node text{fill:#dbe8ff;font-size:14px;font-weight:700;pointer-events:none}
+    .node{cursor:pointer;transition:transform var(--duration) ease;transform-origin:center}
+    .node:hover circle{stroke:var(--accent);filter:drop-shadow(0 6px 14px rgba(11,132,255,0.18))}
+    .node:focus{outline:2px dashed rgba(11,132,255,0.18);outline-offset:6px}
+    .node.active circle{fill:var(--accent);stroke:#00284d;transform:scale(1.12)}
+    .connector{fill:none;stroke:rgba(255,255,255,0.06);stroke-width:2}
+    .connector.active{stroke:var(--accent);stroke-width:3}
+    /* popover panel for node actions */
+    .node-panel{position:absolute;background:#07121a;border:1px solid rgba(255,255,255,0.03);padding:8px;border-radius:8px;display:flex;gap:8px;box-shadow:0 8px 20px rgba(2,6,23,0.6);z-index:40}
+    .node-panel button{padding:6px 8px;font-size:13px}
+    /* small helpers */
+    .muted{color:var(--muted);font-size:13px}
+    .controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .danger{background:var(--danger);border:0;color:white}
+    /* responsive */
+    @media (max-width:880px){
+      main{flex-direction:column;padding:16px}
+      .panel{width:100%}
+    }
+    /* transitions for SVG groups (via transform attr) */
+    g.node{transition:transform var(--duration) ease;}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel" aria-labelledby="title">
+      <div>
+        <div id="title" class="title">Binary Tree — Structure & Traversals</div>
+        <div class="subtitle">Interactively build a binary tree. Add left/right children, delete subtrees, then watch animated traversals (preorder, inorder, postorder, level-order).</div>
+      </div>
+
+      <div class="controls" aria-live="polite">
+        <div class="input">
+          <label class="small" for="nodeValue">Node value</label>
+          <input id="nodeValue" type="text" placeholder="e.g. 5" aria-label="Node value" />
+        </div>
+
+        <div class="row">
+          <button id="addRootBtn">Add Root</button>
+          <button id="clearBtn" class="ghost" title="Clear entire tree">Clear</button>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="font-weight:700">Traversals</div>
+          <div class="muted" style="margin-left:auto;font-size:13px">Speed</div>
+        </div>
+
+        <div class="controls-grid">
+          <button data-trav="preorder" class="ghost" id="preBtn">Preorder</button>
+          <button data-trav="inorder" class="ghost" id="inBtn">Inorder</button>
+          <button data-trav="postorder" class="ghost" id="postBtn">Postorder</button>
+          <button data-trav="level" class="ghost" id="levelBtn">Level-order</button>
+        </div>
+
+        <div class="speed small">
+          <input id="speedRange" type="range" min="200" max="1400" step="100" value="600" aria-label="Traversal speed" />
+          <div id="speedLabel" class="muted" style="min-width:68px;text-align:right">600ms</div>
+        </div>
+
+        <div class="stats">
+          <div class="chip" id="countChip">Nodes: 0</div>
+          <div class="chip" id="heightChip">Height: 0</div>
+        </div>
+
+        <div>
+          <div class="small" style="margin-bottom:6px">Traversal output</div>
+          <div id="output" class="output" aria-live="polite" aria-atomic="true"></div>
+        </div>
+
+        <div class="controls-footer">
+          <div class="muted">Tip: Click a node to add a left/right child or delete its subtree. Dragging is not required — layout updates smoothly so you can follow structure changes.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="vis" aria-label="Tree visualization">
+      <div class="canvas-wrap">
+        <svg id="svg" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Binary tree canvas">
+          <defs>
+            <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="rgba(0,0,0,0.6)"/>
+            </filter>
+          </defs>
+          <g id="connectors"></g>
+          <g id="nodes"></g>
+        </svg>
+      </div>
+      <!-- node action popover (hidden until needed) -->
+      <div id="nodePanel" class="node-panel" style="display:none" role="dialog" aria-hidden="true">
+        <button id="addLeft" title="Add left child">Add Left</button>
+        <button id="addRight" title="Add right child">Add Right</button>
+        <button id="deleteNode" class="danger" title="Delete node">Delete</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Simple interactive Binary Tree module (vanilla JS)
+    (function(){
+      // DOM
+      const svg = document.getElementById('svg');
+      const nodesG = document.getElementById('nodes');
+      const connectorsG = document.getElementById('connectors');
+      const addRootBtn = document.getElementById('addRootBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const output = document.getElementById('output');
+      const nodeValueInput = document.getElementById('nodeValue');
+      const countChip = document.getElementById('countChip');
+      const heightChip = document.getElementById('heightChip');
+      const nodePanel = document.getElementById('nodePanel');
+      const addLeftBtn = document.getElementById('addLeft');
+      const addRightBtn = document.getElementById('addRight');
+      const deleteNodeBtn = document.getElementById('deleteNode');
+      const speedRange = document.getElementById('speedRange');
+      const speedLabel = document.getElementById('speedLabel');
+      const preBtn = document.getElementById('preBtn');
+      const inBtn = document.getElementById('inBtn');
+      const postBtn = document.getElementById('postBtn');
+      const levelBtn = document.getElementById('levelBtn');
+
+      let state = {
+        nodes: {}, // id -> node {id, value, left, right, parent}
+        root: null,
+        nextId: 1
+      };
+
+      let layout = {
+        width: 1100,
+        height: 650,
+        marginX: 40,
+        marginY: 40,
+        nodeSize: 44,
+        levelGap: 90
+      };
+
+      let panelTarget = null; // node id for nodePanel actions
+      let traversalTimer = null;
+
+      // utilities
+      function genId(){ return 'n'+(state.nextId++); }
+      function getNode(id){ return state.nodes[id] || null; }
+      function textVal(){ return nodeValueInput.value.trim() || null; }
+
+      // Add node helper
+      function createNode(value){
+        const id = genId();
+        state.nodes[id] = { id, value: value===null? id : value, left: null, right: null, parent: null };
+        return state.nodes[id];
+      }
+
+      // Attach child (left/right) to parentId. Returns node created or null on fail.
+      function attachChild(parentId, side, value){
+        const parent = getNode(parentId);
+        if(!parent) return null;
+        if(side==='left' && parent.left) return null;
+        if(side==='right' && parent.right) return null;
+        const node = createNode(value);
+        node.parent = parentId;
+        if(side==='left') parent.left = node.id;
+        else parent.right = node.id;
+        return node;
+      }
+
+      // Delete subtree rooted at id
+      function deleteSubtree(id){
+        const node = getNode(id);
+        if(!node) return;
+        // detach from parent
+        if(node.parent){
+          const p = getNode(node.parent);
+          if(p.left===id) p.left = null;
+          if(p.right===id) p.right = null;
+        } else {
+          state.root = null;
+        }
+        // delete recursively
+        (function del(nid){
+          const n = getNode(nid);
+          if(!n) return;
+          if(n.left) del(n.left);
+          if(n.right) del(n.right);
+          delete state.nodes[nid];
+        })(id);
+      }
+
+      // Clear tree
+      function clearTree(){
+        state.nodes = {};
+        state.root = null;
+        state.nextId = 1;
+        render();
+      }
+
+      // Layout: compute x positions using inorder traversal index
+      function computeLayout(){
+        const nodes = state.nodes;
+        let positions = {}; // id -> {x,y,depth}
+        let xIndex = 0;
+        function inorder(id, depth){
+          if(!id) return;
+          const n = nodes[id];
+          inorder(n.left, depth+1);
+          const x = xIndex++;
+          positions[id] = { xIndex: x, depth: depth };
+          inorder(n.right, depth+1);
+        }
+        if(state.root) inorder(state.root, 0);
+        // Map xIndex to pixel x
+        const totalLeaves = Math.max(1, xIndex);
+        const width = layout.width - layout.marginX*2;
+        const stepX = width / Math.max(1, totalLeaves);
+        for(const id in positions){
+          positions[id].x = layout.marginX + positions[id].xIndex * stepX + stepX/2;
+          positions[id].y = layout.marginY + positions[id].depth * layout.levelGap + 30;
+        }
+        return positions;
+      }
+
+      // Compute height and count
+      function computeStats(){
+        let count = 0, maxDepth = -1;
+        function dfs(id, depth){
+          if(!id) return;
+          count++;
+          maxDepth = Math.max(maxDepth, depth);
+          const n = getNode(id);
+          dfs(n.left, depth+1);
+          dfs(n.right, depth+1);
+        }
+        if(state.root) dfs(state.root, 0);
+        return {count, height: Math.max(0, maxDepth+1)};
+      }
+
+      // Render connectors and nodes
+      function render(){
+        // clear
+        while(connectorsG.firstChild) connectorsG.removeChild(connectorsG.firstChild);
+        while(nodesG.firstChild) nodesG.removeChild(nodesG.firstChild);
+        output.innerHTML = '';
+        // compute positions
+        const pos = computeLayout();
+        // draw connectors first (lines from parent to child)
+        for(const id in state.nodes){
+          const n = state.nodes[id];
+          if(n.left){
+            drawConnector(pos[id], pos[n.left], id, n.left);
+          }
+          if(n.right){
+            drawConnector(pos[id], pos[n.right], id, n.right);
+          }
+        }
+        // draw nodes
+        for(const id in state.nodes){
+          const n = state.nodes[id];
+          const p = pos[id];
+          const g = createNodeGroup(n, p);
+          nodesG.appendChild(g);
+        }
+        // update stats
+        const s = computeStats();
+        countChip.textContent = 'Nodes: ' + s.count;
+        heightChip.textContent = 'Height: ' + s.height;
+      }
+
+      function drawConnector(p1, p2, pid, cid){
+        if(!p1 || !p2) return;
+        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        // cubic bezier for a smooth connector
+        const dx = Math.abs(p2.x - p1.x);
+        const midX = (p1.x + p2.x)/2;
+        const controlY = (p1.y + p2.y)/2;
+        const d = `M ${p1.x} ${p1.y+18} C ${midX} ${p1.y+18} ${midX} ${p2.y-18} ${p2.x} ${p2.y-18}`;
+        path.setAttribute('d', d);
+        path.setAttribute('class','connector');
+        path.dataset.from = pid;
+        path.dataset.to = cid;
+        connectorsG.appendChild(path);
+      }
+
+      function createNodeGroup(node, pos){
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('class','node');
+        g.setAttribute('data-id', node.id);
+        g.setAttribute('tabindex','0');
+        const size = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--node-size')) || 44;
+        g.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+        // visual circle
+        const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circ.setAttribute('r', size/2);
+        circ.setAttribute('cx', 0);
+        circ.setAttribute('cy', 0);
+        // label
+        const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+        txt.setAttribute('x', 0);
+        txt.setAttribute('y', 5);
+        txt.setAttribute('text-anchor', 'middle');
+        txt.textContent = node.value;
+        g.appendChild(circ);
+        g.appendChild(txt);
+
+        // event handlers
+        g.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          openNodePanel(node.id, pos);
+        });
+        g.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter' || e.key === ' '){
+            e.preventDefault();
+            openNodePanel(node.id, pos);
+          }
+        });
+
+        return g;
+      }
+
+      // Node action panel (floating HTML)
+      function openNodePanel(nodeId, pos){
+        panelTarget = nodeId;
+        const node = getNode(nodeId);
+        nodePanel.style.display = 'flex';
+        nodePanel.setAttribute('aria-hidden','false');
+        // position panel in svg coordinates -> transform to page
+        const svgRect = svg.getBoundingClientRect();
+        const x = svgRect.left + pos.x;
+        const y = svgRect.top + pos.y;
+        // position with offsets
+        nodePanel.style.left = (x + 20) + 'px';
+        nodePanel.style.top = (y - 20) + 'px';
+        // enable/disable add buttons depending on child existence
+        addLeftBtn.disabled = !!node.left;
+        addRightBtn.disabled = !!node.right;
+      }
+
+      // close panel on canvas click
+      document.addEventListener('click', (e)=>{
+        if(nodePanel.style.display !== 'none'){
+          nodePanel.style.display = 'none';
+          nodePanel.setAttribute('aria-hidden','true');
+          panelTarget = null;
+        }
+      });
+
+      addRootBtn.addEventListener('click', ()=>{
+        if(state.root){
+          alert('Root already exists. To replace, clear the tree first.');
+          return;
+        }
+        const val = textVal() || 'root';
+        const node = createNode(val);
+        state.root = node.id;
+        render();
+      });
+
+      clearBtn.addEventListener('click', ()=>{
+        if(confirm('Clear the entire tree?')){
+          clearTree();
+        }
+      });
+
+      addLeftBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        if(!panelTarget) return;
+        const val = textVal() || '';
+        const node = attachChild(panelTarget, 'left', val || null);
+        if(!node) { alert('Left child already exists.'); return; }
+        nodePanel.style.display = 'none';
+        render();
+      });
+      addRightBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        if(!panelTarget) return;
+        const val = textVal() || '';
+        const node = attachChild(panelTarget, 'right', val || null);
+        if(!node) { alert('Right child already exists.'); return; }
+        nodePanel.style.display = 'none';
+        render();
+      });
+
+      deleteNodeBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        if(!panelTarget) return;
+        if(!confirm('Delete this node and its subtree?')) return;
+        deleteSubtree(panelTarget);
+        nodePanel.style.display = 'none';
+        render();
+      });
+
+      // Traversal implementations (returns array of node ids)
+      function preorder(id, out=[]){
+        if(!id) return out;
+        out.push(id);
+        const n = getNode(id);
+        preorder(n.left, out);
+        preorder(n.right, out);
+        return out;
+      }
+      function inorder(id, out=[]){
+        if(!id) return out;
+        const n = getNode(id);
+        inorder(n.left, out);
+        out.push(id);
+        inorder(n.right, out);
+        return out;
+      }
+      function postorder(id, out=[]){
+        if(!id) return out;
+        const n = getNode(id);
+        postorder(n.left, out);
+        postorder(n.right, out);
+        out.push(id);
+        return out;
+      }
+      function levelorder(id){
+        const out = [];
+        if(!id) return out;
+        const q = [id];
+        while(q.length){
+          const cur = q.shift();
+          out.push(cur);
+          const n = getNode(cur);
+          if(n.left) q.push(n.left);
+          if(n.right) q.push(n.right);
+        }
+        return out;
+      }
+
+      // Utility to highlight nodes sequentially with animation
+      function animateTraversal(seq, valuesSeq){
+        clearTraversalAnimation();
+        if(seq.length===0) return;
+        const delay = parseInt(speedRange.value) || 600;
+        let i = 0;
+        function step(){
+          if(i>0){
+            const prev = document.querySelector('g.node[data-id="'+seq[i-1]+'"]');
+            if(prev) prev.classList.remove('active');
+            // mark connector to next as active
+            const con = connectorsG.querySelector('path[data-from="'+seq[i-1]+'"][data-to="'+seq[i]+'"]');
+            if(con) con.classList.remove('active');
+          }
+          if(i >= seq.length){
+            // done
+            return;
+          }
+          const id = seq[i];
+          const g = document.querySelector('g.node[data-id="'+id+'"]');
+          if(g){
+            g.classList.add('active');
+            // if coming from parent, mark connector
+            if(i>0){
+              const con = connectorsG.querySelector('path[data-from="'+seq[i-1]+'"][data-to="'+id+'"]');
+              if(con) con.classList.add('active');
+            }
+            // add to output chips
+            const chip = document.createElement('div');
+            chip.className = 'chip out';
+            chip.textContent = valuesSeq[i];
+            output.appendChild(chip);
+            // scroll output into view if necessary
+            output.scrollTop = output.scrollHeight;
+          }
+          i++;
+          traversalTimer = setTimeout(step, delay);
+        }
+        step();
+      }
+
+      function clearTraversalAnimation(){
+        if(traversalTimer) { clearTimeout(traversalTimer); traversalTimer = null; }
+        // clear active classes
+        document.querySelectorAll('g.node.active').forEach(el => el.classList.remove('active'));
+        connectorsG.querySelectorAll('path.active').forEach(el => el.classList.remove('active'));
+        // clear output chips
+        output.innerHTML = '';
+      }
+
+      // attach traversal button handlers
+      preBtn.addEventListener('click', ()=>runTraversal('preorder'));
+      inBtn.addEventListener('click', ()=>runTraversal('inorder'));
+      postBtn.addEventListener('click', ()=>runTraversal('postorder'));
+      levelBtn.addEventListener('click', ()=>runTraversal('level'));
+
+      function runTraversal(kind){
+        if(!state.root){ alert('Tree is empty. Add nodes first.'); return; }
+        clearTraversalAnimation();
+        let seqIds = [];
+        if(kind==='preorder') seqIds = preorder(state.root, []);
+        if(kind==='inorder') seqIds = inorder(state.root, []);
+        if(kind==='postorder') seqIds = postorder(state.root, []);
+        if(kind==='level') seqIds = levelorder(state.root);
+        // map ids to values for display
+        const valuesSeq = seqIds.map(id => getNode(id).value);
+        animateTraversal(seqIds, valuesSeq);
+      }
+
+      // speed control
+      speedRange.addEventListener('input', ()=>{
+        speedLabel.textContent = speedRange.value + 'ms';
+      });
+
+      // Resize handling: adjust svg viewBox width/height if container changes
+      function updateLayoutSize(){
+        const rect = svg.getBoundingClientRect();
+        // set layout width/height based on viewBox target values
+        // we keep constant viewBox, but re-render with layout adjustment if required
+      }
+      window.addEventListener('resize', updateLayoutSize);
+
+      // initial render
+      render();
+
+      // clicking empty canvas hides nodePanel and clears traversal highlight
+      svg.addEventListener('click', (e)=>{
+        clearTraversalAnimation();
+      });
+
+      // helper: clicking a connector toggles highlight for demonstration (optional)
+      connectorsG.addEventListener('click', (e)=>{
+        if(e.target.tagName === 'path'){
+          e.target.classList.toggle('active');
+        }
+      });
+
+      // Initialize sample tree for first-time demonstration (optional)
+      (function seedExample(){
+        const a = createNode('A');
+        state.root = a.id;
+        const b = attachChild(a.id,'left','B');
+        const c = attachChild(a.id,'right','C');
+        attachChild(b.id,'left','D');
+        attachChild(b.id,'right','E');
+        attachChild(c.id,'right','F');
+        render();
+      })();
+
+      // keyboard accessibility: Esc closes nodePanel
+      document.addEventListener('keydown', (e)=>{
+        if(e.key === 'Escape'){
+          nodePanel.style.display = 'none';
+          nodePanel.setAttribute('aria-hidden','true');
+        }
+      });
+
+    })();
+  </script>
+
+
+  <script id="fsm" type="application/json">
+    {
+  "topic": "Interactive Binary Tree — Traversals & Structure",
+  "description": "Models the interactive states of the binary-tree UI: building / editing the tree (root/children/deletes), showing the node action popover, running animated traversals, and confirmation flows.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "render",
+      "onExit": "",
+      "on": {
+        "CLICK_ADD_ROOT": "idle",
+        "CLICK_CLEAR": "confirmingClear",
+        "OPEN_NODE_PANEL": "nodePanelOpen",
+        "RUN_TRAVERSAL_PREORDER": "traversalPlaying",
+        "RUN_TRAVERSAL_INORDER": "traversalPlaying",
+        "RUN_TRAVERSAL_POSTORDER": "traversalPlaying",
+        "RUN_TRAVERSAL_LEVEL": "traversalPlaying",
+        "CLICK_CANVAS": "idle",
+        "CONNECTOR_TOGGLE": "idle",
+        "SPEED_CHANGE": "idle"
+      }
+    },
+    {
+      "name": "nodePanelOpen",
+      "onEnter": "openNodePanel (sets panelTarget, positions panel, enable/disable add buttons)",
+      "onExit": "closeNodePanel (hide panel, clear panelTarget)",
+      "on": {
+        "CLICK_ADD_LEFT": "idle",
+        "CLICK_ADD_RIGHT": "idle",
+        "CLICK_DELETE_NODE": "confirmingDelete",
+        "CLOSE_NODE_PANEL": "idle",
+        "DOC_CLICK_CLOSE_PANEL": "idle",
+        "ESCAPE_PRESSED": "idle",
+        "RUN_TRAVERSAL_PREORDER": "traversalPlaying",
+        "RUN_TRAVERSAL_INORDER": "traversalPlaying",
+        "RUN_TRAVERSAL_POSTORDER": "traversalPlaying",
+        "RUN_TRAVERSAL_LEVEL": "traversalPlaying"
+      }
+    },
+    {
+      "name": "confirmingClear",
+      "onEnter": "showConfirmDialog('Clear entire tree?')",
+      "onExit": "hideConfirmDialog",
+      "on": {
+        "CONFIRM_CLEAR_OK": "idle",
+        "CONFIRM_CLEAR_CANCEL": "idle"
+      }
+    },
+    {
+      "name": "confirmingDelete",
+      "onEnter": "showConfirmDialog('Delete this node and its subtree?')",
+      "onExit": "hideConfirmDialog",
+      "on": {
+        "CONFIRM_DELETE_OK": "idle",
+        "CONFIRM_DELETE_CANCEL": "nodePanelOpen"
+      }
+    },
+    {
+      "name": "traversalPlaying",
+      "onEnter": "animateTraversal (compute sequence, clear previous animation, start timer, add active classes, append output chips)",
+      "onExit": "clearTraversalAnimation (clear timer, remove active classes, clear output)",
+      "on": {
+        "TRAVERSAL_FINISHED": "idle",
+        "CLICK_CANVAS": "idle",
+        "CLEAR_TRAVERSAL": "idle",
+        "RUN_TRAVERSAL_PREORDER": "traversalPlaying",
+        "RUN_TRAVERSAL_INORDER": "traversalPlaying",
+        "RUN_TRAVERSAL_POSTORDER": "traversalPlaying",
+        "RUN_TRAVERSAL_LEVEL": "traversalPlaying",
+        "CLICK_ADD_LEFT": "nodePanelOpen",
+        "CLICK_ADD_RIGHT": "nodePanelOpen",
+        "CLICK_DELETE_NODE": "confirmingDelete"
+      }
+    }
+  ],
+  "events": [
+    "CLICK_ADD_ROOT",
+    "ADD_ROOT_CREATED",
+    "ADD_ROOT_REJECTED",
+    "CLICK_CLEAR",
+    "CONFIRM_CLEAR_OK",
+    "CONFIRM_CLEAR_CANCEL",
+    "OPEN_NODE_PANEL",
+    "CLOSE_NODE_PANEL",
+    "DOC_CLICK_CLOSE_PANEL",
+    "ESCAPE_PRESSED",
+    "CLICK_ADD_LEFT",
+    "CLICK_ADD_RIGHT",
+    "ATTACH_CHILD_SUCCESS",
+    "ATTACH_CHILD_FAIL",
+    "CLICK_DELETE_NODE",
+    "CONFIRM_DELETE_OK",
+    "CONFIRM_DELETE_CANCEL",
+    "RUN_TRAVERSAL_PREORDER",
+    "RUN_TRAVERSAL_INORDER",
+    "RUN_TRAVERSAL_POSTORDER",
+    "RUN_TRAVERSAL_LEVEL",
+    "TRAVERSAL_STARTED",
+    "TRAVERSAL_FINISHED",
+    "CLICK_CANVAS",
+    "CLEAR_TRAVERSAL",
+    "SPEED_CHANGE",
+    "CONNECTOR_TOGGLE"
+  ],
+  "notes": "Guards and side-effects: many event handlers perform checks and browser modal calls (alert/confirm). Examples:\n- CLICK_ADD_ROOT leads to creation only if no root exists; otherwise an alert is shown. (Modeled as ADD_ROOT_CREATED / ADD_ROOT_REJECTED outcomes.)\n- CLICK_CLEAR and CLICK_DELETE_NODE open native confirmation dialogs; CONFIRM_* events represent the user's response.\n- Node-panel actions (ADD LEFT / ADD RIGHT / DELETE) close the panel and call render() on success; failed attempts show alerts and leave state unchanged.\n- Traversal buttons can be pressed from both idle and while the node panel is open; the traversalPlaying state is entered from either state. animateTraversal is started on entering traversalPlaying and is stopped by TRAVERSAL_FINISHED, CLICK_CANVAS, or CLEAR_TRAVERSAL. Re-triggering a traversal while one is running restarts the animation (transition to traversalPlaying again).\n- onEnter/onExit actions reference concrete functions in the code: render(), openNodePanel(), closeNodePanel(), createNode()/attachChild()/deleteSubtree(), animateTraversal(), clearTraversalAnimation(), showConfirmDialog/hideConfirmDialog, update speed label.  \n- Connector toggles are per-connector visual toggles and do not change the primary application state; represented as CONNECTOR_TOGGLE event.\n- The FSM is simplified to a single-threaded state model. In the implementation the node-panel and traversal animation overlap (panel may remain visible during traversal); this model allows traversalPlaying to be entered from nodePanelOpen or idle, and returns to idle by default after finishing. If a confirm dialog is active, it blocks JS until resolved (native confirm), so confirming states are modeled explicitly."
+}
+  </script>
+</body>
+</html>

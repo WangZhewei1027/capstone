@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Queue Explorer</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --card: #0b1220;
+      --accent: #06b6d4;
+      --muted: #94a3b8;
+      --success: #10b981;
+      --danger: #ef4444;
+      --surface: #0b1220;
+      --item-bg: linear-gradient(180deg,#073043 0%, #042837 100%);
+      --max-width: 1100px;
+      --radius: 10px;
+      --transition: 300ms cubic-bezier(.2,.9,.2,1);
+    }
+
+    /* Page layout and safe area */
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(160deg,#021024 0%, #07142a 60%);
+      color: #e6eef6;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    .app {
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height: 100vh;
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+    }
+    .container {
+      width:100%;
+      max-width: var(--max-width);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: calc(var(--radius) + 4px);
+      padding: 20px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+      box-sizing:border-box;
+    }
+
+    /* Top header */
+    .header {
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-bottom: var(--gap);
+    }
+    .title {
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .title h1 {
+      font-size:1.25rem;
+      margin:0;
+      color: #eaf7fb;
+    }
+    .subtitle {
+      color:var(--muted);
+      font-size:0.92rem;
+      margin:0;
+    }
+
+    /* Grid layout for interactive module */
+    .grid {
+      display:grid;
+      grid-template-columns: 1fr 400px;
+      gap: var(--gap);
+    }
+
+    /* Make responsive */
+    @media (max-width:880px){
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .panel-controls {
+        order: 2;
+      }
+    }
+
+    /* Left panel: visualization */
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.0));
+      padding: 18px;
+      border-radius: var(--radius);
+      min-height: 260px;
+    }
+    .panel h2{
+      margin:0 0 8px 0;
+      font-size: 1rem;
+      color:#dff8ff;
+    }
+    .panel p {
+      margin:0 0 12px 0;
+      color:var(--muted);
+      font-size:0.92rem;
+    }
+
+    /* Visualization area */
+    .vis {
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      align-items:center;
+      justify-content:center;
+      padding:12px;
+    }
+    .queue-viewport {
+      width:100%;
+      min-height:120px;
+      background: linear-gradient(180deg, rgba(6,12,19,0.6), rgba(2,6,12,0.4));
+      border-radius: 10px;
+      padding: 18px;
+      box-sizing:border-box;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      overflow:hidden;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    /* Visual queue track */
+    .queue-track {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      transition: transform var(--transition);
+      will-change: transform;
+      padding: 8px;
+      min-width: 320px;
+      max-width: 100%;
+    }
+
+    /* Item cards */
+    .queue-item {
+      min-width: 84px;
+      max-width: 140px;
+      padding:10px 12px;
+      background: var(--item-bg);
+      border-radius: 8px;
+      color: #e6faff;
+      box-shadow: 0 6px 18px rgba(3,8,12,0.6);
+      border: 1px solid rgba(255,255,255,0.04);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:6px;
+      transform-origin: center;
+      transition: transform var(--transition), opacity var(--transition);
+    }
+    .queue-item .value {
+      font-weight:600;
+      font-size:1rem;
+      word-break:break-word;
+      text-align:center;
+    }
+    .queue-item .meta {
+      font-size:0.78rem;
+      color: var(--muted);
+    }
+
+    /* Labels for head/tail */
+    .label {
+      position:absolute;
+      top:8px;
+      font-size:0.72rem;
+      color:var(--muted);
+      padding:6px 8px;
+      border-radius:6px;
+      background: rgba(255,255,255,0.02);
+      border:1px solid rgba(255,255,255,0.02);
+    }
+    .label.head { left:12px; }
+    .label.tail { right:12px; }
+
+    /* Animations */
+    .enter {
+      transform: translateX(24px) scale(0.98);
+      opacity: 0;
+      animation: enterAnim var(--transition) forwards;
+    }
+    @keyframes enterAnim {
+      to { transform: translateX(0) scale(1); opacity:1; }
+    }
+    .exit {
+      animation: exitAnim var(--transition) forwards;
+    }
+    @keyframes exitAnim {
+      to { transform: translateX(-36px) scale(.9); opacity:0; }
+    }
+
+    /* Controls panel */
+    .panel-controls {
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      padding: 18px;
+      border-radius: var(--radius);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      min-height:260px;
+    }
+    .controls-row {
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .input {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      width:100%;
+    }
+    input[type="text"]{
+      flex:1;
+      min-width: 120px;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.04);
+      background: rgba(255,255,255,0.02);
+      color: #e6faff;
+      font-size:0.96rem;
+    }
+    input[type="text"]::placeholder { color: #89a3b5; }
+    button {
+      padding:10px 12px;
+      border-radius:8px;
+      border: none;
+      cursor:pointer;
+      font-weight:600;
+      color:#041022;
+      background: var(--accent);
+      transition: transform 150ms ease, box-shadow 150ms ease;
+      min-width:90px;
+    }
+    button.secondary {
+      background: rgba(255,255,255,0.03);
+      color: #dff8ff;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+    button.danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    button:active { transform: translateY(1px) scale(.998); }
+    button:focus { outline: 3px solid rgba(6,182,212,0.12); }
+
+    .info {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .stat {
+      background: rgba(255,255,255,0.02);
+      padding:8px 10px;
+      border-radius:8px;
+      font-size:0.9rem;
+      color:var(--muted);
+      min-width:82px;
+      text-align:center;
+    }
+    .muted {
+      color:var(--muted);
+      font-size:0.9rem;
+    }
+
+    /* Small helper */
+    .notes {
+      color:var(--muted);
+      font-size:0.86rem;
+      margin-top:6px;
+    }
+
+    /* Accessibility focus ring for items */
+    .queue-item:focus {
+      outline: 3px solid rgba(6,182,212,0.12);
+    }
+
+    /* Live region visually hidden but accessible */
+    .visually-hidden {
+      position: absolute !important;
+      height: 1px; width: 1px;
+      overflow: hidden;
+      clip: rect(1px, 1px, 1px, 1px);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-labelledby="module-title">
+    <div class="container">
+      <header class="header" aria-hidden="false">
+        <div class="title">
+          <h1 id="module-title">Queue — FIFO Data Structure (Interactive Explorer)</h1>
+        </div>
+        <p class="subtitle">Hands-on visualization of enqueue, dequeue, peek, and capacity. Keyboard accessible and animated.</p>
+      </header>
+
+      <div class="grid">
+        <!-- LEFT: Visualization + Explanation -->
+        <section class="panel" aria-labelledby="concept-heading">
+          <h2 id="concept-heading">Concept & Learning Goals</h2>
+          <p><strong>Concept:</strong> A Queue stores elements in FIFO (First-In, First-Out) order — elements are enqueued at the tail and removed (dequeued) from the head.</p>
+          <p><strong>Learning Objective:</strong> After using this module you should be able to:
+            <ul style="margin:6px 0 0 18px; color:var(--muted); font-size:0.92rem;">
+              <li>Understand enqueue (add to tail) and dequeue (remove from head).</li>
+              <li>Observe how head and tail move as elements change.</li>
+              <li>See and feel the order-preserving nature of FIFO through animation.</li>
+            </ul>
+          </p>
+
+          <div class="vis" aria-live="polite">
+            <div class="queue-viewport" role="region" aria-label="Queue visualization area">
+              <div class="label head" id="head-label">Head</div>
+              <div class="label tail" id="tail-label">Tail</div>
+
+              <div class="queue-track" id="queueTrack" role="list" aria-labelledby="concept-heading" tabindex="0">
+                <!-- Items inserted dynamically -->
+              </div>
+            </div>
+
+            <div class="notes" id="layoutDesc">
+              Interaction: Type a value, press "Enqueue" (or Enter) to add. Press "Dequeue" to remove the head. The head slides out and the rest shift forward.
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT: Controls -->
+        <aside class="panel-controls" aria-labelledby="controls-heading">
+          <h2 id="controls-heading">Interactive Controls</h2>
+
+          <div class="input" role="form" aria-label="Queue controls">
+            <input id="valueInput" type="text" placeholder="Enter value (text or number)" aria-label="Value to enqueue" />
+            <button id="enqueueBtn" title="Enqueue (Add to tail)">Enqueue</button>
+          </div>
+
+          <div class="controls-row" style="margin-top:4px;">
+            <button id="dequeueBtn" class="secondary" title="Dequeue (Remove from head)">Dequeue</button>
+            <button id="peekBtn" class="secondary" title="Show head value">Peek</button>
+            <button id="clearBtn" class="danger" title="Clear queue">Clear</button>
+          </div>
+
+          <div style="display:flex; gap:var(--gap); align-items:center; justify-content:space-between; margin-top:8px;">
+            <div class="info" aria-hidden="false">
+              <div class="stat" id="sizeStat" aria-live="polite">Size: 0</div>
+              <div class="stat" id="capStat" aria-live="polite">Capacity: 8</div>
+            </div>
+
+            <div style="text-align:right;">
+              <label for="speedRange" style="display:block; font-size:0.82rem; color:var(--muted);">Animation speed</label>
+              <input id="speedRange" type="range" min="100" max="800" step="50" value="300" aria-label="Animation speed in milliseconds" />
+            </div>
+          </div>
+
+          <div style="margin-top:6px;" class="muted">
+            Tips:
+            <ul style="margin:6px 0 0 18px;">
+              <li>Press Enter in the input to enqueue quickly.</li>
+              <li>Items are read from left-to-right: leftmost is the head.</li>
+            </ul>
+          </div>
+
+          <div style="margin-top:8px;" aria-live="polite" id="message" class="muted">Ready.</div>
+          <div id="sr-live" class="visually-hidden" aria-live="assertive" aria-atomic="true"></div>
+        </aside>
+      </div>
+
+      <!-- Below: Interaction Design & Layout Description as required by brief (visible to user) -->
+      <section style="margin-top:var(--gap); background: rgba(255,255,255,0.01); padding:14px; border-radius:8px;">
+        <h3 style="margin:0 0 8px 0;">Interaction Design (what happens & why it helps)</h3>
+        <p style="margin:0 0 8px 0; color:var(--muted);">
+          - Enqueue: creating an element at the tail animates it sliding into the track. This visualizes adding to the back of the queue.
+        </p>
+        <p style="margin:0 0 8px 0; color:var(--muted);">
+          - Dequeue: the head item animates sliding out to the left and fades; then the remaining items visually shift forward. This demonstrates FIFO removal and how head/tail positions update.
+        </p>
+        <p style="margin:0 0 8px 0; color:var(--muted);">
+          Controls are keyboard-accessible (Enter in the input enqueues). An ARIA live region announces actions for screen-reader users. The animation speed control lets you slow down or speed up to inspect each transition.
+        </p>
+
+        <h3 style="margin-top:12px;">Layout Description</h3>
+        <p style="margin:0; color:var(--muted);">
+          Spatial organization:
+          <ul style="margin:8px 0 0 18px;">
+            <li>Top: Title and short description.</li>
+            <li>Left (main): Visualization panel with queue track, head & tail labels, and notes.</li>
+            <li>Right (controls): Inputs and buttons — arranged vertically for quick reach. Buttons are at least 16px apart and the overall container maintains 24px safe margins.</li>
+          </ul>
+          The design adapts: on narrow viewports the controls stack below the visualization. Minimum spacing between interactive elements is 16px and focus rings and ARIA labels ensure accessibility.
+        </p>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      // Configuration
+      let capacity = 8;
+      let animationMs = 300; // will be synced with slider
+      const queueTrack = document.getElementById('queueTrack');
+      const enqueueBtn = document.getElementById('enqueueBtn');
+      const dequeueBtn = document.getElementById('dequeueBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const peekBtn = document.getElementById('peekBtn');
+      const valueInput = document.getElementById('valueInput');
+      const sizeStat = document.getElementById('sizeStat');
+      const capStat = document.getElementById('capStat');
+      const message = document.getElementById('message');
+      const srLive = document.getElementById('sr-live');
+      const speedRange = document.getElementById('speedRange');
+
+      // Internal queue is represented in DOM order left-to-right.
+      // Keep an integer counter for IDs so multiple identical values are distinct elements.
+      let idCounter = 0;
+
+      function setMessage(text, srText = null) {
+        message.textContent = text;
+        if (srText === null) srText = text;
+        srLive.textContent = srText;
+      }
+
+      function updateStats() {
+        const size = queueTrack.children.length;
+        sizeStat.textContent = 'Size: ' + size;
+        capStat.textContent = 'Capacity: ' + capacity;
+        // Head and tail labels visibility
+        document.getElementById('head-label').style.display = size ? 'block' : 'none';
+        document.getElementById('tail-label').style.display = size ? 'block' : 'none';
+      }
+
+      // Create a queue item element
+      function createItem(value) {
+        const div = document.createElement('div');
+        div.className = 'queue-item enter';
+        div.setAttribute('role','listitem');
+        div.setAttribute('tabindex','0');
+        div.dataset.itemId = ++idCounter;
+
+        const val = document.createElement('div');
+        val.className = 'value';
+        val.textContent = String(value);
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = 'enqueued';
+
+        div.appendChild(val);
+        div.appendChild(meta);
+
+        // Keyboard interaction for an item: allow inspecting its position
+        div.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            const idx = Array.prototype.indexOf.call(queueTrack.children, div);
+            setMessage(`Item "${val.textContent}" is at position ${idx + 1} (head=1).`);
+            e.preventDefault();
+          }
+        });
+
+        return div;
+      }
+
+      // Enqueue operation
+      function enqueue(value) {
+        const size = queueTrack.children.length;
+        if (size >= capacity) {
+          setMessage('Queue is full. Cannot enqueue.', 'Queue is full.');
+          return;
+        }
+        const item = createItem(value);
+        item.style.transitionDuration = animationMs + 'ms';
+        queueTrack.appendChild(item);
+
+        // Force reflow & remove 'enter' class so animation plays
+        requestAnimationFrame(() => {
+          item.classList.remove('enter');
+        });
+
+        updateStats();
+        setMessage(`Enqueued "${value}".`);
+      }
+
+      // Dequeue operation
+      function dequeue() {
+        const first = queueTrack.firstElementChild;
+        if (!first) {
+          setMessage('Queue is empty. Nothing to dequeue.', 'Queue is empty.');
+          return;
+        }
+        // mark as exiting and announce
+        first.classList.add('exit');
+        first.style.transitionDuration = animationMs + 'ms';
+        const value = first.querySelector('.value').textContent;
+        setMessage(`Dequeuing "${value}"...`);
+        srLive.textContent = `Dequeued ${value}`;
+
+        // Remove after animation
+        setTimeout(() => {
+          if (first && first.parentNode === queueTrack) {
+            queueTrack.removeChild(first);
+            updateStats();
+            setMessage(`Dequeued "${value}".`);
+          }
+        }, animationMs + 20);
+      }
+
+      // Peek operation (show head value)
+      function peek() {
+        const first = queueTrack.firstElementChild;
+        if (!first) {
+          setMessage('Queue is empty (peek).', 'Queue is empty.');
+          return;
+        }
+        const value = first.querySelector('.value').textContent;
+        setMessage(`Peek: head is "${value}".`, `Head is ${value}`);
+      }
+
+      // Clear queue
+      function clearQueue() {
+        const items = Array.from(queueTrack.children);
+        if (items.length === 0) {
+          setMessage('Queue already empty.');
+          return;
+        }
+        // animate exit for each
+        items.forEach((it, idx) => {
+          setTimeout(() => {
+            it.classList.add('exit');
+            it.style.transitionDuration = (animationMs * 0.8) + 'ms';
+          }, idx * 40);
+        });
+        // remove all after a short delay
+        setTimeout(() => {
+          queueTrack.innerHTML = '';
+          updateStats();
+          setMessage('Cleared queue.');
+        }, animationMs + items.length * 40 + 20);
+      }
+
+      // Wire up buttons & input
+      enqueueBtn.addEventListener('click', () => {
+        const v = valueInput.value.trim();
+        if (v === '') {
+          setMessage('Please enter a value to enqueue.');
+          valueInput.focus();
+          return;
+        }
+        enqueue(v);
+        valueInput.value = '';
+        valueInput.focus();
+      });
+
+      dequeueBtn.addEventListener('click', () => dequeue());
+      peekBtn.addEventListener('click', () => peek());
+      clearBtn.addEventListener('click', () => clearQueue());
+
+      // Enter key in input enqueues
+      valueInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          enqueueBtn.click();
+        }
+      });
+
+      // Speed slider adjusts animation duration
+      speedRange.addEventListener('input', (e) => {
+        animationMs = Number(e.target.value);
+        document.documentElement.style.setProperty('--transition', `${animationMs}ms cubic-bezier(.2,.9,.2,1)`);
+        setMessage(`Animation speed: ${animationMs} ms`);
+      });
+
+      // Example initial items (demonstrative)
+      function seedExample() {
+        const examples = ['A', 'B', 'C'];
+        examples.forEach((v, i) => {
+          setTimeout(() => {
+            enqueue(v);
+          }, 200 + i * 160);
+        });
+      }
+
+      // Expose ARIA friendly keyboard shortcuts for the buttons
+      document.addEventListener('keydown', (e) => {
+        // ctrl+e => enqueue focus, ctrl+d => dequeue
+        if (e.ctrlKey && !e.shiftKey && !e.altKey) {
+          if (e.key.toLowerCase() === 'e') {
+            valueInput.focus();
+            setMessage('Focused input. Type then press Enter to enqueue.');
+            e.preventDefault();
+          } else if (e.key.toLowerCase() === 'd') {
+            dequeue();
+            e.preventDefault();
+          } else if (e.key.toLowerCase() === 'p') {
+            peek();
+            e.preventDefault();
+          } else if (e.key.toLowerCase() === 'c') {
+            clearQueue();
+            e.preventDefault();
+          }
+        }
+      });
+
+      // Initialize UI
+      capStat.textContent = 'Capacity: ' + capacity;
+      updateStats();
+      setMessage('Ready. Tip: press Ctrl+E to focus input, Enter to enqueue.');
+
+      // Seed example items so users see animation immediately
+      seedExample();
+
+      // Ensure responsiveness: allow horizontal scroll on small screens
+      queueTrack.style.overflowX = 'auto';
+      queueTrack.style.webkitOverflowScrolling = 'touch';
+    })();
+  </script>
+
+
+  <script id="fsm" type="application/json">
+    {
+  "topic": "Interactive Queue Explorer",
+  "description": "Models the interactive states and transitions for a FIFO queue visualization app (enqueue, dequeue, peek, clear, animation & UI interactions).",
+  "states": [
+    {
+      "name": "initializing",
+      "onEnter": "seedExample; updateStats; setMessage('Ready. Tip: press Ctrl+E to focus input, Enter to enqueue.')",
+      "on": {
+        "SEED_DONE": "idle"
+      }
+    },
+    {
+      "name": "idle",
+      "onEnter": "updateStats",
+      "onExit": "",
+      "on": {
+        "CLICK_ENQUEUE_EMPTY": "idle",
+        "CLICK_ENQUEUE_FULL": "idle",
+        "CLICK_ENQUEUE_VALID": "enqueueing",
+        "INPUT_ENTER_EMPTY": "idle",
+        "INPUT_ENTER_VALID": "enqueueing",
+        "CLICK_DEQUEUE_EMPTY": "idle",
+        "CLICK_DEQUEUE": "dequeuing",
+        "CLICK_PEEK_EMPTY": "idle",
+        "CLICK_PEEK": "peeking",
+        "CLICK_CLEAR_EMPTY": "idle",
+        "CLICK_CLEAR": "clearing",
+        "SPEED_CHANGE": "idle",
+        "CTRL_E": "focusInput",
+        "CTRL_D": "dequeuing",
+        "CTRL_P": "peeking",
+        "CTRL_C": "clearing",
+        "ITEM_ACTIVATE": "itemInspect"
+      }
+    },
+    {
+      "name": "enqueueing",
+      "onEnter": "createItem(value); setTransitionDuration(item, animationMs); appendItemToTrack(item); requestAnimationFrame(removeEnterClass(item)); updateStats; setMessage(`Enqueued \"${value}\".`)",
+      "onExit": "",
+      "on": {
+        "ENQUEUE_ANIM_DONE": "idle"
+      }
+    },
+    {
+      "name": "dequeuing",
+      "onEnter": "addExitClass(firstItem); setTransitionDuration(firstItem, animationMs); setMessage(`Dequeuing \"${value}\"...`); srLiveUpdate(`Dequeued ${value}`); startTimeout(removeFirstAfter(animationMs+20))",
+      "onExit": "removeFirstFromDOM; updateStats; setMessage(`Dequeued \"${value}\".`)",
+      "on": {
+        "DEQUEUE_ANIM_DONE": "idle"
+      }
+    },
+    {
+      "name": "clearing",
+      "onEnter": "forEachItem(staggerAddExitClass(item, idx*40)); setMessage('Clearing queue.'); startTimeout(clearTrackAfter(animationMs + items.length*40 + 20))",
+      "onExit": "clearTrack; updateStats; setMessage('Cleared queue.')",
+      "on": {
+        "CLEAR_ANIM_DONE": "idle"
+      }
+    },
+    {
+      "name": "peeking",
+      "onEnter": "announceHeadValue(headValue); setMessage(`Peek: head is \"${headValue}\".`); srLiveUpdate(`Head is ${headValue}`)",
+      "onExit": "",
+      "on": {
+        "PEEK_DONE": "idle"
+      }
+    },
+    {
+      "name": "focusInput",
+      "onEnter": "focusValueInput(); setMessage('Focused input. Type then press Enter to enqueue.')",
+      "onExit": "",
+      "on": {
+        "FOCUS_DONE": "idle"
+      }
+    },
+    {
+      "name": "itemInspect",
+      "onEnter": "announceItemPosition(index, label); setMessage(`Item \"${value}\" is at position ${index+1} (head=1).`)",
+      "onExit": "",
+      "on": {
+        "INSPECT_DONE": "idle"
+      }
+    }
+  ],
+  "events": [
+    "SEED_START",
+    "SEED_DONE",
+    "CLICK_ENQUEUE",
+    "INPUT_ENTER",
+    "CLICK_ENQUEUE_EMPTY",
+    "INPUT_ENTER_EMPTY",
+    "CLICK_ENQUEUE_FULL",
+    "CLICK_ENQUEUE_VALID",
+    "INPUT_ENTER_VALID",
+    "ENQUEUE_ANIM_DONE",
+    "CLICK_DEQUEUE",
+    "CLICK_DEQUEUE_EMPTY",
+    "DEQUEUE_ANIM_DONE",
+    "CLICK_PEEK",
+    "CLICK_PEEK_EMPTY",
+    "PEEK_DONE",
+    "CLICK_CLEAR",
+    "CLICK_CLEAR_EMPTY",
+    "CLEAR_ANIM_DONE",
+    "SPEED_CHANGE",
+    "CTRL_E",
+    "CTRL_D",
+    "CTRL_P",
+    "CTRL_C",
+    "ITEM_ACTIVATE",
+    "INSPECT_DONE"
+  ],
+  "notes": "This FSM models the primary interactive flows in the application. Many transitions are guarded by runtime checks (input empty, queue full, queue empty). Validation occurs in the event handlers before raising the definitive event (e.g., CLICK_ENQUEUE leads to either CLICK_ENQUEUE_EMPTY, CLICK_ENQUEUE_FULL, or CLICK_ENQUEUE_VALID). Animation-driven transitions are asynchronous: ENQUEUE_ANIM_DONE, DEQUEUE_ANIM_DONE and CLEAR_ANIM_DONE are raised after timeouts based on animationMs. Actions referenced in onEnter/onExit correspond to functions or sequences in the source: setMessage (updates UI message and sr-live), srLiveUpdate (updates screen-reader live region), createItem / appendItemToTrack, addExitClass, setTransitionDuration, removeFirstFromDOM / clearTrack, updateStats, seedExample, focusValueInput, and updateAnimationMs (on SPEED_CHANGE). The app stays conceptually in 'idle' between interactions; animation states (enqueueing, dequeuing, clearing) are transient and return to idle when their respective animations complete. Error/reporting outcomes (queue full / empty / empty-input) are treated as transitions that keep the app in idle while producing messages."
+}
+  </script>
+</body>
+</html>

@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Heap (Min/Max) Interactive</title>
+  <style>
+    :root{
+      --safe-padding: 24px;
+      --gap: 16px;
+      --node-size: 48px;
+      --node-font: 14px;
+      --transition: 400ms;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      padding:var(--safe-padding);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background:#f7f9fc;
+      color:#0b2545;
+      box-sizing:border-box;
+    }
+    *{box-sizing:border-box}
+    header{
+      text-align:center;
+      margin-bottom:var(--gap);
+    }
+    h1{
+      margin:0 0 6px 0;
+      font-size:20px;
+    }
+    p.objective{
+      margin:0;
+      color:#234170;
+      opacity:.9;
+      font-size:13px;
+    }
+    .container{
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+    }
+    /* Responsive: stack on narrow screens */
+    @media (max-width:980px){
+      .container{flex-direction:column;}
+    }
+    .visual{
+      flex:1 1 60%;
+      min-width:280px;
+      background:linear-gradient(180deg,#ffffff,#f2f7ff);
+      border:1px solid #dbe8ff;
+      padding:var(--gap);
+      border-radius:12px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    .controls{
+      flex:0 0 360px;
+      min-width:240px;
+      background:#fff;
+      border:1px solid #e6eef8;
+      padding:var(--gap);
+      border-radius:12px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      height:fit-content;
+    }
+    /* Visual area parts */
+    .tree-area{
+      position:relative;
+      height:320px;
+      border-radius:8px;
+      background:linear-gradient(180deg,#fcfeff,#f8fbff);
+      border:1px dashed #e3eefb;
+      overflow:hidden;
+    }
+    .tree-canvas{
+      position:absolute;
+      inset:0;
+      padding:16px;
+    }
+    .node{
+      position:absolute;
+      width:var(--node-size);
+      height:var(--node-size);
+      border-radius:50%;
+      background:#2b7be4;
+      color:white;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:600;
+      font-size:var(--node-font);
+      box-shadow:0 6px 12px rgba(43,123,228,0.18);
+      transition: transform var(--transition) ease, left var(--transition) ease, top var(--transition) ease, background-color 180ms;
+      transform-origin:center;
+      z-index:10;
+    }
+    .node.small{ width:40px; height:40px; font-size:12px; }
+    .node.compare{ background:#ffc857; color:#1b1b1b; box-shadow:0 6px 14px rgba(255,200,87,0.18); }
+    .node.swap{ background:#ff7b54; color:white; box-shadow:0 10px 18px rgba(255,123,84,0.22); }
+    .node.done{ background:#3ddc97; color:white; }
+    .edge{
+      position:absolute;
+      height:2px;
+      background:rgba(11,37,69,0.12);
+      transform-origin:left center;
+      z-index:2;
+    }
+    /* array view */
+    .array-view{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      padding:8px;
+      border-radius:6px;
+      background:linear-gradient(180deg,#fff,#fcfdff);
+      border:1px solid #eef6ff;
+      min-height:64px;
+    }
+    .array-item{
+      min-width:48px;
+      height:40px;
+      border-radius:6px;
+      background:#ffffff;
+      border:1px solid #cfe1ff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:600;
+      color:#1a3a66;
+      transition: transform var(--transition) ease, background-color 240ms, border-color 240ms;
+    }
+    .array-item.compare{ background:#fff4d6; border-color:#ffd27a; color:#1b1b1b; }
+    .array-item.swap{ background:#ffd6d0; border-color:#ff8d80; color:#1b1b1b; }
+    .array-label{ font-size:12px; color:#4a6b95; margin-bottom:6px; }
+    /* controls: forms */
+    .group{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    input[type="number"], input[type="text"], textarea{
+      padding:8px;
+      border-radius:8px;
+      border:1px solid #d7e8ff;
+      outline:none;
+      font-size:14px;
+      color:#0b2545;
+      background:#fbfdff;
+    }
+    textarea{ min-height:56px; resize:vertical; width:100%; }
+    button{
+      padding:8px 12px;
+      border-radius:8px;
+      border:1px solid transparent;
+      background:#2b7be4;
+      color:white;
+      font-weight:600;
+      cursor:pointer;
+      transition:transform 120ms;
+    }
+    button.secondary{
+      background:#fff;
+      color:#234170;
+      border-color:#d9e9ff;
+    }
+    button.ghost{
+      background:transparent;
+      color:#234170;
+      border:1px dashed #cfe1ff;
+    }
+    button:active{ transform:translateY(1px); }
+    .toggle{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px;
+    }
+    .small-btn{ padding:6px 8px; font-size:13px; border-radius:8px; }
+    .muted{ color:#4a6b95; font-size:13px; }
+    .log{
+      background:#0b254530;
+      border:1px solid #e7f0ff;
+      padding:12px;
+      border-radius:8px;
+      font-family:monospace;
+      font-size:13px;
+      color:#08203b;
+      min-height:120px;
+      overflow:auto;
+    }
+    .controls .section-title{
+      margin:0;
+      font-size:13px;
+      color:#17427a;
+      font-weight:700;
+    }
+    .controls .hint{ font-size:12px; color:#4a6b95; }
+    .controls footer{ font-size:12px; color:#5d7aa6; text-align:center; margin-top:6px; }
+    .flex-col{ display:flex; flex-direction:column; gap:8px; }
+    .row{ display:flex; gap:8px; align-items:center; }
+    .speed-row{ display:flex; align-items:center; gap:8px; }
+    input[type="range"]{ width:140px; }
+    /* responsive tweaks */
+    @media (max-width:480px){
+      :root{ --node-size:40px; --node-font:12px; }
+      .tree-area{ height:260px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Heap (Min/Max) — Interactive Visualization</h1>
+    <p class="objective">Insert, Extract, and Build heaps while watching array ↔ tree mappings and animated sift-up/sift-down.</p>
+  </header>
+
+  <main class="container" role="main">
+    <section class="visual" aria-label="Heap visualization area">
+      <div class="tree-area" id="treeArea" aria-hidden="false">
+        <div class="tree-canvas" id="treeCanvas"></div>
+      </div>
+
+      <div>
+        <div class="array-label">Array representation (indices 0 ... n-1)</div>
+        <div class="array-view" id="arrayView" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <aside class="controls" aria-label="Controls for heap operations">
+      <div class="flex-col">
+        <div class="section-title">Operations</div>
+        <div class="group" role="form" aria-label="Insert value">
+          <input id="valueInput" type="number" step="1" placeholder="Value to insert" aria-label="Value to insert" />
+          <button id="insertBtn">Insert</button>
+          <button id="randBtn" class="secondary">Random</button>
+        </div>
+
+        <div class="group" aria-label="Other operations">
+          <button id="extractBtn" class="small-btn">Extract Root</button>
+          <button id="peekBtn" class="small-btn secondary">Peek</button>
+        </div>
+
+        <div>
+          <div class="section-title">Build / Rebuild</div>
+          <div class="hint">Enter numbers separated by commas or spaces</div>
+          <textarea id="buildInput" placeholder="e.g. 5, 3, 8, 1, 2"></textarea>
+          <div class="group">
+            <button id="buildBtn">Build Heap</button>
+            <button id="clearBtn" class="ghost">Clear</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title">Mode & Speed</div>
+          <div class="group">
+            <label class="toggle">
+              <input type="checkbox" id="modeToggle" aria-label="Toggle min max" />
+              <span class="muted">Max-Heap</span>
+            </label>
+            <div class="speed-row" title="Animation speed (lower = faster)">
+              <label class="muted">Speed</label>
+              <input id="speedRange" type="range" min="50" max="1200" value="400" />
+              <span id="speedLabel" class="muted">400ms</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title">Step Mode</div>
+          <div class="hint">Enable to step through compares/swaps</div>
+          <div class="group">
+            <label class="toggle"><input type="checkbox" id="stepToggle" /> <span class="muted">Step Mode</span></label>
+            <button id="nextStepBtn" class="small-btn secondary" disabled>Next Step</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title">Logs</div>
+          <div id="log" class="log" role="log" aria-live="polite"></div>
+        </div>
+
+        <footer>Tip: Press Enter in the value box to insert. Toggle Min/Max to see behavior change.</footer>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    (function(){
+      // Basic configuration
+      const state = {
+        heap: [],
+        isMin: true,
+        animDuration: 400,
+        stepMode: false,
+        pendingSteps: [],
+        stepping: false
+      };
+
+      // DOM references
+      const treeCanvas = document.getElementById('treeCanvas');
+      const arrayView = document.getElementById('arrayView');
+      const insertBtn = document.getElementById('insertBtn');
+      const extractBtn = document.getElementById('extractBtn');
+      const randBtn = document.getElementById('randBtn');
+      const valueInput = document.getElementById('valueInput');
+      const buildBtn = document.getElementById('buildBtn');
+      const buildInput = document.getElementById('buildInput');
+      const clearBtn = document.getElementById('clearBtn');
+      const modeToggle = document.getElementById('modeToggle'); // checked => Max-Heap
+      const speedRange = document.getElementById('speedRange');
+      const speedLabel = document.getElementById('speedLabel');
+      const stepToggle = document.getElementById('stepToggle');
+      const nextStepBtn = document.getElementById('nextStepBtn');
+      const logEl = document.getElementById('log');
+
+      // Utility: log
+      function log(msg){
+        const time = new Date().toLocaleTimeString();
+        logEl.textContent = `${time} — ${msg}\n` + logEl.textContent;
+      }
+
+      // Utility: comparator based on state.isMin
+      function cmp(a,b){
+        return state.isMin ? (a < b) : (a > b);
+      }
+
+      // DOM creation helpers
+      function createNodeEl(value, idx){
+        const el = document.createElement('div');
+        el.className = 'node';
+        el.textContent = String(value);
+        el.dataset.index = idx;
+        return el;
+      }
+      function createArrayItem(value, idx){
+        const el = document.createElement('div');
+        el.className = 'array-item';
+        el.textContent = String(value);
+        el.dataset.index = idx;
+        el.title = `index ${idx}`;
+        return el;
+      }
+
+      // Layout computation: compute positions for nodes based on index
+      function computePositions(containerWidth, index){
+        // level, position within level
+        const level = Math.floor(Math.log2(index + 1));
+        const levelStart = Math.pow(2, level) - 1;
+        const posInLevel = index - levelStart;
+        const itemsInLevel = Math.pow(2, level);
+        const padding = 16;
+        const availableWidth = Math.max(100, containerWidth - padding * 2);
+        // compute x spacing so nodes in this level are evenly spaced
+        const gap = availableWidth / (itemsInLevel);
+        const x = padding + gap * posInLevel + gap/2 - (getNodeSize()/2);
+        const yGap = 72; // vertical spacing per level
+        const y = padding + level * yGap;
+        return {x, y, level};
+      }
+
+      function getNodeSize(){
+        // read computed CSS var or fallback
+        const s = getComputedStyle(document.documentElement).getPropertyValue('--node-size');
+        return parseFloat(s) || 48;
+      }
+
+      // Visual update: rebuild DOM nodes to match heap array
+      function render(){
+        // clear canvas edges and nodes
+        treeCanvas.innerHTML = '';
+        arrayView.innerHTML = '';
+
+        const containerWidth = treeCanvas.clientWidth;
+        const size = getNodeSize();
+        const n = state.heap.length;
+
+        // Create node elements
+        const nodeEls = [];
+        for(let i=0;i<n;i++){
+          const v = state.heap[i];
+          const el = createNodeEl(v, i);
+          el.style.width = size + 'px';
+          el.style.height = size + 'px';
+          el.style.lineHeight = size + 'px';
+          el.style.transitionDuration = state.animDuration + 'ms';
+          el.setAttribute('aria-label', `node ${v} at index ${i}`);
+          treeCanvas.appendChild(el);
+          nodeEls.push(el);
+        }
+
+        // create and position edges first (so they appear behind)
+        for(let i=0;i<n;i++){
+          const left = 2*i+1;
+          const right = 2*i+2;
+          const parentPos = computePositions(containerWidth, i);
+          const parentX = parentPos.x + size/2;
+          const parentY = parentPos.y + size/2;
+          [left,right].forEach(childIdx=>{
+            if(childIdx < n){
+              const childPos = computePositions(containerWidth, childIdx);
+              const childX = childPos.x + size/2;
+              const childY = childPos.y + size/2;
+              const dx = childX - parentX;
+              const dy = childY - parentY;
+              const length = Math.sqrt(dx*dx + dy*dy);
+              const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+              const edge = document.createElement('div');
+              edge.className = 'edge';
+              edge.style.width = length + 'px';
+              edge.style.left = parentX + 'px';
+              edge.style.top = parentY + 'px';
+              edge.style.transform = `rotate(${angle}deg)`;
+              treeCanvas.appendChild(edge);
+            }
+          });
+        }
+
+        // position nodes (absolute left/top)
+        for(let i=0;i<n;i++){
+          const el = nodeEls[i];
+          const pos = computePositions(containerWidth, i);
+          el.style.left = pos.x + 'px';
+          el.style.top = pos.y + 'px';
+          el.dataset.index = i;
+        }
+
+        // Create array view items
+        for(let i=0;i<n;i++){
+          const item = createArrayItem(state.heap[i], i);
+          item.style.transitionDuration = state.animDuration + 'ms';
+          arrayView.appendChild(item);
+        }
+      }
+
+      // Helpers to highlight node and array items
+      function highlightCompare(i,j){
+        // i or j may be null (for root compare)
+        const nodes = treeCanvas.querySelectorAll('.node');
+        nodes.forEach(n => n.classList.remove('compare'));
+        if (i!=null) {
+          const el = treeCanvas.querySelector(`.node[data-index="${i}"]`);
+          if(el) el.classList.add('compare');
+        }
+        if (j!=null) {
+          const el = treeCanvas.querySelector(`.node[data-index="${j}"]`);
+          if(el) el.classList.add('compare');
+        }
+        const arrayItems = arrayView.querySelectorAll('.array-item');
+        arrayItems.forEach(a => a.classList.remove('compare'));
+        if(i!=null){
+          const a = arrayView.querySelector(`.array-item[data-index="${i}"]`);
+          if(a) a.classList.add('compare');
+        }
+        if(j!=null){
+          const a = arrayView.querySelector(`.array-item[data-index="${j}"]`);
+          if(a) a.classList.add('compare');
+        }
+      }
+      function highlightSwap(i,j){
+        const nodes = treeCanvas.querySelectorAll('.node');
+        nodes.forEach(n => n.classList.remove('swap'));
+        const a = treeCanvas.querySelector(`.node[data-index="${i}"]`);
+        const b = treeCanvas.querySelector(`.node[data-index="${j}"]`);
+        if(a) a.classList.add('swap');
+        if(b) b.classList.add('swap');
+        const arrayItems = arrayView.querySelectorAll('.array-item');
+        arrayItems.forEach(x => x.classList.remove('swap'));
+        const aa = arrayView.querySelector(`.array-item[data-index="${i}"]`);
+        const bb = arrayView.querySelector(`.array-item[data-index="${j}"]`);
+        if(aa) aa.classList.add('swap');
+        if(bb) bb.classList.add('swap');
+      }
+      function clearHighlights(){
+        treeCanvas.querySelectorAll('.node').forEach(n => {
+          n.classList.remove('compare','swap','done');
+        });
+        arrayView.querySelectorAll('.array-item').forEach(a=>{
+          a.classList.remove('compare','swap');
+        });
+      }
+
+      // Swap visual by swapping dataset indices then re-render movement
+      function animateSwap(i,j,instant=false){
+        return new Promise(resolve=>{
+          // swap values in model
+          const temp = state.heap[i]; state.heap[i] = state.heap[j]; state.heap[j] = temp;
+          // re-render but keep same nodes: we'll rebuild fully for simplicity and rely on transitions
+          render();
+          if(instant || state.animDuration===0){
+            setTimeout(()=>resolve(),10);
+          } else {
+            setTimeout(()=>resolve(), state.animDuration + 20);
+          }
+        });
+      }
+
+      // Step queue system
+      function enqueueStep(fn){
+        state.pendingSteps.push(fn);
+        if(!state.stepping && !state.stepMode){
+          // if not stepping, drain immediately
+          processSteps();
+        } else {
+          updateNextButton();
+        }
+      }
+      async function processSteps(){
+        if(state.stepping) return;
+        state.stepping = true;
+        while(state.pendingSteps.length){
+          if(state.stepMode){
+            // wait for user to click Next
+            updateNextButton(true);
+            await new Promise(res=>{
+              state._resolveNext = res;
+            });
+            updateNextButton(false);
+          }
+          const stepFn = state.pendingSteps.shift();
+          await stepFn();
+        }
+        state.stepping = false;
+        updateNextButton(false);
+      }
+      function updateNextButton(disabledWhenIdle=false){
+        nextStepBtn.disabled = !(state.stepMode) || !(state.pendingSteps.length>0) || (disabledWhenIdle && state.stepping===false);
+      }
+      nextStepBtn.addEventListener('click', ()=>{
+        if(state._resolveNext) state._resolveNext();
+      });
+
+      // Core heap operations with animation steps
+      function siftUpAnimated(idx){
+        enqueueStep(async ()=>{
+          let i = idx;
+          while(i>0){
+            const parent = Math.floor((i-1)/2);
+            log(`Compare: node ${state.heap[i]} (idx ${i}) with parent ${state.heap[parent]} (idx ${parent})`);
+            highlightCompare(i,parent);
+            await waitCompare();
+            if(cmp(state.heap[i], state.heap[parent])){
+              log(`Swap: ${state.heap[i]} <-> ${state.heap[parent]}`);
+              highlightSwap(i,parent);
+              await waitSwap();
+              await animateSwap(i,parent);
+              // continue up — after swap indices changed
+              i = parent;
+            } else {
+              break;
+            }
+          }
+          clearHighlights();
+          // mark done root of this action
+          renderDone();
+        });
+        processSteps();
+      }
+
+      function siftDownAnimated(startIdx){
+        enqueueStep(async ()=>{
+          let i = startIdx;
+          const n = state.heap.length;
+          while(true){
+            const left = 2*i + 1;
+            const right = 2*i + 2;
+            let candidate = i;
+            if(left < n){
+              log(`Compare child ${state.heap[left]} (idx ${left}) with parent ${state.heap[candidate]} (idx ${candidate})`);
+              highlightCompare(left, candidate);
+              await waitCompare();
+              if(cmp(state.heap[left], state.heap[candidate])) candidate = left;
+            }
+            if(right < n){
+              log(`Compare child ${state.heap[right]} (idx ${right}) with candidate ${state.heap[candidate]} (idx ${candidate})`);
+              highlightCompare(right, candidate);
+              await waitCompare();
+              if(cmp(state.heap[right], state.heap[candidate])) candidate = right;
+            }
+            if(candidate !== i){
+              log(`Swap: ${state.heap[i]} (idx ${i}) with ${state.heap[candidate]} (idx ${candidate})`);
+              highlightSwap(i, candidate);
+              await waitSwap();
+              await animateSwap(i, candidate);
+              i = candidate;
+            } else {
+              break;
+            }
+          }
+          clearHighlights();
+          renderDone();
+        });
+        processSteps();
+      }
+
+      // Wait helpers that obey step mode and speed
+      function waitCompare(){
+        return new Promise(resolve=>{
+          if(state.stepMode){
+            enqueueUserAction(resolve);
+          } else {
+            setTimeout(resolve, Math.max(80, state.animDuration/2));
+          }
+        });
+      }
+      function waitSwap(){
+        return new Promise(resolve=>{
+          if(state.stepMode){
+            enqueueUserAction(resolve);
+          } else {
+            setTimeout(resolve, state.animDuration);
+          }
+        });
+      }
+      function enqueueUserAction(resolve){
+        // Push a wrapper to pending that resolves when Next is pressed — we actually want to pause the operation
+        state.pendingSteps.unshift(async ()=>{
+          // This wrapper is a no-op used to pause; but we need to call resolve and continue
+          resolve();
+        });
+        processSteps();
+      }
+
+      function renderDone(){
+        // flash root or last modified nodes
+        treeCanvas.querySelectorAll('.node').forEach(n => n.classList.add('done'));
+        setTimeout(()=> treeCanvas.querySelectorAll('.node').forEach(n => n.classList.remove('done')), 600);
+      }
+
+      // Public ops
+      function insertValue(v){
+        log(`Insert requested: ${v}`);
+        state.heap.push(v);
+        render();
+        siftUpAnimated(state.heap.length - 1);
+      }
+
+      function extractRoot(){
+        if(state.heap.length===0){
+          log('Heap is empty.');
+          return;
+        }
+        log(`Extract root: ${state.heap[0]}`);
+        // swap root with last, pop, then sift-down from root
+        if(state.heap.length === 1){
+          const val = state.heap.pop();
+          render();
+          renderDone();
+          log(`Removed lone element ${val}`);
+          return;
+        }
+        // animate swap root with last and then removal
+        enqueueStep(async ()=>{
+          highlightSwap(0, state.heap.length - 1);
+          await waitSwap();
+          await animateSwap(0, state.heap.length - 1);
+          // pop last
+          const removed = state.heap.pop();
+          render();
+          log(`Popped ${removed}, now sift-down from root`);
+        });
+        // then sift-down
+        siftDownAnimated(0);
+        processSteps();
+      }
+
+      function peekRoot(){
+        if(state.heap.length===0){
+          log('Heap is empty.');
+          return;
+        }
+        const v = state.heap[0];
+        log(`Peek root: ${v}`);
+        highlightCompare(0,null);
+        setTimeout(()=>clearHighlights(), 600);
+      }
+
+      function buildHeapFromArray(arr){
+        state.heap = arr.slice();
+        render();
+        // bottom-up heapify
+        const n = state.heap.length;
+        const starts = [];
+        for(let i = Math.floor(n/2)-1; i >=0; i--){
+          starts.push(i);
+        }
+        // schedule each sift-down
+        enqueueStep(async ()=>{
+          log(`Building heap from array: [${state.heap.join(', ')}]`);
+        });
+        starts.forEach(i => {
+          enqueueStep(async ()=> {
+            log(`Heapify: sift-down from index ${i} (value ${state.heap[i]})`);
+            await new Promise(res => setTimeout(res, 40));
+            await new Promise(resolve => {
+              // reuse siftDownAnimated but as synchronous part of the queue
+              siftDownAnimated(i);
+              // siftDownAnimated enqueues its own steps; so we just wait a small time here
+              setTimeout(resolve, 10);
+            });
+          });
+        });
+        processSteps();
+      }
+
+      // UI bindings
+      insertBtn.addEventListener('click', ()=>{
+        const v = valueInput.value.trim();
+        if(v === '') return;
+        insertValue(Number(v));
+        valueInput.value = '';
+        valueInput.focus();
+      });
+      valueInput.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter'){
+          insertBtn.click();
+          e.preventDefault();
+        }
+      });
+      randBtn.addEventListener('click', ()=>{
+        const r = Math.floor(Math.random()*99) - 9; // -9..89
+        insertValue(r);
+      });
+      extractBtn.addEventListener('click', extractRoot);
+      peekBtn.addEventListener('click', peekRoot);
+      buildBtn.addEventListener('click', ()=>{
+        const raw = buildInput.value.trim();
+        if(!raw) return;
+        const arr = raw.split(/[\s,]+/).map(x => Number(x)).filter(x=>!Number.isNaN(x));
+        if(arr.length === 0) return;
+        buildHeapFromArray(arr);
+      });
+      clearBtn.addEventListener('click', ()=>{
+        state.heap = [];
+        render();
+        log('Heap cleared.');
+      });
+      modeToggle.addEventListener('change', ()=>{
+        state.isMin = !modeToggle.checked; // checked => Max => isMin = false
+        log(`Mode changed: ${state.isMin ? 'Min-Heap' : 'Max-Heap'}. Rebuilding heap to new comparator.`);
+        // Rebuild by performing heapify on current array to reflect new comparator
+        enqueueStep(async ()=>{
+          // Just perform bottom-up heapify
+          render();
+        });
+        buildHeapFromArray(state.heap.slice());
+      });
+      speedRange.addEventListener('input', ()=>{
+        const val = Number(speedRange.value);
+        state.animDuration = val;
+        speedLabel.textContent = val + 'ms';
+        // apply to nodes
+        document.querySelectorAll('.node, .array-item').forEach(el => {
+          el.style.transitionDuration = val + 'ms';
+        });
+      });
+      stepToggle.addEventListener('change', ()=>{
+        state.stepMode = stepToggle.checked;
+        if(!state.stepMode){
+          // if disabling step mode, drain steps automatically
+          processSteps();
+        } else {
+          updateNextButton();
+        }
+        log(`Step Mode ${state.stepMode ? 'enabled' : 'disabled'}`);
+      });
+      nextStepBtn.addEventListener('click', ()=>{
+        // handled earlier
+      });
+
+      // initial render
+      render();
+
+      // expose some helpers for swapping visually when array changes
+      // Also, keep window resize re-render for layout adjustments
+      window.addEventListener('resize', ()=>{
+        render();
+      });
+
+      // initial sample heap
+      (function seed(){
+        const sample = [7, 3, 9, 1, 5];
+        state.heap = [];
+        sample.forEach(v => insertValue(v));
+      })();
+
+      // small accessibility announcements
+      function announce(msg){
+        // log already is ARIA-live; echo
+        log(msg);
+      }
+
+      // Public small helpers
+      function wait(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+      // ---- internal: ensure processSteps drains when non-step mode
+      // Already handled in enqueueStep/processSteps
+
+    })();
+  </script>
+
+
+  <script id="fsm" type="application/json">
+    {
+  "topic": "Heap Interactive Application",
+  "description": "Models the interactive states and transitions of the Heap (Min/Max) visualization UI including user operations (insert, extract, build, peek, clear), animation steps (compare / swap), step-mode behavior (wait for Next), and processing of the internal pending step queue.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "render; updateNextButton",
+      "onExit": "none",
+      "on": {
+        "CLICK_INSERT": "inserting",
+        "CLICK_RANDOM": "inserting",
+        "KEY_ENTER_INSERT": "inserting",
+        "CLICK_EXTRACT": "extracting",
+        "CLICK_PEEK": "peeking",
+        "CLICK_BUILD": "building",
+        "CLICK_CLEAR": "clearing",
+        "TOGGLE_MODE": "mode_rebuilding",
+        "TOGGLE_STEP_MODE": "idle",
+        "SPEED_CHANGE": "idle",
+        "WINDOW_RESIZE": "idle"
+      }
+    },
+    {
+      "name": "inserting",
+      "onEnter": "insertValue (push to model; render; enqueue siftUp step)",
+      "onExit": "none",
+      "on": {
+        "ENQUEUE_STEP": "processing",
+        "PROCESS_STEPS_START": "processing"
+      }
+    },
+    {
+      "name": "extracting",
+      "onEnter": "extractRoot (enqueue swap/pop and siftDown steps; render as appropriate)",
+      "onExit": "none",
+      "on": {
+        "ENQUEUE_STEP": "processing",
+        "PROCESS_STEPS_START": "processing"
+      }
+    },
+    {
+      "name": "peeking",
+      "onEnter": "peekRoot (highlightCompare(0,null); log; schedule clearHighlights)",
+      "onExit": "clearHighlights",
+      "on": {
+        "ANIMATION_END": "idle",
+        "TIMER_EXPIRE": "idle"
+      }
+    },
+    {
+      "name": "building",
+      "onEnter": "buildHeapFromArray (set model array; render; enqueue bottom-up siftDown steps)",
+      "onExit": "none",
+      "on": {
+        "ENQUEUE_STEP": "processing",
+        "PROCESS_STEPS_START": "processing"
+      }
+    },
+    {
+      "name": "clearing",
+      "onEnter": "clear heap model; render; log",
+      "onExit": "none",
+      "on": {
+        "DONE": "idle"
+      }
+    },
+    {
+      "name": "mode_rebuilding",
+      "onEnter": "toggle comparator (state.isMin) and enqueue rebuild (buildHeapFromArray) ; render; log",
+      "onExit": "none",
+      "on": {
+        "ENQUEUE_STEP": "processing",
+        "PROCESS_STEPS_START": "processing"
+      }
+    },
+    {
+      "name": "processing",
+      "onEnter": "processSteps (set stepping=true; drain state.pendingSteps)",
+      "onExit": "set stepping=false; updateNextButton(false)",
+      "on": {
+        "STEP_WAIT_REQUIRED": "waiting_for_next",
+        "COMPARE_START": "comparing",
+        "SWAP_START": "swapping",
+        "PROCESS_STEPS_COMPLETE": "idle",
+        "ENQUEUE_STEP": "processing",
+        "TOGGLE_STEP_MODE_OFF": "processing"
+      }
+    },
+    {
+      "name": "waiting_for_next",
+      "onEnter": "updateNextButton(true); pause processing until CLICK_NEXT_STEP (resolve pending wait)",
+      "onExit": "updateNextButton(false)",
+      "on": {
+        "CLICK_NEXT_STEP": "processing",
+        "TOGGLE_STEP_MODE": "processing",
+        "STEP_MODE_DISABLED": "processing"
+      }
+    },
+    {
+      "name": "comparing",
+      "onEnter": "highlightCompare(i,j); waitCompare (either auto timeout or enqueueUserAction)",
+      "onExit": "clearHighlights",
+      "on": {
+        "COMPARE_COMPLETE": "processing",
+        "STEP_WAIT_REQUIRED": "waiting_for_next"
+      }
+    },
+    {
+      "name": "swapping",
+      "onEnter": "highlightSwap(i,j); waitSwap; animateSwap(i,j)",
+      "onExit": "clearHighlights",
+      "on": {
+        "SWAP_COMPLETE": "processing",
+        "STEP_WAIT_REQUIRED": "waiting_for_next"
+      }
+    },
+    {
+      "name": "done",
+      "onEnter": "renderDone (flash done state on nodes)",
+      "onExit": "clearHighlights",
+      "on": {
+        "ANIMATION_END": "idle",
+        "TIMER_EXPIRE": "idle"
+      }
+    }
+  ],
+  "events": [
+    "CLICK_INSERT",
+    "CLICK_RANDOM",
+    "KEY_ENTER_INSERT",
+    "CLICK_EXTRACT",
+    "CLICK_PEEK",
+    "CLICK_BUILD",
+    "CLICK_CLEAR",
+    "TOGGLE_MODE",
+    "SPEED_CHANGE",
+    "TOGGLE_STEP_MODE",
+    "CLICK_NEXT_STEP",
+    "WINDOW_RESIZE",
+    "ENQUEUE_STEP",
+    "PROCESS_STEPS_START",
+    "PROCESS_STEPS_COMPLETE",
+    "STEP_WAIT_REQUIRED",
+    "CLICK_NEXT_STEP",
+    "COMPARE_START",
+    "COMPARE_COMPLETE",
+    "SWAP_START",
+    "SWAP_COMPLETE",
+    "ANIMATION_END",
+    "TIMER_EXPIRE",
+    "DONE",
+    "TOGGLE_STEP_MODE_OFF"
+  ],
+  "notes": "The app maintains an internal pendingSteps queue and a 'stepping' flag. enqueueStep adds atomic async step functions to pendingSteps. processSteps drains the queue: when stepMode is enabled certain waits (waitCompare/waitSwap) convert to pauses that require user CLICK_NEXT_STEP to resolve. 'comparing' and 'swapping' states represent atomic visual steps (highlight + wait + possible animateSwap). insert/extract/build operations enqueue sequences of compare/swap steps and then trigger processing. Speed changes update animDuration used by animation timers but do not change FSM state. Mode toggle rebuilds heap by enqueueing heapify steps. render/renderDone/clearHighlights/highlightCompare/highlightSwap/animateSwap represent onEnter/onExit actions invoked by states."
+}
+  </script>
+</body>
+</html>

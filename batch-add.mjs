@@ -9,6 +9,8 @@ const CONFIG = {
   systemPrompt:
     "You are an expert in interactive web design and front-end pedagogy. Only respond in a single HTML file.",
   showProgress: true, // 是否显示详细进度
+  enableFSM: true, // 是否启用 FSM 生成（多 Agent 模式）
+  enableTests: false, // 是否启用 Playwright 测试生成（需要先启用 enableFSM）
 };
 
 const concept = "bubble sort";
@@ -46,6 +48,7 @@ const tasks = [
     model: "gpt-4o",
     question: question,
     system: CONFIG.systemPrompt,
+    topic: concept, // 添加主题，用于 FSM 生成
   },
   // 可以添加更多任务
 ];
@@ -70,12 +73,28 @@ async function runBatch() {
         const result = await processTask(task, {
           showProgress: CONFIG.showProgress,
           taskId: taskId,
+          enableFSM: CONFIG.enableFSM, // 传递 FSM 配置
+          enableTests: CONFIG.enableTests, // 传递测试生成配置
         });
 
         const duration = Date.now() - startTime;
         console.log(
           `[${taskId}] 完成 - 耗时: ${(duration / 1000).toFixed(2)}s`
         );
+
+        // 显示 FSM 状态
+        if (result.hasFSM) {
+          console.log(
+            `[${taskId}] ✓ 包含 FSM (${
+              result.fsmData?.states?.length || 0
+            } 个状态)`
+          );
+        }
+
+        // 显示测试生成状态
+        if (result.hasTest) {
+          console.log(`[${taskId}] ✓ 包含测试 (${result.testFileName})`);
+        }
 
         return {
           taskId,

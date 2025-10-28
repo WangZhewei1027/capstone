@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Set — Interactive Exploration</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --card-width: 120px;
+      --card-aspect: 1.5;
+      --bg: #fbfbfd;
+      --panel: #ffffff;
+      --muted: #6b6f76;
+      --accent: #1f6feb;
+      --success: #2ea44f;
+      --danger: #d73a49;
+      --shadow: 0 6px 18px rgba(18, 22, 26, 0.08);
+    }
+
+    /* Page safe margins */
+    html,body{
+      height:100%;
+      margin:0;
+      padding:0;
+      background:linear-gradient(180deg,#f6f8fb 0%, var(--bg) 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#0f1724;
+    }
+    .container{
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+      align-items:stretch;
+    }
+
+    header{
+      display:flex;
+      gap: var(--gap);
+      align-items:flex-start;
+      flex-wrap:wrap;
+    }
+    .title{
+      background:var(--panel);
+      padding:16px;
+      border-radius:10px;
+      box-shadow:var(--shadow);
+      flex:1 1 360px;
+      min-width:260px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .title h1{
+      margin:0;
+      font-size:20px;
+      letter-spacing:-0.2px;
+    }
+    .small{
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.3;
+    }
+
+    .controls{
+      display:flex;
+      gap: var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .controls .panel{
+      background:var(--panel);
+      padding:12px;
+      border-radius:10px;
+      box-shadow:var(--shadow);
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    button{
+      background:linear-gradient(180deg,#fff,#f2f5fb);
+      border:1px solid #e3e8ef;
+      padding:8px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:600;
+      color:#0f1724;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset;
+    }
+    button.primary{
+      background:linear-gradient(180deg,var(--accent), #155ec2);
+      color:white;
+      border:none;
+      box-shadow: 0 6px 14px rgba(31,110,235,0.18);
+    }
+    button.ghost{
+      background:transparent;
+      border:1px dashed #dfe6f3;
+      color:var(--muted);
+      font-weight:600;
+    }
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    main{
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+      flex-wrap:wrap;
+    }
+
+    /* Left: board area */
+    .board-panel{
+      background:var(--panel);
+      padding:var(--gap);
+      border-radius:12px;
+      box-shadow:var(--shadow);
+      flex: 1 1 640px;
+      min-width:320px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      align-items:stretch;
+    }
+    .board-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+    }
+    .board-grid{
+      display:grid;
+      gap:16px;
+      justify-content:center;
+      align-content:start;
+      grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
+      /* ensure spacing with min-card width */
+    }
+
+    /* Card */
+    .card{
+      width:var(--card-width);
+      aspect-ratio: var(--card-aspect);
+      background:white;
+      border-radius:10px;
+      border:2px solid transparent;
+      padding:10px;
+      box-sizing:border-box;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transition:transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, opacity 250ms ease;
+      cursor:pointer;
+      box-shadow: 0 4px 12px rgba(12, 18, 30, 0.06);
+      position:relative;
+      outline:none;
+      min-width:100px;
+      min-height:120px;
+    }
+    .card:focus{
+      box-shadow: 0 8px 20px rgba(31,110,235,0.12);
+      transform:translateY(-4px);
+      border-color: rgba(31,110,235,0.16);
+    }
+    .card .svg-wrap{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .card.selected{
+      transform:translateY(-8px) scale(1.04);
+      border-color: rgba(46,164,79,0.14);
+      box-shadow: 0 16px 40px rgba(46,164,79,0.08);
+    }
+    .card.hint{
+      animation: pulse 1.4s ease-in-out infinite;
+      border-color: rgba(31,110,235,0.16);
+    }
+    @keyframes pulse{
+      0%{ box-shadow: 0 0 0 0 rgba(31,110,235,0.08); }
+      70%{ box-shadow: 0 0 0 10px rgba(31,110,235,0.02); }
+      100%{ box-shadow: 0 0 0 0 rgba(31,110,235,0); }
+    }
+
+    /* Correct / incorrect feedback */
+    .feedback{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      min-height:24px;
+    }
+    .feedback .msg{
+      padding:8px 12px;
+      border-radius:8px;
+      font-weight:600;
+      font-size:13px;
+    }
+    .feedback .success{
+      background:linear-gradient(90deg, rgba(46,164,79,0.12), rgba(46,164,79,0.06));
+      color:var(--success);
+    }
+    .feedback .error{
+      background:linear-gradient(90deg, rgba(215,58,73,0.08), rgba(215,58,73,0.04));
+      color:var(--danger);
+    }
+
+    /* Animations for incorrect selection */
+    .shake{
+      animation:shake 360ms ease;
+    }
+    @keyframes shake{
+      10%{ transform:translateX(-8px); }
+      30%{ transform:translateX(8px); }
+      50%{ transform:translateX(-6px); }
+      70%{ transform:translateX(6px); }
+      90%{ transform:translateX(-3px); }
+      100%{ transform:translateX(0); }
+    }
+
+    /* right column: explanation */
+    .explain{
+      width:380px;
+      min-width:260px;
+      background:var(--panel);
+      padding:var(--gap);
+      border-radius:12px;
+      box-shadow:var(--shadow);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .explain h2{
+      margin:0;
+      font-size:16px;
+    }
+    .feature-list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .legend{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .chip{
+      background:#f6f8fb;
+      padding:6px 8px;
+      border-radius:8px;
+      font-size:13px;
+      color:var(--muted);
+      border:1px solid #eef2fb;
+    }
+
+    /* responsive */
+    @media (max-width:960px){
+      .explain{ width:100%; }
+      .board-panel{ order:2; }
+      .explain{ order:1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="Set interactive learning module">
+    <!-- Header with concept details -->
+    <header>
+      <section class="title" aria-labelledby="concept-title">
+        <h1 id="concept-title">Set — Identify a Set</h1>
+        <div class="small">
+          Concept: A "set" is three cards where, for each attribute (count, symbol, shading, color), the values are all the same or all different.
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <div class="chip">Single Concept: Identifying sets</div>
+          <div class="chip">Accessible • Responsive</div>
+          <div class="chip">Vanilla JS</div>
+        </div>
+      </section>
+
+      <div class="controls" aria-hidden="false">
+        <div class="panel" role="group" aria-label="game controls">
+          <button id="newBtn" title="Start a new deal">New Deal</button>
+          <button id="hintBtn" title="Highlight part of a possible set">Hint</button>
+          <button id="solveBtn" title="Show a complete set">Auto-solve</button>
+          <button id="moreBtn" title="Deal 3 more cards (if needed)">+3 Cards</button>
+        </div>
+
+        <div class="panel" aria-hidden="true" style="min-width:220px;">
+          <div style="display:flex;flex-direction:column;">
+            <div class="muted">Deck</div>
+            <div id="deckCount" style="font-weight:700">81</div>
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <div class="muted">Board</div>
+            <div id="boardCount" style="font-weight:700">12</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="board-panel" aria-label="game board">
+        <div class="board-header">
+          <div style="display:flex;flex-direction:column;">
+            <div style="font-weight:700">Play Area</div>
+            <div class="muted" style="font-size:13px">Select three cards to test for a set. Click a selected card to unselect.</div>
+          </div>
+
+          <div style="display:flex;gap:12px;align-items:center;">
+            <button id="checkBtn" class="primary" title="Check if the selected three cards make a set">Check</button>
+            <button id="autoDealBtn" class="ghost" title="Automatically deal until a set exists">Deal until set</button>
+          </div>
+        </div>
+
+        <div id="feedback" class="feedback" aria-live="polite" aria-atomic="true">
+          <div class="muted">Tip: Use keyboard — arrow keys to move, Enter/Space to select.</div>
+        </div>
+
+        <div id="board" class="board-grid" tabindex="0" aria-label="cards on board">
+          <!-- Cards are injected here -->
+        </div>
+      </section>
+
+      <aside class="explain" aria-labelledby="learn-heading">
+        <h2 id="learn-heading">Learning Objective</h2>
+        <div class="feature-list">
+          <div>After interacting, you will be able to:</div>
+          <ul style="margin:6px 0 0 18px;color:var(--muted);">
+            <li>Recognize when three cards form a set (all same or all different per attribute).</li>
+            <li>Apply quick checks and use hints to spot sets.</li>
+          </ul>
+          <div style="margin-top:8px;font-weight:700">Interaction Design</div>
+          <div class="muted">
+            Click or use keyboard to select cards. When three are selected, use Check to validate. Correct sets flash green and are replaced; incorrect selections shake and show which attributes fail. Hint highlights part of a set.
+          </div>
+
+          <div style="margin-top:8px;font-weight:700">Layout</div>
+          <div class="muted">
+            A responsive two-column layout: the left side is the interactive board; the right column explains rules and controls. Safe margins are 24px; interactive elements are separated by at least 16px.
+          </div>
+
+          <div style="margin-top:8px;font-weight:700">Attributes</div>
+          <div class="legend">
+            <div class="chip">Count: 1 / 2 / 3</div>
+            <div class="chip">Symbol: Diamond / Oval / Wave</div>
+            <div class="chip">Shading: Solid / Striped / Open</div>
+            <div class="chip">Color: Red / Green / Purple</div>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    // Set game: 4 features with 3 values each -> 81-card deck
+    (function(){
+      // Config
+      const COLORS = ['#d9534f','#27ae60','#8e44ad']; // red, green, purple
+      const SYMBOLS = ['diamond','oval','wave'];
+      const SHADINGS = ['solid','striped','open'];
+      const COUNTS = [1,2,3];
+
+      // State
+      let deck = [];
+      let board = [];
+      let selected = new Set();
+      let lastFeedbackTimeout = null;
+
+      const boardEl = document.getElementById('board');
+      const deckCountEl = document.getElementById('deckCount');
+      const boardCountEl = document.getElementById('boardCount');
+      const feedbackEl = document.getElementById('feedback');
+
+      // Controls
+      document.getElementById('newBtn').addEventListener('click', newDeal);
+      document.getElementById('moreBtn').addEventListener('click', dealThree);
+      document.getElementById('hintBtn').addEventListener('click', hint);
+      document.getElementById('checkBtn').addEventListener('click', checkSelection);
+      document.getElementById('solveBtn').addEventListener('click', autoSolve);
+      document.getElementById('autoDealBtn').addEventListener('click', dealUntilSet);
+
+      // Keyboard navigation
+      boardEl.addEventListener('keydown', handleBoardKey);
+
+      // Build deck
+      function makeDeck(){
+        const d = [];
+        for(let c=0;c<COUNTS.length;c++){
+          for(let s=0;s<SYMBOLS.length;s++){
+            for(let sh=0;sh<SHADINGS.length;sh++){
+              for(let col=0;col<COLORS.length;col++){
+                d.push({
+                  id: `${c}-${s}-${sh}-${col}-${Math.random().toString(36).slice(2,7)}`,
+                  count: COUNTS[c],
+                  symbol: SYMBOLS[s],
+                  shading: SHADINGS[sh],
+                  color: COLORS[col],
+                });
+              }
+            }
+          }
+        }
+        return shuffle(d);
+      }
+
+      function shuffle(a){
+        for(let i=a.length-1;i>0;i--){
+          const j=Math.floor(Math.random()*(i+1));
+          [a[i],a[j]]=[a[j],a[i]];
+        }
+        return a;
+      }
+
+      function newDeal(){
+        deck = makeDeck();
+        board = [];
+        selected.clear();
+        // initial 12
+        for(let i=0;i<12;i++) dealOneToBoard();
+        refresh();
+        // ensure at least one set exists, else deal more until exists or deck runs out
+        if(!findAnySet(board) && deck.length>0){
+          // deal upto 3 times (will add 3 each time)
+          let tries=0;
+          while(!findAnySet(board) && deck.length>0 && tries<3){
+            dealThree();
+            tries++;
+          }
+        }
+      }
+
+      function dealOneToBoard(){
+        if(deck.length===0) return;
+        board.push(deck.pop());
+      }
+
+      function dealThree(){
+        for(let i=0;i<3;i++) dealOneToBoard();
+        refresh();
+      }
+
+      function refresh(){
+        // update counts
+        deckCountEl.textContent = deck.length;
+        boardCountEl.textContent = board.length;
+        // render cards
+        boardEl.innerHTML='';
+        board.forEach((card, idx) => {
+          const cardEl = renderCard(card, idx);
+          boardEl.appendChild(cardEl);
+        });
+        // aria
+        boardEl.setAttribute('aria-label', `Board with ${board.length} cards`);
+      }
+
+      function renderCard(card, index){
+        const wrapper = document.createElement('button');
+        wrapper.className='card';
+        wrapper.setAttribute('data-index', index);
+        wrapper.setAttribute('aria-pressed', selected.has(index));
+        wrapper.setAttribute('aria-label', `${card.count} ${card.shading} ${card.symbol} in color`);
+        wrapper.tabIndex = 0;
+
+        // click selects
+        wrapper.addEventListener('click', (e)=>{
+          toggleSelect(index, wrapper);
+        });
+        wrapper.addEventListener('keydown', (e)=>{
+          if(e.key==='Enter' || e.key===' ') {
+            e.preventDefault();
+            toggleSelect(index, wrapper);
+          }
+        });
+
+        // mark selected/hint
+        if(selected.has(index)) wrapper.classList.add('selected');
+
+        // SVG content
+        const svgWrap = document.createElement('div');
+        svgWrap.className='svg-wrap';
+        svgWrap.innerHTML = generateCardSVG(card);
+        wrapper.appendChild(svgWrap);
+        return wrapper;
+      }
+
+      function generateCardSVG(card){
+        // Create an inline SVG with repeated shapes vertically centered
+        const width = 96, height = 96;
+        const count = card.count;
+        const spacing = 14;
+        const totalHeight = count * 20 + (count-1) * spacing;
+        const startY = (height - totalHeight)/2 + 10;
+        let shapes = '';
+        for(let i=0;i<count;i++){
+          const y = startY + i*(20+spacing);
+          shapes += drawSymbolSVG(card.symbol, 48, y, card.color, card.shading);
+        }
+        // For striped shading, include a <defs> pattern
+        const pattern = (card.shading==='striped') ? stripedPatternSVG(card.color) : '';
+        return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" focusable="false">${pattern}${shapes}</svg>`;
+      }
+
+      function stripedPatternSVG(color){
+        return `<defs>
+          <pattern id="p-${color.replace('#','')}" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="2" height="4" fill="${color}" opacity="0.18"></rect>
+          </pattern>
+        </defs>`;
+      }
+
+      function drawSymbolSVG(symbol, cx, cy, color, shading){
+        // Each symbol drawn around x=cx, y=cy as center.
+        // Paths are simplified to keep code compact.
+        if(symbol==='diamond'){
+          const w=28,h=18;
+          const path = `<polygon points="${cx},${cy-h} ${cx+w},${cy} ${cx},${cy+h} ${cx-w},${cy}" />`;
+          return shapeWrap(path, color, shading);
+        } else if(symbol==='oval'){
+          const rx=22, ry=12;
+          const path = `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" />`;
+          return shapeWrap(path, color, shading);
+        } else { // wave
+          const path = `<path d="M ${cx-26} ${cy} C ${cx-10} ${cy-18}, ${cx+10} ${cy+18}, ${cx+26} ${cy}" />`;
+          return shapeWrap(path, color, shading);
+        }
+      }
+
+      function shapeWrap(path, color, shading){
+        if(shading==='solid'){
+          return `<g fill="${color}" stroke="${color}" stroke-width="1.2" style="transform:translateX(0)"><g>${path}</g></g>`;
+        } else if(shading==='open'){
+          return `<g fill="none" stroke="${color}" stroke-width="2">${path}</g>`;
+        } else { // striped
+          return `<g fill="url(#p-${color.replace('#','')})" stroke="${color}" stroke-width="1.2">${path}</g>`;
+        }
+      }
+
+      function toggleSelect(idx, el){
+        if(selected.has(idx)){
+          selected.delete(idx);
+          el.classList.remove('selected');
+          el.setAttribute('aria-pressed','false');
+          showFeedback('Unselected', 'muted');
+        } else {
+          selected.add(idx);
+          el.classList.add('selected');
+          el.setAttribute('aria-pressed','true');
+          showFeedback(`${selected.size} selected`, 'muted');
+        }
+        if(selected.size===3){
+          // auto-check after short pause for user to see selections
+          setTimeout(()=>{ checkSelection(); }, 180);
+        }
+      }
+
+      function checkSelection(){
+        if(selected.size!==3){
+          showFeedback('Select exactly three cards to check.', 'error');
+          return;
+        }
+        const indices = Array.from(selected);
+        const cards = indices.map(i=>board[i]);
+        if(isSet(cards[0],cards[1],cards[2])){
+          // correct
+          markCorrect(indices);
+        } else {
+          markIncorrect(indices, cards);
+        }
+      }
+
+      function isSet(a,b,c){
+        // For every attribute, values are all same or all different.
+        const attrs = ['count','symbol','shading','color'];
+        return attrs.every(attr=>{
+          const vals = [a[attr], b[attr], c[attr]];
+          const unique = new Set(vals);
+          return (unique.size===1 || unique.size===3);
+        });
+      }
+
+      function markCorrect(indices){
+        showFeedback('Correct — that is a set!', 'success');
+        // animate then remove and replace
+        indices.forEach(i=>{
+          const cardBtn = boardEl.querySelector(`.card[data-index="${i}"]`);
+          if(cardBtn){
+            cardBtn.style.transition = 'transform 300ms, opacity 300ms';
+            cardBtn.style.transform = 'scale(1.08)';
+            cardBtn.style.opacity = '0';
+          }
+        });
+        setTimeout(()=>{
+          // remove higher indices first to maintain indexes consistent
+          indices.sort((a,b)=>b-a).forEach(i=>{
+            board.splice(i,1);
+          });
+          selected.clear();
+          // replace from deck to maintain 12 if possible
+          while(board.length<12 && deck.length>0){
+            board.push(deck.pop());
+          }
+          refresh();
+          // after replacement, if no set exists, indicate
+          if(!findAnySet(board)){
+            showFeedback('No set on board. You can Deal +3 or use Deal until set.', 'muted');
+          }
+        }, 320);
+      }
+
+      function markIncorrect(indices, cards){
+        showFeedback('Not a set — analyze attributes highlighted.', 'error');
+        // briefly shake wrong ones and highlight attributes that fail
+        indices.forEach(i=>{
+          const cardBtn = boardEl.querySelector(`.card[data-index="${i}"]`);
+          if(cardBtn){
+            cardBtn.classList.add('shake');
+            setTimeout(()=> cardBtn.classList.remove('shake'), 360);
+          }
+        });
+        // detailed attribute analysis
+        const badAttrs = failingAttributes(cards[0],cards[1],cards[2]);
+        setTimeout(()=>{ showFeedback('Conflict: ' + badAttrs.join(', '), 'error'); }, 400);
+        // keep selected but allow user to adjust
+      }
+
+      function failingAttributes(a,b,c){
+        const attrs = {'count':'Count','symbol':'Symbol','shading':'Shading','color':'Color'};
+        return Object.keys(attrs).filter(attr=>{
+          const vals = [a[attr], b[attr], c[attr]];
+          const unique = new Set(vals);
+          return !(unique.size===1 || unique.size===3);
+        }).map(k=>attrs[k]);
+      }
+
+      function showFeedback(msg, type){
+        clearTimeout(lastFeedbackTimeout);
+        feedbackEl.innerHTML='';
+        const div = document.createElement('div');
+        if(type==='success'){
+          div.className='msg success';
+        } else if(type==='error'){
+          div.className='msg error';
+        } else {
+          const m = document.createElement('div');
+          m.className='muted';
+          m.textContent = msg;
+          feedbackEl.appendChild(m);
+          lastFeedbackTimeout = setTimeout(()=>{ if(feedbackEl.innerHTML===m.outerHTML) feedbackEl.innerHTML = `<div class="muted">Tip: Use keyboard — arrow keys to move, Enter/Space to select.</div>`; }, 3000);
+          return;
+        }
+        div.textContent=msg;
+        feedbackEl.appendChild(div);
+        lastFeedbackTimeout = setTimeout(()=>{ if(feedbackEl.contains(div)) feedbackEl.innerHTML = `<div class="muted">Tip: Use keyboard — arrow keys to move, Enter/Space to select.</div>`; }, 3500);
+      }
+
+      function findAnySet(cards){
+        const n = cards.length;
+        for(let i=0;i<n;i++){
+          for(let j=i+1;j<n;j++){
+            for(let k=j+1;k<n;k++){
+              if(isSet(cards[i],cards[j],cards[k])) return [i,j,k];
+            }
+          }
+        }
+        return null;
+      }
+
+      function hint(){
+        const s = findAnySet(board);
+        clearHints();
+        if(!s){
+          showFeedback('No set on board to hint for.', 'error');
+          return;
+        }
+        // Highlight one of the cards mildly
+        const idx = s[0];
+        const el = boardEl.querySelector(`.card[data-index="${idx}"]`);
+        if(el){
+          el.classList.add('hint');
+          setTimeout(()=> el.classList.remove('hint'), 2400);
+        }
+        showFeedback('Hint: highlighted one card from a valid set.', 'muted');
+      }
+
+      function autoSolve(){
+        const s = findAnySet(board);
+        if(!s){
+          showFeedback('No set on this board.', 'error');
+          return;
+        }
+        // select those three and animate selection then mark correct
+        selected.clear();
+        s.forEach(i=>{
+          const el = boardEl.querySelector(`.card[data-index="${i}"]`);
+          if(el) { el.classList.add('selected'); }
+          selected.add(i);
+        });
+        setTimeout(()=> checkSelection(), 380);
+      }
+
+      function dealUntilSet(){
+        let safety=0;
+        while(!findAnySet(board) && deck.length>0 && safety<10){
+          dealThree();
+          safety++;
+        }
+        if(findAnySet(board)){
+          showFeedback('Dealt until a set appeared.', 'muted');
+        } else if(deck.length===0){
+          showFeedback('Deck empty and no set found.', 'error');
+        }
+      }
+
+      function clearHints(){
+        boardEl.querySelectorAll('.card.hint').forEach(n => n.classList.remove('hint'));
+        boardEl.querySelectorAll('.card.selected').forEach(n => n.classList.remove('selected'));
+      }
+
+      // Keyboard navigation among cards: arrow keys move focus
+      function handleBoardKey(e){
+        const focus = document.activeElement;
+        if(!focus || !focus.classList.contains('card')) return;
+        let idx = Number(focus.getAttribute('data-index'));
+        const cols = Math.max(2, Math.floor(boardEl.clientWidth / (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--card-width')) || 120)));
+        let targetIndex = null;
+        switch(e.key){
+          case 'ArrowRight':
+            targetIndex = (idx+1) % board.length;
+            break;
+          case 'ArrowLeft':
+            targetIndex = (idx-1+board.length) % board.length;
+            break;
+          case 'ArrowDown':
+            targetIndex = (idx + cols) % board.length;
+            break;
+          case 'ArrowUp':
+            targetIndex = (idx - cols + board.length) % board.length;
+            break;
+          default: return;
+        }
+        e.preventDefault();
+        const el = boardEl.querySelector(`.card[data-index="${targetIndex}"]`);
+        if(el) el.focus();
+      }
+
+      // attribute analysis helper (for learning)
+      // start
+      newDeal();
+
+      // expose for debug (optional)
+      window.__setModule = {deck, board, isSet, findAnySet};
+    })();
+  </script>
+
+
+  <script id="fsm" type="application/json">
+    {
+  "topic": "Interactive Application",
+  "description": "FSM modeling interactive states and transitions of the Set learning module (card board, selection, checking, dealing, hinting, animations, and completion).",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "refresh() -> update DOM, counts, render cards; show default tip feedback",
+      "on": {
+        "SELECT_CARD": "selecting",
+        "NEW_DEAL": "idle",
+        "DEAL_THREE": "dealing",
+        "HINT": "hinting",
+        "AUTO_SOLVE": "autoSolveDecision",
+        "DEAL_UNTIL_SET": "dealUntilSet",
+        "CHECK": "idle",
+        "KEY_NAV": "idle"
+      }
+    },
+    {
+      "name": "selecting",
+      "onEnter": "showFeedback(`${selected.size} selected`, 'muted')",
+      "onExit": "clear any transient selection-only timers",
+      "on": {
+        "SELECT_CARD": "selecting_or_threeSelected",
+        "UNSELECT_CARD": "selecting_or_idle",
+        "CHECK": "checking_or_feedback",
+        "HINT": "hinting",
+        "DEAL_THREE": "dealing",
+        "NEW_DEAL": "idle",
+        "AUTO_SOLVE": "autoSolveDecision",
+        "DEAL_UNTIL_SET": "dealUntilSet",
+        "KEY_NAV": "selecting"
+      }
+    },
+    {
+      "name": "threeSelected",
+      "onEnter": "startAutoCheckTimer(180ms) // (auto-check timeout started when 3 selected)",
+      "onExit": "clearAutoCheckTimer()",
+      "on": {
+        "AUTO_CHECK_TIMEOUT": "checking",
+        "CHECK": "checking",
+        "UNSELECT_CARD": "selecting",
+        "HINT": "hinting",
+        "NEW_DEAL": "idle",
+        "DEAL_THREE": "dealing"
+      }
+    },
+    {
+      "name": "checking",
+      "onEnter": "evaluateSelection() -> if isSet emit CHECK_RESULT_CORRECT else emit CHECK_RESULT_INCORRECT",
+      "on": {
+        "CHECK_RESULT_CORRECT": "correct",
+        "CHECK_RESULT_INCORRECT": "incorrect"
+      }
+    },
+    {
+      "name": "correct",
+      "onEnter": "showFeedback('Correct — that is a set!', 'success'); animateRemoveSelected(320ms); startCorrectAnimationTimer(320ms)",
+      "onExit": "clear animations; selected.clear(); replaceRemovedFromDeck(); refresh()",
+      "on": {
+        "CORRECT_ANIMATION_END": "postCorrectDecision"
+      }
+    },
+    {
+      "name": "incorrect",
+      "onEnter": "showFeedback('Not a set — analyze attributes highlighted.', 'error'); animateShakeSelected(360ms); computeAndShowFailingAttributes(); startIncorrectTimer(400ms)",
+      "onExit": "clear shake animation",
+      "on": {
+        "INCORRECT_ANIMATION_END": "threeSelected",
+        "UNSELECT_CARD": "selecting",
+        "SELECT_CARD": "selecting_or_threeSelected"
+      }
+    },
+    {
+      "name": "hinting",
+      "onEnter": "clearHints(); findAnySet(); if set -> highlightOneCardHint(); showFeedback('Hint: highlighted one card from a valid set.', 'muted'); startHintTimer(2400ms)",
+      "onExit": "clearHintHighlight()",
+      "on": {
+        "HINT_TIMEOUT": "returnToPriorSelectionState",
+        "NEW_DEAL": "idle",
+        "DEAL_THREE": "dealing",
+        "AUTO_SOLVE": "autoSolveDecision",
+        "DEAL_UNTIL_SET": "dealUntilSet"
+      }
+    },
+    {
+      "name": "dealing",
+      "onEnter": "dealThreeToBoard() or dealUntilSet loop; refresh(); showFeedback(...) as appropriate",
+      "onExit": "clear any dealing timers",
+      "on": {
+        "DEAL_COMPLETE": "idle_or_noSetDeckEmpty",
+        "NEW_DEAL": "idle",
+        "HINT": "hinting"
+      }
+    },
+    {
+      "name": "autoSolveDecision",
+      "onEnter": "findAnySet(board) -> if found select those three (add selected classes), startAutoSolveTimer(380ms) else showFeedback('No set on this board.', 'error')",
+      "on": {
+        "AUTO_CHECK_TIMEOUT": "checking",
+        "NO_SET_FOUND": "idle"
+      }
+    },
+    {
+      "name": "dealUntilSet",
+      "onEnter": "loop: while(!findAnySet(board) && deck.length>0) dealThree(); refresh(); if(findAnySet) showFeedback('Dealt until a set appeared.', 'muted') else if(deck empty) showFeedback('Deck empty and no set found.', 'error')",
+      "on": {
+        "DEAL_LOOP_COMPLETE": "idle_or_noSetDeckEmpty"
+      }
+    },
+    {
+      "name": "noSetDeckEmpty",
+      "onEnter": "showFeedback('Deck empty and no set found.', 'error')",
+      "on": {
+        "NEW_DEAL": "idle",
+        "DEAL_THREE": "noSetDeckEmpty",
+        "HINT": "noSetDeckEmpty",
+        "AUTO_SOLVE": "noSetDeckEmpty",
+        "CHECK": "noSetDeckEmpty"
+      }
+    },
+    {
+      "name": "postCorrectDecision",
+      "onEnter": "after removal/replacement: if(!findAnySet(board) && deck.length===0) emit DECK_EMPTY_NO_SET else if(!findAnySet(board)) showFeedback('No set on board. You can Deal +3 or use Deal until set.', 'muted'); clear feedback timer",
+      "on": {
+        "DECK_EMPTY_NO_SET": "noSetDeckEmpty",
+        "POST_REFRESH_IDLE": "idle"
+      }
+    }
+  ],
+  "events": [
+    "SELECT_CARD",
+    "UNSELECT_CARD",
+    "NEW_DEAL",
+    "DEAL_THREE",
+    "HINT",
+    "AUTO_SOLVE",
+    "DEAL_UNTIL_SET",
+    "CHECK",
+    "AUTO_CHECK_TIMEOUT",
+    "AUTO_CHECK_START",
+    "AUTO_CHECK_END",
+    "CHECK_RESULT_CORRECT",
+    "CHECK_RESULT_INCORRECT",
+    "CORRECT_ANIMATION_END",
+    "INCORRECT_ANIMATION_END",
+    "HINT_TIMEOUT",
+    "DEAL_COMPLETE",
+    "DEAL_LOOP_COMPLETE",
+    "NO_SET_FOUND",
+    "DECK_EMPTY_NO_SET",
+    "POST_REFRESH_IDLE",
+    "KEY_NAV"
+  ],
+  "notes": "This FSM models the primary UI flows: selecting cards (1-2), reaching 3 selections triggers an auto-check or manual Check leading to checking -> correct/incorrect flows, dealing (+3 or deal-until-set) modifies board and can lead to a board with no sets, hinting temporarily highlights one card, autoSolve selects and auto-checks a known set. Timers used in implementation: auto-check after 180ms when 3 cards are selected, auto-solve delay 380ms, correct removal animation ~320ms, incorrect shake ~360-400ms, hint highlight ~2400ms. Actions referenced in onEnter/onExit correspond to functions in the code: refresh(), showFeedback(...), findAnySet(), dealThree(), dealUntilSet(), animateRemoveSelected(), animateShakeSelected(), highlightOneCardHint(), clearHintHighlight(), startAutoCheckTimer(), clearAutoCheckTimer(), etc. The 'hinting' state is a transient overlay and returns to either 'idle' or 'selecting' depending on whether any cards remain selected. The FSM also exposes a terminal-like state 'noSetDeckEmpty' where the deck is empty and no set exists; New Deal resets to 'idle'. Dynamic branching decisions (e.g., whether a set exists or deck empty) are represented by decision transitions (autoSolveDecision, postCorrectDecision)."
+}
+  </script>
+</body>
+</html>

@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Deque Explorer — Circular-Buffer Visualization</title>
+  <style>
+    /* Safe area margins: 24px on all sides */
+    :root {
+      --safe: 24px;
+      --gap: 16px; /* minimum spacing */
+      --accent: #0b76ef;
+      --muted: #6b7280;
+      --bg: #f7fafc;
+      --slot-bg: #ffffff;
+      --occupied: #e6f0ff;
+      --danger: #ffebeb;
+      --radius: 10px;
+      --shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg, #fbfdff 0%, #f7fbff 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #0f172a;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    main {
+      padding: var(--safe);
+      box-sizing: border-box;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+
+    /* Top info card */
+    .info {
+      background: white;
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .title-row {
+      display: flex;
+      gap: 12px;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+    .chip {
+      background: var(--accent);
+      color: white;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      display: inline-block;
+    }
+    .meta {
+      display: flex;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 0.95rem;
+      flex-wrap: wrap;
+    }
+    .panel-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .panel {
+      background: #fbfdff;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 0.95rem;
+    }
+    .panel h3 {
+      margin: 0 0 8px 0;
+      font-size: 0.95rem;
+    }
+    .panel p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* Layout: main interactive area */
+    .interactive {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: var(--gap);
+      align-items: start;
+    }
+
+    /* Left column: controls */
+    .controls {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      min-width: 260px;
+    }
+    .controls .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    label {
+      font-weight: 600;
+      color: #0f172a;
+    }
+    input[type="text"] {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #e6edf6;
+      font-size: 0.95rem;
+      min-width: 120px;
+      outline: none;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: var(--accent);
+      color: white;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      box-shadow: 0 6px 12px rgba(11,118,239,0.12);
+      transition: transform 160ms ease, box-shadow 160ms ease;
+    }
+    button.secondary {
+      background: #f1f5f9;
+      color: #0f172a;
+      box-shadow: none;
+      font-weight: 600;
+      border: 1px solid #e6edf6;
+    }
+    button:active { transform: translateY(1px); }
+    button.small {
+      padding: 8px 10px;
+      font-size: 0.9rem;
+      border-radius: 8px;
+    }
+    .danger {
+      background: #ef4444;
+      box-shadow: 0 6px 12px rgba(239,68,68,0.12);
+    }
+
+    .status {
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      border: 1px dashed #e6edf6;
+    }
+    .status .item {
+      flex: 1;
+      text-align: center;
+    }
+    .status .value {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--accent);
+    }
+
+    /* Right column: visualization */
+    .visual {
+      background: white;
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 320px;
+      overflow: hidden;
+    }
+
+    .deque-area {
+      padding: 12px;
+      border-radius: 12px;
+      background: linear-gradient(180deg,#ffffff,#fbfdff);
+      border: 1px solid #eef4fb;
+      position: relative;
+      overflow: visible;
+    }
+    .slots {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      align-items: flex-end;
+      padding: 24px 8px;
+      flex-wrap: wrap;
+    }
+    .slot {
+      width: 64px;
+      height: 64px;
+      border-radius: 8px;
+      background: var(--slot-bg);
+      border: 1px solid #e6edf6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: transform 300ms cubic-bezier(.2,.9,.3,1), box-shadow 180ms;
+    }
+    .slot.occupied {
+      background: var(--occupied);
+      box-shadow: 0 6px 18px rgba(11,118,239,0.06);
+    }
+    .slot .value {
+      font-weight: 700;
+      color: #08325b;
+    }
+    .index {
+      position: absolute;
+      bottom: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* head/tail markers */
+    .marker {
+      position: absolute;
+      top: 6px;
+      background: #0b76ef;
+      color: white;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      border-radius: 999px;
+      transform: translateX(-50%);
+      transition: left 400ms cubic-bezier(.2,.9,.3,1);
+      box-shadow: 0 6px 18px rgba(11,118,239,0.12);
+      white-space: nowrap;
+    }
+    .marker.tail { background: #059669; }
+
+    /* floating element used for animations */
+    .floating {
+      position: absolute;
+      width: 64px;
+      height: 64px;
+      border-radius: 8px;
+      background: var(--occupied);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #08325b;
+      pointer-events: none;
+      box-shadow: 0 12px 30px rgba(2,6,23,0.08);
+      transition: transform 420ms cubic-bezier(.2,.9,.3,1), opacity 260ms ease;
+      z-index: 30;
+    }
+
+    /* small helper area for invariants and history */
+    .info-bottom {
+      display: flex;
+      gap: var(--gap);
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .code {
+      background: #0f172a;
+      color: #e6eefc;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      min-width: 220px;
+    }
+    .history {
+      background: #fff;
+      border: 1px dashed #e6edf6;
+      border-radius: 8px;
+      padding: 10px;
+      min-width: 180px;
+      max-height: 160px;
+      overflow: auto;
+      font-size: 0.9rem;
+    }
+    .history h4 { margin: 0 0 6px 0; font-size: 0.95rem; }
+    .history ul { padding-left: 16px; margin: 0; color: var(--muted); }
+    .sr-only {
+      position: absolute !important;
+      height: 1px; width: 1px;
+      overflow: hidden;
+      clip: rect(1px, 1px, 1px, 1px);
+      white-space: nowrap;
+    }
+
+    /* animations for invalid actions */
+    @keyframes shake {
+      10%, 90% { transform: translateX(-1px); }
+      20%, 80% { transform: translateX(2px); }
+      30%, 50%, 70% { transform: translateX(-4px); }
+      40%, 60% { transform: translateX(4px); }
+    }
+    .shake {
+      animation: shake 360ms;
+    }
+
+    /* responsive adjustments */
+    @media (max-width: 920px) {
+      .interactive { grid-template-columns: 1fr; }
+      .controls { order: 2; }
+      .visual { order: 1; }
+      .panel-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 420px) {
+      .slot { width: 54px; height: 54px; }
+      .floating { width: 54px; height: 54px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Concept Title and explanatory panels -->
+    <section class="info" aria-labelledby="heading">
+      <div class="title-row">
+        <h1 id="heading">Deque — Double-Ended Queue (Circular Buffer Visualization)</h1>
+        <div class="chip" aria-hidden="true">Interactive</div>
+      </div>
+
+      <div class="meta" role="status" aria-live="polite">
+        <div>Concept: Deque (Double-Ended Queue)</div>
+        <div>Representation: Fixed-capacity circular buffer</div>
+      </div>
+
+      <div class="panel-grid" role="region" aria-label="Learning details">
+        <div class="panel">
+          <h3>Learning Objective</h3>
+          <p>Interactively learn how a deque supports push/pop operations at both ends, how head and tail indices move in a circular buffer, and how overflow/underflow occur at fixed capacity.</p>
+        </div>
+        <div class="panel">
+          <h3>Interaction Design</h3>
+          <p>Use the controls to push values to the front/back, pop from either end, change capacity, and watch animated updates: elements slide into/out of slots, head/tail markers move, and invalid operations trigger a shake with clear messages.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive area -->
+    <section class="interactive" aria-label="Deque interactive module">
+      <!-- Controls column -->
+      <aside class="controls" aria-labelledby="controls-title">
+        <h2 id="controls-title" style="margin:0;font-size:1rem">Controls</h2>
+
+        <div class="row" style="align-items:center;">
+          <label for="value-input" style="min-width: 80px;">Value</label>
+          <input id="value-input" type="text" inputmode="text" aria-label="Value to push" placeholder="e.g. 42" />
+          <button id="push-front" class="small" title="Push to front (left)">Push Front</button>
+          <button id="push-back" class="small" title="Push to back (right)">Push Back</button>
+        </div>
+
+        <div class="row">
+          <button id="pop-front" class="secondary small" title="Pop from front">Pop Front</button>
+          <button id="pop-back" class="secondary small" title="Pop from back">Pop Back</button>
+          <button id="clear" class="small danger" title="Clear all">Clear</button>
+        </div>
+
+        <div>
+          <label for="capacity" style="display:block; margin-bottom:6px;">Capacity: <span id="cap-value">8</span></label>
+          <input id="capacity" type="range" min="4" max="12" step="1" value="8" aria-label="Set capacity" />
+        </div>
+
+        <div class="row" style="align-items:center;">
+          <button id="random-fill" class="small" title="Fill with random values">Random Fill</button>
+          <button id="step-demo" class="small secondary" title="Run step demo">Run Demo</button>
+        </div>
+
+        <div class="status" aria-live="polite" aria-atomic="true">
+          <div class="item">
+            <div style="font-size:0.8rem;color:var(--muted)">Size</div>
+            <div id="size-val" class="value">0</div>
+          </div>
+          <div class="item">
+            <div style="font-size:0.8rem;color:var(--muted)">Head</div>
+            <div id="head-val" class="value">0</div>
+          </div>
+          <div class="item">
+            <div style="font-size:0.8rem;color:var(--muted)">Tail</div>
+            <div id="tail-val" class="value">0</div>
+          </div>
+        </div>
+
+        <div class="info-bottom" style="margin-top:6px;">
+          <div class="code" aria-hidden="true">
+            <div style="font-size:0.85rem;color:#cfe3ff;margin-bottom:6px;">Invariant (circular buffer)</div>
+            <div>size = (tail - head + capacity) % capacity</div>
+            <div>pushBack: slot[tail]=val; tail=(tail+1)%cap</div>
+            <div>popFront: val=slot[head]; head=(head+1)%cap</div>
+            <div style="margin-top:6px;color:#a8b9d8;font-size:0.82rem;">Full when size == capacity - 1 (sentinel)</div>
+          </div>
+
+          <div class="history" aria-live="polite" aria-atomic="true">
+            <h4>History</h4>
+            <ul id="hist-list"><li style="color:var(--muted)">No actions yet</li></ul>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Visualization column -->
+      <section class="visual" aria-label="Visualization">
+        <div class="deque-area" id="deque-area">
+          <!-- markers -->
+          <div id="marker-head" class="marker" style="left:0%">HEAD</div>
+          <div id="marker-tail" class="marker tail" style="left:0%">TAIL</div>
+
+          <!-- slots -->
+          <div class="slots" id="slots" role="list" aria-label="Deque slots">
+            <!-- slots created dynamically -->
+          </div>
+
+          <!-- floating element for animations -->
+          <div id="floating" class="floating" style="display:none;" aria-hidden="true"></div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+          <div style="color:var(--muted);font-size:0.95rem;">
+            Visual representation: fixed-size array with circular wrap. Elements occupy slots; head points to first element; tail points to next free slot.
+          </div>
+
+          <div>
+            <button id="explain" class="secondary small" title="Show explanation">Explanation</button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- Hidden live region for screen readers -->
+    <div id="live" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+    <script>
+      /* Interactive Deque — Vanilla JS
+         - Circular buffer implementation with animated visual feedback
+         - Accessibility: aria-live messages, keyboard focusable controls
+         - Safe margins and spacing respected by CSS above
+      */
+
+      (function () {
+        // DOM references
+        const slotsEl = document.getElementById('slots');
+        const capInput = document.getElementById('capacity');
+        const capValueEl = document.getElementById('cap-value');
+        const sizeVal = document.getElementById('size-val');
+        const headVal = document.getElementById('head-val');
+        const tailVal = document.getElementById('tail-val');
+        const valueInput = document.getElementById('value-input');
+        const pushFrontBtn = document.getElementById('push-front');
+        const pushBackBtn = document.getElementById('push-back');
+        const popFrontBtn = document.getElementById('pop-front');
+        const popBackBtn = document.getElementById('pop-back');
+        const clearBtn = document.getElementById('clear');
+        const randomFillBtn = document.getElementById('random-fill');
+        const stepDemoBtn = document.getElementById('step-demo');
+        const histList = document.getElementById('hist-list');
+        const markerHead = document.getElementById('marker-head');
+        const markerTail = document.getElementById('marker-tail');
+        const dequeArea = document.getElementById('deque-area');
+        const floating = document.getElementById('floating');
+        const live = document.getElementById('live');
+
+        // State
+        let capacity = parseInt(capInput.value, 10);
+        // We'll use one extra slot technique to differentiate full vs empty:
+        // capacity = actual buffer size (we display this many slots),
+        // but the deque can hold at most capacity-1 elements.
+        let buffer = new Array(capacity).fill(null);
+        let head = 0; // index of first element
+        let tail = 0; // next free index (i.e., one past the last element)
+        let size = 0; // number of elements
+        let history = [];
+
+        // Utility helpers
+        function mod(n, m) { return ((n % m) + m) % m; }
+        function isFull() { return size === capacity - 1; }
+        function isEmpty() { return size === 0; }
+
+        // Initialize slots visually
+        function renderSlots() {
+          slotsEl.innerHTML = '';
+          for (let i = 0; i < capacity; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'slot';
+            slot.setAttribute('data-index', i);
+            slot.setAttribute('role', 'listitem');
+            slot.setAttribute('aria-label', `Slot ${i}`);
+            // content
+            const v = document.createElement('div');
+            v.className = 'value';
+            v.textContent = buffer[i] !== null ? buffer[i] : '';
+            if (buffer[i] !== null) {
+              slot.classList.add('occupied');
+            }
+            slot.appendChild(v);
+            const idx = document.createElement('div');
+            idx.className = 'index';
+            idx.textContent = i;
+            slot.appendChild(idx);
+            slotsEl.appendChild(slot);
+          }
+          updateMarkers();
+          updateStatus();
+        }
+
+        function updateSlotsInstant() {
+          const slotNodes = slotsEl.querySelectorAll('.slot');
+          slotNodes.forEach(slot => {
+            const idx = parseInt(slot.dataset.index, 10);
+            const inner = slot.querySelector('.value');
+            inner.textContent = buffer[idx] !== null ? buffer[idx] : '';
+            slot.classList.toggle('occupied', buffer[idx] !== null);
+          });
+        }
+
+        function updateMarkers() {
+          // Position markers above the slot elements
+          const slotNodes = slotsEl.querySelectorAll('.slot');
+          if (!slotNodes.length) return;
+          const headSlot = slotNodes[head];
+          const tailSlot = slotNodes[tail];
+          // compute center positions relative to dequeArea
+          const areaRect = dequeArea.getBoundingClientRect();
+          const headRect = headSlot.getBoundingClientRect();
+          const tailRect = tailSlot.getBoundingClientRect();
+          const headLeft = headRect.left + headRect.width / 2 - areaRect.left;
+          const tailLeft = tailRect.left + tailRect.width / 2 - areaRect.left;
+          markerHead.style.left = headLeft + 'px';
+          markerTail.style.left = tailLeft + 'px';
+          // show numeric details
+          headVal.textContent = head;
+          tailVal.textContent = tail;
+        }
+
+        function updateStatus() {
+          sizeVal.textContent = size;
+        }
+
+        function pushFront(value) {
+          if (isFull()) {
+            invalidAction('Overflow: deque is full.');
+            return;
+          }
+          // new head location is (head-1)
+          const newHead = mod(head - 1, capacity);
+          // visually animate: create floating element above area and move to slot center
+          animateInsert(value, newHead, 'front').then(() => {
+            buffer[newHead] = value;
+            head = newHead;
+            size++;
+            pushHistory(`pushFront(${value})`);
+            updateSlotsInstant();
+            updateMarkers();
+            announce(`Pushed ${value} to front. Head is now ${head}.`);
+          });
+        }
+
+        function pushBack(value) {
+          if (isFull()) {
+            invalidAction('Overflow: deque is full.');
+            return;
+          }
+          const dest = tail;
+          animateInsert(value, dest, 'back').then(() => {
+            buffer[dest] = value;
+            tail = mod(tail + 1, capacity);
+            size++;
+            pushHistory(`pushBack(${value})`);
+            updateSlotsInstant();
+            updateMarkers();
+            announce(`Pushed ${value} to back. Tail is now ${tail}.`);
+          });
+        }
+
+        function popFront() {
+          if (isEmpty()) {
+            invalidAction('Underflow: deque is empty.');
+            return;
+          }
+          const idx = head;
+          const val = buffer[idx];
+          animateRemove(idx, 'front').then(() => {
+            buffer[idx] = null;
+            head = mod(head + 1, capacity);
+            size--;
+            pushHistory(`popFront() -> ${val}`);
+            updateSlotsInstant();
+            updateMarkers();
+            announce(`Popped ${val} from front. Head is now ${head}.`);
+          });
+        }
+
+        function popBack() {
+          if (isEmpty()) {
+            invalidAction('Underflow: deque is empty.');
+            return;
+          }
+          const idx = mod(tail - 1, capacity);
+          const val = buffer[idx];
+          animateRemove(idx, 'back').then(() => {
+            buffer[idx] = null;
+            tail = idx;
+            size--;
+            pushHistory(`popBack() -> ${val}`);
+            updateSlotsInstant();
+            updateMarkers();
+            announce(`Popped ${val} from back. Tail is now ${tail}.`);
+          });
+        }
+
+        function clearAll() {
+          // visually clear with fade
+          const promises = [];
+          for (let i = 0; i < capacity; i++) {
+            if (buffer[i] !== null) {
+              promises.push(animateRemove(i, 'clear'));
+            }
+          }
+          Promise.all(promises).then(() => {
+            buffer = new Array(capacity).fill(null);
+            head = 0; tail = 0; size = 0;
+            pushHistory('clear()');
+            updateSlotsInstant();
+            updateMarkers();
+            announce('Deque cleared.');
+          });
+        }
+
+        // Animation helpers: animateInsert moves floating element into target slot
+        function animateInsert(value, targetIndex, dir) {
+          return new Promise(resolve => {
+            const slotNodes = slotsEl.querySelectorAll('.slot');
+            const targetSlot = slotNodes[targetIndex];
+            const areaRect = dequeArea.getBoundingClientRect();
+            const slotRect = targetSlot.getBoundingClientRect();
+            // floating start: above area (for front/back same)
+            floating.style.display = 'flex';
+            floating.textContent = value;
+            floating.style.opacity = '1';
+            // compute start position (center above the deque)
+            const startX = areaRect.left + areaRect.width / 2 - areaRect.left - (floating.offsetWidth / 2);
+            const startY = areaRect.top - areaRect.height * 0.15 - areaRect.top;
+            floating.style.transform = `translate(${startX}px, ${startY}px) scale(0.96)`;
+            // force layout to ensure transition
+            void floating.offsetWidth;
+            // target position (slot center)
+            const targetX = slotRect.left + slotRect.width / 2 - areaRect.left - (floating.offsetWidth / 2);
+            const targetY = slotRect.top + slotRect.height / 2 - areaRect.top - (floating.offsetHeight / 2);
+            // move
+            requestAnimationFrame(() => {
+              floating.style.transform = `translate(${targetX}px, ${targetY}px) scale(1)`;
+            });
+            // after animation completes
+            setTimeout(() => {
+              floating.style.opacity = '0';
+              // small delay before hiding to allow fade
+              setTimeout(() => {
+                floating.style.display = 'none';
+                resolve();
+              }, 140);
+            }, 460);
+          });
+        }
+
+        // animateRemove: move the element in slot out (upwards) then hide
+        function animateRemove(index, dir) {
+          return new Promise(resolve => {
+            const slotNodes = slotsEl.querySelectorAll('.slot');
+            const slot = slotNodes[index];
+            const valueEl = slot.querySelector('.value');
+            const val = valueEl.textContent;
+            // create a temporary floating element at slot position
+            const slotRect = slot.getBoundingClientRect();
+            const areaRect = dequeArea.getBoundingClientRect();
+            floating.style.display = 'flex';
+            floating.textContent = val;
+            floating.style.opacity = '1';
+            const startX = slotRect.left + slotRect.width / 2 - areaRect.left - (floating.offsetWidth / 2);
+            const startY = slotRect.top + slotRect.height / 2 - areaRect.top - (floating.offsetHeight / 2);
+            floating.style.transform = `translate(${startX}px, ${startY}px) scale(1)`;
+            // hide the slot content immediately (so it appears removed)
+            valueEl.textContent = '';
+            slot.classList.remove('occupied');
+            // move floating out
+            requestAnimationFrame(() => {
+              const outY = startY - areaRect.height * 0.25;
+              const outX = startX + (dir === 'back' ? 12 : -12);
+              floating.style.transform = `translate(${outX}px, ${outY}px) scale(0.94)`;
+              floating.style.opacity = '0';
+            });
+            setTimeout(() => {
+              floating.style.display = 'none';
+              resolve();
+            }, 420);
+          });
+        }
+
+        // Invalid action feedback: shake the container and announce
+        function invalidAction(msg) {
+          dequeArea.classList.add('shake');
+          announce(msg);
+          setTimeout(() => dequeArea.classList.remove('shake'), 380);
+        }
+
+        function pushHistory(text) {
+          history.unshift(text);
+          if (history.length > 20) history.pop();
+          renderHistory();
+        }
+        function renderHistory() {
+          histList.innerHTML = '';
+          if (history.length === 0) {
+            const li = document.createElement('li');
+            li.style.color = 'var(--muted)';
+            li.textContent = 'No actions yet';
+            histList.appendChild(li);
+            return;
+          }
+          history.forEach(h => {
+            const li = document.createElement('li');
+            li.textContent = h;
+            histList.appendChild(li);
+          });
+        }
+
+        function announce(msg) {
+          // for screen readers
+          live.textContent = msg;
+        }
+
+        // Hooks for controls
+        pushFrontBtn.addEventListener('click', () => {
+          const val = valueInput.value.trim();
+          if (!val) { invalidAction('Please enter a value to push.'); return; }
+          pushFront(val);
+          valueInput.value = '';
+          valueInput.focus();
+        });
+        pushBackBtn.addEventListener('click', () => {
+          const val = valueInput.value.trim();
+          if (!val) { invalidAction('Please enter a value to push.'); return; }
+          pushBack(val);
+          valueInput.value = '';
+          valueInput.focus();
+        });
+        popFrontBtn.addEventListener('click', () => popFront());
+        popBackBtn.addEventListener('click', () => popBack());
+        clearBtn.addEventListener('click', () => clearAll());
+
+        capInput.addEventListener('input', () => {
+          const newCap = parseInt(capInput.value, 10);
+          capValueEl.textContent = newCap;
+        });
+        capInput.addEventListener('change', () => {
+          const newCap = parseInt(capInput.value, 10);
+          // resizing behavior: reset buffer while preserving minimal content
+          // We'll reinitialize to avoid complex resize semantics.
+          capacity = newCap;
+          buffer = new Array(capacity).fill(null);
+          head = 0; tail = 0; size = 0;
+          renderSlots();
+          pushHistory(`setCapacity(${capacity})`);
+          announce(`Capacity set to ${capacity}. Deque cleared.`);
+        });
+
+        randomFillBtn.addEventListener('click', () => {
+          // randomly fill up to capacity-1 slots
+          clearAll();
+          setTimeout(() => {
+            const count = Math.max(1, Math.floor(Math.random() * (capacity - 1)) + 1);
+            const values = [];
+            for (let i = 0; i < count; i++) {
+              values.push(Math.floor(Math.random() * 99) + 1);
+            }
+            // sequential pushes to back with slight delays for animation clarity
+            (function pushSeq(i) {
+              if (i >= values.length) return;
+              pushBack(values[i]);
+              setTimeout(() => pushSeq(i + 1), 220);
+            })(0);
+          }, 220);
+        });
+
+        // Demo sequence: shows a small scripted series of operations
+        stepDemoBtn.addEventListener('click', () => {
+          const seq = [
+            () => { pushBack('A'); },
+            () => { pushBack('B'); },
+            () => { pushFront('Z'); },
+            () => { popBack(); },
+            () => { pushBack('C'); },
+            () => { pushBack('D'); },
+            () => { popFront(); },
+            () => { pushFront('Y'); }
+          ];
+          // clear first
+          clearAll();
+          setTimeout(() => {
+            let i=0;
+            const t = setInterval(() => {
+              if (i >= seq.length) { clearInterval(t); return; }
+              seq[i++]();
+            }, 700);
+          }, 240);
+        });
+
+        // Explanation button toggles a short overlay alert (non-modal)
+        document.getElementById('explain').addEventListener('click', () => {
+          alert('This visual shows a deque backed by a circular buffer. head points to the first element, tail to the next free slot. The buffer keeps one slot empty to distinguish full from empty; thus max elements = capacity - 1.');
+        });
+
+        // on resize, update markers
+        window.addEventListener('resize', () => updateMarkers());
+
+        // initial render
+        renderSlots();
+        renderHistory();
+
+        // Keyboard accessibility: press Enter in input to pushBack
+        valueInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            pushBackBtn.click();
+            e.preventDefault();
+          }
+        });
+
+        // small tweak: ensure markers positioned after fonts/layout ready
+        setTimeout(updateMarkers, 60);
+
+        // Expose for debugging (if open devtools)
+        window._dequeDemo = {
+          pushFront, pushBack, popFront, popBack, clearAll,
+          getState: () => ({buffer: buffer.slice(), head, tail, size, capacity})
+        };
+      })();
+    </script>
+  </main>
+
+
+  <script id="fsm" type="application/json">
+    {
+  "topic": "Interactive Deque Explorer",
+  "description": "Models the interactive states and transitions of a deque (circular-buffer) visualization UI: user actions (push/pop/clear/resize/demo/random-fill/explain), animations (insert/remove/shake), batch operations and accessibility announcements.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "renderSlots / updateMarkers / updateStatus",
+      "on": {
+        "PUSH_FRONT": "INSERTING_FRONT",
+        "PUSH_BACK": "INSERTING_BACK",
+        "POP_FRONT": "REMOVING_FRONT",
+        "POP_BACK": "REMOVING_BACK",
+        "CLEAR": "CLEARING",
+        "SET_CAPACITY": "RESIZING",
+        "RANDOM_FILL": "RANDOM_FILLING",
+        "STEP_DEMO": "RUNNING_DEMO",
+        "INVALID_ACTION": "SHAKING",
+        "EXPLAIN": "idle",
+        "WINDOW_RESIZE": "idle"
+      }
+    },
+    {
+      "name": "INSERTING_FRONT",
+      "onEnter": "validateInputAndCapacity -> animateInsert(value, targetIndex=newHead, 'front')",
+      "onExit": "commitInsertFront (buffer[newHead]=value; head=newHead; size++; pushHistory; updateSlotsInstant; updateMarkers; announce)",
+      "on": {
+        "ANIMATION_DONE": "idle",
+        "INVALID_ACTION": "SHAKING"
+      }
+    },
+    {
+      "name": "INSERTING_BACK",
+      "onEnter": "validateInputAndCapacity -> animateInsert(value, targetIndex=tail, 'back')",
+      "onExit": "commitInsertBack (buffer[tail]=value; tail=(tail+1)%capacity; size++; pushHistory; updateSlotsInstant; updateMarkers; announce)",
+      "on": {
+        "ANIMATION_DONE": "idle",
+        "INVALID_ACTION": "SHAKING"
+      }
+    },
+    {
+      "name": "REMOVING_FRONT",
+      "onEnter": "validateNotEmpty -> animateRemove(index=head, 'front')",
+      "onExit": "commitRemoveFront (val=buffer[oldHead]; buffer[oldHead]=null; head=(head+1)%capacity; size--; pushHistory; updateSlotsInstant; updateMarkers; announce)",
+      "on": {
+        "ANIMATION_DONE": "idle",
+        "INVALID_ACTION": "SHAKING"
+      }
+    },
+    {
+      "name": "REMOVING_BACK",
+      "onEnter": "validateNotEmpty -> animateRemove(index=(tail-1)%capacity, 'back')",
+      "onExit": "commitRemoveBack (idx=(tail-1)%capacity; val=buffer[idx]; buffer[idx]=null; tail=idx; size--; pushHistory; updateSlotsInstant; updateMarkers; announce)",
+      "on": {
+        "ANIMATION_DONE": "idle",
+        "INVALID_ACTION": "SHAKING"
+      }
+    },
+    {
+      "name": "CLEARING",
+      "onEnter": "collectOccupiedIndices -> run animateRemove for each occupied slot (Promise.all)",
+      "onExit": "commitClear (buffer cleared; head=0; tail=0; size=0; pushHistory('clear()'); updateSlotsInstant; updateMarkers; announce)",
+      "on": {
+        "BATCH_DONE": "idle"
+      }
+    },
+    {
+      "name": "RESIZING",
+      "onEnter": "applyNewCapacity -> buffer = new Array(capacity).fill(null); head=0; tail=0; size=0; renderSlots; pushHistory('setCapacity'); announce",
+      "on": {
+        "RESIZE_DONE": "idle"
+      }
+    },
+    {
+      "name": "RANDOM_FILLING",
+      "onEnter": "clearAll() then after short delay generate random values and sequentially invoke pushBack(values[i]) with small inter-push delays",
+      "onExit": "finalizeRandomFill (when last push scheduled; updateSlotsInstant; updateMarkers; announce)",
+      "on": {
+        "RANDOM_FILL_COMPLETE": "idle",
+        "INVALID_ACTION": "SHAKING"
+      }
+    },
+    {
+      "name": "RUNNING_DEMO",
+      "onEnter": "clearAll() then run scripted sequence of operations (push/pop) on interval",
+      "onExit": "finalizeDemo (when script finishes; announce; pushHistory entries already recorded by each op)",
+      "on": {
+        "DEMO_COMPLETE": "idle",
+        "INVALID_ACTION": "SHAKING"
+      }
+    },
+    {
+      "name": "SHAKING",
+      "onEnter": "invalidAction (add shake class to dequeArea; announce message)",
+      "onExit": "remove shake class",
+      "on": {
+        "SHAKE_DONE": "idle"
+      }
+    }
+  ],
+  "events": [
+    "PUSH_FRONT",
+    "PUSH_BACK",
+    "POP_FRONT",
+    "POP_BACK",
+    "CLEAR",
+    "SET_CAPACITY",
+    "RANDOM_FILL",
+    "STEP_DEMO",
+    "EXPLAIN",
+    "WINDOW_RESIZE",
+    "ANIMATION_DONE",
+    "BATCH_DONE",
+    "RANDOM_FILL_COMPLETE",
+    "DEMO_COMPLETE",
+    "RESIZE_DONE",
+    "INVALID_ACTION",
+    "SHAKE_DONE"
+  ],
+  "notes": "Guards and side-effects: user-initiated events (PUSH_FRONT/PUSH_BACK) first validate input and capacity. If input empty or the deque is full, the code triggers INVALID_ACTION -> SHAKING and returns. Pop operations validate non-empty, otherwise INVALID_ACTION. Animation flows use Promises/timeouts: animateInsert and animateRemove resolve then commit model updates (buffer/head/tail/size), update visual DOM (updateSlotsInstant / updateMarkers), pushHistory and announce via ARIA live region before returning to idle (handled as ANIMATION_DONE or BATCH_DONE). CLEAR runs many animateRemove Promises concurrently and transitions on Promise.all completion. RANDOM_FILL and RUNNING_DEMO orchestrate sequences of push/pop operations using setTimeout/setInterval; they may spawn multiple animations but are represented as higher-level states that end when the scripted sequence completes (RANDOM_FILL_COMPLETE / DEMO_COMPLETE). The implementation allows operations to overlap in practice; this FSM models the intended serialized visual/feedback flows (i.e., each animation commits before logical completion and the higher-level sequences wait for scheduling). The 'EXPLAIN' action triggers a synchronous informational alert and does not change core deque state. Window resize triggers marker repositioning (updateMarkers) and does not alter deque data. History and live-region announcements are performed on commit actions for accessibility."
+}
+  </script>
+</body>
+</html>

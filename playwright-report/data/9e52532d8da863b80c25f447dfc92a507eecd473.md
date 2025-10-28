@@ -1,0 +1,69 @@
+# Page snapshot
+
+```yaml
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - heading "Red-Black Tree — Insertion & Rebalancing (Interactive)" [level=1] [ref=e5]
+    - generic [ref=e6]: Explore how insertions are handled by the Red-Black Tree via recoloring and rotations.
+  - main [ref=e7]:
+    - region "Controls" [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - strong [ref=e11]: Controls
+          - generic [ref=e12]: "Safe margins: 24px • Spacing: ≥16px"
+        - generic [ref=e13]: "Concept: Single focused concept — RB-Tree insertion (cases, recolor, rotate)."
+      - generic [ref=e14]:
+        - generic [ref=e15]: Value to insert
+        - spinbutton "Value to insert" [ref=e16]: "9"
+        - button "Insert value" [active] [ref=e17] [cursor=pointer]: Insert
+        - button "Insert random value" [ref=e18] [cursor=pointer]: Random
+      - generic [ref=e19]:
+        - button "Step back" [ref=e20] [cursor=pointer]: ◀ Step
+        - button "Play" [ref=e21] [cursor=pointer]: ▶ Play
+        - button "Step forward" [disabled] [ref=e22] [cursor=pointer]: Step ▶
+        - button "Reset tree" [ref=e23] [cursor=pointer]: Reset
+      - generic [ref=e24]:
+        - generic [ref=e25]: Speed
+        - slider "Animation speed (ms)" [ref=e26]: "800"
+        - generic [ref=e27]: 800 ms
+      - generic [ref=e28]: "Learning objective: After interacting you will be able to predict ... Step: Root recolored to BLACK (final)"
+      - group [ref=e29]:
+        - generic "Interaction Design (how to use)" [ref=e30] [cursor=pointer]
+        - generic [ref=e31]:
+          - text: "- Type a numeric value and press Insert (or Random) to add a new node."
+          - text: "- Each insertion generates an ordered list of internal steps (insert node → recolor/rotate steps → final root recolor)."
+          - text: "- Use Step ▶ / ◀ Step to walk the algorithm step-by-step, or Play to animate through steps automatically."
+          - text: "- Visual feedback: nodes animate to their computed positions; recoloring and edges update smoothly. Each rotation is labeled in the step info so you can connect code cases to the visuals."
+          - text: "- Accessibility: all controls are keyboard focusable; aria-live announcements announce step explanations."
+      - group [ref=e32]:
+        - generic "Layout Description" [ref=e33] [cursor=pointer]
+    - region "Tree Visualization" [ref=e34]:
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]: Tree Visualization
+          - generic [ref=e38]: Nodes animate into position; colors indicate node color (red/black).
+        - generic [ref=e39]:
+          - generic [ref=e40]: Red node
+          - generic [ref=e42]: Black node
+          - generic [ref=e44]: Hover nodes to highlight parent/child
+      - img "Red-Black tree visualization" [ref=e45]:
+        - img [ref=e46]:
+          - img "Node 10, color black" [ref=e51]:
+            - generic: "10"
+            - generic [ref=e53]: id:1
+          - img "Node 7, color black" [ref=e54]:
+            - generic: "7"
+            - generic [ref=e56]: id:3
+          - img "Node 3, color red" [ref=e57]:
+            - generic: "3"
+            - generic [ref=e59]: id:4
+          - img "Node 9, color red" [ref=e60]:
+            - generic: "9"
+            - generic [ref=e62]: id:5
+          - img "Node 18, color black" [ref=e63]:
+            - generic: "18"
+            - generic [ref=e65]: id:2
+      - generic [ref=e66]:
+        - generic [ref=e67]: Root recolored to BLACK (final)
+        - generic [ref=e68]: "Nodes: 5"
+```

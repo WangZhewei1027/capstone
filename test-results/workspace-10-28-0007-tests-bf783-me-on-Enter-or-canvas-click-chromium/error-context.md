@@ -1,0 +1,67 @@
+# Page snapshot
+
+```yaml
+- application "Binary Search Tree interactive module" [ref=e2]:
+  - complementary "Binary Search Tree (BST) — Interactive Explorer" [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Binary Search Tree (BST) — Interactive Explorer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Explore insertion, search, deletion and traversals with live visuals and step-by-step feedback.
+    - generic [ref=e7]:
+      - strong [ref=e8]: Learning Objective
+      - paragraph [ref=e9]: After interacting with this module you will understand how values are placed in a BST, how search and deletion proceed (including the in-order successor replacement), and how in-order/pre-order/post-order traversals visit nodes. Visual feedback and animations reinforce the tree structure and algorithms.
+    - generic [ref=e10]:
+      - strong [ref=e11]: Interaction Design
+      - paragraph [ref=e12]:
+        - text: "- Insert a number by typing and clicking \"Insert\" (or Enter). The insertion path is highlighted step-by-step, then the node appears and animates to its final position."
+        - text: "- Search highlights the path visited; found nodes flash green."
+        - text: "- Delete removes a node (standard BST deletion). If the node has two children, the in-order successor is used — the swap and removal are animated."
+        - text: "- Traversal buttons animate the order of visiting nodes (highlighting them in sequence)."
+        - text: "- \"Random\" fills several values; \"Clear\" resets the tree. Logs show the algorithm steps."
+    - generic "Controls" [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]: Value
+        - spinbutton "Value to operate on" [ref=e16]
+        - button "Insert" [ref=e17] [cursor=pointer]
+      - generic [ref=e18]:
+        - button "Search" [ref=e19] [cursor=pointer]
+        - button "Delete" [ref=e20] [cursor=pointer]
+        - button "Clear" [ref=e21] [cursor=pointer]
+      - generic [ref=e22]:
+        - button "Random" [ref=e23] [cursor=pointer]
+        - button "Demo" [ref=e24] [cursor=pointer]
+      - generic [ref=e26]:
+        - generic [ref=e27]: Traversals
+        - generic [ref=e28]:
+          - button "In-order" [ref=e29] [cursor=pointer]
+          - button "Pre-order" [ref=e30] [cursor=pointer]
+          - button "Post-order" [ref=e31] [cursor=pointer]
+        - generic [ref=e32]: Traversal animations highlight nodes in visit order and append the sequence to the log.
+      - generic [ref=e34]: "Tip: Use numerals only. Duplicates are rejected (BST here enforces unique keys)."
+    - generic [ref=e35]:
+      - strong [ref=e36]: Layout Description
+      - paragraph [ref=e37]:
+        - text: "- Safe-area margin: 24px on all sides of the viewport (container padding)."
+        - text: "- Minimum spacing between controls: 16px (CSS gap used across rows and items)."
+        - text: "- Left column contains explanation and controls (fixed width). Right column is the responsive visualization canvas (SVG) where the tree is drawn. Controls are keyboard accessible and include clear visual focus states."
+    - generic [ref=e38]:
+      - strong [ref=e39]: Console / Trace
+      - log [ref=e40]:
+        - generic [ref=e41]: Binary Search Tree Explorer ready.
+        - generic [ref=e42]: Inserting 50...
+        - generic [ref=e43]: Inserted 50
+        - generic [ref=e44]: Visited 50
+  - main "Visualizer" [ref=e45]:
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - strong [ref=e48]: BST Visualizer
+        - generic [ref=e49]: Click a node to set the input value to that node (shortcut). Paths and operations are animated for clarity.
+      - generic [ref=e50]:
+        - button "Fit" [ref=e51] [cursor=pointer]
+        - 'button "Step: Off" [ref=e52] [cursor=pointer]'
+    - generic "Tree canvas" [ref=e53]:
+      - img "Binary search tree diagram" [ref=e54]:
+        - button "Node 50" [ref=e55] [cursor=pointer]:
+          - generic: "50"
+        - button "Node 30" [ref=e58] [cursor=pointer]:
+          - generic: "30"
+```

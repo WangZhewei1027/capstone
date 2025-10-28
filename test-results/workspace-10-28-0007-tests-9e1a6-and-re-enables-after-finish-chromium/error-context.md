@@ -1,0 +1,82 @@
+# Page snapshot
+
+```yaml
+- main "Stack — Last-In, First-Out (LIFO)" [ref=e2]:
+  - region "Stack — Last-In, First-Out (LIFO)" [ref=e3]:
+    - generic [ref=e5]:
+      - heading "Stack — Last-In, First-Out (LIFO)" [level=1] [ref=e6]
+      - generic [ref=e7]: Interactive learning module
+    - generic "Learning objective" [ref=e8]:
+      - strong [ref=e9]: Learning objective
+      - paragraph [ref=e10]: "Understand how a stack stores items using LIFO behavior. After interacting, you will be able to: push items onto the stack, pop and peek, observe index changes, and see underflow/overflow behavior."
+    - generic "Interaction design" [ref=e11]:
+      - strong [ref=e12]: Interaction design
+      - paragraph [ref=e13]: "Interact with controls to push strings or numbers, pop the top item, peek, clear, or set capacity. Visual animations show items sliding into the stack, popping out, and pointer updates. Errors (underflow/overflow) cause a red shake and message. Keyboard accessible: Enter in the input performs push."
+    - generic "Layout description" [ref=e14]:
+      - strong [ref=e15]: Layout description
+      - paragraph [ref=e16]: "This module keeps a clear two-column layout: controls and explanations on the left; visualization and logs on the right. Safe margins are 24px; elements use at least 16px spacing. On smaller screens, the layout collapses to a single column for readability and accessibility."
+    - generic [ref=e17]:
+      - generic [ref=e18]: Value to push (text allowed)
+      - group "Push controls" [ref=e19]:
+        - textbox "Value to push" [ref=e20]:
+          - /placeholder: e.g. 42 or 'apple'
+        - button "Push value" [ref=e21] [cursor=pointer]: Push
+        - button "Pop top" [ref=e22] [cursor=pointer]: Pop
+        - button "Peek top" [ref=e23] [cursor=pointer]: Peek
+    - generic [ref=e24]:
+      - generic [ref=e25]: Capacity (max slots)
+      - generic [ref=e26]:
+        - slider "Stack capacity" [ref=e27]: "8"
+        - generic [ref=e28]: "Capacity: 8"
+      - generic [ref=e29]:
+        - button "Auto-demo" [ref=e30] [cursor=pointer]: Auto demo
+        - button "Clear stack" [ref=e31] [cursor=pointer]: Clear
+        - generic [ref=e32]: Stack ready with capacity 8
+    - generic [ref=e33]: "Tips: Use the input + Enter to push quickly. Try capacity 3 and push more than 3 to see overflow."
+  - region "Stack visualization area" [ref=e34]:
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]: Visual Stack
+          - generic [ref=e39]: LIFO — last item pushed is first popped
+        - generic [ref=e40]: Slots show indexes (0 at bottom). The top pointer and index update as you push/pop.
+      - generic [ref=e42]: Top = -1
+    - generic [ref=e43]:
+      - region "Stack frame" [ref=e44]:
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - generic [ref=e48]: "7"
+              - generic [ref=e49]: "6"
+              - generic [ref=e50]: "5"
+              - generic [ref=e51]: "4"
+              - generic [ref=e52]: "3"
+              - generic [ref=e53]: "2"
+              - generic [ref=e54]: "1"
+              - generic [ref=e55]: "0"
+            - generic [ref=e56]:
+              - generic "Slot 7 empty" [ref=e57]: empty
+              - generic "Slot 6 empty" [ref=e58]: empty
+              - generic "Slot 5 empty" [ref=e59]: empty
+              - generic "Slot 4 empty" [ref=e60]: empty
+              - generic "Slot 3 empty" [ref=e61]: empty
+              - generic "Slot 2 empty" [ref=e62]: empty
+              - generic "Slot 1 empty" [ref=e63]: empty
+              - generic "Slot 0 empty" [ref=e64]: empty
+          - generic [ref=e65]:
+            - img [ref=e66]
+            - generic [ref=e68]:
+              - generic [ref=e69]: Top index
+              - generic [ref=e70]: "-1"
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - generic [ref=e73]: Recent operations
+          - generic [ref=e75]: "Module ready. Capacity: 8"
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - text: "Stack size:"
+            - strong [ref=e78]: "0"
+          - generic [ref=e79]:
+            - text: "Capacity:"
+            - strong [ref=e80]: "8"
+```

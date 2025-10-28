@@ -11,6 +11,9 @@ function parseArgs() {
     model: null,
     question: null,
     system: null,
+    topic: null,
+    enableFSM: true, // 默认启用 FSM
+    enableTests: false, // 默认禁用测试生成
     help: false,
   };
 
@@ -32,6 +35,16 @@ function parseArgs() {
       case "--system":
       case "-s":
         parsed.system = args[++i];
+        break;
+      case "--topic":
+      case "-t":
+        parsed.topic = args[++i];
+        break;
+      case "--no-fsm":
+        parsed.enableFSM = false;
+        break;
+      case "--enable-tests":
+        parsed.enableTests = true;
         break;
       case "--help":
       case "-h":
@@ -61,12 +74,23 @@ function showHelp() {
   -m, --model <model>       指定模型名称或编号
   -q, --question <text>     指定问题内容
   -s, --system <text>       指定系统提示词
+  -t, --topic <text>        指定主题（用于 FSM 和测试生成）
+  --no-fsm                  禁用 FSM 生成（默认启用）
+  --enable-tests            启用 Playwright 测试生成（需要启用 FSM）
   -h, --help               显示此帮助信息
 
 示例:
-  node add.mjs --workspace "10-04" --model "gpt-4o-mini" --question "创建一个冒泡排序演示"
-  node add.mjs -w "test" -m 1 -q "制作一个计算器" -s "创建一个响应式的计算器应用"
-  node add.mjs "创建一个时钟" (直接指定问题)
+  node add.mjs --workspace "10-04" --model "gpt-4o-mini" --question "创建一个冒泡排序演示" --topic "冒泡排序"
+  node add.mjs -w "test" -m 1 -q "制作一个计算器" -t "计算器" --enable-tests
+  node add.mjs "创建一个时钟" --no-fsm (禁用 FSM 生成)
+
+多 Agent 模式:
+  默认启用两个 Agent：
+  1. HTML 生成 Agent - 生成交互式 HTML 页面
+  2. FSM 生成 Agent - 分析 HTML 并生成有限状态机定义
+  
+  使用 --enable-tests 可启用第三个 Agent：
+  3. Playwright 测试生成 Agent - 基于 FSM 生成端到端测试
 
 可用模型:
 ${modelList.map((model, index) => `  ${index + 1}. ${model}`).join("\n")}
@@ -198,21 +222,55 @@ async function main() {
     return;
   }
 
+  // 获取主题（用于 FSM）
+  let topic = args.topic;
+  if (!topic && args.enableFSM) {
+    try {
+      const topicInput = await userInput(
+        "请输入主题/概念名称 (用于 FSM 生成，直接回车跳过): "
+      );
+      topic = topicInput.trim() || null;
+    } catch (err) {
+      console.error("获取主题时出错：", err);
+    }
+  }
+
+  // 显示配置
+  console.log("\n配置信息:");
+  console.log(`- 工作空间: ${workspace}`);
+  console.log(`- 模型: ${selectedModel}`);
+  console.log(`- FSM 生成: ${args.enableFSM ? "启用" : "禁用"}`);
+  console.log(`- 测试生成: ${args.enableTests ? "启用" : "禁用"}`);
+  if (topic) {
+    console.log(`- 主题: ${topic}`);
+  }
+  console.log("");
+
   // 构建任务对象
   const task = {
     workspace: workspace,
     model: selectedModel,
     question: question,
     system: systemPrompt,
+    topic: topic,
   };
 
   try {
     console.log("正在生成，请稍候...");
-    const result = await processTask(task, { showProgress: true });
+    const result = await processTask(task, {
+      showProgress: true,
+      enableFSM: args.enableFSM,
+      enableTests: args.enableTests,
+    });
 
     if (result.success) {
-      console.log("内容生成成功!");
-      console.log("已保存为HTML文件，打开下面的链接查看效果：");
+      console.log("\n内容生成成功!");
+      if (result.hasFSM) {
+        console.log("✓ HTML 文件已生成（包含 FSM）");
+      } else {
+        console.log("✓ HTML 文件已生成");
+      }
+      console.log("\n打开下面的链接查看效果：");
       console.log(result.url);
     } else {
       console.error("任务执行失败：", result.error);

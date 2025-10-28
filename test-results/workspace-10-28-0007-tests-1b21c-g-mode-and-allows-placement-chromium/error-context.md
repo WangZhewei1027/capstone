@@ -1,0 +1,65 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: "Concept: Graph (Directed vs Undirected)"
+      - generic [ref=e5]: This interactive module demonstrates the difference between directed and undirected graphs through hands-on construction, visualization, and live adjacency representations (matrix & list). Create nodes and edges, toggle the graph mode, and observe how edge directionality changes adjacency, degrees, and visuals.
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - strong [ref=e8]: Learning Objective
+        - generic [ref=e9]: "After interacting with this module, you will understand: - The visual and structural difference between directed and undirected edges. - How edge orientation affects adjacency matrix symmetry and degree calculations (degree vs in-/out-degree). - How the same set of nodes can represent different connectivity depending on directionality."
+      - generic [ref=e10]:
+        - strong [ref=e11]: Interaction Design
+        - generic [ref=e12]: "- Click anywhere in the graph area to add a node. Nodes are draggable. - Enter \"Add Edge\" mode, then click a source node and a target node to create an edge. In directed mode an arrow is created (source → target); in undirected mode a single undirected edge appears. - Toggle the \"Directed\" switch to see all edges update their appearance and how the adjacency matrix/list changes. - Select a node to inspect its degree (undirected) or in-/out-degree (directed). Clicking adjacency matrix cells toggles edges. - Visual feedback: edges animate when created, arrowheads fade in for directed edges, table cells briefly flash on edge toggles, and connected edges highlight on node selection."
+      - generic [ref=e13]:
+        - strong [ref=e14]: Layout Description
+        - generic [ref=e15]: "- Safe area margins: 24px around the viewport (enforced by body padding). - The module uses a two-column layout: left is the interactive graph canvas (flex:1), right is the controls panel (fixed width ≈360px). - Minimum spacing of 16px between interactive elements (implemented via CSS variables). - Accessibility & responsiveness: clear focus states, large enough touch targets, keyboard-compatible controls for toggles/buttons, and a responsive single-column stacking on narrow screens."
+  - application "Graph directed vs undirected interactive module" [ref=e16]:
+    - generic "Graph area" [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - generic [ref=e20]: Interactive Graph Builder
+          - generic [ref=e21]: Click to add nodes • Drag to reposition • Add edges to connect
+        - generic [ref=e22]: "Tip: Click an adjacency table cell to toggle an edge"
+      - generic [ref=e23]:
+        - generic [ref=e24]: Double-click to add a node quickly — or click once then press "Add Node" button.
+        - img
+    - complementary "Controls panel" [ref=e25]:
+      - generic [ref=e27]:
+        - heading "Controls" [level=3] [ref=e28]
+        - generic [ref=e29]: Build and inspect directed vs undirected connections
+      - generic "Modes" [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]:
+            - generic [ref=e33]: Mode
+            - generic [ref=e34]: Switch between directed and undirected
+          - switch "Undirected" [ref=e35] [cursor=pointer]:
+            - generic [ref=e38]: Undirected
+        - generic [ref=e39]:
+          - button "Add Node" [ref=e40] [cursor=pointer]
+          - button "Add Edge" [ref=e41] [cursor=pointer]
+          - button "Clear" [ref=e42] [cursor=pointer]
+          - button "Sample Graph" [ref=e43] [cursor=pointer]
+      - generic "Selection info" [ref=e44]:
+        - generic [ref=e45]:
+          - generic [ref=e46]: Selected
+          - generic [ref=e47]: None
+        - generic [ref=e48]: Select a node to see degree info.
+      - generic "Adjacency representations" [ref=e49]:
+        - generic [ref=e50]:
+          - generic [ref=e51]: Adjacency Matrix
+          - generic [ref=e52]: Click cells to toggle edges
+        - generic [ref=e54]: No nodes yet.
+        - generic [ref=e55]:
+          - generic [ref=e56]: Adjacency List
+          - generic [ref=e57]: Live
+        - generic [ref=e59]: No nodes yet.
+      - generic [ref=e60]:
+        - generic [ref=e61]: Legend & Tips
+        - generic [ref=e62]:
+          - text: "- Directed: edges show an arrow (A → B). Matrix may be asymmetric. Degrees split to in/out."
+          - text: "- Undirected: edges have no arrow. Matrix is symmetric and degree is single value."
+          - text: "- Use drag to inspect how edges follow nodes. Nodes are labeled sequentially when created."
+```

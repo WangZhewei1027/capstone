@@ -44,3 +44,32 @@ http://localhost:5500/viewer-react.html
 不要手动查看或保存html！！！VS Code的自动格式化可能搞坏一些东西
 
 
+# 显示浏览器窗口
+npx playwright test workspace/10-28-0004/tests/ --headed
+
+# 使用 UI 模式（推荐）
+npx playwright test workspace/10-28-0004/tests/ --ui
+
+# 调试模式
+npx playwright test workspace/10-28-0004/tests/ --debug
+
+# 只运行特定浏览器
+npx playwright test workspace/10-28-0004/tests/ --project=chromium
+
+# 并行运行（指定 worker 数量）
+npx playwright test workspace/10-28-0004/tests/ --workers=4
+
+# 生成 HTML 报告
+npx playwright test workspace/10-28-0004/tests/ --reporter=html
+
+
+
+# 运行指定文件夹下的所有测试
+npx playwright test workspace/10-28-0004/tests/
+
+# 或者使用相对路径
+npx playwright test ./workspace/10-28-0004/tests/
+
+# 使用通配符
+npx playwright test workspace/10-28-0004/tests/*.spec.js
+

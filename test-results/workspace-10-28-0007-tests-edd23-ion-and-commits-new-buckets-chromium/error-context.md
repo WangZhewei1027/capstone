@@ -1,0 +1,66 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - heading "Hash Map — interactive visualization" [level=1] [ref=e4]
+      - generic [ref=e5]: Visual, step-by-step exploration of how hashing maps keys to buckets and how collisions are handled (separate chaining).
+  - main [ref=e6]:
+    - complementary "Concept & Learning Plan" [ref=e7]:
+      - heading "Concept & Learning Plan" [level=2] [ref=e8]
+      - paragraph [ref=e9]:
+        - strong [ref=e10]: "Concept Title:"
+        - text: Hash Map (array of buckets + chaining)
+      - paragraph [ref=e11]:
+        - strong [ref=e12]: "Learning Objective:"
+        - text: After interacting, you will understand how a hash function converts keys to bucket indices, how collisions accumulate in chains, and how insert/search/delete operations traverse and modify chains.
+      - heading "Interaction Design" [level=3] [ref=e13]
+      - paragraph [ref=e14]: "- Type a key (string) and a value, then Insert. The module animates: a) the per-character hash calculation (ASCII sums), b) modulo reduction to a bucket index, and c) movement of the node into the target bucket's chain."
+      - paragraph [ref=e15]: "- Search highlights nodes along the chain one-by-one. Found nodes are highlighted in green; not found gives a gentle shake. - Delete traverses then removes the node with a fade/slide animation and repositions remaining nodes. - You can change the bucket count; existing entries will be rehashed and animated to their new buckets."
+      - heading "Layout Description" [level=3] [ref=e16]
+      - paragraph [ref=e17]: "- Safe area: 24px on all sides (page padding). Minimum spacing between interactive elements is 16px (CSS gaps and margins). - Left column contains descriptive text and controls (keyboard-accessible inputs and buttons). - Right column is the visualization canvas with a top control strip and the bucket area beneath. The buckets are shown left-to-right and wrap on small screens. - Colors, contrasts, and focusable controls are designed for accessibility. Layout is responsive: the grid becomes a stacked column under 920px width."
+      - separator [ref=e18]
+      - generic [ref=e19]:
+        - generic [ref=e20]: "Buckets (array size): 7"
+        - slider "Bucket count slider" [ref=e21]: "7"
+      - generic [ref=e22]:
+        - generic [ref=e23]: Key
+        - textbox "Key input" [ref=e24]:
+          - /placeholder: e.g. apple
+        - generic [ref=e25]: Value
+        - textbox "Value input" [ref=e26]:
+          - /placeholder: e.g. 42
+      - generic [ref=e27]:
+        - button "Insert" [ref=e28] [cursor=pointer]
+        - button "Search" [ref=e29] [cursor=pointer]
+        - button "Delete" [ref=e30] [cursor=pointer]
+        - button "Clear" [ref=e31] [cursor=pointer]
+    - region "Hash map visualization" [ref=e33]:
+      - generic [ref=e35]:
+        - generic [ref=e36]: "Buckets:"
+        - generic [ref=e37]: 0 entries
+      - list "Buckets area" [ref=e38]:
+        - listitem [ref=e39]:
+          - generic [ref=e40]: index 0
+          - generic "chain" [ref=e41]
+        - listitem [ref=e42]:
+          - generic [ref=e43]: index 1
+          - generic "chain" [ref=e44]
+        - listitem [ref=e45]:
+          - generic [ref=e46]: index 2
+          - generic "chain" [ref=e47]
+        - listitem [ref=e48]:
+          - generic [ref=e49]: index 3
+          - generic "chain" [ref=e50]
+        - listitem [ref=e51]:
+          - generic [ref=e52]: index 4
+          - generic "chain" [ref=e53]
+        - listitem [ref=e54]:
+          - generic [ref=e55]: index 5
+          - generic "chain" [ref=e56]
+        - listitem [ref=e57]:
+          - generic [ref=e58]: index 6
+          - generic "chain" [ref=e59]
+      - generic [ref=e60]: "Tip: Try keys that collide (e.g., 'ab' and 'ba' often collide with simple hash). Use the bucket slider to see how bucket count affects collisions."
+```

@@ -1,0 +1,64 @@
+# Page snapshot
+
+```yaml
+- application "Queue — FIFO Data Structure (Interactive Explorer)" [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - heading "Queue — FIFO Data Structure (Interactive Explorer)" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Hands-on visualization of enqueue, dequeue, peek, and capacity. Keyboard accessible and animated.
+    - generic [ref=e8]:
+      - region "Concept & Learning Goals" [ref=e9]:
+        - heading "Concept & Learning Goals" [level=2] [ref=e10]
+        - paragraph [ref=e11]:
+          - strong [ref=e12]: "Concept:"
+          - text: A Queue stores elements in FIFO (First-In, First-Out) order — elements are enqueued at the tail and removed (dequeued) from the head.
+        - paragraph [ref=e13]:
+          - strong [ref=e14]: "Learning Objective:"
+          - text: "After using this module you should be able to:"
+        - list [ref=e15]:
+          - listitem [ref=e16]: Understand enqueue (add to tail) and dequeue (remove from head).
+          - listitem [ref=e17]: Observe how head and tail move as elements change.
+          - listitem [ref=e18]: See and feel the order-preserving nature of FIFO through animation.
+        - paragraph
+        - generic [ref=e19]:
+          - region "Queue visualization area" [ref=e20]:
+            - list "Concept & Learning Goals" [ref=e21]
+          - generic [ref=e22]: "Interaction: Type a value, press \"Enqueue\" (or Enter) to add. Press \"Dequeue\" to remove the head. The head slides out and the rest shift forward."
+      - complementary "Interactive Controls" [ref=e23]:
+        - heading "Interactive Controls" [level=2] [ref=e24]
+        - form "Queue controls" [ref=e25]:
+          - textbox "Value to enqueue" [ref=e26]:
+            - /placeholder: Enter value (text or number)
+          - button "Enqueue" [ref=e27] [cursor=pointer]
+        - generic [ref=e28]:
+          - button "Dequeue" [ref=e29] [cursor=pointer]
+          - button "Peek" [ref=e30] [cursor=pointer]
+          - button "Clear" [ref=e31] [cursor=pointer]
+        - generic [ref=e32]:
+          - generic [ref=e33]:
+            - generic [ref=e34]: "Size: 0"
+            - generic [ref=e35]: "Capacity: 8"
+          - generic [ref=e36]:
+            - generic [ref=e37]: Animation speed
+            - slider "Animation speed in milliseconds" [active] [ref=e38]: "450"
+        - generic [ref=e39]:
+          - text: "Tips:"
+          - list [ref=e40]:
+            - listitem [ref=e41]: Press Enter in the input to enqueue quickly.
+            - listitem [ref=e42]: "Items are read from left-to-right: leftmost is the head."
+        - generic [ref=e43]: "Ready. Tip: press Ctrl+E to focus input, Enter to enqueue."
+        - generic [ref=e44]: "Ready. Tip: press Ctrl+E to focus input, Enter to enqueue."
+    - generic [ref=e45]:
+      - heading "Interaction Design (what happens & why it helps)" [level=3] [ref=e46]
+      - paragraph [ref=e47]: "- Enqueue: creating an element at the tail animates it sliding into the track. This visualizes adding to the back of the queue."
+      - paragraph [ref=e48]: "- Dequeue: the head item animates sliding out to the left and fades; then the remaining items visually shift forward. This demonstrates FIFO removal and how head/tail positions update."
+      - paragraph [ref=e49]: Controls are keyboard-accessible (Enter in the input enqueues). An ARIA live region announces actions for screen-reader users. The animation speed control lets you slow down or speed up to inspect each transition.
+      - heading "Layout Description" [level=3] [ref=e50]
+      - paragraph [ref=e51]: "Spatial organization:"
+      - list [ref=e52]:
+        - listitem [ref=e53]: "Top: Title and short description."
+        - listitem [ref=e54]: "Left (main): Visualization panel with queue track, head & tail labels, and notes."
+        - listitem [ref=e55]: "Right (controls): Inputs and buttons — arranged vertically for quick reach. Buttons are at least 16px apart and the overall container maintains 24px safe margins."
+      - text: "The design adapts: on narrow viewports the controls stack below the visualization. Minimum spacing between interactive elements is 16px and focus rings and ARIA labels ensure accessibility."
+      - paragraph
+```

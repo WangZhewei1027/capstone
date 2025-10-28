@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive BST Explorer</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --card: #0e1630;
+      --accent: #22c1c3;
+      --muted: #9aa6b2;
+      --text: #e6eef3;
+      --danger: #ff6b6b;
+      --success: #7be495;
+      --node-fill: #1f2a44;
+      --node-stroke: #253553;
+      --node-highlight: #ffd166;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: Inter, Roboto, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial;
+      background: linear-gradient(180deg, var(--bg) 0%, #041022 100%);
+      color:var(--text);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Safe area container */
+    .app {
+      box-sizing:border-box;
+      padding:var(--safe-margin);
+      min-height:100vh;
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+    }
+
+    /* Left pane: info + controls */
+    .left {
+      width:360px;
+      min-width:260px;
+      max-width:38%;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:20px;
+      box-shadow:0 6px 24px rgba(2,6,23,0.7);
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    /* Right pane: visual area */
+    .right {
+      flex:1 1 auto;
+      min-width:320px;
+      height:720px;
+      background:linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius:12px;
+      padding:16px;
+      position:relative;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    h1 {
+      font-size:20px;
+      margin:0;
+      color:var(--accent);
+      letter-spacing:0.2px;
+    }
+
+    .meta {
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+
+    .section {
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      padding:12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    .controls {
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+
+    .row {
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+    }
+
+    input[type="number"]{
+      background:transparent;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,0.06);
+      padding:10px 12px;
+      border-radius:8px;
+      outline:none;
+      width:140px;
+      font-size:14px;
+    }
+    input[type="number"]::placeholder { color: #6e7b86; }
+    input[type="number"]:focus{
+      border-color:var(--accent);
+      box-shadow:0 0 0 4px rgba(34,193,195,0.06);
+    }
+
+    button {
+      background:var(--accent);
+      color:#011015;
+      border:none;
+      padding:10px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:600;
+      min-width:64px;
+      transition:transform .08s ease, box-shadow .12s ease;
+    }
+    button:hover{ transform:translateY(-1px); }
+    button:active{ transform:translateY(0); }
+
+    .btn-ghost {
+      background:transparent;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,0.06);
+    }
+
+    .btn-danger {
+      background:var(--danger);
+      color:#2b0f0f;
+    }
+
+    .btn-secondary {
+      background:var(--card);
+      color:var(--text);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .small {
+      padding:8px 10px;
+      font-size:13px;
+      min-width:46px;
+    }
+
+    .controls .hint {
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    /* Canvas area */
+    .canvas-wrap{
+      flex:1 1 auto;
+      background:linear-gradient(180deg, rgba(255,255,255,0.00), rgba(255,255,255,0.00));
+      border-radius:8px;
+      padding:12px;
+      position:relative;
+      overflow:auto;
+      border:1px dashed rgba(255,255,255,0.02);
+    }
+
+    /* svg fills the area */
+    svg{
+      width:100%;
+      height:100%;
+    }
+
+    /* Node styling using classes */
+    .node {
+      cursor:pointer;
+      transition:transform 420ms cubic-bezier(.2,.9,.3,1), opacity 240ms ease;
+    }
+
+    .node circle {
+      fill:var(--node-fill);
+      stroke:var(--node-stroke);
+      stroke-width:2px;
+      transition:fill 220ms ease, stroke 220ms ease, r 220ms ease;
+    }
+
+    .node text {
+      fill:var(--text);
+      font-size:12px;
+      font-weight:600;
+      text-anchor:middle;
+      dominant-baseline:middle;
+      pointer-events:none;
+    }
+
+    .node.highlight circle {
+      fill:var(--node-highlight);
+      stroke:#b86a00;
+    }
+
+    .node.found circle {
+      fill:var(--success);
+      stroke:#2a8f5b;
+    }
+
+    .edge {
+      stroke:rgba(255,255,255,0.08);
+      stroke-width:2px;
+      transition:stroke 220ms ease, opacity 220ms ease;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .edge.highlight {
+      stroke:var(--accent);
+      stroke-width:3px;
+      opacity:1;
+    }
+
+    /* log/trace area */
+    .trace {
+      height:120px;
+      overflow:auto;
+      background:linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.005));
+      border-radius:8px;
+      padding:10px;
+      font-family:monospace;
+      font-size:13px;
+      color:var(--muted);
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    .footer-row {
+      display:flex;
+      justify-content:space-between;
+      gap:var(--gap);
+      align-items:center;
+    }
+
+    /* Responsive */
+    @media (max-width:920px){
+      .app { flex-direction:column; }
+      .left { width:100%; max-width:none; }
+      .right { width:100%; height:560px; }
+    }
+
+    /* Accessibility focus */
+    button:focus, input:focus {
+      box-shadow:0 0 0 4px rgba(34,193,195,0.06);
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Binary Search Tree interactive module">
+    <aside class="left" aria-labelledby="title">
+      <div>
+        <h1 id="title">Binary Search Tree (BST) — Interactive Explorer</h1>
+        <p class="meta">Explore insertion, search, deletion and traversals with live visuals and step-by-step feedback.</p>
+      </div>
+
+      <div class="section" aria-live="polite">
+        <strong>Learning Objective</strong>
+        <p class="meta" style="margin-top:8px;">
+          After interacting with this module you will understand how values are placed in a BST,
+          how search and deletion proceed (including the in-order successor replacement),
+          and how in-order/pre-order/post-order traversals visit nodes. Visual feedback and animations reinforce the tree structure and algorithms.
+        </p>
+      </div>
+
+      <div class="section" aria-hidden="false">
+        <strong>Interaction Design</strong>
+        <p class="meta" style="margin-top:8px;">
+          - Insert a number by typing and clicking "Insert" (or Enter). The insertion path is highlighted step-by-step, then the node appears and animates to its final position.<br>
+          - Search highlights the path visited; found nodes flash green.<br>
+          - Delete removes a node (standard BST deletion). If the node has two children, the in-order successor is used — the swap and removal are animated.<br>
+          - Traversal buttons animate the order of visiting nodes (highlighting them in sequence).<br>
+          - "Random" fills several values; "Clear" resets the tree. Logs show the algorithm steps.
+        </p>
+      </div>
+
+      <div class="section controls" aria-label="Controls">
+        <div class="row" style="align-items:center;">
+          <label for="valueInput" class="meta" style="min-width:72px;">Value</label>
+          <input id="valueInput" type="number" placeholder="e.g., 42" aria-label="Value to operate on" />
+          <button id="insertBtn" title="Insert value">Insert</button>
+        </div>
+
+        <div class="row">
+          <button id="searchBtn" class="btn-secondary small" title="Search value">Search</button>
+          <button id="deleteBtn" class="btn-danger small" title="Delete value">Delete</button>
+          <button id="clearBtn" class="btn-ghost small" title="Clear tree">Clear</button>
+        </div>
+
+        <div class="row">
+          <button id="randomBtn" class="small btn-secondary" title="Insert several random values">Random</button>
+          <button id="fillBtn" class="small btn-secondary" title="Insert a demo set">Demo</button>
+        </div>
+
+        <div class="row" style="align-items:flex-start;">
+          <div style="flex:1;">
+            <div class="meta" style="margin-bottom:8px;">Traversals</div>
+            <div style="display:flex;gap:var(--gap);">
+              <button id="inorderBtn" class="small">In-order</button>
+              <button id="preorderBtn" class="small">Pre-order</button>
+              <button id="postorderBtn" class="small">Post-order</button>
+            </div>
+            <div class="hint" style="margin-top:8px;">Traversal animations highlight nodes in visit order and append the sequence to the log.</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="hint">Tip: Use numerals only. Duplicates are rejected (BST here enforces unique keys).</div>
+        </div>
+      </div>
+
+      <div class="section" aria-live="polite">
+        <strong>Layout Description</strong>
+        <p class="meta" style="margin-top:8px;">
+          - Safe-area margin: 24px on all sides of the viewport (container padding).<br>
+          - Minimum spacing between controls: 16px (CSS gap used across rows and items).<br>
+          - Left column contains explanation and controls (fixed width). Right column is the responsive visualization canvas (SVG) where the tree is drawn. Controls are keyboard accessible and include clear visual focus states.
+        </p>
+      </div>
+
+      <div class="section">
+        <strong>Console / Trace</strong>
+        <div id="log" class="trace" role="log" aria-live="polite" aria-atomic="false"></div>
+      </div>
+    </aside>
+
+    <main class="right" aria-label="Visualizer">
+      <div class="footer-row" style="align-items:flex-start;">
+        <div>
+          <strong style="color:var(--accent);">BST Visualizer</strong>
+          <div class="meta" style="margin-top:6px;">Click a node to set the input value to that node (shortcut). Paths and operations are animated for clarity.</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <button id="fitBtn" class="btn-secondary small" title="Center and fit">Fit</button>
+          <button id="stepModeBtn" class="btn-secondary small" title="Toggle step-by-step mode">Step: Off</button>
+        </div>
+      </div>
+
+      <div class="canvas-wrap" id="canvasWrap" tabindex="0" aria-label="Tree canvas">
+        <!-- SVG will be injected here -->
+        <svg id="svgCanvas" viewBox="0 0 1200 800" preserveAspectRatio="xMinYMin meet" role="img" aria-label="Binary search tree diagram"></svg>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    /*
+      Interactive BST Explorer
+      - Vanilla JS implementation of a BST with visual SVG rendering
+      - Supports insert, search, delete, traversals, random/demo data
+      - Animations: node transitions (transform), edge updates, path highlighting
+    */
+
+    // ---------- Utility & DOM ----------
+    const svg = document.getElementById('svgCanvas');
+    const logEl = document.getElementById('log');
+    const valueInput = document.getElementById('valueInput');
+    const insertBtn = document.getElementById('insertBtn');
+    const searchBtn = document.getElementById('searchBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const randomBtn = document.getElementById('randomBtn');
+    const fillBtn = document.getElementById('fillBtn');
+    const inorderBtn = document.getElementById('inorderBtn');
+    const preorderBtn = document.getElementById('preorderBtn');
+    const postorderBtn = document.getElementById('postorderBtn');
+    const fitBtn = document.getElementById('fitBtn');
+    const stepModeBtn = document.getElementById('stepModeBtn');
+    const canvasWrap = document.getElementById('canvasWrap');
+
+    let stepMode = false;
+    stepModeBtn.addEventListener('click', () => {
+      stepMode = !stepMode;
+      stepModeBtn.textContent = 'Step: ' + (stepMode ? 'On' : 'Off');
+    });
+
+    // Logging helper
+    function log(text, cls) {
+      const p = document.createElement('div');
+      p.textContent = text;
+      if (cls) p.className = cls;
+      logEl.appendChild(p);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    function clearLog(){ logEl.innerHTML = ''; }
+
+    // ---------- BST Model ----------
+    class BSTNode {
+      constructor(value) {
+        this.value = value;
+        this.left = null;
+        this.right = null;
+        this.parent = null;
+        // position for rendering
+        this.x = 0;
+        this.y = 0;
+        this.id = 'n' + Math.random().toString(36).substr(2,9);
+      }
+    }
+
+    class BST {
+      constructor() {
+        this.root = null;
+      }
+
+      insert(value) {
+        if (this.root === null) {
+          this.root = new BSTNode(value);
+          return {node: this.root, path: []};
+        }
+        let cur = this.root;
+        const path = [];
+        while (true) {
+          path.push(cur);
+          if (value === cur.value) {
+            return {node: null, path, reason: 'duplicate'};
+          } else if (value < cur.value) {
+            if (!cur.left) {
+              const n = new BSTNode(value);
+              n.parent = cur;
+              cur.left = n;
+              return {node: n, path};
+            }
+            cur = cur.left;
+          } else {
+            if (!cur.right) {
+              const n = new BSTNode(value);
+              n.parent = cur;
+              cur.right = n;
+              return {node: n, path};
+            }
+            cur = cur.right;
+          }
+        }
+      }
+
+      search(value) {
+        let cur = this.root;
+        const path = [];
+        while (cur) {
+          path.push(cur);
+          if (value === cur.value) return {found: cur, path};
+          cur = value < cur.value ? cur.left : cur.right;
+        }
+        return {found: null, path};
+      }
+
+      // delete node with value; returns info for animation
+      delete(value) {
+        const res = this.search(value);
+        if (!res.found) return {deleted: null, path: res.path, reason: 'not found'};
+        const node = res.found;
+        const path = res.path;
+
+        // helper: transplant u with v
+        const transplant = (u, v) => {
+          if (!u.parent) this.root = v;
+          else if (u === u.parent.left) u.parent.left = v;
+          else u.parent.right = v;
+          if (v) v.parent = u.parent;
+        };
+
+        if (!node.left) {
+          transplant(node, node.right);
+          return {deleted: node, path, replacedBy: node.right};
+        } else if (!node.right) {
+          transplant(node, node.left);
+          return {deleted: node, path, replacedBy: node.left};
+        } else {
+          // find in-order successor (min in right subtree)
+          let succ = node.right;
+          const succPath = [];
+          while (succ.left) {
+            succPath.push(succ);
+            succ = succ.left;
+          }
+          // succ is the minimum; succPath includes nodes on the way (excluding succ)
+          // We'll replace node.value with succ.value, then delete succ (which has at most right child)
+          const oldValue = node.value;
+          node.value = succ.value;
+          // Now delete succ (it has no left child)
+          transplant(succ, succ.right);
+          return {deleted: succ, path, replacedNode: node, swappedValue: oldValue};
+        }
+      }
+
+      // traversal functions that return arrays of nodes visited
+      inorder(node = this.root, out = []) {
+        if (!node) return out;
+        if (node.left) this.inorder(node.left, out);
+        out.push(node);
+        if (node.right) this.inorder(node.right, out);
+        return out;
+      }
+      preorder(node = this.root, out = []) {
+        if (!node) return out;
+        out.push(node);
+        if (node.left) this.preorder(node.left, out);
+        if (node.right) this.preorder(node.right, out);
+        return out;
+      }
+      postorder(node = this.root, out = []) {
+        if (!node) return out;
+        if (node.left) this.postorder(node.left, out);
+        if (node.right) this.postorder(node.right, out);
+        out.push(node);
+        return out;
+      }
+
+      // count nodes (helper)
+      count(node = this.root) {
+        if (!node) return 0;
+        return 1 + this.count(node.left) + this.count(node.right);
+      }
+    }
+
+    const tree = new BST();
+
+    // ---------- Rendering ----------
+    // We'll build SVG elements mapped by node.id
+    const NODE_RADIUS = 20;
+    const LEVEL_GAP = 80;
+    const H_SPACING = 40;
+
+    // maps node.id -> {g, circle, text, edgeToParent}
+    const elements = new Map();
+
+    function clearSVG() {
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      elements.clear();
+    }
+
+    function computeLayout() {
+      // assign inorder x positions spaced by width, and y by depth
+      let x = 60; // left margin
+      const depthY = [];
+
+      function dfs(node, depth=0) {
+        if (!node) return;
+        if (depthY[depth] === undefined) depthY[depth] = depth * LEVEL_GAP + 60;
+        if (node.left) dfs(node.left, depth+1);
+        node.x = x;
+        node.y = depthY[depth];
+        x += NODE_RADIUS * 2 + H_SPACING;
+        if (node.right) dfs(node.right, depth+1);
+      }
+      dfs(tree.root);
+      // adjust svg viewBox width based on x used
+      const width = Math.max(1200, x + 100);
+      const height = Math.max(800, (depthY[depthY.length-1] || 200) + 200);
+      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    }
+
+    function renderTree(animated = true) {
+      computeLayout();
+      // create or update nodes and edges
+      const newIds = new Set();
+      function walk(node) {
+        if (!node) return;
+        newIds.add(node.id);
+        if (!elements.has(node.id)) {
+          // create group for node + edge
+          const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+          g.classList.add('node');
+          g.setAttribute('data-id', node.id);
+          g.setAttribute('tabindex', '0');
+          g.setAttribute('role', 'button');
+          g.setAttribute('aria-label', 'Node ' + node.value);
+          const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          circle.setAttribute('r', NODE_RADIUS);
+          circle.setAttribute('cx', 0);
+          circle.setAttribute('cy', 0);
+          const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+          text.textContent = node.value;
+          g.appendChild(circle);
+          g.appendChild(text);
+
+          // edge to parent if exists
+          let edge = null;
+          if (node.parent) {
+            edge = document.createElementNS('http://www.w3.org/2000/svg','line');
+            edge.classList.add('edge');
+            edge.setAttribute('data-from', node.parent.id);
+            edge.setAttribute('data-to', node.id);
+            svg.appendChild(edge);
+          }
+
+          svg.appendChild(g);
+          elements.set(node.id, {g,circle,text,edge});
+          // set initial position off-screen or at parent's position for smoother insertion
+          const px = node.parent ? node.parent.x : node.x;
+          const py = node.parent ? node.parent.y : node.y - 60;
+          g.setAttribute('transform', `translate(${px}, ${py})`);
+          g.style.opacity = '0';
+          // click sets input value
+          g.addEventListener('click', () => {
+            valueInput.value = node.value;
+            valueInput.focus();
+          });
+          g.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              valueInput.value = node.value;
+              valueInput.focus();
+            }
+          });
+        }
+        // update text (in case of swapped values during delete)
+        const el = elements.get(node.id);
+        el.text.textContent = node.value;
+        // set edge positions (if edge exists)
+        if (node.parent && el.edge) {
+          el.edge.setAttribute('x1', node.parent.x);
+          el.edge.setAttribute('y1', node.parent.y);
+          el.edge.setAttribute('x2', node.x);
+          el.edge.setAttribute('y2', node.y);
+        }
+        // move node to computed position
+        requestAnimationFrame(() => {
+          el.g.style.opacity = '1';
+          el.g.style.transition = 'transform 420ms cubic-bezier(.2,.9,.3,1), opacity 220ms ease';
+          el.g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+        });
+
+        // proceed
+        if (node.left) walk(node.left);
+        if (node.right) walk(node.right);
+      }
+      walk(tree.root);
+
+      // remove old elements not in newIds
+      for (const [id, obj] of elements.entries()) {
+        if (!newIds.has(id)) {
+          // animate fade out then remove
+          obj.g.style.transition = 'opacity 240ms ease';
+          obj.g.style.opacity = '0';
+          if (obj.edge) obj.edge.style.opacity = '0';
+          setTimeout(() => {
+            if (obj.g.parentNode) obj.g.parentNode.removeChild(obj.g);
+            if (obj.edge && obj.edge.parentNode) obj.edge.parentNode.removeChild(obj.edge);
+            elements.delete(id);
+          }, 260);
+        }
+      }
+    }
+
+    // helper to highlight path nodes and edges stepwise
+    async function animatePath(path, {highlightEnd=false, found=false, message} = {}) {
+      // path: array of BSTNode
+      for (let i=0;i<path.length;i++) {
+        const node = path[i];
+        const el = elements.get(node.id);
+        if (!el) continue;
+        // highlight node and edge from parent
+        el.g.classList.add('highlight');
+        if (el.edge) el.edge.classList.add('highlight');
+        log(`Visited ${node.value}${i===path.length-1 ? (found ? ' (found)' : '') : ''}`);
+        // await small pause or user step
+        await waitOrStep(420);
+        el.g.classList.remove('highlight');
+        if (el.edge) el.edge.classList.remove('highlight');
+      }
+      if (message) log(message);
+    }
+
+    // Wait helper that respects step mode
+    function waitOrStep(ms=400) {
+      return new Promise(resolve => {
+        if (!stepMode) return setTimeout(resolve, ms);
+        // show a small overlay or require user click? For simplicity, we'll wait for click on canvasWrap
+        const onClick = () => {
+          canvasWrap.removeEventListener('click', onClick);
+          resolve();
+        };
+        canvasWrap.addEventListener('click', onClick);
+        // also support pressing Enter
+        const onKey = (e) => {
+          if (e.key === 'Enter') {
+            window.removeEventListener('keydown', onKey);
+            canvasWrap.removeEventListener('click', onClick);
+            resolve();
+          }
+        };
+        window.addEventListener('keydown', onKey);
+      });
+    }
+
+    // Traversal animation
+    async function animateTraversal(nodes) {
+      if (!nodes || nodes.length===0) return;
+      const sequence = [];
+      for (let n of nodes) {
+        const el = elements.get(n.id);
+        if (!el) continue;
+        el.g.classList.add('highlight');
+        sequence.push(n.value);
+        log('Visit ' + n.value);
+        await waitOrStep(420);
+        el.g.classList.remove('highlight');
+        // mark visited briefly
+        el.g.classList.add('found');
+        setTimeout(()=> el.g.classList.remove('found'), 500);
+      }
+      log('Traversal sequence: [' + sequence.join(', ') + ']');
+    }
+
+    // ---------- Actions: Insert / Search / Delete ----------
+    async function doInsert(value) {
+      if (value === '' || value === null || isNaN(value)) {
+        log('Insert: invalid or empty input');
+        return;
+      }
+      value = Number(value);
+      const result = tree.insert(value);
+      if (result.reason === 'duplicate') {
+        log('Insert aborted: duplicate value ' + value);
+        // still animate path to the duplicate node
+        renderTree();
+        await animatePath(result.path, {message: 'Duplicate found; insertion cancelled.'});
+        return;
+      }
+      // show path traversal before node appears
+      renderTree(false); // ensure existing nodes present
+      await animatePath(result.path, {message: `Inserting ${value}...`});
+
+      // render tree and animate new node appearing
+      renderTree(true);
+      log('Inserted ' + value);
+    }
+
+    async function doSearch(value) {
+      if (value === '' || value === null || isNaN(value)) {
+        log('Search: invalid input');
+        return;
+      }
+      value = Number(value);
+      const res = tree.search(value);
+      renderTree(false);
+      await animatePath(res.path, {found: !!res.found});
+      if (res.found) {
+        const el = elements.get(res.found.id);
+        if (el) {
+          el.g.classList.add('found');
+          await waitOrStep(400);
+          setTimeout(()=> el.g.classList.remove('found'), 300);
+        }
+        log('Search result: found ' + value);
+      } else {
+        log('Search result: ' + value + ' not found');
+      }
+    }
+
+    async function doDelete(value) {
+      if (value === '' || value === null || isNaN(value)) {
+        log('Delete: invalid input');
+        return;
+      }
+      value = Number(value);
+      const res = tree.delete(value);
+      renderTree(false);
+      if (res.reason === 'not found') {
+        await animatePath(res.path, {message: 'Value not found; nothing to delete.'});
+        log('Delete aborted: not found ' + value);
+        return;
+      }
+      // animate path to node to delete
+      await animatePath(res.path, {message: 'Deleting ' + value + '...'});
+      // if swappedValue present, show swap animation (node value changed)
+      if (res.swappedValue !== undefined && res.replacedNode) {
+        // show the node that received the successor value
+        const node = res.replacedNode;
+        const el = elements.get(node.id);
+        if (el) {
+          el.g.classList.add('found');
+          log(`Replaced value ${res.swappedValue} with successor ${node.value}`);
+          await waitOrStep(520);
+          el.g.classList.remove('found');
+        }
+      } else {
+        log('Deleted ' + value);
+      }
+      // final render will animate remaining nodes to new positions
+      renderTree(true);
+    }
+
+    // ---------- Controls wiring ----------
+    insertBtn.addEventListener('click', async () => {
+      const v = valueInput.value;
+      await doInsert(v);
+      valueInput.value = '';
+      valueInput.focus();
+    });
+    // allow Enter in input to insert
+    valueInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        insertBtn.click();
+      }
+    });
+
+    searchBtn.addEventListener('click', async () => {
+      const v = valueInput.value;
+      await doSearch(v);
+      valueInput.focus();
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      const v = valueInput.value;
+      await doDelete(v);
+      valueInput.value = '';
+      valueInput.focus();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      tree.root = null;
+      clearSVG();
+      clearLog();
+      log('Cleared tree.');
+    });
+
+    randomBtn.addEventListener('click', async () => {
+      const count = 8;
+      const range = 100;
+      for (let i=0;i<count;i++) {
+        const v = Math.floor(Math.random() * range);
+        await doInsert(v);
+        await new Promise(r=>setTimeout(r, 180));
+      }
+    });
+
+    fillBtn.addEventListener('click', async () => {
+      // demo data (balanced-ish)
+      const seq = [50,30,70,20,40,60,80,10,25,35,45];
+      for (let v of seq) {
+        await doInsert(v);
+        await new Promise(r=>setTimeout(r, 200));
+      }
+    });
+
+    inorderBtn.addEventListener('click', async () => {
+      const seq = tree.inorder();
+      await animateTraversal(seq);
+    });
+    preorderBtn.addEventListener('click', async () => {
+      const seq = tree.preorder();
+      await animateTraversal(seq);
+    });
+    postorderBtn.addEventListener('click', async () => {
+      const seq = tree.postorder();
+      await animateTraversal(seq);
+    });
+
+    fitBtn.addEventListener('click', () => {
+      // reset viewBox scaling to fit
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      canvasWrap.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+      log('Fitted tree to view.');
+    });
+
+    // Initialize
+    clearSVG();
+    log('Binary Search Tree Explorer ready.');
+    // keyboard shortcuts: i = insert, s = search, d = delete, c = clear
+    window.addEventListener('keydown', (e) => {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+      if (e.key === 'i') { valueInput.focus(); }
+      if (e.key === 'c') { clearBtn.click(); }
+    });
+
+    // ensure responsive view sizing on load/resize
+    window.addEventListener('resize', () => {
+      renderTree(false);
+    });
+
+    // Provide an initial demo set for guidance
+    (async function initialDemo(){
+      const demo = [50, 30, 70, 20, 40, 60, 80];
+      for (let v of demo) {
+        await doInsert(v);
+      }
+      log('Demo tree created. Try inserting, searching, deleting, and running traversals.');
+    })();
+
+  </script>
+
+
+  <script id="fsm" type="application/json">
+    {
+  "topic": "BST Visualizer - Interactive Application",
+  "description": "Finite state machine modeling user interactions, animations and processing flow of a Binary Search Tree visualizer (insert, search, delete, traversals, bulk fills, step-by-step mode and view controls).",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "renderTree / ready UI",
+      "on": {
+        "INSERT_CLICK": "inserting",
+        "INPUT_ENTER": "inserting",
+        "SEARCH_CLICK": "searching",
+        "DELETE_CLICK": "deleting",
+        "INORDER_CLICK": "traversing",
+        "PREORDER_CLICK": "traversing",
+        "POSTORDER_CLICK": "traversing",
+        "RANDOM_CLICK": "bulk_inserting",
+        "DEMO_CLICK": "bulk_inserting",
+        "CLEAR_CLICK": "clearing",
+        "FIT_CLICK": "fitting",
+        "STEP_TOGGLE": "idle",
+        "NODE_CLICK": "idle",
+        "RESIZE": "idle"
+      }
+    },
+    {
+      "name": "inserting",
+      "onEnter": "doInsert(valueInput) -> start insertion algorithm and render path",
+      "onExit": "renderTree(final) (animate final positions)",
+      "on": {
+        "PATH_ANIM_STARTED": "inserting",
+        "WAIT_FOR_STEP": "step_wait",
+        "DUPLICATE_DETECTED": "idle",
+        "INSERT_ANIM_DONE": "idle",
+        "INSERT_ERROR": "idle"
+      }
+    },
+    {
+      "name": "searching",
+      "onEnter": "doSearch(valueInput) -> compute path and animate",
+      "onExit": "clear transient highlights",
+      "on": {
+        "PATH_ANIM_STARTED": "searching",
+        "WAIT_FOR_STEP": "step_wait",
+        "SEARCH_FOUND": "idle",
+        "SEARCH_NOT_FOUND": "idle",
+        "SEARCH_ERROR": "idle"
+      }
+    },
+    {
+      "name": "deleting",
+      "onEnter": "doDelete(valueInput) -> compute path, animate deletion; may perform transplant or in-order successor swap",
+      "onExit": "renderTree(final) (animate final positions and removal)",
+      "on": {
+        "PATH_ANIM_STARTED": "deleting",
+        "WAIT_FOR_STEP": "step_wait",
+        "DELETE_NOT_FOUND": "idle",
+        "SWAP_REQUIRED": "swapping",
+        "DELETE_COMPLETE": "idle",
+        "DELETE_ERROR": "idle"
+      }
+    },
+    {
+      "name": "swapping",
+      "onEnter": "animate swap/replacement (in-order successor replacement) and update node values",
+      "onExit": "remove swapped-out node / cleanup highlights",
+      "on": {
+        "WAIT_FOR_STEP": "step_wait",
+        "SWAP_DONE": "deleting",
+        "SWAP_ERROR": "deleting"
+      }
+    },
+    {
+      "name": "traversing",
+      "onEnter": "animateTraversal(sequence) -> highlight nodes in visit order and log sequence",
+      "onExit": "clear traversal highlights",
+      "on": {
+        "WAIT_FOR_STEP": "step_wait",
+        "TRAVERSAL_DONE": "idle",
+        "TRAVERSAL_ERROR": "idle"
+      }
+    },
+    {
+      "name": "bulk_inserting",
+      "onEnter": "doSequenceInsert(sequence) -> run multiple doInsert calls (Random / Demo)",
+      "onExit": "renderTree(final)",
+      "on": {
+        "WAIT_FOR_STEP": "step_wait",
+        "BULK_STEP": "bulk_inserting",
+        "BULK_DONE": "idle",
+        "BULK_ERROR": "idle"
+      }
+    },
+    {
+      "name": "step_wait",
+      "onEnter": "waitOrStep() -> pause animation progress until user confirmation (canvas click or Enter) when stepMode is ON",
+      "onExit": "resume previous operation / continue animation",
+      "on": {
+        "STEP_CONFIRM": "RESUME_PREVIOUS",
+        "STEP_CANCEL": "RESUME_PREVIOUS",
+        "TIMEOUT": "RESUME_PREVIOUS"
+      }
+    },
+    {
+      "name": "fitting",
+      "onEnter": "fit view (fitBtn action): adjust preserveAspectRatio, scroll to origin, log",
+      "onExit": "idle",
+      "on": {
+        "FIT_DONE": "idle"
+      }
+    },
+    {
+      "name": "clearing",
+      "onEnter": "clear tree data (tree.root = null), clear SVG and logs, log 'Cleared tree.'",
+      "onExit": "idle",
+      "on": {
+        "CLEARED": "idle"
+      }
+    }
+  ],
+  "events": [
+    "INSERT_CLICK",
+    "INPUT_ENTER",
+    "SEARCH_CLICK",
+    "DELETE_CLICK",
+    "INORDER_CLICK",
+    "PREORDER_CLICK",
+    "POSTORDER_CLICK",
+    "RANDOM_CLICK",
+    "DEMO_CLICK",
+    "CLEAR_CLICK",
+    "FIT_CLICK",
+    "STEP_TOGGLE",
+    "NODE_CLICK",
+    "RESIZE",
+    "PATH_ANIM_STARTED",
+    "WAIT_FOR_STEP",
+    "STEP_CONFIRM",
+    "STEP_CANCEL",
+    "INSERT_ANIM_DONE",
+    "DUPLICATE_DETECTED",
+    "INSERT_ERROR",
+    "SEARCH_FOUND",
+    "SEARCH_NOT_FOUND",
+    "SEARCH_ERROR",
+    "DELETE_NOT_FOUND",
+    "SWAP_REQUIRED",
+    "SWAP_DONE",
+    "DELETE_COMPLETE",
+    "DELETE_ERROR",
+    "TRAVERSAL_DONE",
+    "TRAVERSAL_ERROR",
+    "BULK_STEP",
+    "BULK_DONE",
+    "BULK_ERROR",
+    "FIT_DONE",
+    "CLEARED",
+    "TIMEOUT",
+    "RESUME_PREVIOUS"
+  ],
+  "notes": "Implementation notes and mapping details:\n- stepMode is a persistent mode toggle (STEP_TOGGLE) that changes behavior of waitOrStep: when ON, animations call WAIT_FOR_STEP and transition into step_wait. step_wait waits for STEP_CONFIRM (canvas click or Enter) then emits RESUME_PREVIOUS to continue the operation.\n- Asynchronous actions (doInsert, doSearch, doDelete, animateTraversal, bulk insert) are started in onEnter of their states and will emit events to drive transitions (e.g., INSERT_ANIM_DONE, SEARCH_FOUND/NOT_FOUND, SWAP_REQUIRED/SWAP_DONE, TRAVERSAL_DONE, BULK_DONE). These are conceptual events representing completion/error of async animation/logic.\n- NODE_CLICK does not change visual state beyond setting the input value (remains idle). Keyboard shortcuts (i, c, Enter) map to existing events (INPUT_ENTER, CLEAR_CLICK etc.).\n- Rendering and animation lifecycle: renderTree is used onEnter / onExit to create/update SVG elements; element fade/removal is asynchronous and is considered part of the animation sequences (covered by *_ANIM_DONE events).\n- The state machine uses a conceptual 'RESUME_PREVIOUS' event to denote returning from step_wait to the operation state; an implementation can store a history/stack to continue the interrupted promise/animation where it left off.\n- Errors and exceptional outcomes (INSERT_ERROR, SEARCH_ERROR, DELETE_ERROR, etc.) return to idle and log a message.\n- UI interactions that are instantaneous (FIT_CLICK, CLEAR_CLICK, STEP_TOGGLE, NODE_CLICK) are modeled as transient transitions back to idle after performing their onEnter actions."
+}
+  </script>
+</body>
+</html>

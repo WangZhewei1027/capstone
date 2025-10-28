@@ -1,0 +1,78 @@
+# Page snapshot
+
+```yaml
+- application "Set interactive learning module" [ref=e2]:
+  - banner [ref=e3]:
+    - region "Set — Identify a Set" [ref=e4]:
+      - heading "Set — Identify a Set" [level=1] [ref=e5]
+      - generic [ref=e6]: "Concept: A \"set\" is three cards where, for each attribute (count, symbol, shading, color), the values are all the same or all different."
+      - generic [ref=e7]:
+        - generic [ref=e8]: "Single Concept: Identifying sets"
+        - generic [ref=e9]: Accessible • Responsive
+        - generic [ref=e10]: Vanilla JS
+    - generic [ref=e11]:
+      - group "game controls" [ref=e12]:
+        - button "New Deal" [ref=e13] [cursor=pointer]
+        - button "Hint" [ref=e14] [cursor=pointer]
+        - button "Auto-solve" [ref=e15] [cursor=pointer]
+        - button "+3 Cards" [ref=e16] [cursor=pointer]
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: Deck
+          - generic [ref=e20]: "69"
+        - generic [ref=e21]:
+          - generic [ref=e22]: Board
+          - generic [ref=e23]: "12"
+  - main [ref=e24]:
+    - region "game board" [ref=e25]:
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]: Play Area
+          - generic [ref=e29]: Select three cards to test for a set. Click a selected card to unselect.
+        - generic [ref=e30]:
+          - button "Check" [ref=e31] [cursor=pointer]
+          - button "Deal until set" [ref=e32] [cursor=pointer]
+      - generic [ref=e34]: "Tip: Use keyboard — arrow keys to move, Enter/Space to select."
+      - generic "Board with 12 cards" [ref=e35]:
+        - button "3 striped diamond in color" [ref=e36] [cursor=pointer]:
+          - img [ref=e38]
+        - button "1 open diamond in color" [ref=e45] [cursor=pointer]:
+          - img [ref=e47]
+        - button "3 open wave in color" [ref=e50] [cursor=pointer]:
+          - img [ref=e52]
+        - button "1 striped diamond in color" [ref=e59] [cursor=pointer]:
+          - img [ref=e61]
+        - button "1 solid wave in color" [ref=e64] [cursor=pointer]:
+          - img [ref=e66]
+        - button "2 open diamond in color" [ref=e70] [cursor=pointer]:
+          - img [ref=e72]
+        - button "1 striped wave in color" [ref=e77] [cursor=pointer]:
+          - img [ref=e79]
+        - button "1 striped diamond in color" [ref=e82] [cursor=pointer]:
+          - img [ref=e84]
+        - button "1 solid oval in color" [ref=e87] [cursor=pointer]:
+          - img [ref=e89]
+        - button "1 solid oval in color" [ref=e93] [cursor=pointer]:
+          - img [ref=e95]
+        - button "2 striped oval in color" [ref=e99] [cursor=pointer]:
+          - img [ref=e101]
+        - button "3 solid oval in color" [ref=e106] [cursor=pointer]:
+          - img [ref=e108]
+    - complementary "Learning Objective" [ref=e118]:
+      - heading "Learning Objective" [level=2] [ref=e119]
+      - generic [ref=e120]:
+        - generic [ref=e121]: "After interacting, you will be able to:"
+        - list [ref=e122]:
+          - listitem [ref=e123]: Recognize when three cards form a set (all same or all different per attribute).
+          - listitem [ref=e124]: Apply quick checks and use hints to spot sets.
+        - generic [ref=e125]: Interaction Design
+        - generic [ref=e126]: Click or use keyboard to select cards. When three are selected, use Check to validate. Correct sets flash green and are replaced; incorrect selections shake and show which attributes fail. Hint highlights part of a set.
+        - generic [ref=e127]: Layout
+        - generic [ref=e128]: "A responsive two-column layout: the left side is the interactive board; the right column explains rules and controls. Safe margins are 24px; interactive elements are separated by at least 16px."
+        - generic [ref=e129]: Attributes
+        - generic [ref=e130]:
+          - generic [ref=e131]: "Count: 1 / 2 / 3"
+          - generic [ref=e132]: "Symbol: Diamond / Oval / Wave"
+          - generic [ref=e133]: "Shading: Solid / Striped / Open"
+          - generic [ref=e134]: "Color: Red / Green / Purple"
+```
