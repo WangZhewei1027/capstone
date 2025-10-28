@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Adjacency Matrix</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; line-height: 1.5; margin: 20px; }
+    h1 { font-size: 1.5rem; margin: 0 0 8px; }
+    .small { color: #555; font-size: .9rem; }
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+    input[type="number"] { width: 5rem; }
+    .btn { padding: 6px 10px; border: 1px solid #999; background: #fff; cursor: pointer; border-radius: 4px; }
+    .btn:hover { background: #f0f0f0; }
+    .matrix-container { overflow: auto; max-width: 100%; border: 1px solid #eee; padding: 8px; }
+    table { border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: center; }
+    td.cell { cursor: pointer; min-width: 28px; }
+    td.cell[data-val="1"] { background: #cde9ff; font-weight: bold; }
+    caption { text-align: left; margin-bottom: 6px; font-weight: 600; }
+    .summary { margin-top: 12px; }
+    .divider { height: 1px; background: #eee; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>Adjacency Matrix</h1>
+  <p class="small">Click cells to toggle edges (1 = edge, 0 = no edge). For undirected graphs, the matrix is kept symmetric.</p>
+
+  <div class="controls">
+    <label>Vertices <input type="number" id="n" min="1" max="50" value="5"></label>
+    <label><input type="checkbox" id="directed"> Directed</label>
+    <label>Random density <input type="range" id="density" min="0" max="1" step="0.05" value="0.3"></label>
+    <span id="densityVal" class="small">0.30</span>
+    <button class="btn" id="generate">Generate</button>
+    <button class="btn" id="clear">Clear</button>
+    <button class="btn" id="randomize">Randomize</button>
+  </div>
+
+  <div class="matrix-container">
+    <table id="matrix" aria-label="Adjacency matrix">
+      <caption>Matrix</caption>
+      <thead id="matrixHead"></thead>
+      <tbody id="matrixBody"></tbody>
+    </table>
+  </div>
+
+  <div class="summary" id="summary"></div>
+  <div class="divider"></div>
+
+  <div id="adjListBlock">
+    <h2>Adjacency List</h2>
+    <pre id="adjList"></pre>
+  </div>
+
+  <script>
+    (function () {
+      const nInput = document.getElementById('n');
+      const directedInput = document.getElementById('directed');
+      const densityRange = document.getElementById('density');
+      const densityVal = document.getElementById('densityVal');
+      const generateBtn = document.getElementById('generate');
+      const clearBtn = document.getElementById('clear');
+      const randomizeBtn = document.getElementById('randomize');
+      const head = document.getElementById('matrixHead');
+      const body = document.getElementById('matrixBody');
+      const summary = document.getElementById('summary');
+      const adjListPre = document.getElementById('adjList');
+
+      densityRange.addEventListener('input', () => {
+        densityVal.textContent = Number(densityRange.value).toFixed(2);
+      });
+
+      generateBtn.addEventListener('click', () => {
+        const n = clamp(parseInt(nInput.value, 10) || 1, 1, 50);
+        nInput.value = n;
+        buildMatrix(n, directedInput.checked);
+      });
+
+      clearBtn.addEventListener('click', () => {
+        setAll(0);
+        updateSummary();
+      });
+
+      randomizeBtn.addEventListener('click', () => {
+        const p = Number(densityRange.value);
+        randomize(p, directedInput.checked);
+        updateSummary();
+      });
+
+      function clamp(x, lo, hi) { return Math.min(Math.max(x, lo), hi); }
+
+      function buildMatrix(n, directed) {
+        head.innerHTML = '';
+        const trh = document.createElement('tr');
+        trh.appendChild(document.createElement('th'));
+        for (let j = 0; j < n; j++) {
+          const th = document.createElement('th');
+          th.textContent = j;
+          trh.appendChild(th);
+        }
+        head.appendChild(trh);
+
+        body.innerHTML = '';
+        for (let i = 0; i < n; i++) {
+          const tr = document.createElement('tr');
+          const th = document.createElement('th');
+          th.textContent = i;
+          tr.appendChild(th);
+          for (let j = 0; j < n; j++) {
+            const td = document.createElement('td');
+            td.className = 'cell';
+            td.dataset.i = i;
+            td.dataset.j = j;
+            td.dataset.val = '0';
+            td.textContent = '0';
+            td.addEventListener('click', () => {
+              toggleCell(td, directed);
+              updateSummary();
+            });
+            tr.appendChild(td);
+          }
+          body.appendChild(tr);
+        }
+        updateSummary();
+      }
+
+      function toggleCell(td, directed) {
+        const i = Number(td.dataset.i), j = Number(td.dataset.j);
+        const newVal = td.dataset.val === '1' ? '0' : '1';
+        setCell(i, j, newVal);
+        if (!directed && i !== j) {
+          setCell(j, i, newVal);
+        }
+      }
+
+      function setCell(i, j, val) {
+        const td = getCell(i, j);
+        td.dataset.val = String(val);
+        td.textContent = String(val);
+        if (val === '1') {
+          td.setAttribute('aria-label', `edge from ${i} to ${j}`);
+          td.style.fontWeight = 'bold';
+          td.style.background = '#cde9ff';
+        } else {
+          td.removeAttribute('aria-label');
+          td.style.fontWeight = '';
+          td.style.background = '';
+        }
+      }
+
+      function getCell(i, j) {
+        return body.querySelector(`td.cell[data-i="${i}"][data-j="${j}"]`);
+      }
+
+      function size() {
+        const firstRow = body.querySelector('tr');
+        return firstRow ? firstRow.querySelectorAll('td.cell').length : 0;
+      }
+
+      function setAll(val) {
+        const tds = body.querySelectorAll('td.cell');
+        tds.forEach(td => {
+          td.dataset.val = String(val);
+          td.textContent = String(val);
+          td.style.fontWeight = '';
+          td.style.background = '';
+          td.removeAttribute('aria-label');
+        });
+      }
+
+      function randomize(p, directed) {
+        const n = size();
+        if (n === 0) return;
+        setAll(0);
+        for (let i = 0; i < n; i++) {
+          for (let j = 0; j < n; j++) {
+            if (!directed && j < i) continue;
+            const val = Math.random() < p ? '1' : '0';
+            setCell(i, j, val);
+            if (!directed && i !== j) {
+              setCell(j, i, val);
+            }
+          }
+        }
+      }
+
+      function readMatrix() {
+        const n = size();
+        const A = Array.from({ length: n }, () => Array(n).fill(0));
+        const rows = body.querySelectorAll('tr');
+        rows.forEach((tr, i) => {
+          const cells = tr.querySelectorAll('td.cell');
+          cells.forEach((td, j) => {
+            A[i][j] = Number(td.dataset.val);
+          });
+        });
+        return A;
+      }
+
+      function updateSummary() {
+        const A = readMatrix();
+        const n = A.length;
+        if (n === 0) { summary.textContent = ''; adjListPre.textContent = ''; return; }
+        const directed = directedInput.checked;
+        let edges = 0;
+        const degOut = Array(n).fill(0);
+        const degIn = Array(n).fill(0);
+        for (let i = 0; i < n; i++) {
+          for (let j = 0; j < n; j++) {
+            const v = A[i][j];
+            if (v) {
+              edges += 1;
+              degOut[i] += 1;
+              degIn[j] += 1;
+            }
+          }
+        }
+        if (!directed) {
+          let loops = 0;
+          for (let i = 0; i < n; i++) { loops += A[i][i]; }
+          const undirectedEdges = (edges - loops) / 2 + loops;
+          edges = undirectedEdges;
+        }
+        let text = directed ? `Directed graph: ${edges} edges.` : `Undirected graph: ${edges} edges.`;
+        text += ' Degrees: ';
+        if (directed) {
+          text += degOut.map((d, i) => `v${i} out=${d}, in=${degIn[i]}`).join('; ');
+        } else {
+          text += degOut.map((d, i) => `v${i} deg=${d}`).join('; ');
+        }
+        summary.textContent = text;
+
+        const lines = [];
+        for (let i = 0; i < n; i++) {
+          const nbrs = [];
+          for (let j = 0; j < n; j++) {
+            if (A[i][j]) nbrs.push(j);
+          }
+          lines.push(`${i}: ${nbrs.join(', ')}`);
+        }
+        adjListPre.textContent = lines.join('\n');
+      }
+
+      buildMatrix(parseInt(nInput.value, 10), directedInput.checked);
+    })();
+  </script>
+</body>
+</html>

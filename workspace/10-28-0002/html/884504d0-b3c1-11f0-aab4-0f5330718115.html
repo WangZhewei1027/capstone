@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hash Table</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; margin: 0; padding: 24px; max-width: 900px; }
+  h1 { margin-top: 0; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 800px) { .grid { grid-template-columns: 2fr 3fr; } }
+  .panel { border: 1px solid rgba(0,0,0,.1); border-radius: 8px; padding: 16px; }
+  label { display: block; margin-top: 8px; }
+  input, select, button { font: inherit; padding: 8px; margin-top: 4px; }
+  button { cursor: pointer; }
+  .buckets { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+  .bucket { border: 1px dashed rgba(0,0,0,.2); border-radius: 6px; padding: 8px; }
+  .bucket h3 { margin: 0 0 4px 0; font-size: 14px; opacity: .7; }
+  .pair { display: flex; gap: 4px; align-items: center; }
+  .pair .key { font-weight: 600; }
+  .muted { opacity: .75; }
+  .msg { min-height: 1em; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+</style>
+</head>
+<body>
+  <h1>Hash Table</h1>
+  <p>A hash table is a data structure that maps keys to values using a hash function to place entries into fixed-size buckets. It provides fast average-time insert, lookup, and delete by keeping most buckets small.</p>
+  <div class="grid">
+    <section class="panel">
+      <h2>Try it</h2>
+      <p class="muted">This demo uses separate chaining with a djb2-style hash function.</p>
+      <label>Table size
+        <select id="size">
+          <option>8</option>
+          <option selected>16</option>
+          <option>32</option>
+          <option>64</option>
+        </select>
+      </label>
+      <div class="actions">
+        <button id="newTable">Create new table</button>
+        <button id="seed">Load sample data</button>
+        <button id="reset">Clear table</button>
+      </div>
+      <hr>
+      <label>Key
+        <input id="key" type="text" placeholder="e.g., apple or 42">
+      </label>
+      <label>Value
+        <input id="value" type="text" placeholder="e.g., red">
+      </label>
+      <div class="actions">
+        <button id="set">Set</button>
+        <button id="get">Get</button>
+        <button id="del">Delete</button>
+      </div>
+      <p class="msg" id="msg"></p>
+      <p class="muted" id="hashInfo"></p>
+    </section>
+    <section class="panel">
+      <h2>Buckets</h2>
+      <div id="buckets" class="buckets"></div>
+      <p class="muted">Average-case time: O(1) for set/get/delete. Worst-case (all keys collide): O(n).</p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>How it works</h2>
+    <ul>
+      <li>Hash function: Converts a key into a number and uses modulo to choose a bucket index.</li>
+      <li>Separate chaining: Each bucket stores a small list of key–value pairs. If two keys hash to the same index, they share a bucket.</li>
+      <li>Operations:
+        <ul>
+          <li>Set: Compute index, update existing pair if key is present, otherwise append.</li>
+          <li>Get: Compute index, scan bucket for the key.</li>
+          <li>Delete: Compute index, remove the pair if found.</li>
+        </ul>
+      </li>
+      <li>Load factor: entries / bucket count. Rehash to a larger table when load factor grows to keep buckets short.</li>
+    </ul>
+    <pre><code>// djb2-style hash (unsigned)
+function hashStringToInt(s) {
+  let h = 5381;
+  for (let i = 0; i &lt; s.length; i++) {
+    h = ((h &lt;&lt; 5) + h) + s.charCodeAt(i); // h * 33 + c
+  }
+  return h >>> 0;
+}
+</code></pre>
+  </section>
+
+  <script>
+  (function() {
+    class HashTable {
+      constructor(size = 16) {
+        this.size = size;
+        this.buckets = Array.from({ length: size }, () => []);
+        this.count = 0;
+      }
+      hash(key) {
+        const s = String(key);
+        let h = 5381;
+        for (let i = 0; i < s.length; i++) {
+          h = ((h << 5) + h) + s.charCodeAt(i);
+        }
+        const idx = (h >>> 0) % this.size;
+        return { index: idx, raw: h >>> 0 };
+      }
+      set(key, value) {
+        const { index } = this.hash(key);
+        const bucket = this.buckets[index];
+        for (let i = 0; i < bucket.length; i++) {
+          if (bucket[i].key === key) {
+            bucket[i].value = value;
+            return { updated: true, index };
+          }
+        }
+        bucket.push({ key, value });
+        this.count++;
+        return { inserted: true, index };
+      }
+      get(key) {
+        const { index } = this.hash(key);
+        const bucket = this.buckets[index];
+        for (let i = 0; i < bucket.length; i++) {
+          if (bucket[i].key === key) {
+            return { found: true, value: bucket[i].value, index };
+          }
+        }
+        return { found: false, value: undefined, index };
+      }
+      delete(key) {
+        const { index } = this.hash(key);
+        const bucket = this.buckets[index];
+        for (let i = 0; i < bucket.length; i++) {
+          if (bucket[i].key === key) {
+            const [removed] = bucket.splice(i, 1);
+            this.count--;
+            return { removed, index };
+          }
+        }
+        return { removed: null, index };
+      }
+      entries() {
+        const out = [];
+        for (let i = 0; i < this.size; i++) {
+          for (const pair of this.buckets[i]) {
+            out.push({ index: i, key: pair.key, value: pair.value });
+          }
+        }
+        return out;
+      }
+      clear() {
+        this.buckets = Array.from({ length: this.size }, () => []);
+        this.count = 0;
+      }
+    }
+
+    let table = new HashTable(16);
+    const sizeSel = document.getElementById('size');
+    const newTableBtn = document.getElementById('newTable');
+    const seedBtn = document.getElementById('seed');
+    const resetBtn = document.getElementById('reset');
+    const keyInput = document.getElementById('key');
+    const valInput = document.getElementById('value');
+    const setBtn = document.getElementById('set');
+    const getBtn = document.getElementById('get');
+    const delBtn = document.getElementById('del');
+    const bucketsDiv = document.getElementById('buckets');
+    const msg = document.getElementById('msg');
+    const hashInfo = document.getElementById('hashInfo');
+
+    function render() {
+      bucketsDiv.innerHTML = '';
+      for (let i = 0; i < table.size; i++) {
+        const bucketEl = document.createElement('div');
+        bucketEl.className = 'bucket';
+        const title = document.createElement('h3');
+        title.textContent = 'Bucket ' + i;
+        bucketEl.appendChild(title);
+        const contents = table.buckets[i];
+        if (contents.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'muted';
+          empty.textContent = '(empty)';
+          bucketEl.appendChild(empty);
+        } else {
+          for (const pair of contents) {
+            const row = document.createElement('div');
+            row.className = 'pair';
+            const keySpan = document.createElement('span');
+            keySpan.className = 'key';
+            keySpan.textContent = String(pair.key);
+            const sep = document.createElement('span');
+            sep.textContent = ':';
+            const valSpan = document.createElement('span');
+            valSpan.textContent = String(pair.value);
+            row.appendChild(keySpan);
+            row.appendChild(sep);
+            row.appendChild(valSpan);
+            bucketEl.appendChild(row);
+          }
+        }
+        bucketsDiv.appendChild(bucketEl);
+      }
+      const lf = (table.count / table.size).toFixed(2);
+      hashInfo.textContent = 'Entries: ' + table.count + ' | Buckets: ' + table.size + ' | Load factor: ' + lf;
+    }
+
+    function showMessage(text) {
+      msg.textContent = text;
+    }
+
+    function computePreview() {
+      const k = keyInput.value;
+      if (!k) {
+        hashInfo.textContent = 'Entries: ' + table.count + ' | Buckets: ' + table.size + ' | Load factor: ' + (table.count / table.size).toFixed(2);
+        return;
+      }
+      const h = table.hash(k);
+      hashInfo.textContent = 'Hash ' + h.raw + ' → Bucket ' + h.index + ' | Entries: ' + table.count + ' | Buckets: ' + table.size + ' | Load factor: ' + (table.count / table.size).toFixed(2);
+    }
+
+    newTableBtn.addEventListener('click', () => {
+      const sz = parseInt(sizeSel.value, 10);
+      table = new HashTable(sz);
+      showMessage('Created new table with ' + sz + ' buckets.');
+      render();
+    });
+
+    resetBtn.addEventListener('click', () => {
+      table.clear();
+      showMessage('Cleared all entries.');
+      render();
+    });
+
+    seedBtn.addEventListener('click', () => {
+      const samples = [
+        ['apple', 'fruit'],
+        ['banana', 'fruit'],
+        ['carrot', 'veg'],
+        ['dog', 'animal'],
+        ['elephant', 'animal'],
+        ['grape', 'fruit'],
+        ['hat', 'clothing'],
+        ['ice', 'cold'],
+        ['jazz', 'music'],
+        ['kite', 'toy'],
+        ['lion', 'animal'],
+        ['moon', 'space'],
+        ['note', 'music'],
+        ['olive', 'fruit'],
+        ['pear', 'fruit'],
+        ['queen', 'title'],
+        ['river', 'water'],
+        ['sun', 'star'],
+        ['tree', 'plant']
+      ];
+      for (const [k, v] of samples) {
+        table.set(k, v);
+      }
+      showMessage('Loaded sample data (' + samples.length + ' entries).');
+      render();
+    });
+
+    setBtn.addEventListener('click', () => {
+      const k = keyInput.value;
+      const v = valInput.value;
+      if (!k) { showMessage('Please enter a key.'); return; }
+      if (v === '') { showMessage('Please enter a value.'); return; }
+      const res = table.set(k, v);
+      showMessage((res.updated ? 'Updated' : 'Inserted') + ' "' + k + '" at bucket ' + res.index + '.');
+      render();
+    });
+
+    getBtn.addEventListener('click', () => {
+      const k = keyInput.value;
+      if (!k) { showMessage('Please enter a key.'); return; }
+      const res = table.get(k);
+      if (res.found) {
+        showMessage('Found "' + k + '" = "' + res.value + '" in bucket ' + res.index + '.');
+      } else {
+        showMessage('Key "' + k + '" not found (looked in bucket ' + res.index + ').');
+      }
+      render();
+    });
+
+    delBtn.addEventListener('click', () => {
+      const k = keyInput.value;
+      if (!k) { showMessage('Please enter a key.'); return; }
+      const res = table.delete(k);
+      if (res.removed) {
+        showMessage('Deleted "' + k + '" from bucket ' + res.index + '.');
+      } else {
+        showMessage('Key "' + k + '" not found (bucket ' + res.index + ').');
+      }
+      render();
+    });
+
+    keyInput.addEventListener('input', computePreview);
+
+    render();
+  })();
+  </script>
+</body>
+</html>

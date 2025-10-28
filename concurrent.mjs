@@ -1,34 +1,42 @@
 import { processTask } from "./lib/add-core.mjs";
 import { ConcurrencyLimiter } from "./lib/concurrency-limiter.mjs";
+import questionList from "./question-list.json" assert { type: "json" };
 
 // 简单的测试配置
 const TEST_CONFIG = {
-  workspace: "test-concurrent",
-  concurrencyLimit: 2,
+  workspace: "10-28-0002",
+  concurrencyLimit: 25,
   systemPrompt: "Create a simple HTML page. Only respond with HTML code.",
 };
 
 // 创建测试任务
-const testTasks = [
-  {
-    workspace: TEST_CONFIG.workspace,
-    model: "gpt-4o-mini",
-    question: "Create a simple red button that says 'Click me!'",
-    system: TEST_CONFIG.systemPrompt,
-  },
-  {
-    workspace: TEST_CONFIG.workspace,
-    model: "gpt-4o-mini",
-    question: "Create a simple blue div with the text 'Hello World'",
-    system: TEST_CONFIG.systemPrompt,
-  },
-  {
-    workspace: TEST_CONFIG.workspace,
-    model: "gpt-4o-mini",
-    question: "Create a simple form with a text input and submit button",
-    system: TEST_CONFIG.systemPrompt,
-  },
-];
+// const testTasks = [
+//   {
+//     workspace: TEST_CONFIG.workspace,
+//     model: "gpt-4o-mini",
+//     question: "Create a simple red button that says 'Click me!'",
+//     system: TEST_CONFIG.systemPrompt,
+//   },
+//   {
+//     workspace: TEST_CONFIG.workspace,
+//     model: "gpt-4o-mini",
+//     question: "Create a simple blue div with the text 'Hello World'",
+//     system: TEST_CONFIG.systemPrompt,
+//   },
+//   {
+//     workspace: TEST_CONFIG.workspace,
+//     model: "gpt-4o-mini",
+//     question: "Create a simple form with a text input and submit button",
+//     system: TEST_CONFIG.systemPrompt,
+//   },
+// ];
+
+const testTasks = questionList.map((q) => ({
+  workspace: TEST_CONFIG.workspace,
+  model: "gpt-5",
+  question: q,
+  system: TEST_CONFIG.systemPrompt,
+}));
 
 console.log("开始并发测试...");
 console.log(

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Kruskal’s Algorithm — Simple Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 16px;
+      line-height: 1.6;
+    }
+    h1, h2 {
+      margin: 0.4em 0;
+    }
+    p {
+      margin: 0.6em 0;
+    }
+    ul, ol {
+      margin: 0.6em 0 0.6em 1.2em;
+    }
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      box-sizing: border-box;
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 14px;
+    }
+    button {
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 8px 0;
+    }
+    .inline-note {
+      font-size: 0.95em;
+      opacity: 0.8;
+    }
+    pre {
+      background: #f6f8fa;
+      border-radius: 6px;
+      padding: 10px;
+      overflow: auto;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .stat {
+      display: inline-block;
+      margin-right: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Kruskal’s Algorithm</h1>
+  <p>
+    Kruskal’s algorithm finds a minimum spanning tree (MST) of a connected, weighted, undirected graph.
+    It builds the MST by always choosing the smallest edge that doesn’t create a cycle, using a
+    Union-Find (Disjoint Set) data structure to detect cycles efficiently.
+  </p>
+
+  <h2>How it works</h2>
+  <ol>
+    <li>Sort all edges by increasing weight.</li>
+    <li>Start with each vertex in its own set (a forest of single-node trees).</li>
+    <li>Scan edges in order: if an edge connects two different sets, add it to the MST and union the sets.</li>
+    <li>Stop when the MST has V − 1 edges (for V vertices). If the graph is disconnected, you get a minimum spanning forest.</li>
+  </ol>
+  <p class="inline-note">Time complexity: O(E log E) due to sorting, where E is the number of edges.</p>
+
+  <h2>Try it</h2>
+  <p>Enter edges as lines in the form “u v w” or “u,v,w” (undirected). Examples: “A B 4”, “B,C,3”.</p>
+  <textarea id="edgesInput" aria-label="Edges input">
+A C 1
+B D 2
+B C 3
+A B 4
+C D 5
+  </textarea>
+  <div>
+    <button id="runBtn">Compute MST</button>
+    <button id="clearBtn" title="Clear output">Clear Output</button>
+  </div>
+
+  <div id="output" aria-live="polite"></div>
+
+  <h2>Example (from the default input)</h2>
+  <p>Sorted edges: A–C (1), B–D (2), B–C (3), A–B (4), C–D (5). Selected edges (★) form the MST:</p>
+  <pre><code>A–C (1) ★
+B–D (2) ★
+B–C (3) ★
+A–B (4)
+C–D (5)
+
+MST total weight = 6</code></pre>
+
+  <script>
+    (function () {
+      const input = document.getElementById('edgesInput');
+      const output = document.getElementById('output');
+      const runBtn = document.getElementById('runBtn');
+      const clearBtn = document.getElementById('clearBtn');
+
+      function parseEdges(text) {
+        const lines = text.split(/\r?\n/);
+        const edges = [];
+        const nodesSet = new Set();
+        let idCounter = 0;
+
+        for (let raw of lines) {
+          const line = raw.trim();
+          if (!line) continue;
+          // Support "u v w" or "u,v,w"
+          const parts = line.split(/[,\s]+/).filter(Boolean);
+          if (parts.length < 3) continue;
+
+          const u = parts[0];
+          const v = parts[1];
+          const w = parseFloat(parts[2]);
+
+          if (!u || !v || !isFinite(w)) continue;
+
+          edges.push({ id: idCounter++, u, v, w });
+          nodesSet.add(u);
+          nodesSet.add(v);
+        }
+        return { edges, nodes: Array.from(nodesSet) };
+      }
+
+      function makeUF(nodes) {
+        const parent = new Map();
+        const size = new Map();
+        nodes.forEach(n => { parent.set(n, n); size.set(n, 1); });
+
+        function find(x) {
+          let p = parent.get(x);
+          if (p !== x) {
+            p = find(p);
+            parent.set(x, p);
+          }
+          return parent.get(x);
+        }
+        function union(a, b) {
+          let ra = find(a), rb = find(b);
+          if (ra === rb) return false;
+          const sa = size.get(ra), sb = size.get(rb);
+          if (sa < sb) { const tmp = ra; ra = rb; rb = tmp; }
+          parent.set(rb, ra);
+          size.set(ra, sa + sb);
+          return true;
+        }
+        return { find, union };
+      }
+
+      function kruskal(edges, nodes) {
+        const uf = makeUF(nodes);
+        const sorted = edges.slice().sort((a, b) => a.w === b.w ? a.id - b.id : a.w - b.w);
+        const mst = [];
+        let total = 0;
+
+        for (const e of sorted) {
+          if (uf.union(e.u, e.v)) {
+            mst.push(e);
+            total += e.w;
+            if (mst.length === nodes.length - 1) break;
+          }
+        }
+        const connected = mst.length === nodes.length - 1;
+        return { mst, total, connected, sorted };
+      }
+
+      function renderResult(parsed, result) {
+        const { edges, nodes } = parsed;
+        const { mst, total, connected, sorted } = result;
+        const selected = new Set(mst.map(e => e.id));
+
+        const stats = `
+<div class="stat"><strong>Vertices:</strong> ${nodes.length}</div>
+<div class="stat"><strong>Edges:</strong> ${edges.length}</div>
+<div class="stat"><strong>MST edges chosen:</strong> ${mst.length}</div>
+<div class="stat"><strong>Total weight:</strong> ${mst.length ? total : '-'}</div>
+`;
+        const lines = sorted.map(e => {
+          const star = selected.has(e.id) ? '★' : '';
+          return `${e.u}–${e.v} (${e.w}) ${star}`;
+        }).join('\n');
+
+        const note = connected
+          ? 'Graph is connected. A minimum spanning tree was found.'
+          : 'Graph is disconnected. Produced a minimum spanning forest (MST for each component).';
+
+        output.innerHTML = `
+<p>${note}</p>
+<div>${stats}</div>
+<pre><code>${lines}
+
+${mst.length ? `MST total weight = ${total}` : 'No MST edges selected.'}</code></pre>
+`;
+      }
+
+      runBtn.addEventListener('click', () => {
+        const parsed = parseEdges(input.value);
+        if (parsed.edges.length === 0) {
+          output.innerHTML = '<p>Please enter edges in the form “u v w” or “u,v,w”.</p>';
+          return;
+        }
+        const result = kruskal(parsed.edges, parsed.nodes);
+        renderResult(parsed, result);
+      });
+
+      clearBtn.addEventListener('click', () => {
+        output.innerHTML = '';
+      });
+    })();
+  </script>
+</body>
+</html>

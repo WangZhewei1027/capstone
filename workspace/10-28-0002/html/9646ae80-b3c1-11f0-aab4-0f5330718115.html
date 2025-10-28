@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Topological Sort</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; margin: 0; padding: 0; background: #f7f7f9; color: #222; }
+    .container { max-width: 800px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.6rem; margin: 0 0 8px; }
+    h2 { font-size: 1.2rem; margin: 24px 0 8px; }
+    p { margin: 8px 0; }
+    ul { margin: 8px 0 8px 20px; }
+    label { display: block; font-weight: 600; margin: 16px 0 8px; }
+    textarea { width: 100%; min-height: 140px; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #fff; }
+    .controls { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    button { padding: 8px 12px; border: 1px solid #bbb; border-radius: 6px; background: #fff; cursor: pointer; }
+    button:hover { background: #f0f0f0; }
+    .output { white-space: pre-wrap; background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 8px; margin-top: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .note { font-size: 0.95rem; color: #444; }
+    .small { font-size: 0.9rem; color: #555; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Topological Sort</h1>
+    <p>Topological sorting orders the vertices of a directed acyclic graph (DAG) so that for every directed edge u → v, u appears before v in the order.</p>
+
+    <h2>When is it useful?</h2>
+    <ul>
+      <li>Task scheduling with dependencies</li>
+      <li>Build systems and compilation order</li>
+      <li>Resolving package/module dependency chains</li>
+    </ul>
+
+    <h2>Algorithms</h2>
+    <p class="note">Two common approaches (both run in O(V + E)):</p>
+    <ul>
+      <li>Kahn’s Algorithm (BFS):
+        <ul>
+          <li>Compute indegrees of all nodes</li>
+          <li>Start with all nodes having indegree 0</li>
+          <li>Repeatedly remove one, append to order, decrement indegrees of its neighbors</li>
+          <li>If nodes remain with indegree &gt; 0, the graph has a cycle (no topo order)</li>
+        </ul>
+      </li>
+      <li>DFS-based:
+        <ul>
+          <li>Depth-first search; on finishing a node, push it to a stack</li>
+          <li>Reverse the stack for the topological order</li>
+          <li>Detect cycles via a recursion stack</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h2>Try it</h2>
+    <p class="small">Enter directed edges. Formats supported: "A->B", "A B". You may also list isolated nodes on their own lines.</p>
+
+    <label for="edgesInput">Graph edges (one per line):</label>
+    <textarea id="edgesInput" aria-label="Graph edges input">A->B
+A->C
+B->D
+C->D
+D->E</textarea>
+
+    <div class="controls">
+      <button id="runBtn">Run Topological Sort</button>
+      <button id="exampleDagBtn">Load DAG Example</button>
+      <button id="exampleCycleBtn">Load Cyclic Example</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+
+    <div id="result" class="output" aria-live="polite"></div>
+
+    <h2>Notes</h2>
+    <ul>
+      <li>Topological sort exists only if the graph is a DAG (no directed cycles).</li>
+      <li>If a cycle is present, you’ll get an error indicating which nodes are still cyclic/dependent.</li>
+    </ul>
+  </div>
+
+  <script>
+    function parseGraph(text) {
+      const lines = text.split(/\r?\n|,/).map(s => s.trim()).filter(Boolean);
+      const edges = [];
+      const singletons = [];
+      for (const line of lines) {
+        const arrow = line.match(/^(.+?)->(.+)$/);
+        if (arrow) {
+          const u = arrow[1].trim();
+          const v = arrow[2].trim();
+          if (u && v) edges.push([u, v]);
+          continue;
+        }
+        const parts = line.split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) {
+          edges.push([parts[0], parts[1]]);
+        } else if (parts.length === 1) {
+          singletons.push(parts[0]);
+        }
+      }
+      // Deduplicate edges
+      const seen = new Set();
+      const unique = [];
+      for (const [u, v] of edges) {
+        const key = u + "→" + v;
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push([u, v]);
+        }
+      }
+      return { edges: unique, singletons };
+    }
+
+    function topoSortKahn(edges, extraNodes = []) {
+      const nodes = new Set(extraNodes);
+      for (const [u, v] of edges) {
+        nodes.add(u);
+        nodes.add(v);
+      }
+
+      // Initialize adjacency and indegrees
+      const adj = new Map();
+      const indeg = new Map();
+      for (const n of nodes) {
+        adj.set(n, []);
+        indeg.set(n, 0);
+      }
+      for (const [u, v] of edges) {
+        adj.get(u).push(v);
+        indeg.set(v, indeg.get(v) + 1);
+      }
+
+      // Queue of indegree-0 nodes (sorted for deterministic output)
+      const queue = Array.from(nodes).filter(n => indeg.get(n) === 0).sort();
+      const order = [];
+      while (queue.length) {
+        const n = queue.shift();
+        order.push(n);
+        for (const m of adj.get(n)) {
+          indeg.set(m, indeg.get(m) - 1);
+          if (indeg.get(m) === 0) {
+            // Maintain sorted insertion for determinism
+            queue.push(m);
+            queue.sort();
+          }
+        }
+      }
+
+      const isDag = order.length === nodes.size;
+      const remaining = [];
+      if (!isDag) {
+        for (const n of nodes) {
+          if (indeg.get(n) > 0) remaining.push(n);
+        }
+        remaining.sort();
+      }
+
+      return { order, isDag, remaining };
+    }
+
+    function run() {
+      const input = document.getElementById('edgesInput').value;
+      const { edges, singletons } = parseGraph(input);
+      if (edges.length === 0 && singletons.length === 0) {
+        show("Please enter at least one edge or node.");
+        return;
+      }
+      const result = topoSortKahn(edges, singletons);
+      if (result.isDag) {
+        show("Topological order:\n" + result.order.join(" -> "));
+      } else {
+        show(
+          "Cycle detected: no topological ordering exists.\n" +
+          "Nodes still cyclic/dependent: " + result.remaining.join(", ")
+        );
+      }
+    }
+
+    function show(text) {
+      document.getElementById('result').textContent = text;
+    }
+
+    document.getElementById('runBtn').addEventListener('click', run);
+    document.getElementById('clearBtn').addEventListener('click', function () {
+      document.getElementById('edgesInput').value = "";
+      show("");
+    });
+    document.getElementById('exampleDagBtn').addEventListener('click', function () {
+      document.getElementById('edgesInput').value = [
+        "A->B",
+        "A->C",
+        "B->D",
+        "C->D",
+        "D->E",
+        "F" // isolated node
+      ].join("\n");
+      run();
+    });
+    document.getElementById('exampleCycleBtn').addEventListener('click', function () {
+      document.getElementById('edgesInput').value = [
+        "A->B",
+        "B->C",
+        "C->A",
+        "C->D"
+      ].join("\n");
+      run();
+    });
+
+    // Run once on load with the default example
+    window.addEventListener('DOMContentLoaded', run);
+  </script>
+</body>
+</html>

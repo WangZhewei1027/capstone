@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Linear Regression (Simple Demo)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      margin: 0 auto;
+      max-width: 900px;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.6rem; margin: 0 0 8px; }
+    h2 { font-size: 1.2rem; margin-top: 24px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    label { font-weight: 600; display: block; margin-bottom: 6px; }
+    textarea, input[type="text"], input[type="number"], button {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+      background: transparent;
+      font-size: 14px;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    button {
+      cursor: pointer;
+      border: none;
+      background: #2f6fed;
+      color: white;
+      font-weight: 600;
+    }
+    button.secondary { background: #e0e0e0; color: #222; }
+    .actions { display: flex; gap: 8px; margin-top: 8px; }
+    .results {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .card {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .small { font-size: 12px; opacity: 0.8; }
+    .error {
+      color: #b00020;
+      margin-top: 8px;
+      font-weight: 600;
+    }
+    svg { width: 100%; height: 320px; border: 1px solid #ccc; border-radius: 8px; background: rgba(0,0,0,0.02); }
+    .footer { margin-top: 24px; font-size: 13px; opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <h1>Linear Regression</h1>
+  <p>
+    Linear regression models a relationship between a predictor x and a response y using a straight line:
+    ŷ = a + b·x. The goal is to choose coefficients a (intercept) and b (slope) that minimize the sum of
+    squared residuals between observed y and predicted ŷ.
+  </p>
+  <ul>
+    <li>Slope b = (n·Σ(xy) − Σx·Σy) / (n·Σ(x²) − (Σx)²)</li>
+    <li>Intercept a = ȳ − b·x̄</li>
+    <li>R² measures how much variance in y is explained by x (closer to 1 is better)</li>
+  </ul>
+
+  <h2>Try it</h2>
+  <div class="grid">
+    <div>
+      <label for="xInput">x values (comma or space separated)</label>
+      <textarea id="xInput" placeholder="e.g., 1, 2, 3, 4, 5">1, 2, 3, 4, 5</textarea>
+    </div>
+    <div>
+      <label for="yInput">y values (comma or space separated)</label>
+      <textarea id="yInput" placeholder="e.g., 1.2, 2.1, 2.9, 3.7, 5.1">1.2, 2.1, 2.9, 3.7, 5.1</textarea>
+    </div>
+  </div>
+  <div class="actions">
+    <button id="fitBtn">Fit model</button>
+    <button id="clearBtn" class="secondary">Clear</button>
+  </div>
+  <div id="error" class="error" aria-live="polite"></div>
+
+  <div class="results">
+    <div class="card">
+      <div><strong>Model</strong></div>
+      <div class="mono" id="eqn">ŷ = a + b·x</div>
+      <div class="small" id="stats">Slope b: —, Intercept a: —, R²: —, MSE: —</div>
+      <div style="margin-top: 10px;">
+        <label for="predictX">Predict ŷ for x</label>
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 8px;">
+          <input id="predictX" type="number" step="any" placeholder="Enter x">
+          <button id="predictBtn" class="secondary">Predict</button>
+        </div>
+        <div class="mono small" id="predictY" style="margin-top: 6px;"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div><strong>Scatter & fitted line</strong></div>
+      <svg id="plot" viewBox="0 0 640 360" role="img" aria-label="Scatter plot with fitted line">
+        <defs>
+          <style>
+            .axis { stroke: #666; stroke-width: 1; }
+            .gridline { stroke: #ccc; stroke-width: 0.5; }
+            .point { fill: #2f6fed; }
+            .fitline { stroke: #e34a4a; stroke-width: 2.5; }
+            .label { font-size: 12px; fill: currentColor; }
+          </style>
+        </defs>
+        <!-- Plot elements created via script -->
+      </svg>
+    </div>
+  </div>
+
+  <div class="footer">
+    Notes:
+    <ul>
+      <li>Provide at least two pairs of numeric (x, y) values.</li>
+      <li>If all x values are identical, the slope is undefined.</li>
+      <li>R² is computed as 1 − SSE/SST; if SST is 0 (constant y), R² is set to 1.</li>
+    </ul>
+  </div>
+
+  <script>
+    function parseNumbers(str) {
+      if (!str) return [];
+      // Split by commas or whitespace, filter out empties
+      const tokens = str.split(/[\s,]+/).map(t => t.trim()).filter(Boolean);
+      const nums = [];
+      for (const t of tokens) {
+        const v = Number(t);
+        if (!Number.isFinite(v)) return null;
+        nums.push(v);
+      }
+      return nums;
+    }
+
+    function fitLinearRegression(x, y) {
+      const n = x.length;
+      let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
+      for (let i = 0; i < n; i++) {
+        const xi = x[i], yi = y[i];
+        sumX += xi;
+        sumY += yi;
+        sumXX += xi * xi;
+        sumXY += xi * yi;
+      }
+      const denom = n * sumXX - sumX * sumX;
+      if (denom === 0) return { error: "Cannot fit: all x values are identical." };
+      const slope = (n * sumXY - sumX * sumY) / denom;
+      const meanX = sumX / n;
+      const meanY = sumY / n;
+      const intercept = meanY - slope * meanX;
+
+      // Residuals & metrics
+      let sse = 0, sst = 0;
+      const yhat = [];
+      for (let i = 0; i < n; i++) {
+        const yiHat = intercept + slope * x[i];
+        yhat.push(yiHat);
+        const resid = y[i] - yiHat;
+        sse += resid * resid;
+        const dy = y[i] - meanY;
+        sst += dy * dy;
+      }
+      const r2 = sst === 0 ? 1 : 1 - sse / sst;
+      const mse = sse / n;
+
+      return { slope, intercept, r2, mse, yhat, meanX, meanY, x, y };
+    }
+
+    function format(num) {
+      if (!Number.isFinite(num)) return "—";
+      const abs = Math.abs(num);
+      if ((abs !== 0 && abs < 1e-3) || abs >= 1e6) {
+        return num.toExponential(3);
+      }
+      return Math.round(num * 1e6) / 1e6 + "";
+    }
+
+    function drawPlot(model) {
+      const svg = document.getElementById("plot");
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      const width = 640;
+      const height = 360;
+      const margin = { left: 54, right: 16, top: 16, bottom: 40 };
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+
+      const xs = model.x, ys = model.y;
+      const xMin = Math.min(...xs), xMax = Math.max(...xs);
+      const yMinData = Math.min(...ys, model.intercept + model.slope * xMin, model.intercept + model.slope * xMax);
+      const yMaxData = Math.max(...ys, model.intercept + model.slope * xMin, model.intercept + model.slope * xMax);
+
+      // Add padding to ranges
+      const padX = (xMax - xMin) === 0 ? 1 : (xMax - xMin) * 0.08;
+      const padY = (yMaxData - yMinData) === 0 ? 1 : (yMaxData - yMinData) * 0.12;
+      const x0 = xMin - padX, x1 = xMax + padX;
+      const y0 = yMinData - padY, y1 = yMaxData + padY;
+
+      const xScale = x => margin.left + ( (x - x0) / (x1 - x0) ) * innerW;
+      const yScale = y => margin.top + innerH - ( (y - y0) / (y1 - y0) ) * innerH;
+
+      // Axes
+      const axis = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      const xAxisLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      xAxisLine.setAttribute("x1", margin.left);
+      xAxisLine.setAttribute("y1", margin.top + innerH);
+      xAxisLine.setAttribute("x2", margin.left + innerW);
+      xAxisLine.setAttribute("y2", margin.top + innerH);
+      xAxisLine.setAttribute("class", "axis");
+      axis.appendChild(xAxisLine);
+
+      const yAxisLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      yAxisLine.setAttribute("x1", margin.left);
+      yAxisLine.setAttribute("y1", margin.top);
+      yAxisLine.setAttribute("x2", margin.left);
+      yAxisLine.setAttribute("y2", margin.top + innerH);
+      yAxisLine.setAttribute("class", "axis");
+      axis.appendChild(yAxisLine);
+
+      // Ticks
+      const ticks = 5;
+      for (let i = 0; i <= ticks; i++) {
+        const tx = x0 + (i / ticks) * (x1 - x0);
+        const ty = y0 + (i / ticks) * (y1 - y0);
+
+        const xTick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        xTick.setAttribute("x1", xScale(tx));
+        xTick.setAttribute("y1", margin.top + innerH);
+        xTick.setAttribute("x2", xScale(tx));
+        xTick.setAttribute("y2", margin.top + innerH + 6);
+        xTick.setAttribute("class", "axis");
+        axis.appendChild(xTick);
+
+        const xLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        xLabel.setAttribute("x", xScale(tx));
+        xLabel.setAttribute("y", margin.top + innerH + 22);
+        xLabel.setAttribute("text-anchor", "middle");
+        xLabel.setAttribute("class", "label");
+        xLabel.textContent = format(tx);
+        axis.appendChild(xLabel);
+
+        const yTick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        yTick.setAttribute("x1", margin.left - 6);
+        yTick.setAttribute("y1", yScale(ty));
+        yTick.setAttribute("x2", margin.left);
+        yTick.setAttribute("y2", yScale(ty));
+        yTick.setAttribute("class", "axis");
+        axis.appendChild(yTick);
+
+        const yLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        yLabel.setAttribute("x", margin.left - 8);
+        yLabel.setAttribute("y", yScale(ty) + 4);
+        yLabel.setAttribute("text-anchor", "end");
+        yLabel.setAttribute("class", "label");
+        yLabel.textContent = format(ty);
+        axis.appendChild(yLabel);
+
+        const gridline = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        gridline.setAttribute("x1", margin.left);
+        gridline.setAttribute("y1", yScale(ty));
+        gridline.setAttribute("x2", margin.left + innerW);
+        gridline.setAttribute("y2", yScale(ty));
+        gridline.setAttribute("class", "gridline");
+        svg.appendChild(gridline);
+      }
+      svg.appendChild(axis);
+
+      // Points
+      for (let i = 0; i < xs.length; i++) {
+        const cx = xScale(xs[i]);
+        const cy = yScale(ys[i]);
+        const p = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        p.setAttribute("cx", cx);
+        p.setAttribute("cy", cy);
+        p.setAttribute("r", 4);
+        p.setAttribute("class", "point");
+        svg.appendChild(p);
+      }
+
+      // Fitted line across x-range
+      const yStart = model.intercept + model.slope * x0;
+      const yEnd = model.intercept + model.slope * x1;
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", xScale(x0));
+      line.setAttribute("y1", yScale(yStart));
+      line.setAttribute("x2", xScale(x1));
+      line.setAttribute("y2", yScale(yEnd));
+      line.setAttribute("class", "fitline");
+      svg.appendChild(line);
+    }
+
+    function showModel(model) {
+      const eqn = document.getElementById("eqn");
+      const stats = document.getElementById("stats");
+      eqn.textContent = `ŷ = ${format(model.intercept)} + ${format(model.slope)}·x`;
+      stats.textContent = `Slope b: ${format(model.slope)}, Intercept a: ${format(model.intercept)}, R²: ${format(model.r2)}, MSE: ${format(model.mse)}`;
+    }
+
+    function clearAll() {
+      document.getElementById("xInput").value = "";
+      document.getElementById("yInput").value = "";
+      document.getElementById("error").textContent = "";
+      document.getElementById("eqn").textContent = "ŷ = a + b·x";
+      document.getElementById("stats").textContent = "Slope b: —, Intercept a: —, R²: —, MSE: —";
+      document.getElementById("predictX").value = "";
+      document.getElementById("predictY").textContent = "";
+      // Clear plot
+      const svg = document.getElementById("plot");
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+    }
+
+    let currentModel = null;
+
+    document.getElementById("fitBtn").addEventListener("click", () => {
+      const x = parseNumbers(document.getElementById("xInput").value);
+      const y = parseNumbers(document.getElementById("yInput").value);
+      const errEl = document.getElementById("error");
+      errEl.textContent = "";
+
+      if (!x || !y) {
+        errEl.textContent = "Please enter only numeric values, separated by commas or spaces.";
+        return;
+      }
+      if (x.length !== y.length) {
+        errEl.textContent = "x and y must have the same number of values.";
+        return;
+      }
+      if (x.length < 2) {
+        errEl.textContent = "Provide at least two (x, y) points.";
+        return;
+      }
+      const model = fitLinearRegression(x, y);
+      if (model.error) {
+        errEl.textContent = model.error;
+        return;
+      }
+      currentModel = model;
+      showModel(model);
+      drawPlot(model);
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", clearAll);
+
+    document.getElementById("predictBtn").addEventListener("click", () => {
+      const out = document.getElementById("predictY");
+      out.textContent = "";
+      const x0 = Number(document.getElementById("predictX").value);
+      if (!Number.isFinite(x0)) {
+        out.textContent = "Enter a numeric x to predict.";
+        return;
+      }
+      if (!currentModel) {
+        out.textContent = "Fit a model first.";
+        return;
+      }
+      const yhat = currentModel.intercept + currentModel.slope * x0;
+      out.textContent = `ŷ(${format(x0)}) = ${format(yhat)}`;
+    });
+
+    // Auto-fit on load with initial example
+    window.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("fitBtn").click();
+    });
+  </script>
+</body>
+</html>

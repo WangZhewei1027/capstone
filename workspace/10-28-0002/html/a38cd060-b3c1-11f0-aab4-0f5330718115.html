@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Huffman Coding</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      line-height: 1.5;
+      margin: 0;
+      padding: 1rem;
+    }
+    header {
+      max-width: 900px;
+      margin: 0 auto 1rem auto;
+    }
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      display: grid;
+      gap: 1rem;
+    }
+    .card {
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    h1, h2, h3 {
+      margin: 0 0 .5rem 0;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 14px;
+      padding: .5rem;
+      border: 1px solid rgba(0,0,0,0.2);
+      border-radius: 6px;
+      min-height: 110px;
+      resize: vertical;
+    }
+    .controls {
+      display: flex;
+      gap: .5rem;
+      flex-wrap: wrap;
+      margin-top: .5rem;
+    }
+    button {
+      padding: .5rem .8rem;
+      border: 1px solid rgba(0,0,0,0.2);
+      border-radius: 6px;
+      background: #f5f5f5;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    @media (max-width: 720px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .muted {
+      color: rgba(0,0,0,0.6);
+      font-size: 0.95em;
+    }
+    ul {
+      padding-left: 1.2rem;
+      margin: .5rem 0;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .small {
+      font-size: .9em;
+    }
+    .ok {
+      color: #0a7c2f;
+    }
+    .warn {
+      color: #b85e00;
+    }
+    .error {
+      color: #b00020;
+    }
+    .stat-row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: .5rem;
+    }
+    .code-pill {
+      display: inline-block;
+      padding: .15rem .4rem;
+      border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 4px;
+      background: #fafafa;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    details summary {
+      cursor: pointer;
+      user-select: none;
+      margin: .25rem 0;
+    }
+    .bits-preview {
+      border: 1px dashed rgba(0,0,0,0.2);
+      border-radius: 6px;
+      padding: .5rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      word-wrap: break-word;
+      word-break: break-all;
+      white-space: pre-wrap;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Huffman Coding</h1>
+    <p class="muted">
+      Huffman coding is a lossless compression method that assigns shorter bit codes to more frequent symbols and longer codes to less frequent symbols.
+      Enter text below to build a Huffman tree, see the codes, and encode/decode.
+    </p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Try it</h2>
+      <label for="inputText" class="small muted">Input text</label>
+      <textarea id="inputText" placeholder="Type or paste text to compress...">this is an example for huffman encoding</textarea>
+      <div class="controls">
+        <button id="encodeBtn">Encode</button>
+        <button id="copyBitsBtn" disabled>Copy encoded bits</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+      <p id="status" class="muted"></p>
+    </section>
+
+    <section class="grid">
+      <section class="card">
+        <h3>Encoded bits</h3>
+        <details id="bitsDetails" open>
+          <summary>Preview</summary>
+          <div id="bitsPreview" class="bits-preview mono muted">No data yet.</div>
+        </details>
+        <label for="bitsText" class="small muted">Encoded bits (0/1)</label>
+        <textarea id="bitsText" placeholder="Huffman bitstream (0s and 1s) to decode..." disabled></textarea>
+        <div class="controls">
+          <button id="decodeBtn" disabled>Decode</button>
+        </div>
+        <p id="decodeStatus" class="muted"></p>
+      </section>
+
+      <section class="card">
+        <h3>Codes</h3>
+        <div id="codesList" class="muted">No codes yet.</div>
+      </section>
+    </section>
+
+    <section class="card">
+      <h3>Stats</h3>
+      <div id="stats" class="muted">
+        <div class="stat-row"><div>Original length</div><div>—</div></div>
+        <div class="stat-row"><div>Unique symbols</div><div>—</div></div>
+        <div class="stat-row"><div>Encoded bit length</div><div>—</div></div>
+        <div class="stat-row"><div>Average bits per symbol</div><div>—</div></div>
+        <div class="stat-row"><div>Estimated compression vs 8-bit</div><div>—</div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>How it works (quick overview)</h2>
+      <ul>
+        <li>Count the frequency of each symbol in the input.</li>
+        <li>Build a binary tree by repeatedly merging the two lowest-frequency nodes.</li>
+        <li>Assign codes: left edges are 0, right edges are 1. Leaves get their code.</li>
+        <li>Encode by replacing each symbol with its code; decode by traversing the tree per bit.</li>
+      </ul>
+      <p class="muted small">Note: For a single unique symbol, the code is 0.</p>
+    </section>
+  </main>
+
+  <script>
+    // Data structures
+    let currentTree = null;
+    let currentCodes = null;
+    let currentInput = "";
+    let currentBits = "";
+
+    const inputEl = document.getElementById('inputText');
+    const encodeBtn = document.getElementById('encodeBtn');
+    const copyBitsBtn = document.getElementById('copyBitsBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    const bitsPreviewEl = document.getElementById('bitsPreview');
+    const bitsTextEl = document.getElementById('bitsText');
+    const bitsDetailsEl = document.getElementById('bitsDetails');
+    const decodeBtn = document.getElementById('decodeBtn');
+
+    const codesListEl = document.getElementById('codesList');
+    const statsEl = document.getElementById('stats');
+    const statusEl = document.getElementById('status');
+    const decodeStatusEl = document.getElementById('decodeStatus');
+
+    function printableChar(ch) {
+      if (ch === ' ') return '␠ space';
+      if (ch === '\n') return '↵ newline';
+      if (ch === '\t') return '⇥ tab';
+      if (ch === '\r') return '␍ carriage return';
+      return ch;
+    }
+
+    function frequencyMap(str) {
+      const map = new Map();
+      for (const ch of str) {
+        map.set(ch, (map.get(ch) || 0) + 1);
+      }
+      return map;
+    }
+
+    function buildHuffmanTree(freqMap) {
+      const nodes = [];
+      for (const [ch, freq] of freqMap.entries()) {
+        nodes.push({ ch, freq, left: null, right: null });
+      }
+      if (nodes.length === 0) return null;
+      if (nodes.length === 1) {
+        // Special case: single symbol
+        return nodes[0];
+      }
+      while (nodes.length > 1) {
+        nodes.sort((a, b) => a.freq - b.freq);
+        const a = nodes.shift();
+        const b = nodes.shift();
+        nodes.push({ ch: null, freq: a.freq + b.freq, left: a, right: b });
+      }
+      return nodes[0];
+    }
+
+    function buildCodes(root) {
+      const codes = {};
+      function walk(node, prefix) {
+        if (!node) return;
+        if (!node.left && !node.right) {
+          codes[node.ch] = prefix.length ? prefix : '0';
+          return;
+        }
+        walk(node.left, prefix + '0');
+        walk(node.right, prefix + '1');
+      }
+      walk(root, '');
+      return codes;
+    }
+
+    function encodeWithCodes(str, codes) {
+      let bits = '';
+      for (const ch of str) {
+        const code = codes[ch];
+        if (code == null) {
+          throw new Error('Missing code for symbol: ' + ch);
+        }
+        bits += code;
+      }
+      return bits;
+    }
+
+    function decodeBits(bits, root) {
+      if (!root) return '';
+      // Single-node tree
+      if (!root.left && !root.right) {
+        // Every bit corresponds to the single symbol; number of symbols equals number of bits
+        // But if bits is empty, decoding length is ambiguous; we assume original length is unknown
+        // Here we decode: each bit produces one symbol
+        let out = '';
+        for (let i = 0; i < bits.length; i++) out += root.ch;
+        return out;
+      }
+      let out = '';
+      let node = root;
+      for (let i = 0; i < bits.length; i++) {
+        const b = bits[i];
+        if (b === '0') node = node.left;
+        else if (b === '1') node = node.right;
+        else throw new Error('Bitstream contains non-binary character: ' + b);
+        if (!node) throw new Error('Invalid traversal: reached null node at position ' + i);
+        if (!node.left && !node.right) {
+          out += node.ch;
+          node = root;
+        }
+      }
+      if (node !== root) {
+        // Trailing bits that don't complete a symbol
+        throw new Error('Bitstream ended mid-code. Ensure you used the same Huffman codes.');
+      }
+      return out;
+    }
+
+    function renderCodes(codes, freqMap) {
+      if (!codes || Object.keys(codes).length === 0) {
+        codesListEl.textContent = 'No codes yet.';
+        return;
+      }
+      const items = [];
+      const sorted = Object.keys(codes).sort((a, b) => {
+        const fa = freqMap.get(a) || 0;
+        const fb = freqMap.get(b) || 0;
+        if (fb !== fa) return fb - fa;
+        return a.localeCompare(b);
+      });
+      for (const ch of sorted) {
+        const code = codes[ch];
+        const freq = freqMap.get(ch);
+        items.push(`<li><span class="code-pill">${code}</span> — "${escapeHtml(printableChar(ch))}" (freq: ${freq})</li>`);
+      }
+      codesListEl.innerHTML = `<ul>${items.join('')}</ul>`;
+    }
+
+    function renderStats(originalText, codes, bits, freqMap) {
+      const originalLen = originalText.length;
+      const unique = freqMap.size;
+      const bitLen = bits.length;
+      const avgBits = originalLen > 0 ? (bitLen / originalLen) : 0;
+      const estCompression = originalLen > 0 ? (100 * (1 - (bitLen / (originalLen * 8)))) : 0;
+
+      const rows = [
+        ['Original length', `${originalLen} symbols`],
+        ['Unique symbols', `${unique}`],
+        ['Encoded bit length', `${bitLen} bits`],
+        ['Average bits per symbol', avgBits ? avgBits.toFixed(3) : '—'],
+        ['Estimated compression vs 8-bit', originalLen ? `${estCompression.toFixed(1)}%` : '—'],
+      ];
+      statsEl.innerHTML = rows.map(([k, v]) => `<div class="stat-row"><div>${k}</div><div>${v}</div></div>`).join('');
+    }
+
+    function renderBits(bits) {
+      if (!bits) {
+        bitsPreviewEl.textContent = 'No data yet.';
+        bitsTextEl.value = '';
+        bitsTextEl.disabled = true;
+        decodeBtn.disabled = true;
+        copyBitsBtn.disabled = true;
+        return;
+      }
+      copyBitsBtn.disabled = false;
+      bitsTextEl.disabled = false;
+      decodeBtn.disabled = false;
+
+      const maxPreview = 512;
+      const preview = bits.length > maxPreview ? bits.slice(0, maxPreview) + ' … (+' + (bits.length - maxPreview) + ' bits)' : bits;
+      bitsPreviewEl.textContent = preview;
+      bitsTextEl.value = bits;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function setStatus(message, kind = 'muted') {
+      statusEl.className = kind;
+      statusEl.textContent = message || '';
+    }
+
+    function setDecodeStatus(message, kind = 'muted') {
+      decodeStatusEl.className = kind;
+      decodeStatusEl.textContent = message || '';
+    }
+
+    // Event handlers
+    encodeBtn.addEventListener('click', () => {
+      setStatus('');
+      setDecodeStatus('');
+      const text = inputEl.value || '';
+      currentInput = text;
+
+      if (text.length === 0) {
+        currentTree = null;
+        currentCodes = null;
+        currentBits = '';
+        renderBits('');
+        renderCodes(null, new Map());
+        renderStats('', {}, '', new Map());
+        setStatus('Please enter some text to encode.', 'warn');
+        return;
+      }
+
+      try {
+        const freq = frequencyMap(text);
+        const tree = buildHuffmanTree(freq);
+        const codes = buildCodes(tree);
+        const bits = encodeWithCodes(text, codes);
+
+        currentTree = tree;
+        currentCodes = codes;
+        currentBits = bits;
+
+        renderCodes(codes, freq);
+        renderBits(bits);
+        renderStats(text, codes, bits, freq);
+        setStatus('Encoded successfully.', 'ok');
+      } catch (e) {
+        setStatus('Error: ' + e.message, 'error');
+      }
+    });
+
+    decodeBtn.addEventListener('click', () => {
+      setDecodeStatus('');
+      if (!currentTree) {
+        setDecodeStatus('No Huffman tree available. Encode some text first.', 'warn');
+        return;
+      }
+      const bits = (bitsTextEl.value || '').trim();
+      if (!bits) {
+        setDecodeStatus('Enter a bitstream (0s and 1s) to decode.', 'warn');
+        return;
+      }
+      try {
+        const decoded = decodeBits(bits, currentTree);
+        // Show decoded output in a lightweight dialog via details
+        const dlg = document.createElement('details');
+        dlg.open = true;
+        const summary = document.createElement('summary');
+        summary.textContent = 'Decoded output';
+        const pre = document.createElement('pre');
+        pre.className = 'mono';
+        pre.textContent = decoded;
+        dlg.appendChild(summary);
+        dlg.appendChild(pre);
+
+        // Replace any existing decoded result
+        decodeStatusEl.replaceChildren();
+        decodeStatusEl.appendChild(dlg);
+        decodeStatusEl.className = '';
+      } catch (e) {
+        setDecodeStatus('Decoding error: ' + e.message, 'error');
+      }
+    });
+
+    copyBitsBtn.addEventListener('click', async () => {
+      if (!currentBits) return;
+      try {
+        await navigator.clipboard.writeText(currentBits);
+        setStatus('Copied encoded bits to clipboard.', 'ok');
+      } catch {
+        setStatus('Could not copy to clipboard. Select and copy manually.', 'warn');
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      inputEl.value = '';
+      currentTree = null;
+      currentCodes = null;
+      currentBits = '';
+      renderCodes(null, new Map());
+      renderBits('');
+      renderStats('', {}, '', new Map());
+      setStatus('Cleared.', 'muted');
+      setDecodeStatus('');
+    });
+
+    // Initialize with default
+    encodeBtn.click();
+  </script>
+</body>
+</html>
