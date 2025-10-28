@@ -1,15 +1,24 @@
+import OpenAI from "openai";
+import { promises as fs } from "fs";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import "dotenv/config";
 import process from "node:process";
-import { processTask, modelList } from "./lib/add-core.mjs";
+
+// 读取模型列表
+const modelListData = await fs.readFile("./model-list.json", "utf-8");
+const modelList = JSON.parse(modelListData);
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: process.env.OPENAI_BASE_URL,
+});
 
 // 解析命令行参数
 function parseArgs() {
   const args = process.argv.slice(2);
   const parsed = {
-    workspace: null,
     model: null,
-    question: null,
     system: null,
     help: false,
   };
@@ -17,17 +26,9 @@ function parseArgs() {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
-      case "--workspace":
-      case "-w":
-        parsed.workspace = args[++i];
-        break;
       case "--model":
       case "-m":
         parsed.model = args[++i];
-        break;
-      case "--question":
-      case "-q":
-        parsed.question = args[++i];
         break;
       case "--system":
       case "-s":
@@ -36,14 +37,6 @@ function parseArgs() {
       case "--help":
       case "-h":
         parsed.help = true;
-        break;
-      default:
-        if (!arg.startsWith("--") && !arg.startsWith("-")) {
-          // 如果没有指定参数，将第一个非选项参数作为问题
-          if (!parsed.question) {
-            parsed.question = arg;
-          }
-        }
         break;
     }
   }
@@ -54,22 +47,20 @@ function parseArgs() {
 // 显示帮助信息
 function showHelp() {
   console.log(`
-使用方法: node add.mjs [选项]
+AI 命令行对话程序
+
+使用方法: node agent.mjs [选项]
 
 选项:
-  -w, --workspace <name>    指定工作空间名称
   -m, --model <model>       指定模型名称或编号
-  -q, --question <text>     指定问题内容
   -s, --system <text>       指定系统提示词
   -h, --help               显示此帮助信息
 
-示例:
-  node add.mjs --workspace "10-04" --model "gpt-4o-mini" --question "创建一个冒泡排序演示"
-  node add.mjs -w "test" -m 1 -q "制作一个计算器" -s "创建一个响应式的计算器应用"
-  node add.mjs "创建一个时钟" (直接指定问题)
-
 可用模型:
 ${modelList.map((model, index) => `  ${index + 1}. ${model}`).join("\n")}
+
+使用说明:
+  启动后可进行连续对话，输入 'exit' 或 'quit' 退出程序
 `);
 }
 
@@ -93,13 +84,13 @@ async function selectModel(preSelectedModel = null) {
       modelNumber <= modelList.length
     ) {
       const selectedModel = modelList[modelNumber - 1];
-      console.log(`已选择模型: ${selectedModel}\n`);
+      console.log(`已选择模型: ${selectedModel}`);
       return selectedModel;
     }
 
     // 检查是否是模型名称
     if (modelList.includes(preSelectedModel)) {
-      console.log(`已选择模型: ${preSelectedModel}\n`);
+      console.log(`已选择模型: ${preSelectedModel}`);
       return preSelectedModel;
     }
 
@@ -124,7 +115,7 @@ async function selectModel(preSelectedModel = null) {
       }
 
       const selectedModel = modelList[choice - 1];
-      console.log(`已选择模型: ${selectedModel}\n`);
+      console.log(`已选择模型: ${selectedModel}`);
       return selectedModel;
     } catch (err) {
       console.error("选择模型时出错：", err);
@@ -133,7 +124,85 @@ async function selectModel(preSelectedModel = null) {
   }
 }
 
-let workspace = "default";
+async function chatWithOpenAI(messages, selectedModel) {
+  // 使用流式输出
+  const stream = await client.chat.completions.create({
+    messages,
+    model: selectedModel,
+    stream: true,
+  });
+
+  let fullContent = "";
+  console.log("\nAI: ");
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content || "";
+    if (content) {
+      fullContent += content;
+      // 实时显示生成的内容
+      process.stdout.write(content);
+    }
+  }
+
+  console.log("\n");
+
+  if (!fullContent) {
+    throw new Error("No content generated from streaming response.");
+  }
+
+  return {
+    role: "assistant",
+    content: fullContent,
+  };
+}
+
+async function startChat(selectedModel, systemPrompt) {
+  const messages = [];
+
+  // 添加系统提示（如果有）
+  if (systemPrompt) {
+    messages.push({
+      role: "system",
+      content: systemPrompt,
+    });
+    console.log(`系统提示: ${systemPrompt}\n`);
+  }
+
+  console.log("开始对话 (输入 'exit' 或 'quit' 退出)");
+  console.log("=".repeat(50));
+
+  while (true) {
+    try {
+      const userMessage = await userInput("\n你: ");
+
+      if (
+        userMessage.toLowerCase() === "exit" ||
+        userMessage.toLowerCase() === "quit"
+      ) {
+        console.log("再见！");
+        break;
+      }
+
+      if (!userMessage.trim()) {
+        continue;
+      }
+
+      // 添加用户消息
+      messages.push({
+        role: "user",
+        content: userMessage,
+      });
+
+      // 获取AI回复
+      const assistantMessage = await chatWithOpenAI(messages, selectedModel);
+
+      // 添加AI回复到对话历史
+      messages.push(assistantMessage);
+    } catch (err) {
+      console.error("对话出错:", err.message);
+    }
+  }
+}
 
 async function main() {
   const args = parseArgs();
@@ -144,14 +213,8 @@ async function main() {
     return;
   }
 
-  // 获取工作空间
-  let workspace;
-  if (args.workspace) {
-    workspace = args.workspace;
-    console.log(`使用工作空间: ${workspace}`);
-  } else {
-    workspace = await userInput("请输入工作空间: ");
-  }
+  console.log("AI 命令行对话程序");
+  console.log("=".repeat(30));
 
   // 选择模型
   let selectedModel;
@@ -163,62 +226,24 @@ async function main() {
   }
 
   // 获取系统提示
-  let systemPrompt;
+  let systemPrompt = null;
   try {
     if (args.system) {
       systemPrompt = args.system;
-      console.log(`使用系统提示: ${systemPrompt}`);
     } else {
-      const systemInput = await userInput(
-        "请输入系统提示 (直接回车使用默认): "
-      );
+      const systemInput = await userInput("请输入系统提示 (直接回车跳过): ");
       systemPrompt = systemInput.trim() || null;
-      if (systemPrompt) {
-        console.log(`使用自定义系统提示: ${systemPrompt}`);
-      } else {
-        console.log("使用默认系统提示");
-      }
     }
   } catch (err) {
     console.error("获取系统提示时出错：", err);
     return;
   }
 
-  // 获取用户问题
-  let question;
+  // 开始对话
   try {
-    if (args.question) {
-      question = args.question;
-      console.log(`使用问题: ${question}`);
-    } else {
-      question = await userInput("请输入提问内容: ");
-    }
+    await startChat(selectedModel, systemPrompt);
   } catch (err) {
-    console.error("获取用户输入时出错：", err);
-    return;
-  }
-
-  // 构建任务对象
-  const task = {
-    workspace: workspace,
-    model: selectedModel,
-    question: question,
-    system: systemPrompt,
-  };
-
-  try {
-    console.log("正在生成，请稍候...");
-    const result = await processTask(task, { showProgress: true });
-
-    if (result.success) {
-      console.log("内容生成成功!");
-      console.log("已保存为HTML文件，打开下面的链接查看效果：");
-      console.log(result.url);
-    } else {
-      console.error("任务执行失败：", result.error);
-    }
-  } catch (err) {
-    console.error("执行任务时出错：", err);
+    console.error("对话程序出错：", err);
   }
 }
 
