@@ -166,6 +166,142 @@ app.get("/api/workspaces/:workspace/stats", async (req, res) => {
   }
 });
 
+// FSM 相关接口
+
+// 获取FSM数据从HTML文件
+app.get("/api/fsm-data/:workspace/:filename", async (req, res) => {
+  try {
+    const { workspace, filename } = req.params;
+    const htmlPath = path.join("./workspace", workspace, "html", filename);
+
+    // 检查文件是否存在
+    try {
+      await fs.access(htmlPath);
+    } catch (error) {
+      return res.status(404).json({ error: "HTML file not found" });
+    }
+
+    const htmlContent = await fs.readFile(htmlPath, "utf-8");
+
+    // Extract FSM data from script tag
+    const fsmMatch = htmlContent.match(
+      /<script[^>]*type=['"]application\/json['"][^>]*>([\s\S]*?)<\/script>/
+    );
+
+    if (!fsmMatch) {
+      return res.status(404).json({ error: "FSM data not found in HTML file" });
+    }
+
+    const fsmData = JSON.parse(fsmMatch[1]);
+    res.json(fsmData);
+  } catch (error) {
+    console.error("获取FSM数据失败:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取截图列表
+app.get("/api/screenshots/:workspace/:filename", async (req, res) => {
+  try {
+    const { workspace, filename } = req.params;
+    const baseName = filename.replace(".html", "");
+    const screenshotDir = path.join(
+      "./workspace",
+      workspace,
+      "visuals",
+      baseName
+    );
+
+    // 检查截图目录是否存在
+    try {
+      await fs.access(screenshotDir);
+    } catch (error) {
+      return res.json([]);
+    }
+
+    const files = await fs.readdir(screenshotDir);
+    const screenshots = files
+      .filter((file) => file.endsWith(".png"))
+      .sort()
+      .map((file) => ({
+        filename: file,
+        url: `/workspace/${workspace}/visuals/${baseName}/${file}`,
+        state: extractStateFromFilename(file),
+      }));
+
+    res.json(screenshots);
+  } catch (error) {
+    console.error("获取截图列表失败:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function to extract state from filename
+function extractStateFromFilename(filename) {
+  // Handle different screenshot naming patterns
+
+  // Pattern 1: Deque format like "001_01_initial_state.png", "002_01_add_front_A.png"
+  const dequePatterns = [
+    /\d+_\d+_initial_state\.png$/, // initial state
+    /\d+_\d+_add_front_.*\.png$/, // adding to front
+    /\d+_\d+_add_back_.*\.png$/, // adding to back
+    /\d+_\d+_remove_front.*\.png$/, // removing from front
+    /\d+_\d+_remove_back.*\.png$/, // removing from back
+    /\d+_empty_.*\.png$/, // empty operations
+    /\d+_.*_complete\.png$/, // completion states
+    /\d+_.*_test\.png$/, // test states
+  ];
+
+  // Map Deque screenshot patterns to FSM states
+  if (/\d+_\d+_initial_state\.png$/.test(filename)) return "idle";
+  if (/\d+_\d+_add_front_.*\.png$/.test(filename)) return "adding_to_front";
+  if (/\d+_\d+_add_back_.*\.png$/.test(filename)) return "adding_to_back";
+  if (/\d+_\d+_remove_front.*\.png$/.test(filename))
+    return "removing_from_front";
+  if (/\d+_\d+_remove_back.*\.png$/.test(filename)) return "removing_from_back";
+  if (/\d+_empty_.*\.png$/.test(filename)) return "idle";
+  if (/\d+_.*_complete\.png$/.test(filename)) return "updating_display";
+  if (/\d+_.*_test\.png$/.test(filename)) return "idle";
+
+  // Pattern 2: Traditional FSM format like "01_idle_initial.png", "02_validating_input_valid.png"
+  const traditionalPatterns = [
+    /\d+_([a-z_]+)_.*\.png$/,
+    /([a-z_]+)_[a-z_]+\.png$/,
+    /\d+_([a-z_]+)\.png$/,
+  ];
+
+  for (const pattern of traditionalPatterns) {
+    const match = filename.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  // Pattern 3: Try to extract meaningful state from filename
+  const meaningfulPatterns = [
+    { pattern: /initial/i, state: "idle" },
+    { pattern: /add.*front/i, state: "adding_to_front" },
+    { pattern: /add.*back/i, state: "adding_to_back" },
+    { pattern: /remove.*front/i, state: "removing_from_front" },
+    { pattern: /remove.*back/i, state: "removing_from_back" },
+    { pattern: /validating/i, state: "validating_input" },
+    { pattern: /error|alert/i, state: "error_alert" },
+    { pattern: /inserting/i, state: "inserting_node" },
+    { pattern: /drawing|tree/i, state: "drawing_tree" },
+    { pattern: /reset/i, state: "tree_resetting" },
+    { pattern: /empty/i, state: "idle" },
+    { pattern: /complete/i, state: "updating_display" },
+  ];
+
+  for (const { pattern, state } of meaningfulPatterns) {
+    if (pattern.test(filename)) {
+      return state;
+    }
+  }
+
+  return "unknown";
+}
+
 // 健康检查接口
 app.get("/api/health", (req, res) => {
   res.json({
@@ -183,6 +319,8 @@ app.listen(PORT, () => {
   console.log(`   GET /api/workspaces/:workspace/data - 获取工作空间数据`);
   console.log(`   GET /api/workspaces/:workspace/html - 获取HTML文件列表`);
   console.log(`   GET /api/workspaces/:workspace/stats - 获取工作空间统计`);
+  console.log(`   GET /api/fsm-data/:workspace/:filename - 获取FSM数据`);
+  console.log(`   GET /api/screenshots/:workspace/:filename - 获取截图列表`);
   console.log(`   GET /api/health - 健康检查`);
   console.log(
     `💻 前端可以通过 http://localhost:${PORT}/workspace/ 访问静态文件`

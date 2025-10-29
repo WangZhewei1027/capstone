@@ -40,6 +40,8 @@ npx playwright test batch-capture.spec.js
 # 显示浏览器窗口（可以看到处理过程）
 npx playwright test batch-capture.spec.js --headed
 
+npx playwright test single-capture.spec.js --headed
+
 # 使用UI模式（推荐用于调试）
 npx playwright test batch-capture.spec.js --ui
 

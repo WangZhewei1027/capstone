@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FSM State Machine Visualizer</title>
+
+    <!-- React CDN -->
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+    <!-- Babel for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- D3.js for graph visualization -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        text-align: center;
+        color: white;
+        margin-bottom: 30px;
+        font-size: 2.5rem;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      .controls {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .controls select,
+      .controls button {
+        padding: 12px 20px;
+        font-size: 16px;
+        border: none;
+        border-radius: 25px;
+        background: white;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin: 0 10px;
+      }
+
+      .controls button:hover,
+      .controls select:hover {
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+      }
+
+      .controls button.active {
+        background: #4caf50;
+        color: white;
+      }
+
+      .fsm-container {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+      }
+
+      .fsm-info {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .info-panel {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 10px;
+        border-left: 4px solid #4caf50;
+      }
+
+      .info-title {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 1.1rem;
+      }
+
+      .info-content {
+        color: #666;
+        font-size: 0.9rem;
+        line-height: 1.4;
+      }
+
+      .graph-container {
+        width: 100%;
+        height: 700px;
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        background: #fafafa;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .state-node {
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .state-node:hover {
+        filter: brightness(1.1);
+      }
+
+      .state-node.active {
+        stroke: #ff6b6b;
+        stroke-width: 4px;
+      }
+
+      .state-label {
+        font-family: "Segoe UI", sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        text-anchor: middle;
+        dominant-baseline: central;
+        pointer-events: none;
+      }
+
+      .edge {
+        fill: none;
+        stroke: #666;
+        stroke-width: 2;
+        marker-end: url(#arrowhead);
+        transition: all 0.3s ease;
+      }
+
+      .edge:hover {
+        stroke: #4caf50;
+        stroke-width: 3;
+      }
+
+      .edge-label {
+        font-family: "Segoe UI", sans-serif;
+        font-size: 10px;
+        font-weight: 500;
+        text-anchor: middle;
+        dominant-baseline: central;
+        fill: #333;
+        background: white;
+        padding: 2px 4px;
+        border-radius: 3px;
+      }
+
+      .screenshot-panel {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        z-index: 1000;
+        max-width: 80vw;
+        max-height: 80vh;
+        overflow: auto;
+        display: none;
+      }
+
+      .screenshot-panel.show {
+        display: block;
+      }
+
+      .screenshot-header {
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .screenshot-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #666;
+        padding: 5px;
+        border-radius: 50%;
+        width: 35px;
+        height: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .close-btn:hover {
+        background: #f0f0f0;
+      }
+
+      .screenshot-content {
+        padding: 20px;
+      }
+
+      .screenshot-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+      }
+
+      .screenshot-item {
+        text-align: center;
+      }
+
+      .screenshot-img {
+        width: 100%;
+        max-width: 400px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+      }
+
+      .screenshot-img:hover {
+        transform: scale(1.02);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      }
+
+      .screenshot-caption {
+        margin-top: 10px;
+        font-size: 0.9rem;
+        color: #666;
+        font-weight: 500;
+      }
+
+      .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        display: none;
+      }
+
+      .overlay.show {
+        display: block;
+      }
+
+      .legend {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 15px;
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 100;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .legend-title {
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #333;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+        font-size: 0.85rem;
+      }
+
+      .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        margin-right: 8px;
+        border: 2px solid #333;
+      }
+
+      .error {
+        text-align: center;
+        color: #ff6b6b;
+        font-size: 1.1rem;
+        margin-top: 30px;
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+      }
+
+      .loading {
+        text-align: center;
+        color: white;
+        font-size: 1.1rem;
+        margin-top: 30px;
+      }
+
+      @media (max-width: 768px) {
+        .fsm-info {
+          grid-template-columns: 1fr;
+        }
+
+        .graph-container {
+          height: 500px;
+        }
+
+        .screenshot-panel {
+          max-width: 95vw;
+          max-height: 95vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      // FSM状态配色方案
+      const STATE_COLORS = {
+        idle: "#4caf50",
+        validating_input: "#ff9800",
+        error_alert: "#f44336",
+        inserting_node: "#2196f3",
+        drawing_tree: "#9c27b0",
+        tree_resetting: "#607d8b",
+      };
+
+      // ScreenshotPanel Component
+      const ScreenshotPanel = ({
+        show,
+        onClose,
+        selectedState,
+        screenshots,
+      }) => {
+        if (!show) return null;
+
+        // 如果没有选择特定状态，显示所有截图
+        let stateScreenshots = screenshots;
+
+        if (selectedState) {
+          // 更智能的状态匹配算法
+          stateScreenshots = screenshots.filter((imgUrl) => {
+            const filename = imgUrl.split("/").pop().toLowerCase();
+            const stateLower = selectedState.toLowerCase();
+
+            // 直接匹配状态名
+            if (filename.includes(stateLower)) {
+              return true;
+            }
+
+            // 特殊状态映射
+            const stateMapping = {
+              idle: ["idle", "input_ready"],
+              validating_input: ["validating", "input"],
+              error_alert: ["error", "alert"],
+              inserting_node: ["inserting", "node", "tree_node"],
+              drawing_tree: ["drawing", "tree", "tree_with"],
+              tree_resetting: ["resetting", "reset"],
+            };
+
+            const keywords = stateMapping[stateLower] || [stateLower];
+            return keywords.some((keyword) => filename.includes(keyword));
+          });
+        }
+
+        return (
+          <>
+            <div
+              className={`overlay ${show ? "show" : ""}`}
+              onClick={onClose}
+            ></div>
+            <div className={`screenshot-panel ${show ? "show" : ""}`}>
+              <div className="screenshot-header">
+                <div className="screenshot-title">
+                  {selectedState ? `状态截图: ${selectedState}` : "所有截图"}
+                </div>
+                <button className="close-btn" onClick={onClose}>
+                  ×
+                </button>
+              </div>
+              <div className="screenshot-content">
+                {stateScreenshots.length > 0 ? (
+                  <div className="screenshot-grid">
+                    {stateScreenshots.map((screenshot, index) => (
+                      <div key={index} className="screenshot-item">
+                        <img
+                          src={screenshot}
+                          alt={`${selectedState || "State"} screenshot ${
+                            index + 1
+                          }`}
+                          className="screenshot-img"
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                          }}
+                        />
+                        <div className="screenshot-caption">
+                          {screenshot.split("/").pop().replace(".png", "")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      color: "#666",
+                      padding: "40px",
+                    }}
+                  >
+                    {selectedState
+                      ? `暂无 ${selectedState} 状态的截图`
+                      : "暂无截图"}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        );
+      };
+
+      // FSMGraph Component
+      const FSMGraph = ({ fsmData, screenshots, onStateClick }) => {
+        const svgRef = useRef();
+        const [graphData, setGraphData] = useState({ nodes: [], links: [] });
+
+        useEffect(() => {
+          if (!fsmData) return;
+
+          // 构建图数据
+          const nodes = fsmData.states.map((state) => ({
+            id: state.name,
+            name: state.name,
+            onEnter: state.onEnter,
+            color: STATE_COLORS[state.name] || "#666",
+            hasScreenshots: screenshots.some((img) =>
+              img.toLowerCase().includes(state.name.toLowerCase())
+            ),
+          }));
+
+          const links = [];
+          fsmData.states.forEach((state) => {
+            if (state.on) {
+              Object.entries(state.on).forEach(([event, target]) => {
+                links.push({
+                  source: state.name,
+                  target: target,
+                  event: event,
+                });
+              });
+            }
+          });
+
+          setGraphData({ nodes, links });
+        }, [fsmData, screenshots]);
+
+        useEffect(() => {
+          if (!graphData.nodes.length) return;
+
+          const svg = d3.select(svgRef.current);
+          svg.selectAll("*").remove();
+
+          const width = 1200;
+          const height = 650;
+
+          // 定义箭头标记
+          svg
+            .append("defs")
+            .append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 25)
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("fill", "#666");
+
+          const simulation = d3
+            .forceSimulation(graphData.nodes)
+            .force(
+              "link",
+              d3
+                .forceLink(graphData.links)
+                .id((d) => d.id)
+                .distance(150)
+            )
+            .force("charge", d3.forceManyBody().strength(-800))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(60));
+
+          // 创建连线
+          const link = svg
+            .append("g")
+            .selectAll("path")
+            .data(graphData.links)
+            .join("path")
+            .attr("class", "edge")
+            .attr("stroke", "#666")
+            .attr("stroke-width", 2)
+            .attr("fill", "none")
+            .attr("marker-end", "url(#arrowhead)");
+
+          // 创建连线标签
+          const linkLabel = svg
+            .append("g")
+            .selectAll("text")
+            .data(graphData.links)
+            .join("text")
+            .attr("class", "edge-label")
+            .attr("font-size", "10px")
+            .attr("text-anchor", "middle")
+            .text((d) => d.event);
+
+          // 创建节点
+          const node = svg
+            .append("g")
+            .selectAll("g")
+            .data(graphData.nodes)
+            .join("g")
+            .attr("class", "state-node")
+            .style("cursor", "pointer");
+
+          // 节点圆圈
+          node
+            .append("circle")
+            .attr("r", (d) => (d.hasScreenshots ? 35 : 30))
+            .attr("fill", (d) => d.color)
+            .attr("stroke", (d) => (d.hasScreenshots ? "#fff" : "none"))
+            .attr("stroke-width", (d) => (d.hasScreenshots ? 3 : 0))
+            .attr("opacity", 0.9);
+
+          // 截图指示器
+          node
+            .filter((d) => d.hasScreenshots)
+            .append("circle")
+            .attr("r", 8)
+            .attr("cx", 25)
+            .attr("cy", -25)
+            .attr("fill", "#ff6b6b")
+            .attr("stroke", "#fff")
+            .attr("stroke-width", 2);
+
+          node
+            .filter((d) => d.hasScreenshots)
+            .append("text")
+            .attr("x", 25)
+            .attr("y", -25)
+            .attr("text-anchor", "middle")
+            .attr("dominant-baseline", "central")
+            .attr("fill", "white")
+            .attr("font-size", "10px")
+            .attr("font-weight", "bold")
+            .text("📷");
+
+          // 节点标签
+          node
+            .append("text")
+            .attr("class", "state-label")
+            .attr("font-size", "11px")
+            .attr("font-weight", "600")
+            .attr("fill", "white")
+            .attr("text-anchor", "middle")
+            .text((d) => d.name.split("_").join("\n"));
+
+          // 节点交互
+          node.on("click", (event, d) => {
+            // 重置所有节点样式
+            node
+              .select("circle")
+              .attr("stroke-width", (d) => (d.hasScreenshots ? 3 : 0));
+
+            // 高亮当前节点
+            d3.select(event.currentTarget)
+              .select("circle")
+              .attr("stroke", "#ff6b6b")
+              .attr("stroke-width", 5);
+
+            onStateClick(d.name);
+          });
+
+          // 拖拽功能
+          const drag = d3
+            .drag()
+            .on("start", (event, d) => {
+              if (!event.active) simulation.alphaTarget(0.3).restart();
+              d.fx = d.x;
+              d.fy = d.y;
+            })
+            .on("drag", (event, d) => {
+              d.fx = event.x;
+              d.fy = event.y;
+            })
+            .on("end", (event, d) => {
+              if (!event.active) simulation.alphaTarget(0);
+              d.fx = null;
+              d.fy = null;
+            });
+
+          node.call(drag);
+
+          // 更新位置
+          simulation.on("tick", () => {
+            link.attr("d", (d) => {
+              const dx = d.target.x - d.source.x;
+              const dy = d.target.y - d.source.y;
+              const dr = Math.sqrt(dx * dx + dy * dy);
+
+              // 计算圆圈边缘的点
+              const sourceX = d.source.x + (dx * 35) / dr;
+              const sourceY = d.source.y + (dy * 35) / dr;
+              const targetX = d.target.x - (dx * 35) / dr;
+              const targetY = d.target.y - (dy * 35) / dr;
+
+              return `M${sourceX},${sourceY}L${targetX},${targetY}`;
+            });
+
+            linkLabel
+              .attr("x", (d) => (d.source.x + d.target.x) / 2)
+              .attr("y", (d) => (d.source.y + d.target.y) / 2);
+
+            node.attr("transform", (d) => `translate(${d.x},${d.y})`);
+          });
+        }, [graphData, onStateClick]);
+
+        return (
+          <div className="graph-container">
+            <svg ref={svgRef} width="100%" height="100%"></svg>
+            <div className="legend">
+              <div className="legend-title">图例</div>
+              {Object.entries(STATE_COLORS).map(([state, color]) => (
+                <div key={state} className="legend-item">
+                  <div
+                    className="legend-color"
+                    style={{ backgroundColor: color }}
+                  ></div>
+                  <span>{state}</span>
+                </div>
+              ))}
+              <div className="legend-item" style={{ marginTop: "10px" }}>
+                <span style={{ fontSize: "12px" }}>📷 = 有截图</span>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // Main App Component
+      const App = () => {
+        const [htmlFiles, setHtmlFiles] = useState([]);
+        const [selectedFile, setSelectedFile] = useState("");
+        const [fsmData, setFsmData] = useState(null);
+        const [screenshots, setScreenshots] = useState([]);
+        const [selectedState, setSelectedState] = useState("");
+        const [showScreenshots, setShowScreenshots] = useState(false);
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState("");
+
+        // 加载HTML文件列表
+        useEffect(() => {
+          loadHtmlFiles();
+        }, []);
+
+        const loadHtmlFiles = async () => {
+          try {
+            // 尝试从API获取HTML文件列表
+            const response = await fetch(
+              "http://localhost:3001/api/html-files"
+            );
+            if (response.ok) {
+              const files = await response.json();
+              setHtmlFiles(files);
+              console.log(`✅ 从API加载 ${files.length} 个HTML文件`);
+            } else {
+              throw new Error("API响应失败");
+            }
+          } catch (error) {
+            console.warn("API不可用，使用备用方案:", error.message);
+            // 备用方案：手动添加已知文件
+            const fallbackFiles = [
+              "4ca11ad0-b408-11f0-ab52-fbe7249bf639.html",
+              "46878530-b408-11f0-ab52-fbe7249bf639.html",
+              "5736e9c0-b408-11f0-ab52-fbe7249bf639.html",
+            ];
+            setHtmlFiles(fallbackFiles);
+            setError(
+              'API服务器未启动，使用离线模式。请运行 "node fsm-api.mjs" 启动服务器以获得完整功能。'
+            );
+          }
+        };
+
+        const loadFSMData = async (fileName) => {
+          if (!fileName) return;
+
+          setLoading(true);
+          setError("");
+
+          try {
+            // 尝试从API获取FSM数据
+            const fsmResponse = await fetch(
+              `http://localhost:3001/api/fsm-data/${fileName}`
+            );
+            if (fsmResponse.ok) {
+              const fsm = await fsmResponse.json();
+              setFsmData(fsm);
+              console.log("✅ 从API加载FSM数据");
+            } else {
+              // 备用方案：直接从HTML文件解析
+              const htmlResponse = await fetch(
+                `./workspace/vlm-test/html/${fileName}`
+              );
+              if (!htmlResponse.ok) {
+                throw new Error("无法加载HTML文件");
+              }
+
+              const htmlContent = await htmlResponse.text();
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(htmlContent, "text/html");
+              const fsmScript = doc.querySelector(
+                'script[type="application/json"]'
+              );
+
+              if (!fsmScript) {
+                throw new Error("HTML文件中未找到FSM配置");
+              }
+
+              const fsm = JSON.parse(fsmScript.textContent);
+              setFsmData(fsm);
+              console.log("✅ 从HTML文件解析FSM数据");
+            }
+
+            // 加载对应的截图
+            await loadScreenshots(fileName);
+          } catch (error) {
+            setError(error.message);
+            console.error("加载FSM数据失败:", error);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const loadScreenshots = async (fileName) => {
+          try {
+            // 尝试从API获取截图列表
+            const response = await fetch(
+              `http://localhost:3001/api/screenshots/${fileName}`
+            );
+            if (response.ok) {
+              const screenshotData = await response.json();
+              const screenshotUrls = screenshotData.map(
+                (item) => `http://localhost:3001${item.url}`
+              );
+              setScreenshots(screenshotUrls);
+              console.log(`✅ 从API加载 ${screenshotUrls.length} 个截图`);
+              return;
+            }
+          } catch (error) {
+            console.warn("API不可用，使用备用方案加载截图");
+          }
+
+          // 备用方案：直接构建截图URL
+          const baseName = fileName.replace(".html", "");
+          const screenshotFolder = `./workspace/vlm-test/visuals/${baseName}/`;
+
+          // 基于已知的文件命名模式
+          const possibleScreenshots = [
+            "01_idle_initial.png",
+            "02_validating_input_valid.png",
+            "03_drawing_tree_node_10.png",
+            "04_input_ready_node_5.png",
+            "05_drawing_tree_with_node_5.png",
+            "06_input_ready_node_15.png",
+            "07_drawing_tree_with_node_15.png",
+            "08_input_ready_node_3.png",
+            "09_drawing_tree_with_node_3.png",
+            "10_input_ready_node_7.png",
+            "11_drawing_tree_with_node_7.png",
+            "12_input_ready_node_12.png",
+            "13_drawing_tree_with_node_12.png",
+            "14_input_ready_node_18.png",
+            "15_drawing_tree_with_node_18.png",
+            "16_drawing_tree_complete.png",
+            "17_validating_input_invalid.png",
+            "18_error_alert_active.png",
+          ];
+
+          const availableScreenshots = [];
+
+          // 检查哪些截图文件存在
+          for (const screenshot of possibleScreenshots) {
+            try {
+              const response = await fetch(screenshotFolder + screenshot, {
+                method: "HEAD",
+              });
+              if (response.ok) {
+                availableScreenshots.push(screenshotFolder + screenshot);
+              }
+            } catch (error) {
+              // 文件不存在，跳过
+            }
+          }
+
+          setScreenshots(availableScreenshots);
+          console.log(`找到 ${availableScreenshots.length} 个截图文件`);
+        };
+
+        const handleFileChange = (fileName) => {
+          setSelectedFile(fileName);
+          loadFSMData(fileName);
+        };
+
+        const handleStateClick = (stateName) => {
+          setSelectedState(stateName);
+          setShowScreenshots(true);
+        };
+
+        const closeScreenshots = () => {
+          setShowScreenshots(false);
+          setSelectedState("");
+        };
+
+        return (
+          <div className="container">
+            <h1>🔄 FSM State Machine Visualizer</h1>
+
+            <div className="controls">
+              <select
+                value={selectedFile}
+                onChange={(e) => handleFileChange(e.target.value)}
+                disabled={loading}
+              >
+                <option value="">选择HTML文件...</option>
+                {htmlFiles.map((file) => (
+                  <option key={file} value={file}>
+                    {file}
+                  </option>
+                ))}
+              </select>
+
+              {screenshots.length > 0 && (
+                <button onClick={() => setShowScreenshots(true)}>
+                  查看所有截图 ({screenshots.length})
+                </button>
+              )}
+            </div>
+
+            {error && <div className="error">{error}</div>}
+
+            {loading && <div className="loading">加载中...</div>}
+
+            {fsmData && (
+              <div className="fsm-container">
+                <div className="fsm-info">
+                  <div className="info-panel">
+                    <div className="info-title">📋 FSM 信息</div>
+                    <div className="info-content">
+                      <strong>主题:</strong> {fsmData.topic}
+                      <br />
+                      <strong>状态数:</strong> {fsmData.states?.length || 0}
+                      <br />
+                      <strong>事件数:</strong> {fsmData.events?.length || 0}
+                      <br />
+                      <strong>截图数:</strong> {screenshots.length}
+                    </div>
+                  </div>
+                  <div className="info-panel">
+                    <div className="info-title">💡 操作说明</div>
+                    <div className="info-content">
+                      • 点击状态节点查看对应截图
+                      <br />
+                      • 拖拽节点调整布局
+                      <br />
+                      • 箭头表示状态转换
+                      <br />• 📷 表示该状态有截图
+                    </div>
+                  </div>
+                </div>
+
+                <FSMGraph
+                  fsmData={fsmData}
+                  screenshots={screenshots}
+                  onStateClick={handleStateClick}
+                />
+              </div>
+            )}
+
+            <ScreenshotPanel
+              show={showScreenshots}
+              onClose={closeScreenshots}
+              selectedState={selectedState}
+              screenshots={screenshots}
+            />
+          </div>
+        );
+      };
+
+      // Render the app
+      ReactDOM.render(<App />, document.getElementById("root"));
+    </script>
+  </body>
+</html>
