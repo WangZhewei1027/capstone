@@ -302,6 +302,65 @@ function extractStateFromFilename(filename) {
   return "unknown";
 }
 
+// 获取评估结果
+app.get("/api/evaluation/:workspace/:filename", async (req, res) => {
+  try {
+    const { workspace, filename } = req.params;
+    const baseName = filename.replace(".html", "");
+    const evaluationPath = path.join(
+      "./workspace",
+      workspace,
+      "data",
+      `${baseName}_evaluation.json`
+    );
+
+    // 检查评估文件是否存在
+    try {
+      await fs.access(evaluationPath);
+    } catch (error) {
+      return res.status(404).json({
+        error: "Evaluation not found",
+        message: "No evaluation file exists for this HTML file",
+      });
+    }
+
+    const evaluationData = await fs.readFile(evaluationPath, "utf-8");
+    const evaluation = JSON.parse(evaluationData);
+
+    res.json(evaluation);
+  } catch (error) {
+    console.error("获取评估结果失败:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 触发新的评估
+app.post("/api/evaluation/:workspace/:filename", async (req, res) => {
+  try {
+    const { workspace, filename } = req.params;
+    const baseName = filename.replace(".html", "");
+
+    // 动态导入评估器
+    const { default: VisualEvaluator } = await import("./visual-evaluator.mjs");
+    const evaluator = new VisualEvaluator();
+
+    // 执行评估
+    const evaluation = await evaluator.evaluateHtmlFile(workspace, baseName);
+
+    res.json({
+      status: "success",
+      message: "Evaluation completed",
+      evaluation,
+    });
+  } catch (error) {
+    console.error("执行评估失败:", error);
+    res.status(500).json({
+      status: "error",
+      error: error.message,
+    });
+  }
+});
+
 // 健康检查接口
 app.get("/api/health", (req, res) => {
   res.json({
@@ -321,6 +380,8 @@ app.listen(PORT, () => {
   console.log(`   GET /api/workspaces/:workspace/stats - 获取工作空间统计`);
   console.log(`   GET /api/fsm-data/:workspace/:filename - 获取FSM数据`);
   console.log(`   GET /api/screenshots/:workspace/:filename - 获取截图列表`);
+  console.log(`   GET /api/evaluation/:workspace/:filename - 获取评估结果`);
+  console.log(`   POST /api/evaluation/:workspace/:filename - 执行新评估`);
   console.log(`   GET /api/health - 健康检查`);
   console.log(
     `💻 前端可以通过 http://localhost:${PORT}/workspace/ 访问静态文件`
