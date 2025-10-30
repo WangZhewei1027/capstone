@@ -45,9 +45,9 @@ const TEST_CONFIG = {
 
   // 每个 Agent 使用的模型配置
   models: {
-    htmlAgent: "gpt-5-mini", // Agent 1: HTML 生成
-    fsmAgent: "gpt-5-mini", // Agent 2: FSM 生成
-    testAgent: "gpt-5-mini", // Agent 3: 测试生成
+    htmlAgent: "gpt-4o-mini", // Agent 1: HTML 生成
+    fsmAgent: "gpt-4o-mini", // Agent 2: FSM 生成
+    testAgent: "gpt-4o-mini", // Agent 3: 测试生成
   },
 };
 
