@@ -303,8 +303,7 @@ capstone/
 │       ├── html/                # HTML 文件
 │       ├── tests/               # 测试文件
 │       └── data/                # 元数据
-├── add.mjs                      # 单任务工具
-├── batch-add.mjs                # 批量处理
+├── add.mjs                      # 单任务工具å
 ├── concurrent.mjs               # 高级批量处理
 ├── api.mjs                      # API 服务器
 ├── viewer-react.html            # React 可视化面板
