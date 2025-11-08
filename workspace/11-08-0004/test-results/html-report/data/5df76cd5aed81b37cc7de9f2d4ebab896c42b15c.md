@@ -1,0 +1,69 @@
+# Page snapshot
+
+```yaml
+- application "Two Pointers — Pair Sum Visualizer" [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Two Pointers — Pair Sum Visualizer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: See how two pointers move inward on a sorted array to find two numbers that add up to a target.
+    - generic [ref=e7]: "Tip: Use Step to advance or Auto Play to run continuously. Space toggles play/pause."
+  - main [ref=e8]:
+    - region "Visualization" [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: Array visualization
+        - generic [ref=e12]: "Invariant: array must be sorted (ascending)"
+      - generic [ref=e13]:
+        - generic: L
+        - generic: R
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - generic [ref=e16]: "0"
+            - generic [ref=e17]: "1"
+          - generic [ref=e18]:
+            - generic [ref=e19]: "1"
+            - generic [ref=e20]: "2"
+          - generic [ref=e21]:
+            - generic [ref=e22]: "2"
+            - generic [ref=e23]: "3"
+          - generic [ref=e24]:
+            - generic [ref=e25]: "3"
+            - generic [ref=e26]: "4"
+          - generic [ref=e27]:
+            - generic [ref=e28]: "4"
+            - generic [ref=e29]: "6"
+      - generic [ref=e30]: Load an array and press "Load & Sort".
+      - group "Controls" [ref=e31]:
+        - button "Load & Sort" [ref=e32] [cursor=pointer]
+        - button "Random Sorted Array" [ref=e33] [cursor=pointer]
+        - button "Reset" [ref=e34] [cursor=pointer]
+        - button "Step" [ref=e35] [cursor=pointer]
+        - button "Auto Play" [ref=e36] [cursor=pointer]
+        - generic [ref=e37]:
+          - generic [ref=e38]: Speed
+          - slider "Play speed (steps per second)" [ref=e39]: "3"
+    - complementary [ref=e40]:
+      - generic [ref=e41]:
+        - generic [ref=e42]: Array (comma or space separated)
+        - textbox "Array input" [ref=e43]:
+          - /placeholder: e.g., 1, 2, 3, 4, 6
+          - text: 1, 2, 3, 4, 6
+        - generic [ref=e44]:
+          - generic [ref=e45]:
+            - generic [ref=e46]: Target
+            - spinbutton "Target value" [ref=e47]: "8"
+          - button "Sort" [ref=e50]
+        - button "Show/Hide Learning Summary" [ref=e52]
+      - generic [ref=e53]:
+        - generic [ref=e54]: Pseudocode
+        - generic [ref=e55]:
+          - generic [ref=e56]: 1. L = 0; R = n - 1
+          - generic [ref=e57]: "2. while L < R:"
+          - generic [ref=e58]: 3. sum = arr[L] + arr[R]
+          - generic [ref=e59]: "4. if sum == target: return (L, R)"
+          - generic [ref=e60]: "5. elif sum < target: L += 1"
+          - generic [ref=e61]: "6. else: R -= 1"
+          - generic [ref=e62]: 7. return not found
+      - generic [ref=e63]:
+        - generic [ref=e64]: Step Log
+        - generic [ref=e66]: Use ← Reset • Step to advance one comparison • Auto Play to animate
+```

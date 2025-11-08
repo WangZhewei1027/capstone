@@ -1,0 +1,80 @@
+# Page snapshot
+
+```yaml
+- application "Array interactive module" [ref=e2]:
+  - complementary "Array — Indexed Collection" [ref=e3]:
+    - heading "Array — Indexed Collection" [level=1] [ref=e4]
+    - paragraph [ref=e5]: "Explore arrays visually: indexing, dynamic size, access, insertion, removal, and reordering."
+    - generic [ref=e6]:
+      - generic [ref=e7]: Learning Objective
+      - generic [ref=e8]:
+        - text: "After interacting with this module, you will be able to:"
+        - list [ref=e9]:
+          - listitem [ref=e10]: Understand arrays as ordered, indexed collections of values.
+          - listitem [ref=e11]: See how operations (push, insert, remove, pop) change order and length.
+          - listitem [ref=e12]: Access and edit elements by index and visually observe how indices update.
+    - generic [ref=e13]:
+      - generic [ref=e14]: Interaction Design
+      - generic [ref=e15]:
+        - text: "Interactions included:"
+        - list [ref=e16]:
+          - listitem [ref=e17]: Type a value and click "Push" to append — tile animates into the array.
+          - listitem [ref=e18]: Insert at a specific index using "Insert at" — tiles shift and indices update.
+          - listitem [ref=e19]: Remove by index or use "Pop" to remove the last; removal fades out and array compresses.
+          - listitem [ref=e20]: Click a tile to select it; edit inline in the inspector and save to mutate the array.
+          - listitem [ref=e21]: Drag a tile onto another to swap positions; animations use a FLIP technique for smooth visual motion.
+          - listitem [ref=e22]: "Keyboard: arrow keys move selection; Enter starts edit; Escape cancels."
+        - text: "Visual feedback: add/remove animations, selection elevation, index highlight, and operation log with live array representation."
+    - generic [ref=e23]:
+      - generic [ref=e24]: Layout Description
+      - generic [ref=e25]:
+        - text: "- Left column: module explanation (this panel). Safe margins: 24px around viewport."
+        - text: "- Right column: interactive panel containing controls on top, visual array center, inspector and live code below."
+        - text: "- Spacing: at least 16px between interactive elements (using gap variables)."
+        - text: "- Accessibility: buttons and tiles have labels, keyboard focus styles, and an aria-live log for screen readers."
+        - text: "- Responsive: stacks vertically on narrow screens and keeps controls reachable."
+  - main [ref=e26]:
+    - generic [ref=e27]:
+      - region "Array controls" [ref=e28]:
+        - textbox "Value to add or insert" [ref=e29]:
+          - /placeholder: Value (string or number)
+        - spinbutton "Index for insert or remove" [ref=e30]
+        - button "Push" [ref=e31] [cursor=pointer]
+        - button "Insert at" [ref=e32] [cursor=pointer]
+        - button "Pop" [ref=e33] [cursor=pointer]
+        - button "Remove at" [ref=e34] [cursor=pointer]
+        - button "Clear" [ref=e35] [cursor=pointer]
+      - region "Array visual representation" [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]: Array (visual)
+            - generic [ref=e40]: Click tiles to select. Drag a tile onto another to swap.
+          - generic [ref=e41]:
+            - generic [ref=e42]: "Length:"
+            - generic [ref=e43]: "3"
+        - generic "Array elements" [ref=e44]:
+          - button "Element index 0 value alpha" [ref=e45]:
+            - generic [ref=e46]: alpha
+            - generic [ref=e47]: idx 0
+          - button "Element index 1 value beta" [ref=e48]:
+            - generic [ref=e49]: beta
+            - generic [ref=e50]: idx 1
+          - button "Element index 2 value gamma" [ref=e51]:
+            - generic [ref=e52]: gamma
+            - generic [ref=e53]: idx 2
+        - generic [ref=e54]:
+          - generic [ref=e55]:
+            - generic [ref=e56]:
+              - generic [ref=e57]: Inspector
+              - generic [ref=e58]: Selected element details
+            - generic [ref=e61]: No item selected
+          - generic [ref=e62]:
+            - generic [ref=e63]: Live Array
+            - generic [ref=e64]: "[ \"alpha\", \"beta\", \"gamma\" ]"
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - generic [ref=e67]: Operation Log
+          - generic [ref=e68]: Recent actions
+        - log [ref=e69]:
+          - generic [ref=e70]: "[11:06:06 PM] Module ready — initial array loaded"
+```

@@ -1,0 +1,153 @@
+{
+  "topic": "Sliding Window Interactive Module",
+  "description": "Models the interactive states of a sliding-window visualization app (array input, window size, play/step controls, draggable window overlay, incremental animation, status updates, explanation panel).",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "renderAll()",
+      "onExit": "",
+      "on": {
+        "PLAY": "playing",
+        "TOGGLE_PLAY": "playing",
+        "NEXT": "decide_step",
+        "PREV": "decide_step_left",
+        "DRAG_START": "dragging",
+        "APPLY_ARRAY": "computing",
+        "RANDOMIZE": "computing",
+        "SHUFFLE": "computing",
+        "WINDOW_SIZE_CHANGE": "computing",
+        "TOGGLE_INCREMENTAL": "idle",
+        "RESET": "idle",
+        "JUMP_TO_END": "atEnd",
+        "EXPLAIN_TOGGLE": "explain_shown"
+      }
+    },
+    {
+      "name": "playing",
+      "onEnter": "play()  // start timer and immediate tick",
+      "onExit": "stop()  // stop timer and set Play label",
+      "on": {
+        "TICK": "decide_step",
+        "PAUSE": "idle",
+        "TOGGLE_PLAY": "idle",
+        "NEXT": "decide_step",
+        "PREV": "decide_step_left",
+        "DRAG_START": "dragging",
+        "JUMP_TO_END": "atEnd",
+        "EXPLAIN_TOGGLE": "explain_shown"
+      }
+    },
+    {
+      "name": "decide_step",
+      "onEnter": "evaluate: if at-window-end -> atEnd; else if incremental -> animating; else -> stepping",
+      "onExit": "",
+      "on": {
+        "ANIMATING_START": "animating",
+        "STEPPING_START": "stepping",
+        "AT_END": "atEnd"
+      }
+    },
+    {
+      "name": "decide_step_left",
+      "onEnter": "evaluate: if startIndex==0 -> idle (no-op); else if incremental -> animating; else -> stepping",
+      "onExit": "",
+      "on": {
+        "ANIMATING_START": "animating",
+        "STEPPING_START": "stepping",
+        "NO_OP": "idle"
+      }
+    },
+    {
+      "name": "animating",
+      "onEnter": "animateIncrementalUpdate(outgoing, incoming, callback)  // visual flash of outgoing then incoming",
+      "onExit": "callback updates currentSum/startIndex -> updateBestAndRender()",
+      "on": {
+        "ANIMATION_COMPLETE": "idle",
+        "AT_END": "atEnd",
+        "EXPLAIN_TOGGLE": "explain_shown"
+      }
+    },
+    {
+      "name": "stepping",
+      "onEnter": "performNonIncrementalStep()  // recompute whole window sum, update startIndex, updateBestAndRender()",
+      "onExit": "",
+      "on": {
+        "STEP_COMPLETE": "idle",
+        "AT_END": "atEnd",
+        "EXPLAIN_TOGGLE": "explain_shown"
+      }
+    },
+    {
+      "name": "dragging",
+      "onEnter": "capture pointer, set dragging=true (pointerdown handler)",
+      "onExit": "release pointer, snapToNearestIndex(); recompute currentSum; recomputeAllWindows(); renderAll()",
+      "on": {
+        "DRAG_MOVE": "dragging",
+        "DRAG_END": "idle",
+        "DRAG_CANCEL": "idle",
+        "EXPLAIN_TOGGLE": "explain_shown"
+      }
+    },
+    {
+      "name": "computing",
+      "onEnter": "setArrayFromInput() or randomize/shuffle actions -> computeInitial()/recomputeAllWindows(); renderAll()",
+      "onExit": "idle",
+      "on": {
+        "COMPUTE_DONE": "idle",
+        "EXPLAIN_TOGGLE": "explain_shown"
+      }
+    },
+    {
+      "name": "atEnd",
+      "onEnter": "stop(); // ensure playing is false and Play label set",
+      "onExit": "",
+      "on": {
+        "RESET": "idle",
+        "PREV": "decide_step_left",
+        "PLAY": "playing",
+        "JUMP_TO_END": "atEnd",
+        "EXPLAIN_TOGGLE": "explain_shown"
+      }
+    },
+    {
+      "name": "explain_shown",
+      "onEnter": "showExplain()  // explainCard.style.display = 'block'",
+      "onExit": "hideExplain()  // explainCard.style.display = 'none'",
+      "on": {
+        "EXPLAIN_TOGGLE": "idle",
+        "PLAY": "playing",
+        "PAUSE": "idle",
+        "NEXT": "decide_step",
+        "PREV": "decide_step_left",
+        "DRAG_START": "dragging"
+      }
+    }
+  ],
+  "events": [
+    "PLAY",
+    "PAUSE",
+    "TOGGLE_PLAY",
+    "TICK",
+    "NEXT",
+    "PREV",
+    "ANIMATING_START",
+    "ANIMATION_COMPLETE",
+    "STEPPING_START",
+    "STEP_COMPLETE",
+    "DRAG_START",
+    "DRAG_MOVE",
+    "DRAG_END",
+    "DRAG_CANCEL",
+    "APPLY_ARRAY",
+    "RANDOMIZE",
+    "SHUFFLE",
+    "WINDOW_SIZE_CHANGE",
+    "TOGGLE_INCREMENTAL",
+    "RESET",
+    "JUMP_TO_END",
+    "EXPLAIN_TOGGLE",
+    "COMPUTE_DONE",
+    "RESIZE"
+  ],
+  "notes": "Guards and conditional behavior: many transitions depend on runtime conditions. 'decide_step' and 'decide_step_left' are decision/branch states that select animating vs stepping depending on the 'incremental' toggle and boundary checks (if startIndex+windowSize >= arr.length the UI enters atEnd and playing stops). The animating state represents the async visual sequence produced by animateIncrementalUpdate(outgoing,incoming,callback); on ANIMATION_COMPLETE the callback updates currentSum and startIndex and then updateBestAndRender() is executed. The playing state starts a timer and issues TICK events; each TICK triggers a step decision (and will stop automatically when the end is reached). The explain panel is orthogonal to animation/interaction but modeled here as explicit states (explain_shown / exiting to idle). Computing transitions (apply/random/shuffle/window-size-change) synchronously recompute the initial and best sums (computeInitial()/recomputeAllWindows()) and renderAll() before returning to idle. Dragging is an interactive modal state: pointerdown -> dragging, pointermove -> DRAG_MOVE updates a temporary startIndex and highlight, pointerup -> DRAG_END snaps to index, recomputes sums and returns to idle. Keyboard controls (Space/ArrowLeft/ArrowRight/Home/End) map to TOGGLE_PLAY / PREV / NEXT / RESET / JUMP_TO_END events respectively. Visual side-effects referenced in onEnter/onExit strings correspond to functions in the source: play(), stop(), stepRight()/stepLeft() (encapsulated by stepping/animating), animateIncrementalUpdate(), recomputeAllWindows(), computeInitial(), updateBestAndRender(), renderAll(), showExplain()/hideExplain()."
+}

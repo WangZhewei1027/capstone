@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Heap (Min/Max) Explorer</title>
+  <style>
+    :root{
+      --safe: 24px;
+      --gap: 16px;
+      --accent: #0b76ef;
+      --muted: #6b7280;
+      --bg: #0f172a;
+      --card: #0b1220;
+      --glass: rgba(255,255,255,0.03);
+      --success: #10b981;
+      --danger: #ef4444;
+      --node-size: 56px;
+      --node-font: 18px;
+    }
+    /* Safe area margins: implemented as padding */
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#07102a 0%, #061728 60%);
+      color: #e6eef8;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding: var(--safe);
+      box-sizing:border-box;
+    }
+    *{box-sizing:inherit}
+    /* Layout: responsive two-column with wrap */
+    .app {
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+      justify-content:stretch;
+      flex-wrap:wrap;
+      min-height: calc(100vh - 2*var(--safe));
+    }
+
+    /* Sidebar with explanations & controls */
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius:12px;
+      padding:20px;
+      min-width: 320px;
+      max-width:420px;
+      flex: 0 1 380px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    .title {
+      font-size:20px;
+      font-weight:700;
+      color: white;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+    }
+    .subtitle {
+      font-size:13px;
+      color:var(--muted);
+      margin-top:4px;
+    }
+
+    .section {
+      background: var(--glass);
+      padding:14px;
+      border-radius:10px;
+    }
+    .label {
+      font-size:13px;
+      color:var(--muted);
+      margin-bottom:8px;
+    }
+    .controls {
+      display:flex;
+      flex-wrap:wrap;
+      gap:var(--gap);
+      align-items:center;
+    }
+    input[type="number"]{
+      appearance: none;
+      -moz-appearance: textfield;
+      width:120px;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+      color:inherit;
+      font-size:14px;
+    }
+    button {
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.06);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.04));
+      color:inherit;
+      cursor:pointer;
+      font-size:14px;
+    }
+    button:active{ transform: translateY(1px); }
+    .btn-primary{
+      background: linear-gradient(180deg, #0b76ef, #095fcf);
+      border: none;
+      color: white;
+      box-shadow: 0 6px 18px rgba(11,118,239,0.18);
+    }
+    .btn-ghost{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.04);
+    }
+    .row {
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    label.switch{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      cursor:pointer;
+      user-select:none;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .toggle {
+      width:48px;
+      height:28px;
+      background: rgba(255,255,255,0.08);
+      border-radius:20px;
+      position:relative;
+      flex:0 0 auto;
+    }
+    .knob{
+      width:20px;height:20px;border-radius:50%;
+      background:white;
+      position:absolute;top:4px;left:4px;
+      transition: transform 180ms ease;
+      box-shadow: 0 4px 10px rgba(2,6,23,0.6);
+    }
+    .toggle.on { background: linear-gradient(90deg,#10b981,#06a86f); }
+    .toggle.on .knob { transform: translateX(20px); }
+
+    /* Visualization area */
+    .viz {
+      flex:1 1 620px;
+      min-width:300px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);
+      border-radius:12px;
+      padding:16px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      min-height:420px;
+    }
+    .canvas {
+      position:relative;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02));
+      border-radius:10px;
+      padding:16px;
+      height:420px;
+      overflow:hidden;
+    }
+    .svg-lines{
+      position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none;
+    }
+    .nodes-layer{
+      position:absolute; left:0; top:0; width:100%; height:100%;
+      pointer-events:none;
+    }
+    .heap-node{
+      width:var(--node-size);
+      height:var(--node-size);
+      border-radius:50%;
+      position:absolute;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: linear-gradient(180deg,#071a3a,#083158);
+      color:#e6f4ff;
+      font-weight:600;
+      font-size:var(--node-font);
+      box-shadow: 0 8px 22px rgba(2,6,23,0.6);
+      transition: left 420ms cubic-bezier(.2,.9,.25,1), top 420ms cubic-bezier(.2,.9,.25,1), transform 180ms ease, box-shadow 160ms;
+      pointer-events:auto;
+      cursor:pointer;
+    }
+    .heap-node:focus{ outline:3px solid rgba(11,118,239,0.18); }
+    .heap-node.compare {
+      transform: scale(1.08);
+      box-shadow: 0 14px 36px rgba(11,118,239,0.18);
+    }
+    .heap-node.swap {
+      transform: scale(1.06);
+      box-shadow: 0 18px 46px rgba(11,118,239,0.24);
+      background: linear-gradient(90deg,#ffb86b,#ff7b7b);
+    }
+    .heap-node.root{
+      border: 2px solid rgba(255,255,255,0.06);
+    }
+
+    .array-view {
+      margin-top:6px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      padding:12px;
+      border-radius:10px;
+      background: rgba(255,255,255,0.01);
+      border:1px dashed rgba(255,255,255,0.02);
+      min-height:56px;
+    }
+    .array-cell{
+      min-width:40px;
+      height:40px;
+      padding:6px 10px;
+      border-radius:8px;
+      background: rgba(255,255,255,0.03);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:600;
+      color: #e6eef8;
+      font-size:14px;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+    .array-cell.compare{ background: linear-gradient(90deg,#fef3c7,#fde68a); color:#1f2937; }
+    .array-cell.swap{ background: linear-gradient(90deg,#ffb86b,#ff7b7b); color:#1f2937; }
+
+    .hint {
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    /* Buttons group spacing */
+    .btn-group{ display:flex; gap:12px; flex-wrap:wrap; }
+
+    /* Responsiveness */
+    @media (max-width:900px){
+      .panel{ max-width:100%; flex-basis:100%; }
+      .viz{ flex-basis:100%; }
+      .canvas{ height:360px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Heap Min/Max interactive module">
+    <!-- Sidebar: Title, Learning Objectives, Controls -->
+    <aside class="panel" aria-labelledby="title-heading">
+      <div>
+        <div class="title" id="title-heading">
+          <div>Heap (Min / Max) — Interactive Explorer</div>
+          <div style="font-size:12px;color:var(--muted)">Hands-on</div>
+        </div>
+        <div class="subtitle">Visualize heap operations, compare min-heap and max-heap behavior, and step through bubble-up and sift-down with animated swaps.</div>
+      </div>
+
+      <div class="section" aria-labelledby="objective-heading">
+        <div style="font-weight:700;margin-bottom:8px" id="objective-heading">Learning Objective</div>
+        <div class="hint">
+          After interacting, you should be able to:
+          <ul style="margin:8px 0 0 18px;color:var(--muted);font-size:13px">
+            <li>Recognize the binary-tree and array layouts of a heap.</li>
+            <li>See how insert (bubble-up) and extract (sift-down) maintain heap property.</li>
+            <li>Observe difference between min-heap and max-heap behavior.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="section" aria-labelledby="interaction-heading">
+        <div style="font-weight:700;margin-bottom:8px" id="interaction-heading">Interaction Design</div>
+        <div class="hint" style="color:var(--muted);font-size:13px">
+          - Enter a numeric value and click Insert (or press Enter).<br>
+          - Click Extract Root to remove min (or max) depending on mode.<br>
+          - Toggle "Max-Heap" to change comparator and rebuild (animated).<br>
+          - Use Randomize to seed the heap with random values.<br>
+          - Step mode pauses after each compare or swap; press Next to proceed.<br>
+          - Click any node in the tree or array to remove that element (animated).
+        </div>
+      </div>
+
+      <div class="section" aria-labelledby="layout-heading">
+        <div style="font-weight:700;margin-bottom:8px" id="layout-heading">Layout Description</div>
+        <div class="hint" style="color:var(--muted);font-size:13px">
+          - Left panel: explanatory text and controls (fixed width, responsive).<br>
+          - Right panel: visualization canvas with the tree (SVG connectors) above and array view below.<br>
+          - Safe area: 24px padding applied to body; 16px min spacing between controls. Controls are large and keyboard-accessible.
+        </div>
+      </div>
+
+      <div class="section" aria-labelledby="controls-heading" style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-weight:700" id="controls-heading">Controls</div>
+
+        <div class="row controls" role="group" aria-label="heap controls">
+          <input id="value-input" type="number" aria-label="Value to insert" placeholder="Value" />
+          <button id="insert-btn" class="btn-primary" aria-label="Insert value">Insert</button>
+          <button id="extract-btn" class="btn-ghost" aria-label="Extract root">Extract Root</button>
+        </div>
+
+        <div class="row controls">
+          <label class="switch" for="mode-toggle">
+            <div id="mode-toggle" class="toggle" role="button" tabindex="0" aria-pressed="false" aria-label="Toggle max-heap mode">
+              <div class="knob" aria-hidden="true"></div>
+            </div>
+            <div style="min-width:120px">Max-Heap</div>
+          </label>
+
+          <div style="display:flex;gap:12px;align-items:center">
+            <button id="random-btn">Randomize</button>
+            <button id="clear-btn">Clear</button>
+          </div>
+        </div>
+
+        <div class="row controls">
+          <label class="switch" for="step-toggle">
+            <input id="step-toggle-input" type="checkbox" style="display:none" />
+            <div id="step-toggle" class="toggle" role="checkbox" tabindex="0" aria-checked="false">
+              <div class="knob" aria-hidden="true"></div>
+            </div>
+            <div style="min-width:120px">Step Mode</div>
+          </label>
+          <div style="display:flex;gap:12px">
+            <button id="next-step-btn" class="btn-ghost" aria-label="Next step" disabled>Next</button>
+            <button id="skip-btn" class="btn-ghost" aria-label="Complete animation" disabled>Run to End</button>
+          </div>
+        </div>
+
+        <div style="font-size:13px;color:var(--muted)">Tip: You can also click a node to remove it directly.</div>
+      </div>
+
+      <div class="section" aria-live="polite" id="status" style="font-size:13px;color:var(--muted)">
+        Ready — heap is empty.
+      </div>
+
+    </aside>
+
+    <!-- Visualization area -->
+    <main class="viz" aria-label="Heap visualization">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700">Heap Visualization</div>
+        <div style="font-size:13px;color:var(--muted)">Mode: <span id="mode-label">Min-Heap</span></div>
+      </div>
+
+      <div class="canvas" id="canvas" role="region" aria-label="Heap tree canvas">
+        <!-- SVG lines -->
+        <svg class="svg-lines" id="svg-lines" aria-hidden="true"></svg>
+        <!-- Node container -->
+        <div class="nodes-layer" id="nodes-layer" aria-hidden="false"></div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700">Array (level-order)</div>
+        <div style="font-size:13px;color:var(--muted)">Click an item to remove it</div>
+      </div>
+      <div class="array-view" id="array-view" role="list" aria-label="Heap array view"></div>
+    </main>
+  </div>
+
+  <script>
+    // Heap interactive module (vanilla JS)
+    (function () {
+      // Elements
+      const valueInput = document.getElementById('value-input');
+      const insertBtn = document.getElementById('insert-btn');
+      const extractBtn = document.getElementById('extract-btn');
+      const randomBtn = document.getElementById('random-btn');
+      const clearBtn = document.getElementById('clear-btn');
+      const modeToggle = document.getElementById('mode-toggle');
+      const modeLabel = document.getElementById('mode-label');
+      const canvas = document.getElementById('canvas');
+      const svg = document.getElementById('svg-lines');
+      const nodesLayer = document.getElementById('nodes-layer');
+      const arrayView = document.getElementById('array-view');
+      const status = document.getElementById('status');
+      const stepToggle = document.getElementById('step-toggle');
+      const stepToggleInput = document.getElementById('step-toggle-input');
+      const nextStepBtn = document.getElementById('next-step-btn');
+      const skipBtn = document.getElementById('skip-btn');
+
+      // State
+      let isMaxHeap = false;
+      let heap = []; // values
+      let nodesDOM = []; // DOM elements mapped by index (positions)
+      let animating = false;
+      let stepMode = false;
+      let stepResolve = null;
+      let animationQueue = Promise.resolve();
+
+      // Layout parameters
+      const nodeSize = 56;
+      const levelGap = 86; // vertical gap between levels
+      const canvasPadding = 8;
+
+      // Accessibility helpers
+      function setStatus(msg) {
+        status.textContent = msg;
+      }
+
+      // Comparator depending on mode
+      function cmp(a, b) {
+        return isMaxHeap ? (a > b) : (a < b);
+      }
+
+      // Utility: compute position for a node index
+      function computePosition(index) {
+        const rect = canvas.getBoundingClientRect();
+        const width = rect.width - canvasPadding * 2;
+        const xOffset = canvasPadding;
+        const level = Math.floor(Math.log2(index + 1));
+        const firstInLevel = Math.pow(2, level) - 1;
+        const posInLevel = index - firstInLevel;
+        const nodesInLevel = Math.pow(2, level);
+        const cellWidth = width / nodesInLevel;
+        const x = xOffset + cellWidth * (posInLevel + 0.5) - nodeSize / 2;
+        const y = 12 + level * levelGap;
+        return { left: Math.max(6, x), top: Math.max(6, y) };
+      }
+
+      // Draw connector lines between parent and children using SVG
+      function updateLines() {
+        // Clear
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        if (heap.length <= 1) return;
+        for (let i = 0; i < heap.length; i++) {
+          const leftChild = 2 * i + 1;
+          const rightChild = 2 * i + 2;
+          const fromPos = computePosition(i);
+          const cx = fromPos.left + nodeSize / 2;
+          const cy = fromPos.top + nodeSize / 2;
+          if (leftChild < heap.length) {
+            const to = computePosition(leftChild);
+            const tx = to.left + nodeSize / 2;
+            const ty = to.top + nodeSize / 2;
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", cx); line.setAttribute("y1", cy);
+            line.setAttribute("x2", tx); line.setAttribute("y2", ty);
+            line.setAttribute("stroke", "rgba(255,255,255,0.06)");
+            line.setAttribute("stroke-width", "2");
+            svg.appendChild(line);
+          }
+          if (rightChild < heap.length) {
+            const to = computePosition(rightChild);
+            const tx = to.left + nodeSize / 2;
+            const ty = to.top + nodeSize / 2;
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", cx); line.setAttribute("y1", cy);
+            line.setAttribute("x2", tx); line.setAttribute("y2", ty);
+            line.setAttribute("stroke", "rgba(255,255,255,0.06)");
+            line.setAttribute("stroke-width", "2");
+            svg.appendChild(line);
+          }
+        }
+      }
+
+      // Create DOM element for a value (initially hidden)
+      function createNodeElement(value) {
+        const el = document.createElement('div');
+        el.className = 'heap-node';
+        el.textContent = String(value);
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', 'Heap node ' + value);
+        el.dataset.value = String(value);
+        // allow clicking a node to remove
+        el.addEventListener('click', (e) => {
+          const idx = nodesDOM.indexOf(el);
+          if (idx >= 0 && !animating) {
+            enqueueOperation(() => removeAtIndex(idx));
+          }
+        });
+        el.addEventListener('keydown', (e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !animating) {
+            const idx = nodesDOM.indexOf(el);
+            if (idx >= 0) enqueueOperation(() => removeAtIndex(idx));
+            e.preventDefault();
+          }
+        });
+        return el;
+      }
+
+      // Render nodes to their positions (with transitions)
+      function renderAllNodes() {
+        // ensure nodesLayer contains all elements
+        nodesDOM.forEach((el, i) => {
+          if (!el) return;
+          if (!nodesLayer.contains(el)) nodesLayer.appendChild(el);
+          const pos = computePosition(i);
+          el.style.left = pos.left + 'px';
+          el.style.top = pos.top + 'px';
+          el.classList.remove('compare', 'swap');
+          if (i === 0) el.classList.add('root'); else el.classList.remove('root');
+          el.setAttribute('aria-label', 'Heap node ' + el.dataset.value + ' at index ' + i);
+        });
+        updateArrayView();
+        updateLines();
+      }
+
+      // Update array (level-order) view
+      function updateArrayView(highlight = {}) {
+        // highlight: {compare:[i,j], swap:[i,j]}
+        arrayView.innerHTML = '';
+        heap.forEach((v, i) => {
+          const cell = document.createElement('div');
+          cell.className = 'array-cell';
+          cell.textContent = String(v);
+          cell.setAttribute('role','listitem');
+          cell.setAttribute('tabindex','0');
+          if (highlight.compare && highlight.compare.includes(i)) cell.classList.add('compare');
+          if (highlight.swap && highlight.swap.includes(i)) cell.classList.add('swap');
+          cell.addEventListener('click', () => {
+            if (!animating) enqueueOperation(() => removeAtIndex(i));
+          });
+          cell.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && !animating) {
+              enqueueOperation(() => removeAtIndex(i));
+              e.preventDefault();
+            }
+          });
+          arrayView.appendChild(cell);
+        });
+      }
+
+      // Swap model and animate DOM elements for indices i and j
+      function animateSwap(i, j) {
+        return new Promise((resolve) => {
+          animating = true;
+          setStatus(`Swapping indices ${i} and ${j}...`);
+          // swap values in model
+          const tmp = heap[i]; heap[i] = heap[j]; heap[j] = tmp;
+          // dom elements currently at positions i and j
+          const elA = nodesDOM[i];
+          const elB = nodesDOM[j];
+          if (!elA || !elB) {
+            animating = false;
+            renderAllNodes();
+            resolve();
+            return;
+          }
+          // mark both as swap
+          elA.classList.add('swap');
+          elB.classList.add('swap');
+
+          // compute target positions
+          const posA = computePosition(i);
+          const posB = computePosition(j);
+
+          // move them to opposite positions
+          // Increase z-index so they appear above others while moving
+          elA.style.zIndex = 1000;
+          elB.style.zIndex = 1001;
+
+          // set positions to their targets (CSS transition will animate)
+          elA.style.left = posB.left + 'px';
+          elA.style.top = posB.top + 'px';
+          elB.style.left = posA.left + 'px';
+          elB.style.top = posA.top + 'px';
+
+          // after transition ends, swap references in nodesDOM and reset styling
+          let done = 0;
+          function ended() {
+            done++;
+            if (done < 2) return;
+            // reset z-index
+            elA.style.zIndex = '';
+            elB.style.zIndex = '';
+            elA.classList.remove('swap');
+            elB.classList.remove('swap');
+            // swap positions in nodesDOM mapping
+            nodesDOM[i] = elB;
+            nodesDOM[j] = elA;
+            renderAllNodes();
+            animating = false;
+            setStatus(`Swapped ${i} ↔ ${j}.`);
+            resolve();
+          }
+
+          // Listen for transitionend on both
+          const tfnA = () => { elA.removeEventListener('transitionend', tfnA); ended(); };
+          const tfnB = () => { elB.removeEventListener('transitionend', tfnB); ended(); };
+          elA.addEventListener('transitionend', tfnA);
+          elB.addEventListener('transitionend', tfnB);
+          // Fallback in case transitions don't fire
+          setTimeout(() => {
+            if (done < 2) ended();
+          }, 700);
+        });
+      }
+
+      // Highlight compare between indices (brief animation)
+      function highlightCompare(i, j) {
+        return new Promise((resolve) => {
+          animating = true;
+          setStatus(`Comparing index ${i} and ${j}...`);
+          // highlight DOM nodes and array cells
+          if (nodesDOM[i]) nodesDOM[i].classList.add('compare');
+          if (nodesDOM[j]) nodesDOM[j].classList.add('compare');
+          updateArrayView({compare:[i,j]});
+          // Either wait for step or auto advance after delay
+          function finish() {
+            if (nodesDOM[i]) nodesDOM[i].classList.remove('compare');
+            if (nodesDOM[j]) nodesDOM[j].classList.remove('compare');
+            updateArrayView();
+            animating = false;
+            resolve();
+          }
+          if (stepMode) {
+            // enable next button and wait
+            nextStepBtn.disabled = false;
+            skipBtn.disabled = false;
+            stepResolve = finish;
+          } else {
+            setTimeout(finish, 540);
+          }
+        });
+      }
+
+      // Enqueue animation operations to run sequentially
+      function enqueueOperation(fn) {
+        animationQueue = animationQueue.then(() => {
+          return new Promise((res) => {
+            // slight delay to ensure UI responsiveness
+            setTimeout(() => {
+              fn().then ? fn().then(res) : Promise.resolve(fn()).then(res);
+            }, 50);
+          });
+        }).catch((e) => {
+          console.error(e);
+        });
+      }
+
+      // Insert value into heap with animated bubble-up
+      async function insertValue(value) {
+        if (value === '' || value === null || Number.isNaN(Number(value))) {
+          setStatus('Invalid value.');
+          return;
+        }
+        const v = Number(value);
+        setStatus(`Inserting ${v}...`);
+        // create DOM element for this value and append to nodesLayer (we'll position after)
+        const el = createNodeElement(v);
+        nodesLayer.appendChild(el);
+        // push to model
+        const idx = heap.length;
+        heap.push(v);
+        nodesDOM.push(el);
+        // position at its index immediately (start from below for clarity)
+        const pos = computePosition(idx);
+        el.style.left = pos.left + 'px';
+        el.style.top = (pos.top + 10) + 'px';
+        renderAllNodes();
+
+        // bubble-up with animation
+        let i = idx;
+        while (i > 0) {
+          const parent = Math.floor((i - 1) / 2);
+          await highlightCompare(i, parent);
+          if (cmp(heap[i], heap[parent])) {
+            await animateSwap(i, parent);
+            i = parent;
+          } else {
+            setStatus(`Inserted ${v} at index ${i}.`);
+            break;
+          }
+        }
+        renderAllNodes();
+      }
+
+      // Extract root (remove root and sift-down)
+      async function extractRoot() {
+        if (heap.length === 0) {
+          setStatus('Heap is empty.');
+          return;
+        }
+        setStatus('Extracting root...');
+        if (heap.length === 1) {
+          // remove the only node
+          const el = nodesDOM.pop();
+          heap.pop();
+          if (el) {
+            el.classList.add('swap');
+            el.style.transform = 'scale(0.9)';
+            setTimeout(() => {
+              if (el.parentNode) el.parentNode.removeChild(el);
+            }, 300);
+          }
+          renderAllNodes();
+          setStatus('Heap emptied.');
+          return;
+        }
+        // move last element to root (animate swap last <-> root)
+        await animateSwap(0, heap.length - 1);
+        // remove last element (now at index heap.length-1)
+        const removedEl = nodesDOM.pop();
+        const removedVal = heap.pop();
+        if (removedEl && removedEl.parentNode) {
+          removedEl.classList.add('swap');
+          removedEl.style.transform = 'scale(0.85)';
+          setTimeout(() => {
+            if (removedEl.parentNode) removedEl.parentNode.removeChild(removedEl);
+          }, 420);
+        }
+        setStatus(`Removed root ${removedVal}. Sifting down...`);
+        // sift-down from root (0)
+        let i = 0;
+        while (true) {
+          const left = 2 * i + 1;
+          const right = 2 * i + 2;
+          if (left >= heap.length) break;
+          // choose child to compare (according to heap type)
+          let pick = left;
+          if (right < heap.length) {
+            await highlightCompare(left, right);
+            pick = cmp(heap[right], heap[left]) ? right : left;
+          }
+          await highlightCompare(i, pick);
+          if (cmp(heap[pick], heap[i])) {
+            await animateSwap(i, pick);
+            i = pick;
+          } else {
+            break;
+          }
+        }
+        renderAllNodes();
+        setStatus(`Extraction complete. Removed ${removedVal}.`);
+      }
+
+      // Build heap (heapify) with animation: run bottom-up sift-downs
+      async function buildHeapAnimated(values) {
+        // clear current
+        clearAll();
+        // create DOM elements
+        values.forEach((v) => {
+          const el = createNodeElement(v);
+          nodesLayer.appendChild(el);
+          heap.push(v);
+          nodesDOM.push(el);
+        });
+        renderAllNodes();
+        setStatus('Building heap...');
+        // bottom-up
+        for (let i = Math.floor((heap.length - 2) / 2); i >= 0; i--) {
+          let idx = i;
+          while (true) {
+            const left = 2 * idx + 1;
+            const right = 2 * idx + 2;
+            if (left >= heap.length) break;
+            let pick = left;
+            if (right < heap.length) {
+              await highlightCompare(left, right);
+              pick = cmp(heap[right], heap[left]) ? right : left;
+            }
+            await highlightCompare(idx, pick);
+            if (cmp(heap[pick], heap[idx])) {
+              await animateSwap(idx, pick);
+              idx = pick;
+            } else break;
+          }
+        }
+        renderAllNodes();
+        setStatus('Heap built.');
+      }
+
+      // Remove at specific index
+      async function removeAtIndex(idx) {
+        if (idx < 0 || idx >= heap.length) return;
+        setStatus(`Removing value ${heap[idx]} at index ${idx}...`);
+        // swap with last and remove last
+        if (idx === heap.length - 1) {
+          // just remove last
+          const el = nodesDOM.pop();
+          heap.pop();
+          if (el && el.parentNode) {
+            el.classList.add('swap');
+            setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
+          }
+          renderAllNodes();
+          setStatus('Removed.');
+          return;
+        }
+        await animateSwap(idx, heap.length - 1);
+        const removedEl = nodesDOM.pop();
+        const removedVal = heap.pop();
+        if (removedEl && removedEl.parentNode) {
+          removedEl.classList.add('swap');
+          setTimeout(() => { if (removedEl.parentNode) removedEl.parentNode.removeChild(removedEl); }, 300);
+        }
+        // After swap and remove, attempt to restore heap by sifting down or up
+        const parent = Math.floor((idx - 1) / 2);
+        if (idx > 0 && cmp(heap[idx], heap[parent])) {
+          // bubble-up
+          let i = idx;
+          while (i > 0) {
+            const p = Math.floor((i - 1) / 2);
+            await highlightCompare(i, p);
+            if (cmp(heap[i], heap[p])) await animateSwap(i, p);
+            else break;
+            i = p;
+          }
+        } else {
+          // sift-down
+          let i = idx;
+          while (true) {
+            const left = 2 * i + 1;
+            const right = 2 * i + 2;
+            if (left >= heap.length) break;
+            let pick = left;
+            if (right < heap.length) {
+              await highlightCompare(left, right);
+              pick = cmp(heap[right], heap[left]) ? right : left;
+            }
+            await highlightCompare(i, pick);
+            if (cmp(heap[pick], heap[i])) {
+              await animateSwap(i, pick);
+              i = pick;
+            } else break;
+          }
+        }
+        renderAllNodes();
+        setStatus(`Removed ${removedVal}.`);
+      }
+
+      // Clear all
+      function clearAll() {
+        heap = [];
+        // remove dom nodes
+        nodesDOM.forEach(el => { if (el && el.parentNode) el.parentNode.removeChild(el); });
+        nodesDOM = [];
+        renderAllNodes();
+      }
+
+      // Attach controls
+      insertBtn.addEventListener('click', () => {
+        const v = valueInput.value;
+        enqueueOperation(() => insertValue(v));
+        valueInput.value = '';
+        valueInput.focus();
+      });
+      valueInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          insertBtn.click();
+        }
+      });
+      extractBtn.addEventListener('click', () => {
+        enqueueOperation(() => extractRoot());
+      });
+      randomBtn.addEventListener('click', () => {
+        const n = Math.floor(Math.random() * 6) + 5;
+        const vals = Array.from({length:n}, () => Math.floor(Math.random()*90)+1);
+        enqueueOperation(() => buildHeapAnimated(vals));
+      });
+      clearBtn.addEventListener('click', () => {
+        enqueueOperation(() => { clearAll(); setStatus('Cleared.'); });
+      });
+
+      // Toggle mode control
+      function toggleMode(to) {
+        isMaxHeap = to;
+        modeLabel.textContent = isMaxHeap ? 'Max-Heap' : 'Min-Heap';
+        modeToggle.classList.toggle('on', isMaxHeap);
+        modeToggle.setAttribute('aria-pressed', String(isMaxHeap));
+        // Rebuild heap according to new comparator (we'll heapify from current values)
+        enqueueOperation(async () => {
+          setStatus(`Switching to ${isMaxHeap ? 'Max' : 'Min'}-Heap and rebuilding...`);
+          await buildHeapAnimated(heap.slice()); // pass a copy
+        });
+      }
+      modeToggle.addEventListener('click', () => toggleMode(!isMaxHeap));
+      modeToggle.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { toggleMode(!isMaxHeap); e.preventDefault(); }
+      });
+
+      // Step mode toggle
+      function setStepMode(on) {
+        stepMode = on;
+        stepToggle.classList.toggle('on', on);
+        stepToggle.setAttribute('aria-checked', String(on));
+        nextStepBtn.disabled = !on;
+        skipBtn.disabled = !on;
+      }
+      stepToggle.addEventListener('click', () => setStepMode(!stepMode));
+      stepToggle.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { setStepMode(!stepMode); e.preventDefault(); }
+      });
+      // Next step button resumes the current highlight/pause
+      nextStepBtn.addEventListener('click', () => {
+        if (stepResolve) {
+          const fn = stepResolve; stepResolve = null;
+          nextStepBtn.disabled = true;
+          skipBtn.disabled = true;
+          fn();
+        }
+      });
+      // Skip: run to end (resolve current wait)
+      skipBtn.addEventListener('click', () => {
+        if (stepResolve) {
+          const fn = stepResolve; stepResolve = null;
+          nextStepBtn.disabled = true;
+          skipBtn.disabled = true;
+          fn();
+        }
+      });
+
+      // initial render
+      renderAllNodes();
+      setStatus('Ready — heap is empty.');
+
+      // Expose small API for debugging (optional)
+      window.heapModule = {
+        getHeap: () => heap.slice(),
+        insert: (v) => enqueueOperation(() => insertValue(v)),
+        extract: () => enqueueOperation(() => extractRoot()),
+        clear: () => enqueueOperation(() => { clearAll(); setStatus('Cleared.'); })
+      };
+
+      // Resize handling: update positions on window resize
+      window.addEventListener('resize', () => {
+        renderAllNodes();
+      });
+
+      // Ensure accessibility: focus outline visible on keyboard navigation
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') document.body.classList.add('show-focus');
+      });
+    })();
+  </script>
+</body>
+</html>

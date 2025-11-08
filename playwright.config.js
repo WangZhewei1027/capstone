@@ -84,6 +84,11 @@ export default defineConfig({
   // 输出目录配置
   outputDir: `${outputDir}/test-artifacts`,
 
+  // 忽略有语法错误的测试文件
+  testIgnore: [
+    "**/*.invalid.js", // 忽略被标记为无效的文件
+  ],
+
   // 项目配置 - 定义要运行的浏览器
   projects: [
     {

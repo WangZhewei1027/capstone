@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Floyd–Warshall Interactive Module</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --accent: #0b76ef;
+      --muted: #6b7280;
+      --bg: #f7fafc;
+      --tile: #ffffff;
+      --success: #10b981;
+      --danger: #ef4444;
+      --cell-size: 44px;
+      --max-nodes: 8;
+      --min-nodes: 2;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background:var(--bg);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
+      color:#0f172a;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    /* Safe area margins */
+    .app {
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+    }
+
+    header{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    h1{
+      margin:0;
+      font-size:20px;
+      font-weight:600;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:14px;
+      margin:0;
+    }
+
+    .module {
+      display:flex;
+      gap: var(--gap);
+      align-items:flex-start;
+      width:100%;
+    }
+
+    /* Left: graph canvas */
+    .panel {
+      background:var(--tile);
+      border-radius:10px;
+      padding:16px;
+      box-shadow:0 1px 2px rgba(2,6,23,0.06);
+      box-sizing:border-box;
+    }
+
+    .left {
+      flex:1 1 60%;
+      min-width: 280px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    .right {
+      flex:0 0 420px;
+      min-width: 300px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+
+    /* Graph area */
+    .graph-area {
+      height:460px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .canvas-wrap{
+      flex:1;
+      border-radius:8px;
+      background:linear-gradient(180deg,#ffffff, #fbfdff);
+      border:1px solid #e6eef8;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      overflow:hidden;
+    }
+    svg.graph {
+      width:100%;
+      height:100%;
+      display:block;
+    }
+
+    .legend {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .legend .dot{ width:10px;height:10px;border-radius:50%;display:inline-block; }
+
+    /* Controls */
+    .controls {
+      display:flex;
+      flex-wrap:wrap;
+      gap:var(--gap);
+      align-items:center;
+    }
+    .controls > * { margin:0; }
+
+    .field {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      font-size:14px;
+      color:var(--muted);
+    }
+    input[type="number"], select {
+      padding:8px 10px;
+      border-radius:6px;
+      border:1px solid #d1e3ff;
+      background:white;
+      min-width:64px;
+      font-size:14px;
+    }
+    button {
+      background:var(--accent);
+      color:white;
+      border:none;
+      padding:8px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    button.secondary {
+      background:#eef6ff;
+      color:var(--accent);
+      box-shadow:none;
+      border:1px solid #d1eafc;
+      font-weight:600;
+    }
+    button.warn {
+      background:var(--danger);
+    }
+    .small {
+      padding:6px 8px;
+      font-size:13px;
+    }
+
+    /* Matrix */
+    .matrix-wrap {
+      overflow:auto;
+      border:1px solid #eef2f7;
+      border-radius:8px;
+      padding:12px;
+      background:linear-gradient(180deg,#ffffff, #fbfeff);
+    }
+    table.matrix {
+      border-collapse:collapse;
+      font-family:monospace;
+    }
+    table.matrix th, table.matrix td {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      min-width: var(--cell-size);
+      text-align:center;
+      vertical-align:middle;
+      border:1px solid #e6eef8;
+      font-size:13px;
+      padding:0;
+      position:relative;
+    }
+    table.matrix th {
+      background:#f8fbff;
+      color:var(--muted);
+      font-weight:600;
+    }
+    td.cell {
+      cursor:pointer;
+      transition: background 180ms ease, transform 120ms ease;
+    }
+    td.cell:hover {
+      background:#f1f9ff;
+      transform:translateY(-2px);
+    }
+    td.cell.updated {
+      background:linear-gradient(90deg,#ecfdf5,#d1fae5);
+      animation: pulse 900ms ease;
+    }
+    @keyframes pulse {
+      0% { box-shadow:0 0 0 0 rgba(16,185,129,0.25); }
+      70% { box-shadow:0 0 0 8px rgba(16,185,129,0); }
+      100% { box-shadow:0 0 0 0 rgba(16,185,129,0); }
+    }
+    .cell .value {
+      display:block;
+      line-height:var(--cell-size);
+      width:100%;
+      height:100%;
+    }
+    .label-inline { font-size:13px; color:var(--muted); }
+
+    /* Trace / controls bottom */
+    .trace {
+      min-height:90px;
+      border-radius:8px;
+      padding:12px;
+      border:1px solid #eef2f7;
+      background:linear-gradient(180deg,#ffffff,#fcffff);
+      font-size:13px;
+      color:#111827;
+      overflow:auto;
+    }
+    .trace .step {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      margin-bottom:8px;
+    }
+    .trace .muted { color:var(--muted); }
+
+    /* Path display */
+    .path-info {
+      font-size:14px;
+      color:var(--muted);
+    }
+
+    /* Responsive */
+    @media (max-width:980px){
+      .module {
+        flex-direction:column;
+      }
+      .right { width:100%; min-width:0; }
+    }
+
+    /* Accessibility focus */
+    button:focus, input:focus, td.cell:focus {
+      outline:3px solid rgba(11,118,239,0.12);
+      outline-offset:2px;
+    }
+
+    /* Minimum spacing enforcement by margins between interactive items */
+    .controls > * { margin-right:0; }
+
+  </style>
+</head>
+<body>
+  <div class="app" role="main">
+    <header>
+      <h1>Floyd–Warshall Algorithm — Interactive Explorer</h1>
+      <p class="subtitle">Visualize all-pairs shortest paths, step through the triple loop, edit a graph matrix, and reconstruct paths.</p>
+    </header>
+
+    <!-- Explanatory panels -->
+    <section class="panel" aria-labelledby="concept-title">
+      <h2 id="concept-title" style="margin-top:0; font-size:16px;">Concept Overview</h2>
+      <p class="label-inline"><strong>Concept Title:</strong> Floyd–Warshall Algorithm — all-pairs shortest paths via dynamic programming.</p>
+      <p class="label-inline"><strong>Learning Objective:</strong> After interacting, you will understand how the Floyd–Warshall triple loop iteratively considers intermediate vertices (k) and updates shortest distances for every pair (i, j), and you'll be able to reconstruct shortest paths from the algorithm's "next" matrix.</p>
+
+      <h3 style="margin-bottom:6px;">Interaction Design</h3>
+      <ul style="margin-top:0;color:var(--muted);line-height:1.45;">
+        <li>Choose node count (2–8), edit the adjacency matrix (double-click a cell to set weight or remove an edge), and apply it to the graph.</li>
+        <li>Step through the algorithm: each inner step highlights (k, i, j) entries in the matrix and the graph, and animates updates when a shorter path is found.</li>
+        <li>Play/pause to auto-step; adjust speed. Use step back to review prior states (history recorded at each inner iteration).</li>
+        <li>Click two nodes (or pick source/target) to reconstruct the current shortest path using the algorithm's "next" matrix; edges in the graph are highlighted and the path sequence is displayed.</li>
+      </ul>
+
+      <h3 style="margin-bottom:6px;">Layout Description</h3>
+      <p style="margin-top:0;color:var(--muted);line-height:1.45;">
+        The page is a single module with a left column displaying the graph canvas and controls, and a right column containing the adjacency/distance matrices and algorithm controls. Safe area margins keep a 24px padding all around; interactive items are spaced with a minimum of 16px. The layout adapts for narrow screens by stacking vertically. Matrix cells are large for touch targets; controls are labeled for accessibility.
+      </p>
+    </section>
+
+    <!-- Interactive module -->
+    <section class="module" aria-live="polite">
+      <!-- LEFT: Graph -->
+      <div class="left panel" aria-label="Graph and graph controls">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;flex-direction:column;">
+            <strong style="font-size:15px;">Graph (visual)</strong>
+            <span class="subtitle" style="margin-top:6px;">Nodes placed automatically; weights reflect the matrix.</span>
+          </div>
+          <div class="legend" aria-hidden="true" style="gap:8px;">
+            <span class="dot" style="background:var(--accent)"></span><span class="subtitle">Node</span>
+            <span style="width:10px;height:2px;background:#94a3b8;display:inline-block;border-radius:2px;margin-left:8px;"></span><span class="subtitle">Edge</span>
+          </div>
+        </div>
+
+        <div class="graph-area">
+          <div class="canvas-wrap" id="canvasWrap">
+            <svg class="graph" id="graphSvg" viewBox="0 0 800 520" role="img" aria-label="Graph visualization">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+                </marker>
+                <marker id="arrow-accent" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)" />
+                </marker>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="2.2" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <g id="edges"></g>
+              <g id="edgeLabels"></g>
+              <g id="nodes"></g>
+            </svg>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div class="controls" role="group" aria-label="Graph settings">
+              <div class="field">
+                <label for="nodesCount" class="label-inline">Nodes</label>
+                <input id="nodesCount" type="number" min="2" max="8" value="5" aria-label="Number of nodes"/>
+              </div>
+              <div class="field">
+                <label class="label-inline">Mode</label>
+                <select id="directedToggle" aria-label="Toggle directed or undirected">
+                  <option value="directed">Directed</option>
+                  <option value="undirected">Undirected</option>
+                </select>
+              </div>
+              <button id="randomize" class="small secondary" title="Create a random matrix">Randomize</button>
+              <button id="applyMatrix" class="small" title="Apply matrix to graph">Apply Matrix</button>
+            </div>
+
+            <div style="display:flex;gap:12px;align-items:center;">
+              <div class="field">
+                <label class="label-inline">Speed</label>
+                <input id="speed" type="range" min="200" max="1600" step="100" value="700" aria-label="Animation speed"/>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: matrix and algorithm -->
+      <div class="right panel" aria-label="Matrix and algorithm controls">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <strong style="font-size:15px;">Adjacency / Distance Matrix</strong>
+            <div class="subtitle" style="margin-top:4px;">Double-click a cell to edit weight. Empty = no edge (∞)</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <button id="runAll" title="Run full algorithm">Run Complete</button>
+            <button id="stepBtn" class="secondary" title="Step forward">Step ▶</button>
+            <button id="backBtn" class="secondary" title="Step backward">◀ Back</button>
+            <button id="resetBtn" class="secondary" title="Reset to initial">Reset</button>
+          </div>
+        </div>
+
+        <div class="matrix-wrap" id="matrixWrap" style="margin-top:12px;">
+          <!-- Matrix table injected here -->
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label class="label-inline">Source</label>
+            <select id="srcSelect" aria-label="Source node"></select>
+            <label class="label-inline">Target</label>
+            <select id="tgtSelect" aria-label="Target node"></select>
+            <button id="showPath" class="small" title="Show shortest path">Show Path</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button id="exportBtn" class="small secondary" title="Export distance matrix">Export</button>
+            <button id="importBtn" class="small secondary" title="Import default small graph">Load Example</button>
+          </div>
+        </div>
+
+        <div class="trace" id="trace" aria-live="polite" style="margin-top:12px;">
+          <div class="muted">Algorithm trace will appear here. Use step controls to walk through iterations.</div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <div class="path-info" id="pathInfo" aria-live="polite">Path: —</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      // Constants and state
+      const INF = 1e9;
+      const maxNodes = 8;
+      const minNodes = 2;
+
+      // DOM
+      const nodesCountEl = document.getElementById('nodesCount');
+      const directedToggleEl = document.getElementById('directedToggle');
+      const randomizeBtn = document.getElementById('randomize');
+      const applyMatrixBtn = document.getElementById('applyMatrix');
+      const matrixWrap = document.getElementById('matrixWrap');
+      const graphSvg = document.getElementById('graphSvg');
+      const edgesG = document.getElementById('edges');
+      const nodesG = document.getElementById('nodes');
+      const edgeLabelsG = document.getElementById('edgeLabels');
+      const runAllBtn = document.getElementById('runAll');
+      const stepBtn = document.getElementById('stepBtn');
+      const backBtn = document.getElementById('backBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const traceEl = document.getElementById('trace');
+      const srcSelect = document.getElementById('srcSelect');
+      const tgtSelect = document.getElementById('tgtSelect');
+      const showPathBtn = document.getElementById('showPath');
+      const speedEl = document.getElementById('speed');
+      const randomSeedBtn = document.getElementById('randomize');
+      const canvasWrap = document.getElementById('canvasWrap');
+      const exportBtn = document.getElementById('exportBtn');
+      const importBtn = document.getElementById('importBtn');
+      const pathInfo = document.getElementById('pathInfo');
+
+      // Algorithm state
+      let n = parseInt(nodesCountEl.value,10) || 5;
+      let directed = directedToggleEl.value === 'directed';
+      let adj = createMatrix(n, INF);
+      let dist = createMatrix(n, INF);
+      let next = createMatrix(n, null);
+      let initialAdjSnapshot = null;
+
+      // Execution state for stepping
+      let history = []; // snapshots after each inner (i,j) step
+      let currentStep = -1; // index in history
+      let running = false;
+      let autoplayTimer = null;
+
+      // Initialize
+      function init(){
+        n = clamp(parseInt(nodesCountEl.value,10) || 5, minNodes, maxNodes);
+        nodesCountEl.value = n;
+        directed = directedToggleEl.value === 'directed';
+        adj = createMatrix(n, INF);
+        // create a small default example graph
+        randomizeAdj( n, 0.35 );
+        applyAdjToDist();
+        initialAdjSnapshot = copyMatrix(adj);
+        renderMatrix();
+        renderGraph();
+        resetExecution();
+        populateNodeSelectors();
+        traceEl.innerHTML = '<div class="muted">Ready. Edit matrix or run the algorithm.</div>';
+        pathInfo.textContent = 'Path: —';
+      }
+
+      // Utility helpers
+      function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
+      function createMatrix(sz, fill=0){
+        const m = new Array(sz);
+        for(let i=0;i<sz;i++){
+          m[i] = new Array(sz).fill(fill);
+        }
+        return m;
+      }
+      function copyMatrix(m){
+        return m.map(r => r.slice());
+      }
+      function formatVal(v){
+        if (v === null) return '—';
+        if (v >= INF/2) return '∞';
+        if (Number.isFinite(v)) return String(v);
+        return '∞';
+      }
+      function parseCellInput(s){
+        if (s === null) return INF;
+        s = String(s).trim();
+        if (s === '' || s.toLowerCase() === 'inf' || s === '∞') return INF;
+        const num = Number(s);
+        if (isNaN(num)) return null;
+        return num;
+      }
+
+      // Matrix rendering and editing
+      function renderMatrix(highlight = {}) {
+        // highlight may contain {k,i,j} to highlight headers and cell
+        matrixWrap.innerHTML = '';
+        const table = document.createElement('table');
+        table.className = 'matrix';
+        table.setAttribute('role','table');
+        // header row
+        const thead = document.createElement('thead');
+        const hr = document.createElement('tr');
+        const corner = document.createElement('th');
+        corner.textContent = '';
+        hr.appendChild(corner);
+        for(let j=0;j<n;j++){
+          const th = document.createElement('th');
+          th.textContent = String(j);
+          if (highlight.k === j) th.style.background='#fff7ed';
+          hr.appendChild(th);
+        }
+        thead.appendChild(hr);
+        table.appendChild(thead);
+        // body
+        const tbody = document.createElement('tbody');
+        for(let i=0;i<n;i++){
+          const tr = document.createElement('tr');
+          const th = document.createElement('th');
+          th.textContent = String(i);
+          if (highlight.k === i) th.style.background='#fff7ed';
+          tr.appendChild(th);
+          for(let j=0;j<n;j++){
+            const td = document.createElement('td');
+            td.className = 'cell';
+            td.setAttribute('tabindex','0');
+            td.setAttribute('role','gridcell');
+            const valSpan = document.createElement('span');
+            valSpan.className = 'value';
+            valSpan.textContent = formatVal(adj[i][j]);
+            td.appendChild(valSpan);
+            // mark diagonal
+            if (i===j) {
+              td.style.background = '#fbfdff';
+              td.style.fontWeight='700';
+            }
+            // highlight current indices
+            if (highlight.k !== undefined && highlight.i !== undefined && highlight.j !== undefined){
+              if (i === highlight.i) tr.style.background='#f8fbff';
+              if (j === highlight.j) {
+                // highlight column header background by small border
+                td.style.boxShadow = 'inset 0 0 0 1px rgba(11,118,239,0.06)';
+              }
+              if (i===highlight.i && j===highlight.j){
+                td.classList.add('updated');
+              }
+            }
+            // allow editing: double click or Enter
+            td.addEventListener('dblclick', ()=> editCell(i,j,td));
+            td.addEventListener('keydown', (ev)=>{
+              if (ev.key === 'Enter') { ev.preventDefault(); editCell(i,j,td); }
+            });
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        matrixWrap.appendChild(table);
+      }
+
+      function editCell(i,j, cellEl){
+        // overlay a small input to change weight
+        const old = adj[i][j];
+        const current = (old>=INF/2) ? '' : String(old);
+        const input = document.createElement('input');
+        input.type='text';
+        input.value = current;
+        input.style.width = '100%';
+        input.style.height = '100%';
+        input.style.boxSizing='border-box';
+        input.style.fontFamily='monospace';
+        input.style.fontSize='13px';
+        input.style.border='none';
+        input.style.padding='0';
+        const span = cellEl.querySelector('.value');
+        cellEl.innerHTML = '';
+        cellEl.appendChild(input);
+        input.focus();
+        input.select();
+        function commit(){
+          const parsed = parseCellInput(input.value);
+          if (parsed === null) {
+            // invalid - cancel
+            adj[i][j] = old;
+          } else {
+            adj[i][j] = parsed;
+            if (!directed) {
+              // symmetric
+              adj[j][i] = parsed;
+            }
+          }
+          renderMatrix();
+          renderGraph();
+          initialAdjSnapshot = copyMatrix(adj);
+        }
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', (ev)=>{
+          if (ev.key === 'Enter') { input.blur(); }
+          if (ev.key === 'Escape') { adj[i][j] = old; renderMatrix(); renderGraph(); }
+        });
+      }
+
+      // Graph rendering
+      function renderGraph(highlights = {edges:[], nodes:[]}) {
+        // compute node positions around a circle inside the viewBox
+        const viewW = 800, viewH = 520;
+        const cx = viewW/2, cy = viewH/2;
+        const radius = Math.min(viewW, viewH)/2 - 70;
+        const pos = [];
+        for(let i=0;i<n;i++){
+          const a = (2*Math.PI) * (i / n) - Math.PI/2;
+          const x = cx + radius * Math.cos(a);
+          const y = cy + radius * Math.sin(a);
+          pos.push({x,y});
+        }
+        // clear
+        edgesG.innerHTML = '';
+        edgeLabelsG.innerHTML = '';
+        nodesG.innerHTML = '';
+        // draw edges
+        for(let i=0;i<n;i++){
+          for(let j=0;j<n;j++){
+            if (adj[i][j] < INF/2) {
+              // draw an edge from i to j
+              const from = pos[i], to = pos[j];
+              const dx = to.x - from.x, dy = to.y - from.y;
+              const distp = Math.hypot(dx,dy);
+              const offset = 26;
+              const ux = dx/distp, uy = dy/distp;
+              const sx = from.x + ux*offset, sy = from.y + uy*offset;
+              const ex = to.x - ux*offset, ey = to.y - uy*offset;
+              // for undirected edges, draw only if i<=j to prevent double
+              if (!directed && j < i) continue;
+              // curved path if self-loop or parallel edges
+              let path;
+              if (i===j) {
+                // self-loop
+                path = `M ${from.x} ${from.y-24} C ${from.x-60} ${from.y-60} ${from.x+60} ${from.y-60} ${from.x} ${from.y-24}`;
+              } else {
+                const midx = (sx+ex)/2, midy = (sy+ey)/2;
+                const perp = (-uy, ux);
+                const curve = (i===j) ? 0 : ((i + j) % 2 ? 1 : -1) * 24;
+                const c1x = midx + (-uy)*curve;
+                const c1y = midy + (ux)*curve;
+                path = `M ${sx} ${sy} Q ${c1x} ${c1y} ${ex} ${ey}`;
+              }
+              const pathEl = document.createElementNS('http://www.w3.org/2000/svg','path');
+              pathEl.setAttribute('d', path);
+              pathEl.setAttribute('fill','none');
+              pathEl.setAttribute('stroke','#94a3b8');
+              pathEl.setAttribute('stroke-width','2');
+              pathEl.setAttribute('marker-end', directed ? 'url(#arrow)' : '');
+              pathEl.setAttribute('data-i', i);
+              pathEl.setAttribute('data-j', j);
+              pathEl.style.transition = 'stroke 180ms ease, filter 220ms ease, stroke-width 150ms ease';
+              // highlight if requested
+              if (highlights.edges.some(e=> e[0]===i && e[1]===j )) {
+                pathEl.setAttribute('stroke','var(--accent)');
+                pathEl.setAttribute('stroke-width','3.4');
+                pathEl.setAttribute('marker-end','url(#arrow-accent)');
+                pathEl.setAttribute('filter','url(#glow)');
+              }
+              edgesG.appendChild(pathEl);
+
+              // label
+              const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+              label.setAttribute('font-size','12');
+              label.setAttribute('fill','#0f172a');
+              label.setAttribute('text-anchor','middle');
+              // place label near middle of path
+              const midpt = getPointOnPath(path, 0.5);
+              label.setAttribute('x', midpt.x);
+              label.setAttribute('y', midpt.y - 8);
+              label.textContent = String(adj[i][j]);
+              edgeLabelsG.appendChild(label);
+            }
+          }
+        }
+        // draw nodes on top
+        for(let i=0;i<n;i++){
+          const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+          g.setAttribute('transform', `translate(${pos[i].x},${pos[i].y})`);
+          g.style.cursor = 'pointer';
+          g.setAttribute('data-node', i);
+          // circle
+          const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          circle.setAttribute('r','20');
+          circle.setAttribute('fill','#fff');
+          circle.setAttribute('stroke','#0b76ef');
+          circle.setAttribute('stroke-width','2');
+          // highlight
+          if (highlights.nodes.includes(i)) {
+            circle.setAttribute('fill','var(--accent)');
+            circle.setAttribute('stroke','var(--accent)');
+            circle.setAttribute('r','22');
+          }
+          g.appendChild(circle);
+          // label
+          const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+          label.setAttribute('y','6');
+          label.setAttribute('font-size','13');
+          label.setAttribute('text-anchor','middle');
+          label.setAttribute('fill', (highlights.nodes.includes(i) ? '#fff' : '#0b76ef'));
+          label.textContent = String(i);
+          g.appendChild(label);
+          // interaction: select for path
+          g.addEventListener('click', ()=> {
+            // toggle selection: first click source, second click target
+            if (srcSelect.value === '' || srcSelect.value === null){
+              srcSelect.value = i;
+            } else if (tgtSelect.value === '' || tgtSelect.value === null){
+              tgtSelect.value = i;
+            } else {
+              srcSelect.value = i;
+              tgtSelect.value = '';
+            }
+            // update
+            showSelectedNodes();
+          });
+          nodesG.appendChild(g);
+        }
+      }
+
+      // helper: approximate midpoint of a quadratic/cubic bezier or straight segment string
+      function getPointOnPath(pathStr, t){
+        // naive parse: look for "M x y Q cx cy x2 y2" or "M x y C ..." or line
+        const toks = pathStr.split(' ').filter(Boolean);
+        if (toks[1] && toks[0]==='M'){
+          const x0 = parseFloat(toks[1]), y0 = parseFloat(toks[2]);
+          if (toks[3] === 'Q'){
+            const cx = parseFloat(toks[4]), cy = parseFloat(toks[5]);
+            const x2 = parseFloat(toks[6]), y2 = parseFloat(toks[7]);
+            // quadratic bezier
+            const x = Math.pow(1-t,2)*x0 + 2*(1-t)*t*cx + Math.pow(t,2)*x2;
+            const y = Math.pow(1-t,2)*y0 + 2*(1-t)*t*cy + Math.pow(t,2)*y2;
+            return {x,y};
+          } else if (toks[3] === 'C'){
+            const cx1 = parseFloat(toks[4]), cy1 = parseFloat(toks[5]);
+            const cx2 = parseFloat(toks[6]), cy2 = parseFloat(toks[7]);
+            const x2 = parseFloat(toks[8]), y2 = parseFloat(toks[9]);
+            // cubic bezier
+            const x = Math.pow(1-t,3)*x0 + 3*Math.pow(1-t,2)*t*cx1 + 3*(1-t)*Math.pow(t,2)*cx2 + Math.pow(t,3)*x2;
+            const y = Math.pow(1-t,3)*y0 + 3*Math.pow(1-t,2)*t*cy1 + 3*(1-t)*Math.pow(t,2)*cy2 + Math.pow(t,3)*y2;
+            return {x,y};
+          } else {
+            // straight: assume last coordinates are x1 y1
+            const x2 = parseFloat(toks[toks.length-2]), y2 = parseFloat(toks[toks.length-1]);
+            const x = x0 + (x2-x0)*t;
+            const y = y0 + (y2-y0)*t;
+            return {x,y};
+          }
+        }
+        return {x:400,y:260};
+      }
+
+      // Algorithm operations: set dist and next from adjacency
+      function applyAdjToDist(){
+        dist = createMatrix(n, INF);
+        next = createMatrix(n, null);
+        for(let i=0;i<n;i++){
+          for(let j=0;j<n;j++){
+            if (adj[i][j] < INF/2) {
+              dist[i][j] = adj[i][j];
+              next[i][j] = j;
+            }
+          }
+          dist[i][i] = 0;
+          next[i][i] = i;
+        }
+      }
+
+      // Execution control: create full history of triple loop steps for stepping
+      function prepareExecution(){
+        applyAdjToDist();
+        history = [];
+        // We'll snapshot after each inner pair (i,j) for every k
+        for(let k=0;k<n;k++){
+          for(let i=0;i<n;i++){
+            for(let j=0;j<n;j++){
+              // snapshot BEFORE update for trace clarity, but we will store after performing update to show result
+              const snapshotBefore = {
+                k,k,i,j,
+                dist: copyMatrix(dist),
+                next: copyMatrix(next),
+                changed: false,
+                upd: null
+              };
+              // perform potential update
+              const via = safeAdd(dist[i][k], dist[k][j]);
+              if (via < dist[i][j]){
+                dist[i][j] = via;
+                next[i][j] = next[i][k];
+                snapshotBefore.changed = true;
+                snapshotBefore.upd = {i,j, new:via};
+              }
+              // store snapshot after considering this (i,j)
+              snapshotBefore.dist = copyMatrix(dist);
+              snapshotBefore.next = copyMatrix(next);
+              history.push(snapshotBefore);
+            }
+          }
+        }
+        // set pointer before first step
+        currentStep = -1;
+      }
+
+      function safeAdd(a,b){
+        if (a >= INF/2 || b >= INF/2) return INF;
+        return a + b;
+      }
+
+      function resetExecution(){
+        running = false;
+        if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+        applyAdjToDist();
+        history = [];
+        currentStep = -1;
+      }
+
+      // Step forward and backward
+      function stepForward(){
+        if (history.length === 0) {
+          prepareExecution();
+        }
+        if (currentStep < history.length - 1){
+          currentStep++;
+          const snap = history[currentStep];
+          // update display to show this snapshot
+          showSnapshot(snap);
+        } else {
+          // at end
+          traceMsg('Reached end of algorithm.');
+        }
+      }
+      function stepBackward(){
+        if (history.length === 0) {
+          traceMsg('No execution history. Use Run/Step to start.');
+          return;
+        }
+        if (currentStep > 0){
+          currentStep--;
+          const snap = history[currentStep];
+          showSnapshot(snap);
+        } else if (currentStep === 0){
+          // show initial distances
+          applyAdjToDist();
+          currentStep = -1;
+          renderMatrix();
+          renderGraph();
+          traceMsg('Back to initial distances.');
+        } else {
+          traceMsg('Already at start.');
+        }
+      }
+
+      function showSnapshot(snap){
+        // set current dist & next to snapshot's matrices
+        dist = copyMatrix(snap.dist);
+        next = copyMatrix(snap.next);
+        // render matrix as distance matrix (instead of adjacency)
+        // We'll show a merged view: show displayed values as distances.
+        // But since we allow editing adjacency, we keep adj separately.
+        // For visualization, display dist values in matrix cells (temporary)
+        renderDistanceMatrix(snap);
+        // graph highlight: if the pair (i,j) changed, highlight edges along the new path
+        const highlights = {edges:[], nodes:[]};
+        if (snap && snap.changed && snap.upd){
+          const {i,j} = snap.upd;
+          // reconstruct path i->j via next
+          const path = reconstructPathInternal(i,j, snap.next);
+          // mark edges in path
+          for(let p=0;p<path.length-1;p++){
+            highlights.edges.push([path[p], path[p+1]]);
+          }
+          highlights.nodes = path.slice();
+          // animate a message
+          traceMsg(`k=${snap.k} considered: updated dist[${i}][${j}] = ${formatVal(snap.upd.new)} via ${snap.k}`);
+        } else {
+          traceMsg(`k=${snap.k} considered for pair (i=${snap.i}, j=${snap.j}) — no improvement.`);
+        }
+        renderGraph(highlights);
+      }
+
+      function renderDistanceMatrix(snap){
+        // Build a temporary display that shows dist values; we'll reuse the same table pattern but fill with dist
+        matrixWrap.innerHTML = '';
+        const table = document.createElement('table');
+        table.className = 'matrix';
+        const thead = document.createElement('thead');
+        const hr = document.createElement('tr');
+        hr.appendChild(document.createElement('th'));
+        for(let j=0;j<n;j++){
+          const th = document.createElement('th'); th.textContent = j;
+          if (snap && snap.k === j) th.style.background='#fff7ed';
+          hr.appendChild(th);
+        }
+        thead.appendChild(hr);
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        for(let i=0;i<n;i++){
+          const tr = document.createElement('tr');
+          const th = document.createElement('th'); th.textContent = i;
+          if (snap && snap.k === i) th.style.background='#fff7ed';
+          tr.appendChild(th);
+          for(let j=0;j<n;j++){
+            const td = document.createElement('td');
+            td.className='cell';
+            td.setAttribute('tabindex','0');
+            const span = document.createElement('span');
+            span.className='value';
+            span.textContent = formatVal(dist[i][j]);
+            td.appendChild(span);
+            if (snap && snap.i === i) tr.style.background='#f8fbff';
+            if (snap && snap.j === j) {
+              td.style.boxShadow = 'inset 0 0 0 1px rgba(11,118,239,0.06)';
+            }
+            if (snap && snap.changed && snap.upd && snap.upd.i===i && snap.upd.j===j){
+              td.classList.add('updated');
+            }
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        matrixWrap.appendChild(table);
+      }
+
+      // Trace logging
+      function traceMsg(msg){
+        const p = document.createElement('div');
+        p.className='step';
+        p.textContent = `${new Date().toLocaleTimeString()}: ${msg}`;
+        traceEl.prepend(p);
+      }
+
+      // Path reconstruction using current 'next' matrix
+      function reconstructPath(s, t){
+        const path = reconstructPathInternal(s,t,next);
+        if (path.length === 0) {
+          pathInfo.textContent = `Path: none (no reachable path from ${s} to ${t})`;
+          return;
+        }
+        pathInfo.textContent = `Path: ${path.join(' → ')} (length ${formatVal(dist[s][t])})`;
+        // highlight edges/nodes in graph view
+        const highlights = {edges:[], nodes: path.slice()};
+        for(let p=0;p<path.length-1;p++) highlights.edges.push([path[p], path[p+1]]);
+        renderGraph(highlights);
+      }
+      function reconstructPathInternal(s,t, nextMat){
+        if (s < 0 || s >= n || t < 0 || t >= n) return [];
+        if (nextMat[s][t] === null) return [];
+        const path = [s];
+        let cur = s;
+        const safety = n+5;
+        let steps = 0;
+        while (cur !== t && steps < safety){
+          cur = nextMat[cur][t];
+          if (cur === null || cur === undefined) return [];
+          path.push(cur);
+          steps++;
+        }
+        if (path[path.length-1] !== t) return [];
+        return path;
+      }
+
+      // UI wiring
+      nodesCountEl.addEventListener('change', ()=>{
+        const val = clamp(parseInt(nodesCountEl.value,10) || 5, minNodes, maxNodes);
+        nodesCountEl.value = val;
+        n = val;
+        init();
+      });
+      directedToggleEl.addEventListener('change', ()=>{
+        directed = directedToggleEl.value === 'directed';
+        // if switching to undirected, symmetrize adj
+        if (!directed){
+          for(let i=0;i<n;i++){
+            for(let j=0;j<n;j++){
+              if (adj[i][j] < INF/2 || adj[j][i] < INF/2) {
+                const v = Math.min(adj[i][j], adj[j][i]);
+                if (v < INF/2) { adj[i][j] = v; adj[j][i] = v; }
+              }
+            }
+          }
+        }
+        applyAdjToDist();
+        renderMatrix();
+        renderGraph();
+      });
+
+      randomizeBtn.addEventListener('click', ()=> {
+        randomizeAdj(n, 0.4);
+        applyAdjToDist();
+        initialAdjSnapshot = copyMatrix(adj);
+        renderMatrix();
+        renderGraph();
+        traceMsg('Randomized adjacency matrix.');
+      });
+
+      applyMatrixBtn.addEventListener('click', ()=>{
+        applyAdjToDist();
+        resetExecution();
+        renderMatrix();
+        renderGraph();
+        traceMsg('Applied matrix to graph.');
+      });
+
+      runAllBtn.addEventListener('click', ()=>{
+        prepareExecution();
+        // autoplay through all steps with animation speed
+        const delay = Number(speedEl.value) || 700;
+        if (autoplayTimer) clearInterval(autoplayTimer);
+        running = true;
+        autoplayTimer = setInterval(()=>{
+          if (currentStep >= history.length - 1){
+            clearInterval(autoplayTimer); autoplayTimer = null; running=false;
+            traceMsg('Completed algorithm run.');
+            return;
+          }
+          stepForward();
+        }, delay);
+      });
+
+      stepBtn.addEventListener('click', ()=>{
+        if (running) {
+          // pause
+          if (autoplayTimer) clearInterval(autoplayTimer);
+          autoplayTimer = null;
+          running = false;
+          traceMsg('Paused.');
+          return;
+        }
+        stepForward();
+      });
+
+      backBtn.addEventListener('click', ()=>{
+        stepBackward();
+      });
+
+      resetBtn.addEventListener('click', ()=>{
+        adj = copyMatrix(initialAdjSnapshot || adj);
+        applyAdjToDist();
+        renderMatrix();
+        renderGraph();
+        resetExecution();
+        traceMsg('Reset to initial adjacency.');
+      });
+
+      srcSelect.addEventListener('change', ()=> showSelectedNodes());
+      tgtSelect.addEventListener('change', ()=> showSelectedNodes());
+
+      showPathBtn.addEventListener('click', ()=>{
+        const s = parseInt(srcSelect.value,10);
+        const t = parseInt(tgtSelect.value,10);
+        if (isNaN(s) || isNaN(t)) {
+          traceMsg('Select both source and target.');
+          return;
+        }
+        reconstructPath(s,t);
+      });
+
+      exportBtn.addEventListener('click', ()=>{
+        // Export current dist matrix as a JSON text
+        applyAdjToDist(); // ensure dist is from adj
+        const exportObj = {n, adj};
+        const txt = JSON.stringify(exportObj, null, 2);
+        navigator.clipboard && navigator.clipboard.writeText(txt).then(()=> {
+          traceMsg('Matrix exported to clipboard as JSON.');
+        }).catch(() => {
+          traceMsg('Unable to write to clipboard. Here is the JSON:');
+          const p = document.createElement('pre');
+          p.textContent = txt;
+          traceEl.prepend(p);
+        });
+      });
+
+      importBtn.addEventListener('click', ()=>{
+        // Provide a small sample graph
+        const sample = {
+          n:5,
+          adj: [
+            [0,3,INF,7,INF],
+            [8,0,2,INF,INF],
+            [5,INF,0,1,INF],
+            [2,INF,INF,0,2],
+            [INF,INF,INF,3,0]
+          ]
+        };
+        if (sample.n <= maxNodes){
+          n = sample.n;
+          nodesCountEl.value = n;
+          adj = copyMatrix(sample.adj);
+          for(let i=0;i<n;i++){
+            for(let j=0;j<n;j++){
+              if (adj[i][j] === 0 && i !== j) adj[i][j] = INF;
+            }
+          }
+          initialAdjSnapshot = copyMatrix(adj);
+          applyAdjToDist();
+          renderMatrix();
+          renderGraph();
+          resetExecution();
+          populateNodeSelectors();
+          traceMsg('Loaded sample graph.');
+        }
+      });
+
+      // Populate src/tgt selects
+      function populateNodeSelectors(){
+        srcSelect.innerHTML = '';
+        tgtSelect.innerHTML = '';
+        for(let i=0;i<n;i++){
+          const o1 = document.createElement('option'); o1.value = i; o1.textContent = i;
+          const o2 = document.createElement('option'); o2.value = i; o2.textContent = i;
+          srcSelect.appendChild(o1);
+          tgtSelect.appendChild(o2);
+        }
+        srcSelect.value = '';
+        tgtSelect.value = '';
+      }
+
+      function showSelectedNodes(){
+        const s = parseInt(srcSelect.value,10);
+        const t = parseInt(tgtSelect.value,10);
+        const nodes = [];
+        if (!isNaN(s)) nodes.push(s);
+        if (!isNaN(t) && t!==s) nodes.push(t);
+        renderGraph({edges:[], nodes});
+      }
+
+      // Random adjacency generator
+      function randomizeAdj(size, density){
+        adj = createMatrix(size, INF);
+        for(let i=0;i<size;i++){
+          for(let j=0;j<size;j++){
+            if (i===j) { adj[i][j]=0; continue; }
+            if (Math.random() < density) {
+              adj[i][j] = Math.floor(Math.random()*9) + 1; // weight 1..9
+            } else {
+              adj[i][j] = INF;
+            }
+          }
+        }
+        if (!directed){
+          for(let i=0;i<size;i++){
+            for(let j=i+1;j<size;j++){
+              const v = Math.min(adj[i][j], adj[j][i]);
+              if (v < INF/2) {
+                adj[i][j] = adj[j][i] = v;
+              }
+            }
+          }
+        }
+      }
+
+      // Kick off
+      init();
+
+      // Accessibility: keyboard shortcuts
+      window.addEventListener('keydown', (ev)=>{
+        if (ev.key === ' ' && ev.target.tagName !== 'INPUT' && ev.target.tagName !== 'TEXTAREA') {
+          ev.preventDefault();
+          // toggle play/pause
+          if (running){
+            if (autoplayTimer) clearInterval(autoplayTimer);
+            autoplayTimer = null;
+            running = false;
+            traceMsg('Paused (space).');
+          } else {
+            runAllBtn.click();
+            traceMsg('Running (space).');
+          }
+        }
+        if (ev.key === 'ArrowRight') stepBtn.click();
+        if (ev.key === 'ArrowLeft') backBtn.click();
+      });
+
+      // Expose some debug functions (not necessary but helpful)
+      window.FW = { getState: ()=>({n,adj,dist,next,historyLength:history.length,currentStep}) };
+    })();
+  </script>
+</body>
+</html>

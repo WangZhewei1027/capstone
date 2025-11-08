@@ -1,0 +1,71 @@
+{
+  "topic": "Recursion — Call Stack Explorer",
+  "description": "Models the interactive states of a factorial call-stack visualizer: generating snapshots, stepping through snapshots, playing automatic steps, animations (floating return), and completion.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "initial UI idle (no snapshots)",
+      "onExit": "none",
+      "on": {
+        "RUN": "paused (snapshots generated and UI updated to step 0)",
+        "ENTER_KEY": "RUN"
+      }
+    },
+    {
+      "name": "paused",
+      "onEnter": "updateUI(current stepIndex) -> renderStack/renderTrace/renderCodeHighlight; update status",
+      "onExit": "none",
+      "on": {
+        "RUN": "paused (rebuild snapshots, reset stepIndex, clear trace and updateUI to step 0)",
+        "STEP_FORWARD": "paused (advance one snapshot and updateUI). If the advanced snapshot.action === 'pop' AND animateReturn requested then transition to animating_return instead (see notes). If advanced snapshot is final snapshot, remain paused at final step (or considered done depending on UI)",
+        "STEP_BACK": "paused (go to previous snapshot and updateUI)",
+        "PLAY_TOGGLE": "playing (start interval timer using speedSlider value)",
+        "SPEED_CHANGE": "paused (no timer change while paused)",
+        "NO_SNAPSHOTS": "idle"
+      }
+    },
+    {
+      "name": "playing",
+      "onEnter": "start playTimer = setInterval(tick, delay). update play button text to 'Pause ■'",
+      "onExit": "clearInterval(playTimer); playTimer = null; update play button text to 'Play ▶'",
+      "on": {
+        "TIMER_TICK": "playing (advance one snapshot and updateUI). If the advanced snapshot.action === 'pop' then transition to animating_return (to run floating return animation) before continuing. If at last snapshot when tick occurs then clear timer and transition to done",
+        "PLAY_TOGGLE": "paused (user toggled pause; stop timer)",
+        "SPEED_CHANGE": "playing (restart interval with new delay)",
+        "RUN": "paused (rebuild snapshots and stop playing)"
+      }
+    },
+    {
+      "name": "animating_return",
+      "onEnter": "renderStack(..., animateReturn=true) -> create floating badge element and start floating animation; renderTraceEntry for pop; set a timeout to remove floating element",
+      "onExit": "floating element removed, any animation timers cleared",
+      "on": {
+        "ANIMATION_END": "playing (if playTimer is active) OR paused (if not playing). If the animation completed and the snapshot was final and no playTimer, transition to done (see notes).",
+        "RUN": "paused (interrupt animation, rebuild snapshots)"
+      }
+    },
+    {
+      "name": "done",
+      "onEnter": "clearInterval(playTimer) (if any), set play button to 'Play ▶', UI remains at last snapshot; status shows final step",
+      "onExit": "none (unless user RUNs or steps back/play toggles)",
+      "on": {
+        "PLAY_TOGGLE": "playing (pressing play from done will start timer; implementation immediately detects final step and stops timer -> returns to done or paused based on timing)",
+        "STEP_BACK": "paused (move one step backward and updateUI)",
+        "RUN": "paused (rebuild snapshots for new n and show step 0)",
+        "STEP_FORWARD": "done (no-op if already at final snapshot)"
+      }
+    }
+  ],
+  "events": [
+    "RUN",
+    "STEP_FORWARD",
+    "STEP_BACK",
+    "PLAY_TOGGLE",
+    "TIMER_TICK",
+    "SPEED_CHANGE",
+    "ANIMATION_END",
+    "ENTER_KEY",
+    "NO_SNAPSHOTS"
+  ],
+  "notes": "Implementation details / guards and side effects:\n- RUN: triggered by btnRun click or Enter on input. Action: read n, clamp 0..12, buildSnapshots(n) (synchronously builds an ordered list of snapshots), clear trace, add an intro trace entry, set stepIndex = 0, call updateUI(0).\n- updateUI(index, animateReturn): central UI update used by paused/playing/step actions. It sets stepIndex, calls renderStack(snapshot.stack, snapshot.action, snapshot.meta, animateReturn) and renderTraceEntry(snapshot) and renderCodeHighlight(mapping). It also updates the status text.\n- animateReturn flag: passed into updateUI to request the floating return animation when the snapshot.action is 'pop'. In the code, manual forward (btnStep) passes animateReturn=true; play timer also passes animateReturn=true. When a 'pop' snapshot is rendered with animateReturn true, renderStack creates a floating element and a timeout to remove it (approx 900ms). The floating animation is asynchronous. The FSM models this as the transient animating_return state. On animation end (ANIMATION_END) the FSM returns to playing if a playTimer is running or paused otherwise.\n- Transition guards: both STEP_FORWARD and TIMER_TICK attempt to advance stepIndex; if the resulting snapshot is a 'pop' and animateReturn is requested, the UI will display the floating return; FSM should transition to animating_return while that animation runs; otherwise it remains in paused or playing.\n- PLAY_TOGGLE: toggles playback. When starting playback, an interval is created using speedSlider value. TIMER_TICK represents the firing of that interval. If TIMER_TICK advances to last snapshot, the code clears the interval and sets play button text back to 'Play ▶' — modeled as transition to done.\n- SPEED_CHANGE: when user adjusts speed while playing, the code clears the current interval and toggles play to restart it with a new delay. Modeled as working within playing: restart timer.\n- STEP_BACK is synchronous: updateUI(stepIndex-1, animateReturn=false) (the code deliberately does not use fancy return animation when going backwards).\n- ANIMATION_END: produced when the floating element's timeout completes; the code removes the floating element and allows further steps. Timing in code: float element removed around ~1.32s (900ms then 420ms cleanup). The FSM models a single ANIMATION_END event after that delay.\n- NO_SNAPSHOTS: conceptual event when user actions are invoked but no snapshots exist; UI remains idle.\n- The FSM lumps per-snapshot viewing into 'paused' state (user-driven) and 'playing' (automatic stepping); 'animating_return' is a transient sub-state when a pop snapshot is shown with floating animation; 'done' is the terminal display state when the last snapshot is reached and playback is stopped. Variables maintained externally to FSM: snapshots array, stepIndex, playTimer, speed value.\n- Accessibility and DOM effects (code highlight pulse, trace insertion animations, focus behavior) are modeled as onEnter effects of the paused/playing/animating_return states (renderCodeHighlight adds 'pulse' class then schedules its removal; renderTraceEntry animates trace entry in)."
+}

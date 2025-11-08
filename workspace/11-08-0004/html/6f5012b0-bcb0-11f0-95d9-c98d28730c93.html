@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sets: Uniqueness & Order</title>
+  <style>
+    :root{
+      --safe-pad: 24px;
+      --gap: 16px;
+      --bg: #0f172a;
+      --card: #0b1220;
+      --muted: #94a3b8;
+      --accent: #60a5fa;
+      --success: #10b981;
+      --danger: #fb7185;
+      --token-bg: #111827;
+      --token-fg: #f8fafc;
+      --focus: 3px solid rgba(96,165,250,0.25);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      padding:var(--safe-pad);
+      background:linear-gradient(180deg,#071027 0%, #07121b 100%);
+      color: #e6eef8;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      font-size:16px;
+      line-height:1.4;
+    }
+
+    .container{
+      max-width:1100px;
+      margin:0 auto;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+
+    header{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    h1{
+      margin:0;
+      font-size:20px;
+      letter-spacing:0.2px;
+    }
+    .objective{
+      color:var(--muted);
+      font-size:14px;
+      margin:0;
+    }
+
+    main{
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:var(--gap);
+      align-items:start;
+    }
+
+    /* Responsive: stack on small screens */
+    @media (max-width:900px){
+      main{grid-template-columns: 1fr; }
+    }
+
+    .panel{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.03);
+      border-radius:12px;
+      padding:16px;
+      box-shadow: 0 6px 18px rgba(3,7,18,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+    }
+
+    .sets-area{
+      display:flex;
+      gap:var(--gap);
+    }
+    @media (max-width:900px){
+      .sets-area{flex-direction:column}
+    }
+
+    .set-card{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      min-height:200px;
+    }
+    .set-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+    }
+    .set-title{
+      font-weight:600;
+      font-size:15px;
+    }
+    .set-count{
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .dropzone{
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      border:2px dashed rgba(255,255,255,0.03);
+      border-radius:10px;
+      padding:12px;
+      min-height:120px;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-content:flex-start;
+      transition: border-color 220ms ease, background 220ms ease, box-shadow 220ms ease;
+      position:relative;
+    }
+    .dropzone.focused{
+      border-color: rgba(96,165,250,0.55);
+      box-shadow: 0 6px 24px rgba(96,165,250,0.06);
+      background: linear-gradient(180deg, rgba(96,165,250,0.02), rgba(255,255,255,0.005));
+    }
+
+    /* tokens */
+    .token{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      background:var(--token-bg);
+      color:var(--token-fg);
+      padding:8px 12px;
+      border-radius:999px;
+      font-weight:600;
+      font-size:14px;
+      box-shadow: 0 3px 8px rgba(2,6,23,0.6);
+      cursor:grab;
+      user-select:none;
+      transition: transform 220ms ease, opacity 220ms ease, box-shadow 220ms ease;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+    .token:active{cursor:grabbing}
+    .token:focus{
+      outline:none;
+      box-shadow: var(--focus);
+    }
+    .token .remove{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      height:20px;
+      width:20px;
+      border-radius:50%;
+      background:rgba(255,255,255,0.04);
+      color:var(--muted);
+      font-size:12px;
+      cursor:pointer;
+    }
+    .token .remove:focus{outline:none; box-shadow:var(--focus)}
+    .token[data-dragging="true"]{
+      opacity:0.85;
+      transform:scale(1.04);
+      box-shadow: 0 10px 30px rgba(2,6,23,0.65);
+    }
+
+    /* animations */
+    @keyframes flyin {
+      from { transform: translateY(-18px) scale(.96); opacity:0 }
+      to   { transform: translateY(0) scale(1); opacity:1 }
+    }
+    .fly-in{ animation: flyin 320ms cubic-bezier(.2,.9,.3,1) both; }
+
+    @keyframes pulse {
+      0% { transform:scale(1) }
+      50% { transform:scale(1.12) }
+      100% { transform:scale(1) }
+    }
+    .pulse{ animation: pulse 420ms ease both; }
+
+    @keyframes burst {
+      0% { box-shadow: 0 0 0 0 rgba(96,165,250,0.45) }
+      60% { box-shadow: 0 0 0 14px rgba(96,165,250,0.04) }
+      100% { box-shadow: 0 0 0 0 rgba(96,165,250,0) }
+    }
+    .burst{ animation: burst 520ms ease both; }
+
+    @keyframes shake {
+      0% { transform: translateX(0) }
+      20% { transform: translateX(-6px) }
+      40% { transform: translateX(6px) }
+      60% { transform: translateX(-4px) }
+      80% { transform: translateX(3px) }
+      100% { transform: translateX(0) }
+    }
+    .shake{ animation: shake 420ms ease both; }
+
+    .controls{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    label{
+      font-size:13px;
+      color:var(--muted);
+      display:block;
+    }
+    .form-row{
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    input[type="text"]{
+      flex:1;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.04);
+      background:rgba(255,255,255,0.02);
+      color:inherit;
+      outline:none;
+    }
+    select, button {
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.04);
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.01));
+      color:inherit;
+      cursor:pointer;
+    }
+    button:focus{ outline:none; box-shadow:var(--focus) }
+
+    .btn-primary{
+      background: linear-gradient(180deg,var(--accent), #3b82f6);
+      color: #04203b;
+      font-weight:700;
+      border: none;
+    }
+    .btn-ghost{
+      background: none;
+    }
+
+    .status{
+      min-height:36px;
+      padding:10px;
+      border-radius:8px;
+      color:var(--muted);
+      font-size:14px;
+      background: rgba(255,255,255,0.012);
+      border:1px solid rgba(255,255,255,0.02);
+    }
+    .status.success{ background: rgba(16,185,129,0.08); color:var(--success); border-color: rgba(16,185,129,0.08) }
+    .status.error{ background: rgba(251,113,133,0.07); color:var(--danger); border-color: rgba(251,113,133,0.06) }
+
+    .definition{
+      margin-top:4px;
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+
+    .footer-actions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    .small{
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    /* visual equality highlight */
+    .equal-highlight{ border-color: rgba(16,185,129,0.28) !important; box-shadow: 0 8px 30px rgba(16,185,129,0.06) !important; }
+
+    /* minimum spacing for tokens grid */
+    .dropzone .token{ margin:4px; }
+
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="Set interaction module">
+    <header>
+      <h1>Sets: Unique, Unordered Collections</h1>
+      <p class="objective">Explore how sets only keep one copy of each element and why order doesn't matter. Add, drag, shuffle, and compare two sets.</p>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="sets-heading">
+        <h2 id="sets-heading" class="small" style="margin:0 0 8px 0">Interactive Sets</h2>
+
+        <div class="sets-area" role="region" aria-label="Sets area">
+          <div class="set-card" aria-labelledby="labelA">
+            <div class="set-header">
+              <div>
+                <div id="labelA" class="set-title">Set A</div>
+                <div id="countA" class="set-count">0 elements</div>
+              </div>
+              <div class="small">A set is unordered</div>
+            </div>
+
+            <div id="zoneA" class="dropzone" tabindex="0" aria-label="Drop zone for Set A" data-set="A"></div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="small">Try dragging tokens between sets.</div>
+              <div class="footer-actions">
+                <button id="shuffleA" class="btn-ghost" title="Shuffle Set A">Shuffle A</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="set-card" aria-labelledby="labelB">
+            <div class="set-header">
+              <div>
+                <div id="labelB" class="set-title">Set B</div>
+                <div id="countB" class="set-count">0 elements</div>
+              </div>
+              <div class="small">Duplicates are ignored</div>
+            </div>
+
+            <div id="zoneB" class="dropzone" tabindex="0" aria-label="Drop zone for Set B" data-set="B"></div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="small" aria-hidden="true"></div>
+              <div class="footer-actions">
+                <button id="shuffleB" class="btn-ghost" title="Shuffle Set B">Shuffle B</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel" aria-labelledby="controls-heading">
+        <h2 id="controls-heading" class="small" style="margin:0 0 8px 0">Controls & Explanation</h2>
+
+        <div class="controls" role="form" aria-label="Add token to a set">
+          <label for="tokenInput">Add an element (short text or number)</label>
+          <div class="form-row">
+            <input id="tokenInput" type="text" maxlength="20" placeholder="e.g. apple or 42" aria-describedby="tokenHint" />
+            <select id="targetSelect" aria-label="Choose target set">
+              <option value="A">Set A</option>
+              <option value="B">Set B</option>
+            </select>
+            <button id="addBtn" class="btn-primary">Add</button>
+          </div>
+          <div id="tokenHint" class="small">Tokens are case sensitive. Try adding duplicates or dragging between sets.</div>
+
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="checkBtn" class="btn-primary" style="flex:1">Check Equality</button>
+            <button id="clearBtn" class="btn-ghost">Clear Both</button>
+          </div>
+
+          <div id="status" class="status" role="status" aria-live="polite">Welcome — try adding a few tokens.</div>
+
+          <div class="definition" aria-hidden="false">
+            <strong>Quick facts</strong>
+            <ul style="margin:8px 0 0 18px;padding:0">
+              <li>Sets contain each element at most once.</li>
+              <li>Two sets are equal when they contain the same elements (order doesn't matter).</li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    (function(){
+      // Utility and DOM references
+      const zoneA = document.getElementById('zoneA');
+      const zoneB = document.getElementById('zoneB');
+      const countA = document.getElementById('countA');
+      const countB = document.getElementById('countB');
+      const input = document.getElementById('tokenInput');
+      const addBtn = document.getElementById('addBtn');
+      const selectTarget = document.getElementById('targetSelect');
+      const status = document.getElementById('status');
+      const shuffleA = document.getElementById('shuffleA');
+      const shuffleB = document.getElementById('shuffleB');
+      const checkBtn = document.getElementById('checkBtn');
+      const clearBtn = document.getElementById('clearBtn');
+
+      // Model: sets stored as Map for quick lookup
+      const sets = {
+        A: new Map(),
+        B: new Map()
+      };
+
+      // Accessibility helper
+      function announce(message, state){
+        status.textContent = message;
+        status.classList.toggle('success', state === 'success');
+        status.classList.toggle('error', state === 'error');
+      }
+
+      // Create token element
+      function createTokenElement(value){
+        const el = document.createElement('button');
+        el.className = 'token fly-in';
+        el.type = 'button';
+        el.draggable = true;
+        el.tabIndex = 0;
+        el.setAttribute('aria-label', `Token ${value}`);
+        el.textContent = value;
+
+        // Remove button inside token
+        const rem = document.createElement('span');
+        rem.className = 'remove';
+        rem.innerHTML = '×';
+        rem.setAttribute('role','button');
+        rem.setAttribute('aria-label','Remove element');
+        rem.tabIndex = 0;
+        // visually place after text
+        el.appendChild(rem);
+
+        // Event handlers
+        rem.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          removeTokenByElement(el);
+        });
+        rem.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter' || e.key === ' '){
+            e.preventDefault();
+            removeTokenByElement(el);
+          }
+        });
+
+        // keyboard remove when token focused
+        el.addEventListener('keydown', (e)=>{
+          if(e.key === 'Delete' || e.key === 'Backspace'){
+            removeTokenByElement(el);
+          }
+        });
+
+        // Drag events
+        el.addEventListener('dragstart', (e)=>{
+          e.dataTransfer.setData('text/plain', value);
+          e.dataTransfer.effectAllowed = 'move';
+          el.dataset.dragging = 'true';
+          // small image alternative: create a lightweight ghost
+          if (e.dataTransfer.setDragImage) {
+            const crt = el.cloneNode(true);
+            crt.style.position = 'absolute';
+            crt.style.top = '-9999px';
+            document.body.appendChild(crt);
+            e.dataTransfer.setDragImage(crt, 20, 20);
+            setTimeout(()=> document.body.removeChild(crt), 0);
+          }
+        });
+        el.addEventListener('dragend', ()=>{ delete el.dataset.dragging; });
+
+        return el;
+      }
+
+      // Add token to set X (A or B)
+      function addToken(setName, value, options = {announce:true}){
+        if(!value || !value.toString().trim()) {
+          if(options.announce) announce('Please enter a non-empty element.');
+          return;
+        }
+        value = value.toString();
+
+        // Duplicate check
+        const map = sets[setName];
+        if(map.has(value)){
+          // pulse existing token
+          const existing = map.get(value);
+          existing.classList.remove('pulse');
+          // force reflow to restart animation
+          void existing.offsetWidth;
+          existing.classList.add('pulse','burst');
+          setTimeout(()=>{ existing.classList.remove('burst'); }, 520);
+          if(options.announce) announce(`Duplicate ignored: "${value}" already in Set ${setName}.`, 'error');
+          return;
+        }
+
+        const el = createTokenElement(value);
+        el.addEventListener('click', ()=> {
+          // clicking token focuses it (visual) - no additional behavior by click
+          el.focus();
+        });
+
+        // attach drag/drop logic at zone level handles dropping
+        // store in model and DOM
+        map.set(value, el);
+        const zone = (setName === 'A') ? zoneA : zoneB;
+        zone.appendChild(el);
+        updateCounts();
+        if(options.announce) announce(`Added "${value}" to Set ${setName}.`, 'success');
+      }
+
+      // Remove token by element
+      function removeTokenByElement(el){
+        // find which set
+        let found=null, setKey=null;
+        for(const k of ['A','B']){
+          for(const [val, node] of sets[k].entries()){
+            if(node === el){
+              found = val; setKey = k; break;
+            }
+          }
+          if(found) break;
+        }
+        if(!found) return;
+        // animate removal
+        el.style.transition = 'transform 220ms ease, opacity 220ms ease';
+        el.style.transform = 'scale(.6)';
+        el.style.opacity = '0';
+        setTimeout(()=>{
+          // remove from DOM and model
+          el.remove();
+          sets[setKey].delete(found);
+          updateCounts();
+          announce(`Removed "${found}" from Set ${setKey}.`);
+        }, 220);
+      }
+
+      // Update counts
+      function updateCounts(){
+        countA.textContent = `${sets.A.size} element${sets.A.size===1?'':'s'}`;
+        countB.textContent = `${sets.B.size} element${sets.B.size===1?'':'s'}`;
+        // remove equal highlight
+        zoneA.classList.remove('equal-highlight');
+        zoneB.classList.remove('equal-highlight');
+      }
+
+      // Shuffle contents visually
+      function shuffleSet(setName){
+        const zone = (setName === 'A') ? zoneA : zoneB;
+        const map = sets[setName];
+        const keys = Array.from(map.keys());
+        if(keys.length <= 1) {
+          announce('Nothing to shuffle.');
+          return;
+        }
+        // random shuffle
+        for(let i = keys.length -1; i>0; i--){
+          const j = Math.floor(Math.random()*(i+1));
+          [keys[i], keys[j]] = [keys[j], keys[i]];
+        }
+        // detach and re-append in new order
+        const frag = document.createDocumentFragment();
+        keys.forEach(k => frag.appendChild(map.get(k)));
+        zone.appendChild(frag);
+        // small animation via transform
+        zone.querySelectorAll('.token').forEach((t,i)=>{
+          t.style.transition = 'transform 320ms cubic-bezier(.2,.9,.3,1)';
+          t.style.transform = 'translateY(-6px)';
+          setTimeout(()=>{ t.style.transform='translateY(0)'; }, 20 + i*20);
+        });
+        announce(`Shuffled Set ${setName}.`);
+      }
+
+      // Drop handling for zones
+      [zoneA, zoneB].forEach(zone=>{
+        zone.addEventListener('dragover', (e)=>{
+          e.preventDefault();
+          zone.classList.add('focused');
+          e.dataTransfer.dropEffect = 'move';
+        });
+        zone.addEventListener('dragleave', ()=>{ zone.classList.remove('focused'); });
+        zone.addEventListener('drop', (e)=>{
+          e.preventDefault();
+          zone.classList.remove('focused');
+          const value = e.dataTransfer.getData('text/plain');
+          const target = zone.dataset.set;
+          // find which set currently contains the dragged node and remove
+          // If target already has value, animate existing node and remove original
+          const targetMap = sets[target];
+          if(targetMap.has(value)){
+            const existing = targetMap.get(value);
+            existing.classList.remove('pulse');
+            void existing.offsetWidth;
+            existing.classList.add('pulse','burst');
+            setTimeout(()=> existing.classList.remove('burst'), 520);
+
+            // find and remove the moved node from its previous parent
+            for(const k of ['A','B']){
+              if(sets[k].has(value) && k !== target){
+                const node = sets[k].get(value);
+                node.remove();
+                sets[k].delete(value);
+              }
+            }
+            updateCounts();
+            announce(`Duplicate ignored on drop: "${value}" remains single in Set ${target}.`, 'error');
+            return;
+          }
+
+          // Move DOM node if it exists
+          let movedNode = null, fromKey=null;
+          for(const k of ['A','B']){
+            if(sets[k].has(value)){
+              movedNode = sets[k].get(value);
+              fromKey = k;
+              break;
+            }
+          }
+          if(movedNode){
+            // remove from previous map, add to target map and append
+            sets[fromKey].delete(value);
+            sets[target].set(value, movedNode);
+            zone.appendChild(movedNode);
+            // animate
+            movedNode.classList.add('fly-in');
+            setTimeout(()=> movedNode.classList.remove('fly-in'), 420);
+            updateCounts();
+            announce(`Moved "${value}" to Set ${target}.`);
+          } else {
+            // If somehow not found, create new element in target
+            addToken(target, value);
+          }
+        });
+      });
+
+      // Equality check ignoring order
+      function checkEquality(){
+        const keysA = Array.from(sets.A.keys()).sort();
+        const keysB = Array.from(sets.B.keys()).sort();
+        const equal = arraysEqual(keysA, keysB);
+        if(equal){
+          // success animation
+          zoneA.classList.add('equal-highlight');
+          zoneB.classList.add('equal-highlight');
+          // small confetti: pulse all tokens
+          [...zoneA.children, ...zoneB.children].forEach((t,i)=>{
+            t.classList.remove('pulse');
+            void t.offsetWidth;
+            setTimeout(()=> t.classList.add('pulse'), i*40);
+            setTimeout(()=> t.classList.remove('pulse'), 1000);
+          });
+          announce('Sets are equal — they contain the same elements.', 'success');
+        } else {
+          // highlight differences
+          const onlyA = keysA.filter(x=>!keysB.includes(x));
+          const onlyB = keysB.filter(x=>!keysA.includes(x));
+          // shake differing tokens
+          onlyA.forEach(val => {
+            const n = sets.A.get(val);
+            if(n){ n.classList.add('shake'); setTimeout(()=> n.classList.remove('shake'), 520); }
+          });
+          onlyB.forEach(val => {
+            const n = sets.B.get(val);
+            if(n){ n.classList.add('shake'); setTimeout(()=> n.classList.remove('shake'), 520); }
+          });
+          const parts = [];
+          if(onlyA.length) parts.push(`Only in A: ${onlyA.join(', ')}`);
+          if(onlyB.length) parts.push(`Only in B: ${onlyB.join(', ')}`);
+          announce(`Not equal. ${parts.join(' • ')}`, 'error');
+        }
+      }
+
+      function arraysEqual(a,b){
+        if(a.length !== b.length) return false;
+        for(let i=0; i<a.length; i++){
+          if(a[i] !== b[i]) return false;
+        }
+        return true;
+      }
+
+      // Clear both sets
+      function clearBoth(){
+        for(const k of ['A','B']){
+          for(const v of sets[k].keys()){
+            const el = sets[k].get(v);
+            if(el && el.remove) el.remove();
+          }
+          sets[k].clear();
+        }
+        updateCounts();
+        announce('Cleared both sets.');
+      }
+
+      // Wire up control events
+      addBtn.addEventListener('click', ()=>{
+        const value = input.value.trim();
+        const target = selectTarget.value;
+        if(value) addToken(target, value);
+        input.value = '';
+        input.focus();
+      });
+
+      input.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter'){ e.preventDefault(); addBtn.click(); }
+      });
+
+      shuffleA.addEventListener('click', ()=> shuffleSet('A'));
+      shuffleB.addEventListener('click', ()=> shuffleSet('B'));
+      checkBtn.addEventListener('click', checkEquality);
+      clearBtn.addEventListener('click', clearBoth);
+
+      // Initialize with a few tokens to play with
+      const examplesA = ['apple','banana','42'];
+      const examplesB = ['banana','apple'];
+      examplesA.forEach(v => addToken('A', v, {announce:false}));
+      examplesB.forEach(v => addToken('B', v, {announce:false}));
+      announce('Preloaded example tokens. Try adding "apple" to Set A again to see duplicates ignored.');
+
+      // Ensure zones are keyboard focus friendly (for accessibility)
+      [zoneA, zoneB].forEach(zone=>{
+        zone.addEventListener('focus', ()=> zone.classList.add('focused'));
+        zone.addEventListener('blur', ()=> zone.classList.remove('focused'));
+      });
+
+      // Allow programmatic add with sample palette by clicking tokens in zone (optional)
+      // Not needed but keep example: double-click a token to attempt re-adding to the same set (shows duplicate pulse)
+      [zoneA, zoneB].forEach(zone=>{
+        zone.addEventListener('dblclick', (e)=>{
+          const token = e.target.closest('.token');
+          if(!token) return;
+          const value = token.firstChild.textContent;
+          const setName = zone.dataset.set;
+          addToken(setName, value);
+        });
+      });
+
+    })();
+  </script>
+</body>
+</html>

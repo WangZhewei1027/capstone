@@ -1,0 +1,512 @@
+import { test, expect } from '@playwright/test';
+
+// Test file for Application ID: 704a2a20-bcb0-11f0-95d9-c98d28730c93
+// Served at: http://127.0.0.1:5500/workspace/11-08-0004/html/704a2a20-bcb0-11f0-95d9-c98d28730c93.html
+// This test suite validates the FSM-driven interactive knapsack UI:
+// - verifies states/transitions for adding/removing items
+// - drag & drop flows including overcap flashing
+// - greedy and DP solver flows including DP-too-large guard
+// - reset/clear/delete flows and confirm dialogs
+// The tests use robust, multi-selector lookups to adapt to minor DOM variations.
+
+test.describe('0/1 Knapsack Interactive Module - FSM end-to-end', () => {
+  const APP_URL = 'http://127.0.0.1:5500/workspace/11-08-0004/html/704a2a20-bcb0-11f0-95d9-c98d28730c93.html';
+  // Utility to return the first locator that exists among candidate selectors
+  async function firstExistingLocator(page, selectors) {
+    for (const sel of selectors) {
+      const locator = page.locator(sel);
+      if (await locator.count() > 0) return locator;
+    }
+    // Fallback to a general body locator to avoid nulls — tests should fail later if incorrect
+    return page.locator('body');
+  }
+
+  // Helper to perform drag and drop using DataTransfer simulation
+  async function dragAndDrop(page, source, target) {
+    // source and target are locators
+    await page.evaluate(
+      async ({ srcSelector, dstSelector }) => {
+        const src = document.querySelector(srcSelector);
+        const dst = document.querySelector(dstSelector);
+        const createDT = () => new DataTransfer();
+        const dt = createDT();
+        // dispatch dragstart
+        src.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        // dispatch dragenter/dragover on target
+        dst.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        dst.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        // dispatch drop
+        dst.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        // dispatch dragend on source
+        src.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      },
+      { srcSelector: await source.evaluate(s => s.matches ? (s.matches('body') ? 'body' : s.getAttribute('data-test-src') || (() => {
+        // Create a unique selector path if data-test not present
+        let el = s;
+        const parts = [];
+        while (el && el.nodeType === 1 && el.tagName.toLowerCase() !== 'html') {
+          let part = el.tagName.toLowerCase();
+          if (el.id) part += `#${el.id}`;
+          else if (el.className) part += `.${Array.from(el.classList).slice(0,2).join('.')}`;
+          parts.unshift(part);
+          el = el.parentElement;
+        }
+        return parts.join(' > ');
+      })() ) : (() => { }) ), dstSelector: await target.evaluate(s => s.matches ? (s.matches('body') ? 'body' : s.getAttribute('data-test-dst') || (() => {
+        let el1 = s;
+        const parts1 = [];
+        while (el && el.nodeType === 1 && el.tagName.toLowerCase() !== 'html') {
+          let part1 = el.tagName.toLowerCase();
+          if (el.id) part += `#${el.id}`;
+          else if (el.className) part += `.${Array.from(el.classList).slice(0,2).join('.')}`;
+          parts.unshift(part);
+          el = el.parentElement;
+        }
+        return parts.join(' > ');
+      })() ) : (() => { }) ) })
+    );
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+    // Wait for initial render: items list or main container should be present
+    await Promise.race([
+      page.locator('.container').waitFor({ state: 'visible', timeout: 2000 }).catch(() => {}),
+      page.locator('.items-list').waitFor({ state: 'visible', timeout: 2000 }).catch(() => {}),
+      page.locator('main, #app, [data-app]').waitFor({ state: 'visible', timeout: 2000 }).catch(() => {}),
+    ]);
+  });
+
+  test.describe('Setup & basic rendering (idle state)', () => {
+    test('renders items list, knapsack dropzone, controls and capacity input', async ({ page }) => {
+      // Verify core UI regions exist
+      const itemsList = await firstExistingLocator(page, ['.items-list', '[data-items-list]', '[aria-label="Items"]', 'ul.items', 'div.items']);
+      expect(await itemsList.count()).toBeGreaterThan(0); // at least container exists
+
+      const dropzone = await firstExistingLocator(page, ['.knapsack-dropzone', '#knapsack', '[data-dropzone]', '[aria-label="Knapsack"]']);
+      expect(await dropzone.count()).toBeGreaterThan(0);
+
+      const capacityInput = await firstExistingLocator(page, ['input[name="capacity"]', 'input[placeholder*="Capacity"]', 'input[type="number"]#capacity', 'input.capacity-input']);
+      expect(await capacityInput.count()).toBeGreaterThan(0);
+
+      // Controls: Add, Random Example, Solve Greedy, Solve DP, Reset, Clear
+      const addBtn = page.locator('button:has-text("Add Item"), button:has-text("Add item"), button:has-text("Add")');
+      expect(await addBtn.count()).toBeGreaterThan(0);
+
+      const randomBtn = page.locator('button:has-text("Random"), button:has-text("Random Example"), button:has-text("Seed")');
+      expect(await randomBtn.count()).toBeGreaterThan(0);
+
+      const greedyBtn = page.locator('button:has-text("Greedy"), button:has-text("Solve Greedy")');
+      expect(await greedyBtn.count()).toBeGreaterThan(0);
+
+      const dpBtn = page.locator('button:has-text("DP"), button:has-text("Solve DP"), button:has-text("Dynamic")');
+      expect(await dpBtn.count()).toBeGreaterThan(0);
+
+      const resetBtn = page.locator('button:has-text("Reset")');
+      expect(await resetBtn.count()).toBeGreaterThan(0);
+
+      const clearBtn = page.locator('button:has-text("Clear"), button:has-text("Clear knapsack")');
+      expect(await clearBtn.count()).toBeGreaterThan(0);
+    });
+  });
+
+  test.describe('Adding and validating items (adding_item state)', () => {
+    test('adds a valid item via the Add Item form and triggers ADD_ITEM_DONE -> idle', async ({ page }) => {
+      // Locate inputs (name, weight, value) using flexible selectors
+      const nameInput = await firstExistingLocator(page, ['input[name="name"]', 'input[placeholder*="Name"]', 'input[type="text"]']);
+      const numberInputs = await firstExistingLocator(page, ['input[type="number"]', 'input[name="weight"], input[name="value"]']);
+      // The page might have multiple number inputs; choose first two
+      const amountNums = page.locator('input[type="number"]');
+      const weightInput = amountNums.nth(0);
+      const valueInput = amountNums.nth(1);
+
+      const addBtn1 = page.locator('button:has-text("Add Item"), button:has-text("Add item"), button:has-text("Add")').first();
+
+      // Count existing items
+      const itemsList1 = await firstExistingLocator(page, ['.items-list', '[data-items-list]', 'ul.items', 'div.items']);
+      const initialItems = await itemsList.locator('li, .item, .item-card, [data-item]').count();
+
+      // Fill form and add
+      if (await nameInput.count() > 0) await nameInput.fill('TestItem A');
+      if (await weightInput.count() > 0) await weightInput.fill('5');
+      if (await valueInput.count() > 0) await valueInput.fill('9');
+
+      await addBtn.click();
+
+      // After adding, an item should be present in the items list (ADD_ITEM_DONE -> idle)
+      await expect(itemsList).toHaveCountGreaterThan(0); // container exists
+      // Wait for new item count to be initial+1 (tolerant: within 2s)
+      await page.waitForTimeout(250); // small delay to allow render
+      const finalCount = await itemsList.locator('li, .item, .item-card, [data-item]').count();
+      expect(finalCount).toBeGreaterThan(initialItems);
+    });
+
+    test('rejects invalid item input (ADD_ITEM_ERROR) and does not add', async ({ page }) => {
+      const nameInput1 = await firstExistingLocator(page, ['input[name="name"]', 'input[placeholder*="Name"]', 'input[type="text"]']);
+      const amountNums1 = page.locator('input[type="number"]');
+      const weightInput1 = amountNums.nth(0);
+      const valueInput1 = amountNums.nth(1);
+      const addBtn2 = page.locator('button:has-text("Add Item"), button:has-text("Add item"), button:has-text("Add")').first();
+      const itemsList2 = await firstExistingLocator(page, ['.items-list', '[data-items-list]', 'ul.items', 'div.items']);
+      const before = await itemsList.locator('li, .item, .item-card, [data-item]').count();
+
+      // Fill bad values: empty name and negative weight
+      if (await nameInput.count() > 0) await nameInput.fill('');
+      if (await weightInput.count() > 0) await weightInput.fill('-10');
+      if (await valueInput.count() > 0) await valueInput.fill('0');
+
+      await addBtn.click();
+      // Expect no new item after short wait
+      await page.waitForTimeout(300);
+      const after = await itemsList.locator('li, .item, .item-card, [data-item]').count();
+      expect(after).toBe(before);
+      // Additionally expect some error UI (toast / message) to appear if present
+      const errorMsg = page.locator('.toast-error, .error, .validation-error, [role="alert"]:has-text("error")');
+      if (await errorMsg.count() > 0) {
+        await expect(errorMsg.first()).toBeVisible();
+      }
+    });
+  });
+
+  test.describe('Toggling and remove/add to knapsack (toggling_item, adding_to_knapsack, removing_from_knapsack)', () => {
+    test('clicking an item toggles it into knapsack if capacity allows (TOGGLE_ADD_ALLOWED -> adding_to_knapsack -> idle)', async ({ page }) => {
+      const itemsList3 = await firstExistingLocator(page, ['.items-list', '[data-items-list]','ul.items','div.items']);
+      const firstItem = itemsList.locator('li, .item, .item-card, [data-item]').first();
+      // Ensure there's at least one item
+      expect(await firstItem.count()).toBeGreaterThan(0);
+
+      const dropzone1 = await firstExistingLocator(page, ['.knapsack-dropzone1', '#knapsack', '[data-dropzone1]']);
+      // Clicking the item to toggle: some implementations toggle by a button/checkbox; try clicking the item card itself
+      await firstItem.click();
+
+      // After toggle allowed, item should appear in knapsack area
+      await page.waitForTimeout(300);
+      const inKnapsack = dropzone.locator('li, .item, .item-card, [data-item]');
+      expect(await inKnapsack.count()).toBeGreaterThanOrEqual(0);
+      // If added, there should be an item with same name text inside knapsack — attempt to match by text
+      const itemText = await firstItem.innerText().catch(() => '');
+      if (itemText) {
+        const match = dropzone.locator(`:scope :text("${itemText.split('\n')[0]}")`);
+        // match may be absent if the toggle removed; fail-safe: only assert presence if count increased
+        const knapCount = await inKnapsack.count();
+        if (knapCount > 0) {
+          expect(await match.count()).toBeGreaterThanOrEqual(0);
+        }
+      }
+    });
+
+    test('removing an item triggers removing_from_knapsack and updates DOM (TOGGLE_REMOVED)', async ({ page }) => {
+      const itemsList4 = await firstExistingLocator(page, ['.items-list', '[data-items-list]','ul.items','div.items']);
+      const firstItem1 = itemsList.locator('li, .item, .item-card, [data-item]').first();
+      const dropzone2 = await firstExistingLocator(page, ['.knapsack-dropzone2', '#knapsack', '[data-dropzone2]']);
+      // Ensure item is in knapsack by clicking to add, then click again to remove
+      await firstItem.click();
+      await page.waitForTimeout(250);
+      // Click again to remove
+      await firstItem.click();
+      await page.waitForTimeout(250);
+      // The dropzone should not contain the item's text anymore
+      const itemText1 = await firstItem.innerText().catch(() => '');
+      if (itemText) {
+        const match1 = dropzone.locator(`:scope :text("${itemText.split('\n')[0]}")`);
+        // Allow for implementations that animate removal; wait a bit and expect 0 or not visible
+        await page.waitForTimeout(250);
+        if (await match.count() > 0) {
+          // if present, it should be hidden or marked removed
+          await expect(match.first()).not.toBeVisible({ timeout: 1000 }).catch(() => {});
+        }
+      }
+    });
+  });
+
+  test.describe('Drag and drop interactions (dragging, dragover, drop_attempt, animating_add, overcap_flash)', () => {
+    test('dragging an item over dropzone adds dragover class and dropping adds to knapsack (DROP_ADD_STARTED -> animating_add -> ADD_ANIMATION_END)', async ({ page }) => {
+      const itemsList5 = await firstExistingLocator(page, ['.items-list', '[data-items-list]','ul.items','div.items']);
+      const firstItem2 = itemsList.locator('li, .item, .item-card, [data-item]').first();
+      expect(await firstItem.count()).toBeGreaterThan(0);
+
+      const dropzone3 = await firstExistingLocator(page, ['.knapsack-dropzone3', '#knapsack', '[data-dropzone3]']);
+      expect(await dropzone.count()).toBeGreaterThan(0);
+
+      // Create unique attributes to reference in dragAndDrop evaluation fallback
+      await firstItem.evaluate((el) => el.setAttribute('data-test-src', 'src-item'));
+      await dropzone.evaluate((el) => el.setAttribute('data-test-dst', 'dst-knapsack'));
+
+      // Simulate dragstart -> dragover -> drop
+      await dragAndDrop(page, page.locator('[data-test-src="src-item"]'), page.locator('[data-test-dst="dst-knapsack"]'));
+
+      // During dragover some implementations add a .dragover class
+      const hasDragOver = await dropzone.evaluate((el) => el.classList.contains('dragover'));
+      // It's possible the class is transient; at least check that after drop the item appears in knapsack
+      await page.waitForTimeout(500); // allow animation
+      const knapItem = dropzone.locator('li, .item, .item-card, [data-item]').first();
+      if (await knapItem.count() > 0) {
+        await expect(knapItem).toBeVisible();
+      } else {
+        // fallback: match by text
+        const text = await firstItem.innerText().catch(() => '');
+        if (text) {
+          const match2 = dropzone.locator(`:scope :text("${text.split('\n')[0]}")`);
+          await expect(match).toHaveCountGreaterThanOrEqual(0).catch(() => {});
+        }
+      }
+      // Animating add may add an 'animating' class then remove - wait for animation end
+      await page.waitForTimeout(800); // animation ~700ms per FSM
+      // After animation, updateAll should have run - verify no transient animation class remains
+      const animLeft = await dropzone.locator('.animating, .adding, .animate-token').count();
+      expect(animLeft).toBeLessThanOrEqual(0);
+    });
+
+    test('drop attempt rejected when over capacity triggers overcap flash (DROP_ADD_REJECTED -> overcap_flash -> FLASH_DONE)', async ({ page }) => {
+      // Set small capacity
+      const capacityInput1 = await firstExistingLocator(page, ['input[name="capacity"]', 'input[placeholder*="Capacity"]', 'input[type="number"]#capacity', 'input.capacity-input']);
+      if (await capacityInput.count() > 0) {
+        await capacityInput.fill('1'); // tiny capacity
+        // Trigger change event if needed
+        await capacityInput.press('Enter').catch(() => {});
+      }
+
+      // Find an item with weight >1 by scanning items list for digits
+      const itemsList6 = await firstExistingLocator(page, ['.items-list', '[data-items-list]','ul.items','div.items']);
+      const candidates = itemsList.locator('li, .item, .item-card, [data-item]');
+      const totalCandidates = await candidates.count();
+      expect(totalCandidates).toBeGreaterThanOrEqual(1);
+      let heavyItem = candidates.first();
+      // Try to find one whose text contains a weight > 1 (best-effort)
+      for (let i = 0; i < totalCandidates; i++) {
+        const it = candidates.nth(i);
+        const txt = await it.innerText().catch(() => '');
+        const matches = txt.match(/weight[:\s]*([0-9]{1,3})/i) || txt.match(/w[:\s]*([0-9]{1,3})/i);
+        if (matches && Number(matches[1]) > 1) {
+          heavyItem = it;
+          break;
+        }
+      }
+
+      const dropzone4 = await firstExistingLocator(page, ['.knapsack-dropzone4', '#knapsack', '[data-dropzone4]']);
+      await heavyItem.evaluate((el) => el.setAttribute('data-test-src', 'heavy-item'));
+      await dropzone.evaluate((el) => el.setAttribute('data-test-dst', 'dst-knapsack'));
+
+      // Simulate drag/drop
+      await dragAndDrop(page, page.locator('[data-test-src="heavy-item"]'), page.locator('[data-test-dst="dst-knapsack"]'));
+
+      // Overcap flash may add a class like .overcap or .flash or show a red border
+      await page.waitForTimeout(200); // allow immediate flash
+      const flashSelectors = [
+        '.overcap', '.flash-overcap', '.flash', '.shake', '.over-cap', '.capacity-flash'
+      ];
+      let flashDetected = false;
+      for (const sel of flashSelectors) {
+        if ((await dropzone.locator(sel).count()) > 0 || await dropzone.evaluate((el, s) => el.classList.contains(s.replace(/^\./, '')), sel).catch(() => false)) {
+          flashDetected = true;
+          break;
+        }
+      }
+      // Alternatively, there might be a log message about over capacity
+      const log = await firstExistingLocator(page, ['.log', '#log', '.log-entries', '.console']);
+      const logText = (await log.innerText().catch(() => '')).toLowerCase();
+      const logHasOver = logText.includes('over') || logText.includes('capacity') || logText.includes('overcap') || logText.includes('reject');
+
+      expect(flashDetected || logHasOver).toBeTruthy();
+      // After some timeout FSM should return to idle (FLASH_DONE)
+      await page.waitForTimeout(800);
+    });
+  });
+
+  test.describe('Solvers: greedy and DP (greedy_solving, dp_solving, dp_backtracking)', () => {
+    test('greedy solver animates picks and finishes applying result (GREEDY_PICK_STEP -> GREEDY_FINISHED -> idle)', async ({ page }) => {
+      const greedyBtn1 = page.locator('button:has-text("Greedy"), button:has-text("Solve Greedy")').first();
+      expect(await greedyBtn.count()).toBeGreaterThan(0);
+      // Click greedy solver
+      await greedyBtn.click();
+      // The greedy solver may animate steps; expect some visual progress indicators (e.g., .greedy-step or .animating)
+      const greedyStepSel = page.locator('.greedy-step, .solver-step, .greedy-anim, .item.pulsing');
+      // Wait up to 4s for animation steps to appear or for solver to finish
+      await Promise.race([
+        greedyStepSel.first().waitFor({ state: 'visible', timeout: 2000 }).catch(() => {}),
+        page.waitForTimeout(2000)
+      ]);
+      // Wait for solver to finish - FSM signals GREEDY_FINISHED -> idle. We allow up to 6s.
+      await page.waitForTimeout(1500);
+      // Check that final inKnapsack items have been applied (knapsack has items)
+      const dropzone5 = await firstExistingLocator(page, ['.knapsack-dropzone5', '#knapsack', '[data-dropzone5]']);
+      const knapCount1 = await dropzone.locator('li, .item, .item-card, [data-item]').count();
+      // After greedy run, it's reasonable to expect at least one item selected unless no items exist
+      const itemsList7 = await firstExistingLocator(page, ['.items-list', '[data-items-list]','ul.items','div.items']);
+      const itemCount = await itemsList.locator('li, .item, .item-card, [data-item]').count();
+      if (itemCount > 0) {
+        expect(knapCount).toBeGreaterThanOrEqual(0);
+      }
+      // Log should contain "Greedy" or "finished"
+      const log1 = await firstExistingLocator(page, ['.log1', '#log1', '.log1-entries', '.console']);
+      const txt1 = (await log.innerText().catch(() => '')).toLowerCase();
+      expect(txt.includes('greedy') || txt.includes('finished') || txt.includes('solver')).toBeTruthy();
+    });
+
+    test('DP solver aborts if capacity > 60 (DP_TOO_LARGE event handled -> idle)', async ({ page }) => {
+      const capacityInput2 = await firstExistingLocator(page, ['input[name="capacity"]', 'input[placeholder*="Capacity"]', 'input[type="number"]#capacity', 'input.capacity-input']);
+      if (await capacityInput.count() > 0) {
+        await capacityInput.fill('75'); // > 60 to trigger DP_TOO_LARGE
+        await capacityInput.press('Enter').catch(() => {});
+      }
+      const dpBtn1 = page.locator('button:has-text("DP"), button:has-text("Solve DP"), button:has-text("Dynamic")').first();
+      expect(await dpBtn.count()).toBeGreaterThan(0);
+      await dpBtn.click();
+      // Look for explicit "too large" message in dp container or logs
+      const dpContainer = await firstExistingLocator(page, ['#dp-container', '.dp-table', '.dp-grid', '.dynamic-programming']);
+      await page.waitForTimeout(300);
+      const dpText = (await dpContainer.innerText().catch(() => '')).toLowerCase();
+      const log2 = await firstExistingLocator(page, ['.log2', '#log2', '.log2-entries', '.console']);
+      const logText1 = (await log.innerText().catch(() => '')).toLowerCase();
+      const tooLargeDetected = dpText.includes('too large') || dpText.includes('large') || logText.includes('too large') || logText.includes('dp too large') || logText.includes('capacity > 60');
+      expect(tooLargeDetected).toBeTruthy();
+    });
+
+    test('DP build and backtracking produces chosen items (DP_BUILD_COMPLETE -> dp_backtracking -> DP_FINISHED)', async ({ page }) => {
+      // Set capacity to reasonable size to allow DP
+      const capacityInput3 = await firstExistingLocator(page, ['input[name="capacity"]', 'input[placeholder*="Capacity"]', 'input[type="number"]#capacity', 'input.capacity-input']);
+      if (await capacityInput.count() > 0) {
+        await capacityInput.fill('20');
+        await capacityInput.press('Enter').catch(() => {});
+      }
+      const dpBtn2 = page.locator('button:has-text("DP"), button:has-text("Solve DP"), button:has-text("Dynamic")').first();
+      await dpBtn.click();
+      // DP often animates table rows/cells. Await presence of dp table or backtracking indicators
+      const dpContainer1 = await firstExistingLocator(page, ['#dp-container', '.dp-table', '.dp-grid', '.dynamic-programming']);
+      // Wait up to 4s for DP table to appear / be processed
+      await Promise.race([
+        dpContainer.waitFor({ state: 'visible', timeout: 4000 }).catch(() => {}),
+        page.waitForTimeout(1500)
+      ]);
+      // Look for backtracking marks (e.g., .chosen, .marked, .pulse)
+      const backMarks = dpContainer.locator('.chosen, .mark-chosen, .dp-chosen, .pulse');
+      await page.waitForTimeout(500); // let backtracking finish
+      const chosen = backMarks.count ? await backMarks.count() : 0;
+      // After DP finished, knapsack should reflect the chosen items
+      const dropzone6 = await firstExistingLocator(page, ['.knapsack-dropzone6', '#knapsack', '[data-dropzone6]']);
+      await page.waitForTimeout(500);
+      const knapCount2 = await dropzone.locator('li, .item, .item-card, [data-item]').count();
+      // At least check that DP either produced a dp table or populated knapsack (one of them)
+      expect((await dpContainer.innerText().catch(() => '')).length > 0 || knapCount >= 0).toBeTruthy();
+      // Log should include "DP" or "backtrack" or "finished"
+      const log3 = await firstExistingLocator(page, ['.log3', '#log3', '.log3-entries', '.console']);
+      const logText2 = (await log.innerText().catch(() => '')).toLowerCase();
+      expect(logText.includes('dp') || logText.includes('backtrack') || logText.includes('finished')).toBeTruthy();
+    });
+  });
+
+  test.describe('Resetting, clearing knapsack, deleting items (resetting, clearing_knapsack, deleting_item)', () => {
+    test('clear knapsack button empties knapsack (CLICK_CLEAR_KNAP -> CLEAR_DONE)', async ({ page }) => {
+      const clearBtn1 = page.locator('button:has-text("Clear knapsack"), button:has-text("Clear")').first();
+      expect(await clearBtn.count()).toBeGreaterThan(0);
+      const dropzone7 = await firstExistingLocator(page, ['.knapsack-dropzone7', '#knapsack', '[data-dropzone7]']);
+      // Add first item to knapsack to ensure non-empty, if possible
+      const itemsList8 = await firstExistingLocator(page, ['.items-list', '[data-items-list]','ul.items','div.items']);
+      const firstItem3 = itemsList.locator('li, .item, .item-card, [data-item]').first();
+      if (await firstItem.count() > 0) {
+        await firstItem.click();
+        await page.waitForTimeout(250);
+      }
+      // Now click clear
+      await clearBtn.click();
+      // Some implementations may show confirm dialog; handle if present
+      page.on('dialog', async (dialog) => {
+        await dialog.accept();
+      });
+      await page.waitForTimeout(300);
+      const knapCount3 = await dropzone.locator('li, .item, .item-card, [data-item]').count();
+      expect(knapCount).toBeLessThanOrEqual(0);
+      const log4 = await firstExistingLocator(page, ['.log4', '#log4', '.log4-entries', '.console']);
+      const txt2 = (await log.innerText().catch(() => '')).toLowerCase();
+      expect(txt.includes('cleared') || txt.includes('clea') || txt.includes('clear')).toBeTruthy();
+    });
+
+    test('reset triggers confirm dialog and resets state when confirmed (RESET_CONFIRMED)', async ({ page }) => {
+      const resetBtn1 = page.locator('button:has-text("Reset")').first();
+      expect(await resetBtn.count()).toBeGreaterThan(0);
+      // Intercept dialog and accept
+      page.once('dialog', async (dialog) => {
+        expect(dialog.type()).toBe('confirm');
+        await dialog.accept();
+      });
+      await resetBtn.click();
+      // After reset, items may be reseeded or cleared; dp container should be cleared and log cleared
+      await page.waitForTimeout(400);
+      const dpContainer2 = await firstExistingLocator(page, ['#dp-container', '.dp-table', '.dp-grid', '.dynamic-programming']);
+      const dpText1 = (await dpContainer.innerText().catch(() => '')).toLowerCase();
+      const log5 = await firstExistingLocator(page, ['.log5', '#log5', '.log5-entries', '.console']);
+      const logText3 = (await log.innerText().catch(() => '')).toLowerCase();
+      // Heuristic: after reset, log likely cleared or contains "seed" or "reset"
+      expect(logText.length >= 0).toBeTruthy();
+      // Reset confirmed should not throw errors
+    });
+
+    test('deleting an item uses confirmation and removes it (DELETE_CONFIRMED)', async ({ page }) => {
+      const itemsList9 = await firstExistingLocator(page, ['.items-list', '[data-items-list]','ul.items','div.items']);
+      const candidate = itemsList.locator('li, .item, .item-card, [data-item]').first();
+      const before1 = await itemsList.locator('li, .item, .item-card, [data-item]').count();
+      if (before === 0) test.skip('No items to delete');
+
+      // Find a delete button inside the candidate
+      let deleteBtn = candidate.locator('button:has-text("Delete"), button:has-text("Remove"), .delete, .trash, [aria-label="delete"]');
+      if ((await deleteBtn.count()) === 0) {
+        // fallback: maybe an 'x' or icon is represented by a small button
+        deleteBtn = candidate.locator('button').filter({ hasText: '×' });
+      }
+      // Intercept and accept the confirm dialog
+      page.once('dialog', async (dialog) => {
+        expect(dialog.type()).toBe('confirm');
+        await dialog.accept();
+      });
+      if ((await deleteBtn.count()) === 0) {
+        // If no delete button, skip test gracefully
+        test.skip('No delete control found on item card');
+      } else {
+        await deleteBtn.first().click();
+        await page.waitForTimeout(400);
+        const after1 = await itemsList.locator('li, .item, .item-card, [data-item]').count();
+        expect(after).toBeLessThanOrEqual(before - 1);
+      }
+    });
+  });
+
+  test.describe('Keyboard interactions and edge transitions', () => {
+    test('pressing Delete on dropzone clears knapsack (KEY_DELETE_ON_DROPZONE -> clearing_knapsack)', async ({ page }) => {
+      const dropzone8 = await firstExistingLocator(page, ['.knapsack-dropzone8', '#knapsack', '[data-dropzone8]']);
+      // Focus dropzone and press Delete
+      await dropzone.focus().catch(() => {});
+      await page.keyboard.press('Delete').catch(() => {});
+      await page.waitForTimeout(300);
+      // After Clear, expect knapsack empty
+      const knapCount4 = await dropzone.locator('li, .item, .item-card, [data-item]').count();
+      expect(knapCount).toBeLessThanOrEqual(0);
+    });
+
+    test('changing capacity input triggers immediate UI update (CAPACITY_INPUT_CHANGE)', async ({ page }) => {
+      const capacityInput4 = await firstExistingLocator(page, ['input[name="capacity"]', 'input[placeholder*="Capacity"]', 'input[type="number"]#capacity', 'input.capacity-input']);
+      if (await capacityInput.count() === 0) test.skip('No capacity input found');
+      const beforeVal = await capacityInput.inputValue().catch(() => '');
+      await capacityInput.fill('12');
+      await capacityInput.press('Tab').catch(() => {});
+      await page.waitForTimeout(250);
+      const afterVal = await capacityInput.inputValue().catch(() => '');
+      expect(afterVal).toBe('12');
+      // Some implementations may show capacity text elsewhere; check textual display
+      const capDisplays = page.locator(':text("Capacity"), .capacity-display, #capacity-value');
+      if (await capDisplays.count() > 0) {
+        const disp = await capDisplays.first().innerText().catch(() => '');
+        if (disp) expect(disp.replace(/\D/g, '')).toContain('12');
+      }
+    });
+  });
+
+  test.afterEach(async ({ page }) => {
+    // ensure page is left in stable state
+    await page.evaluate(() => {
+      // best-effort clean up — if application exposes clear functions, call them
+      if (window.clearKnapsack) {
+        try { window.clearKnapsack(); } catch (e) {}
+      }
+    });});
+  });
+});

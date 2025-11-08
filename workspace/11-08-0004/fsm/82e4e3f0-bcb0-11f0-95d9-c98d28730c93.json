@@ -1,0 +1,142 @@
+{
+  "topic": "Interactive Huffman Coding Explorer",
+  "description": "Models the interactive states for building a Huffman tree (step/auto/complete), showing codes, interactive highlighting, and bit-by-bit decoding/animation.",
+  "states": [
+    {
+      "name": "empty",
+      "onEnter": "clearUI",
+      "onExit": "none",
+      "on": {
+        "USE_TEXT": "ready",
+        "ADD_SYMBOL": "ready",
+        "RESET_BUILD": "empty",
+        "CLEAR_TEXT": "empty"
+      }
+    },
+    {
+      "name": "ready",
+      "onEnter": "resetBuild",
+      "onExit": "none",
+      "on": {
+        "STEP_MERGE": "merging",
+        "AUTO_START": "auto_running",
+        "AUTO_TOGGLE": "auto_running",
+        "COMPLETE_IMMEDIATELY": "tree_complete",
+        "RESET_BUILD": "ready",
+        "USE_TEXT": "ready",
+        "ADD_SYMBOL": "ready",
+        "REMOVE_SYMBOL": "ready",
+        "NODE_CLICK": "ready",
+        "ROW_HOVER": "ready",
+        "ROW_LEAVE": "ready",
+        "ROW_CLICK": "ready"
+      }
+    },
+    {
+      "name": "merging",
+      "onEnter": "stepMerge_start (calls stepMerge which sets building=true, performs selection/animation timeouts)",
+      "onExit": "stepMerge_end (building=false)",
+      "on": {
+        "MERGE_FINISHED": "ready",
+        "MERGE_LAST": "tree_complete",
+        "CANCEL_AUTO": "ready",
+        "AUTO_TOGGLE": "auto_running"
+      }
+    },
+    {
+      "name": "auto_running",
+      "onEnter": "autoBuild_start (calls autoBuild; starts autoTimer)",
+      "onExit": "cancelAuto (clears autoTimer)",
+      "on": {
+        "AUTO_TICK": "merging",
+        "AUTO_STOP": "ready",
+        "CANCEL_AUTO": "ready",
+        "MERGE_LAST": "tree_complete",
+        "MERGE_FINISHED": "auto_running",
+        "COMPLETE_IMMEDIATELY": "tree_complete",
+        "RESET_BUILD": "ready",
+        "USE_TEXT": "ready",
+        "ADD_SYMBOL": "ready"
+      }
+    },
+    {
+      "name": "tree_complete",
+      "onEnter": "onTreeComplete (computeCodes + renderCodes + renderBitString)",
+      "onExit": "clearCodesAndBits",
+      "on": {
+        "RESET_BUILD": "ready",
+        "USE_TEXT": "ready",
+        "ADD_SYMBOL": "ready",
+        "NODE_CLICK": "tree_complete",
+        "ROW_HOVER": "tree_complete",
+        "ROW_LEAVE": "tree_complete",
+        "ROW_CLICK": "tree_complete",
+        "DECODE_RESET": "decoding_idle",
+        "RESET_DECODE": "decoding_idle",
+        "DECODE_STEP": "decoding_animating",
+        "BIT_CLICK": "decoding_animating"
+      }
+    },
+    {
+      "name": "decoding_idle",
+      "onEnter": "resetDecodeState (set decodePointer=root, decodePos=0, clear active classes)",
+      "onExit": "none",
+      "on": {
+        "DECODE_STEP": "decoding_animating",
+        "BIT_CLICK": "decoding_animating",
+        "RESET_DECODE": "decoding_idle",
+        "DECODE_TO_POSITION": "decoding_animating"
+      }
+    },
+    {
+      "name": "decoding_animating",
+      "onEnter": "decodeNextBit_start (calls decodeNextBit -> sets decodeAnimating, highlights temporary link, advances pointer after timeout)",
+      "onExit": "decodeNextBit_end (sets decodeAnimating=false)",
+      "on": {
+        "DECODE_ANIM_END": "decoding_idle",
+        "DECODE_FINISHED_ALL": "decoding_done",
+        "RESET_DECODE": "decoding_idle"
+      }
+    },
+    {
+      "name": "decoding_done",
+      "onEnter": "onDecodeComplete (finalize decodedOut)",
+      "onExit": "resetDecodeState",
+      "on": {
+        "RESET_DECODE": "decoding_idle",
+        "DECODE_STEP": "decoding_done",
+        "BIT_CLICK": "decoding_done"
+      }
+    }
+  ],
+  "events": [
+    "INIT",
+    "USE_TEXT",
+    "CLEAR_TEXT",
+    "ADD_SYMBOL",
+    "REMOVE_SYMBOL",
+    "RESET_BUILD",
+    "STEP_MERGE",
+    "AUTO_TOGGLE",
+    "AUTO_START",
+    "AUTO_STOP",
+    "AUTO_TICK",
+    "CANCEL_AUTO",
+    "COMPLETE_IMMEDIATELY",
+    "MERGE_FINISHED",
+    "MERGE_LAST",
+    "DECODE_STEP",
+    "DECODE_TO_POSITION",
+    "BIT_CLICK",
+    "RESET_DECODE",
+    "DECODE_ANIM_END",
+    "DECODE_FINISHED_ALL",
+    "NODE_CLICK",
+    "ROW_HOVER",
+    "ROW_LEAVE",
+    "ROW_CLICK",
+    "HIGHLIGHT_CLEAR",
+    "WINDOW_KEY_SPACE"
+  ],
+  "notes": "High-level FSM. Implementation details and timing are driven by JS functions and timeouts. Key points:\n- resetBuild creates leaves and sets ready. If freqMap is empty the app is in 'empty'.\n- STEP_MERGE triggers a single animated merge (merging). The animation sets building=true and emits MERGE_FINISHED when done; if that merge produced the final tree it emits MERGE_LAST and transitions to tree_complete.\n- auto_running starts a timer (autoBuild). Each AUTO_TICK triggers a merge; merges still use the same merging animation but auto_running remains active between animated merges. cancelAuto/auto stop clears the timer.\n- COMPLETE_IMMEDIATELY performs merges without animation and directly transitions to tree_complete when only one active node remains.\n- On tree_complete, codes are computed and rendered; encodedBits are emitted if sample text exists. This enters decoding-related states.\n- Decoding has distinct idle/animating/done states. decodeNextBit sets decodeAnimating, highlights traversal, updates decodePos and decodedOut; when all bits are consumed DECODE_FINISHED_ALL is emitted and state goes to decoding_done.\n- Hover/click highlights (highlightCodePath, clearHighlights, flashPath) are treated as transient actions invoked in multiple states (ROW_HOVER, ROW_LEAVE, NODE_CLICK, ROW_CLICK). These do not generally change the primary state except for invoking visual effects.\n- Concurrency: merging guards (building flag) prevent overlapping merges. Auto mode will not start a new merge while building=true; the FSM models this by sequencing AUTO_TICK -> merging -> MERGE_FINISHED -> auto_running.\n- Many event transitions depend on runtime conditions (e.g., REMOVE_SYMBOL may lead to empty or ready); the FSM maps the common flows and notes conditional transitions occur in code."
+}

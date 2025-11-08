@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Stack (LIFO) — Learning Module</title>
+  <style>
+    /* Safe area margins and general layout */
+    :root{
+      --gap: 16px;
+      --margin: 24px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #06b6d4;
+      --muted: #94a3b8;
+      --success: #10b981;
+      --danger: #ef4444;
+      --glass: rgba(255,255,255,0.03);
+      --card: #071022;
+      --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071122 0%, #071122 40%, #061324 100%);
+      color: #e6eef6;
+      font-family: var(--font-sans);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Safe area */
+    .app {
+      box-sizing: border-box;
+      padding: var(--margin);
+      min-height: 100vh;
+      display: flex;
+      gap: var(--gap);
+      align-items: flex-start;
+    }
+
+    /* Two-column responsive layout: left = instructions, right = interactive */
+    .col {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    }
+
+    .left {
+      flex: 1 1 360px;
+      max-width: 520px;
+      min-width: 280px;
+    }
+
+    .right {
+      flex: 1 1 420px;
+      min-width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      align-items: stretch;
+    }
+
+    header {
+      display:flex;
+      align-items: baseline;
+      gap:12px;
+      margin-bottom: 6px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin:0;
+      color: #dff7ff;
+    }
+
+    small.subtitle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    section.titleBlock > h2 {
+      font-size: 15px;
+      margin: 0 0 8px 0;
+      color: #bfeaff;
+    }
+
+    p, li {
+      color: #cbd7e6;
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    ul { padding-left: 18px; margin: 6px 0 0 0; }
+
+    /* Interactive panel styling */
+    .controls {
+      display:flex;
+      gap: var(--gap);
+      align-items: center;
+      flex-wrap:wrap;
+    }
+
+    .control-row {
+      display:flex;
+      gap: var(--gap);
+      align-items:center;
+    }
+
+    label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input[type="text"], input[type="number"] {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.04);
+      color: #e6eef6;
+      padding: 10px 12px;
+      border-radius: 8px;
+      min-width: 110px;
+      outline: none;
+      font-size: 14px;
+    }
+
+    input[type="number"] { width:98px; }
+
+    .btn {
+      background: linear-gradient(180deg, rgba(6,182,212,0.16), rgba(6,182,212,0.06));
+      color: var(--accent);
+      border: 1px solid rgba(6,182,212,0.18);
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: transform .12s ease, box-shadow .12s ease;
+      min-width: 72px;
+    }
+
+    .btn:active { transform: translateY(1px); }
+    .btn.secondary {
+      background: transparent;
+      color: #cfeaf2;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .btn.warn {
+      color: var(--danger);
+      border-color: rgba(239,68,68,0.18);
+    }
+
+    /* Stack visualization */
+    .viz {
+      display:flex;
+      gap: var(--gap);
+      align-items: flex-start;
+      justify-content: center;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius: 10px;
+      min-height: 280px;
+    }
+
+    .stack-frame {
+      width: 220px;
+      height: 320px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border: 1px dashed rgba(255,255,255,0.04);
+      border-radius: 10px;
+      position: relative;
+      padding: 12px;
+      box-sizing: border-box;
+      display:flex;
+      align-items:flex-end; /* stack grows upward visually */
+      justify-content:center;
+      overflow: visible;
+    }
+
+    .stack-slot {
+      width: 100%;
+      display:flex;
+      flex-direction: column-reverse; /* so DOM order bottom->top can align visually bottom-to-top */
+      gap: 10px;
+      align-items: center;
+      min-height: 0;
+      position: relative;
+    }
+
+    .node {
+      background: linear-gradient(180deg, #0b2130, #07202b);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: #e2f9ff;
+      width: calc(100% - 12px);
+      padding: 8px 10px;
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(2,8,17,0.5);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      font-weight:600;
+      font-size: 14px;
+      transform-origin: top center;
+      transition: transform 360ms cubic-bezier(.2,.9,.2,1), opacity 300ms ease;
+      opacity:1;
+      position: relative;
+      z-index:1;
+    }
+
+    .node.dragging {
+      opacity: 0.6;
+      transform: scale(1.04);
+      box-shadow: 0 12px 28px rgba(2,8,17,0.6);
+      z-index: 999;
+    }
+
+    .node .val {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 120px;
+      text-align: left;
+      color: #cfeff6;
+    }
+
+    .node .index {
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.02);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    .top-pointer {
+      position: absolute;
+      top: 8px;
+      right: -48px;
+      width: 36px;
+      height: 36px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: linear-gradient(180deg, rgba(6,182,212,0.09), rgba(6,182,212,0.03));
+      border: 1px solid rgba(6,182,212,0.14);
+      color: var(--accent);
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      transition: transform .18s ease;
+    }
+
+    .meta {
+      display:flex;
+      gap: 12px;
+      align-items: center;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .indicator {
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.02);
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .log {
+      margin-top: 8px;
+      background: rgba(0,0,0,0.12);
+      border-radius: 10px;
+      padding: 10px;
+      color: #cfe9f3;
+      font-size: 13px;
+      min-height: 44px;
+      max-height: 120px;
+      overflow: auto;
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+
+    .palette {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .chip {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.03);
+      padding: 8px 10px;
+      border-radius: 999px;
+      color: #e6f9ff;
+      cursor: grab;
+      user-select: none;
+      font-weight:700;
+      font-size: 13px;
+    }
+
+    .chip:active { cursor:grabbing; transform: scale(.98); }
+
+    /* overflow / underflow visual */
+    .flash {
+      animation: flash 700ms ease;
+    }
+    @keyframes flash {
+      0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.0); }
+      30% { box-shadow: 0 0 0 8px rgba(239,68,68,0.08); }
+      100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.0); }
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 920px) {
+      .app { flex-direction: column; padding: 18px; gap: 14px; }
+      .col { width: 100%; }
+      .left { max-width: 100%; }
+    }
+
+    /* Small accessibility focus ring */
+    :focus {
+      outline: 3px solid rgba(6,182,212,0.12);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="main" aria-labelledby="main-title">
+    <!-- LEFT: Explanation and pedagogical information -->
+    <div class="col left" aria-labelledby="concept-title">
+      <header>
+        <h1 id="main-title">Stack (LIFO) — Interactive Module</h1>
+        <small class="subtitle">Explore push, pop, peek, capacity, underflow & overflow</small>
+      </header>
+
+      <section class="titleBlock" aria-hidden="false">
+        <h2 id="concept-title">Concept Title</h2>
+        <p><strong>Stack (Last-In, First-Out)</strong> — a linear data structure where elements are added and removed from the same end (the "top").</p>
+      </section>
+
+      <section style="margin-top:12px;">
+        <h2>Learning Objective</h2>
+        <p>After interacting with this module you will be able to:</p>
+        <ul>
+          <li>Explain that a stack is LIFO (Last-In, First-Out).</li>
+          <li>Demonstrate push, pop, and peek operations and observe their effects on stack size and top element.</li>
+          <li>Recognize overflow (trying to push when full) and underflow (trying to pop when empty).</li>
+        </ul>
+      </section>
+
+      <section style="margin-top:16px;">
+        <h2>Interaction Design</h2>
+        <p>This section explains how the interactive module responds to your input:</p>
+        <ul>
+          <li><strong>Push</strong> — type a value in the input or drag a value chip into the stack area, then click "Push" (or press Enter). A new node visually animates from the input area into the top of the stack.</li>
+          <li><strong>Pop</strong> — click "Pop" to remove the top element. The top node animates upward and fades out to indicate removal. The removed value is announced in the log and accessible to screen readers.</li>
+          <li><strong>Peek</strong> — click "Peek" to highlight the top without removing it. The top pointer pulses and the value is announced.</li>
+          <li><strong>Capacity</strong> — you can set a maximum stack capacity. Pushing when full triggers a visible overflow warning and prevents the push.</li>
+          <li><strong>Drag & Drop</strong> — chips in the palette are draggable and can be dropped on the stack to push. Keyboard users can type and push via Enter.</li>
+          <li>All updates produce animated visual feedback, a concise log entry, and announcements via an ARIA live region to ensure accessibility.</li>
+        </ul>
+      </section>
+
+      <section style="margin-top:16px;">
+        <h2>Layout Description</h2>
+        <p>Spatial organization and accessibility considerations:</p>
+        <ul>
+          <li>Safe area margins: 24px padding on the viewport ensures the content is comfortably inset.</li>
+          <li>Controls (inputs & buttons) are grouped at the top-right of the interactive panel with at least 16px spacing between elements to avoid clutter.</li>
+          <li>The stack visualization is centered in a framed area with a clear top pointer on the right. The node list stacks from bottom to top visually.</li>
+          <li>Logs and meta indicators (size/capacity) sit below the visualization for progressive disclosure of state changes.</li>
+          <li>The layout is responsive: on narrow screens the left explanatory column stacks above the interactive area. All interactive controls are keyboard navigable and have focus styles.</li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- RIGHT: Interactive Module -->
+    <div class="col right" aria-live="polite">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <h2 style="margin:0 0 6px 0;">Stack Playground</h2>
+          <div style="color:var(--muted); font-size:13px;">Interact: push/pop/peek, drag chips, set capacity</div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <div style="text-align:right; color:var(--muted); font-size:13px;">Size: <span id="sizeIndicator" style="font-weight:800; color:#dff7ff">0</span></div>
+          <div style="text-align:right; color:var(--muted); font-size:13px;">Capacity: <span id="capIndicator" style="font-weight:800; color:#dff7ff">6</span></div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls" role="region" aria-label="Stack controls">
+        <div class="control-row" style="flex:1 1 auto; min-width: 180px;">
+          <label for="valueInput" style="display:block; width:100%; font-size:13px; margin-bottom:6px;">Value to push</label>
+          <input id="valueInput" type="text" inputmode="text" placeholder="e.g. 42 or 'item'" aria-label="Value to push" />
+        </div>
+
+        <div class="control-row">
+          <div style="display:flex; flex-direction:column;">
+            <label for="capacity" style="font-size:13px; margin-bottom:6px;">Capacity</label>
+            <input id="capacity" type="number" min="1" max="20" value="6" aria-label="Stack capacity" />
+          </div>
+        </div>
+
+        <div class="control-row" style="gap:8px;">
+          <button id="pushBtn" class="btn" aria-label="Push value">Push</button>
+          <button id="popBtn" class="btn secondary" aria-label="Pop top value">Pop</button>
+          <button id="peekBtn" class="btn secondary" aria-label="Peek top value">Peek</button>
+          <button id="clearBtn" class="btn warn" aria-label="Clear stack">Clear</button>
+        </div>
+      </div>
+
+      <!-- Visualization and palette -->
+      <div class="viz" style="flex-direction:column;">
+        <div style="display:flex; gap:var(--gap); width:100%; align-items:flex-start;">
+          <!-- Stack frame -->
+          <div class="stack-frame" id="stackFrame" aria-label="Stack area" tabindex="0"
+               role="region" aria-describedby="stack-desc">
+            <div id="stackSlot" class="stack-slot" aria-live="polite" aria-atomic="true" style="width:100%;"></div>
+            <div id="topPointer" class="top-pointer" hidden>TOP</div>
+            <div id="stack-desc" style="position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;">
+              Stack visual area. Drop items here or use the push button.
+            </div>
+          </div>
+
+          <!-- Palette and meta -->
+          <div style="flex:1 1 220px; min-width:200px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div class="meta">
+                <div class="indicator">Elements: <span id="count" style="font-weight:800; margin-left:8px;">0</span></div>
+                <div class="indicator">Capacity: <span id="capMeta" style="font-weight:800; margin-left:8px;">6</span></div>
+              </div>
+            </div>
+
+            <div style="margin-top:12px;">
+              <label style="font-size:13px; color:var(--muted);">Drag to push (example values)</label>
+              <div class="palette" id="palette" style="margin-top:8px;">
+                <div class="chip" draggable="true" tabindex="0">Apple</div>
+                <div class="chip" draggable="true" tabindex="0">42</div>
+                <div class="chip" draggable="true" tabindex="0">Hello</div>
+                <div class="chip" draggable="true" tabindex="0">X</div>
+                <div class="chip" draggable="true" tabindex="0">3.14</div>
+              </div>
+            </div>
+
+            <div style="margin-top:12px;">
+              <div style="font-size:13px; color:var(--muted); margin-bottom:6px;">Activity Log</div>
+              <div id="log" class="log" role="log" aria-live="polite"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; justify-content:flex-end; align-items:center;">
+        <div style="color:var(--muted); font-size:13px;">Announcements:</div>
+        <div id="ariaAnnounce" style="position:absolute; left:-9999px;" aria-live="assertive"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Interactive Stack Module (vanilla JS)
+    (function () {
+      // Elements
+      const valueInput = document.getElementById('valueInput');
+      const capacityInput = document.getElementById('capacity');
+      const pushBtn = document.getElementById('pushBtn');
+      const popBtn = document.getElementById('popBtn');
+      const peekBtn = document.getElementById('peekBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const stackSlot = document.getElementById('stackSlot');
+      const stackFrame = document.getElementById('stackFrame');
+      const topPointer = document.getElementById('topPointer');
+      const logEl = document.getElementById('log');
+      const sizeIndicator = document.getElementById('sizeIndicator');
+      const capIndicator = document.getElementById('capIndicator');
+      const count = document.getElementById('count');
+      const capMeta = document.getElementById('capMeta');
+      const ariaAnnounce = document.getElementById('ariaAnnounce');
+      const palette = document.getElementById('palette');
+
+      // State
+      let stack = []; // array of values
+      let capacity = parseInt(capacityInput.value, 10) || 6;
+      updateIndicators();
+
+      // Utility: log and announce
+      function log(msg) {
+        const time = new Date().toLocaleTimeString();
+        const entry = document.createElement('div');
+        entry.textContent = `${time} — ${msg}`;
+        logEl.prepend(entry);
+      }
+      function announce(msg) {
+        ariaAnnounce.textContent = msg;
+        log(msg);
+      }
+
+      // Render the full stack (rebuild nodes)
+      function renderStack(animate = true) {
+        // Clear DOM then recreate bottom->top
+        stackSlot.innerHTML = '';
+        if (stack.length === 0) {
+          topPointer.hidden = true;
+        }
+
+        // We render nodes in DOM order bottom-to-top to visually stack them.
+        for (let i = 0; i < stack.length; i++) {
+          const value = stack[i];
+          const node = document.createElement('div');
+          node.className = 'node';
+          node.setAttribute('data-index', i);
+          node.setAttribute('role', 'listitem');
+          node.innerHTML = `<div class="val">${escapeHtml(String(value))}</div><div class="index">${i}</div>`;
+          // Append to stack
+          stackSlot.appendChild(node);
+        }
+
+        // Update pointer position if non-empty
+        updateIndicators();
+
+        // For accessibility, set ARIA attributes
+        stackSlot.setAttribute('aria-label', `Stack with ${stack.length} elements. Top is ${stack.length ? String(stack[stack.length - 1]) : 'none'}.`);
+      }
+
+      // Escape HTML for safe insertion into innerHTML
+      function escapeHtml(unsafe) {
+        return unsafe.replace(/[&<"'>]/g, function (c) {
+          return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":"&#039;"}[c];
+        });
+      }
+
+      // Update indicators and pointer
+      function updateIndicators() {
+        sizeIndicator.textContent = stack.length;
+        count.textContent = stack.length;
+        capIndicator.textContent = capacity;
+        capMeta.textContent = capacity;
+
+        // Position pointer to the top node visually if exists
+        const nodes = stackSlot.children;
+        if (nodes.length > 0) {
+          const topNode = nodes[nodes.length - 1];
+          topPointer.hidden = false;
+          // compute topPointer position relative to stackFrame
+          const rectFrame = stackFrame.getBoundingClientRect();
+          const rectNode = topNode.getBoundingClientRect();
+          const offsetTop = rectNode.top - rectFrame.top;
+          topPointer.style.transform = `translateY(${offsetTop}px)`;
+          // pulse when peek triggered
+        } else {
+          topPointer.hidden = true;
+          topPointer.style.transform = `translateY(0px)`;
+        }
+      }
+
+      // Animate push: clone visual element from input position to stack then append
+      function animatePush(value) {
+        if (stack.length >= capacity) {
+          // Overflow
+          flashOverflow();
+          announce('Overflow: stack is full. Cannot push.');
+          return;
+        }
+
+        // Create an absolute floating element from input
+        const srcRect = valueInput.getBoundingClientRect();
+        const frameRect = stackFrame.getBoundingClientRect();
+        const floating = document.createElement('div');
+        floating.className = 'node';
+        floating.style.position = 'fixed';
+        floating.style.zIndex = 9999;
+        floating.style.left = `${srcRect.left}px`;
+        floating.style.top = `${srcRect.top}px`;
+        floating.style.width = `${srcRect.width}px`;
+        floating.style.margin = '0';
+        floating.style.transform = 'scale(1.02)';
+        floating.style.transition = 'transform 420ms cubic-bezier(.2,.9,.2,1), left 420ms cubic-bezier(.2,.9,.2,1), top 420ms cubic-bezier(.2,.9,.2,1), opacity 300ms ease';
+        floating.innerHTML = `<div class="val">${escapeHtml(String(value))}</div><div class="index">?</div>`;
+        document.body.appendChild(floating);
+
+        // Determine destination coordinates (top of the stack)
+        // If stack empty, drop near bottom of frame; otherwise drop above the current top element
+        let destX = frameRect.left + 12; // padding
+        let destY;
+        const nodes = stackSlot.children;
+        if (nodes.length === 0) {
+          destY = frameRect.bottom - 48; // place near bottom
+        } else {
+          const topRect = nodes[nodes.length - 1].getBoundingClientRect();
+          destY = topRect.top - 10; // just above the top node
+        }
+
+        // Run animation: move floating to destination
+        requestAnimationFrame(() => {
+          floating.style.left = `${destX}px`;
+          floating.style.top = `${destY}px`;
+          floating.style.opacity = '0.98';
+        });
+
+        // After animation completes, append to stack and remove floating
+        setTimeout(() => {
+          document.body.removeChild(floating);
+          // push into logical stack then render
+          stack.push(value);
+          renderStack();
+          announce(`Pushed "${value}" — new size ${stack.length}.`);
+        }, 460);
+      }
+
+      // Pop with animation: animate top node upward and fade, then remove
+      function animatePop() {
+        if (stack.length === 0) {
+          // Underflow
+          flashUnderflow();
+          announce('Underflow: stack is empty. Cannot pop.');
+          return;
+        }
+
+        const nodes = stackSlot.children;
+        const topNode = nodes[nodes.length - 1];
+        // create floating clone at same position
+        const rect = topNode.getBoundingClientRect();
+        const floating = topNode.cloneNode(true);
+        floating.style.position = 'fixed';
+        floating.style.left = `${rect.left}px`;
+        floating.style.top = `${rect.top}px`;
+        floating.style.width = `${rect.width}px`;
+        floating.style.margin = '0';
+        floating.style.zIndex = 9999;
+        floating.style.transition = 'transform 420ms ease, top 420ms ease, opacity 420ms ease';
+        document.body.appendChild(floating);
+
+        // Remove from logical stack immediately so renderStack updates other nodes
+        const popped = stack.pop();
+        renderStack();
+
+        // Animate floating upwards and fade
+        requestAnimationFrame(() => {
+          floating.style.top = `${rect.top - 80}px`;
+          floating.style.opacity = '0';
+          floating.style.transform = 'scale(0.96)';
+        });
+
+        setTimeout(() => {
+          if (floating.parentElement) floating.parentElement.removeChild(floating);
+          announce(`Popped "${popped}" — new size ${stack.length}.`);
+        }, 460);
+      }
+
+      // Peek: highlight top pointer and announce value
+      function peek() {
+        if (stack.length === 0) {
+          announce('Peek: stack is empty.');
+          flashUnderflow();
+          return;
+        }
+        const topVal = stack[stack.length - 1];
+        // pulse pointer visually
+        topPointer.style.transform += ' translateX(0)'; // reapply transform to reset
+        topPointer.animate([
+          { transform: topPointer.style.transform + ' scale(1)', boxShadow: '0 0 0 0 rgba(6,182,212,0.08)' },
+          { transform: topPointer.style.transform + ' scale(1.06)', boxShadow: '0 0 0 12px rgba(6,182,212,0.04)' },
+          { transform: topPointer.style.transform + ' scale(1)', boxShadow: '0 0 0 0 rgba(6,182,212,0.00)' }
+        ], { duration: 420, easing: 'cubic-bezier(.2,.9,.2,1)' });
+        announce(`Peek: top is "${topVal}".`);
+      }
+
+      // Visual flash for overflow and underflow
+      function flashOverflow() {
+        stackFrame.classList.add('flash');
+        setTimeout(() => stackFrame.classList.remove('flash'), 700);
+      }
+      function flashUnderflow() {
+        stackFrame.classList.add('flash');
+        setTimeout(() => stackFrame.classList.remove('flash'), 700);
+      }
+
+      // Event handlers
+      pushBtn.addEventListener('click', () => {
+        const val = valueInput.value.trim();
+        if (val === '') {
+          // empty pushes are allowed but provide a hint
+          announce('Enter a value to push (non-empty).');
+          valueInput.focus();
+          return;
+        }
+        animatePush(val);
+        valueInput.value = '';
+        valueInput.focus();
+      });
+
+      popBtn.addEventListener('click', () => {
+        animatePop();
+      });
+
+      peekBtn.addEventListener('click', () => {
+        peek();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        if (stack.length === 0) {
+          announce('Stack already empty.');
+          return;
+        }
+        stack = [];
+        renderStack();
+        announce('Cleared stack.');
+      });
+
+      // Update capacity
+      capacityInput.addEventListener('change', () => {
+        const n = parseInt(capacityInput.value, 10);
+        if (isNaN(n) || n < 1) {
+          capacityInput.value = capacity;
+          return;
+        }
+        capacity = n;
+        capIndicator.textContent = capacity;
+        capMeta.textContent = capacity;
+        announce(`Capacity set to ${capacity}.`);
+        // if current stack exceeds new capacity, visually indicate overflow but keep values
+        if (stack.length > capacity) {
+          // flash but do not truncate automatically; user must pop or clear
+          flashOverflow();
+          announce(`Warning: current size ${stack.length} exceeds new capacity ${capacity}.`);
+        }
+      });
+
+      // Keyboard: Enter pushes
+      valueInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          pushBtn.click();
+        }
+      });
+
+      // Drag & Drop from palette
+      let draggedValue = null;
+
+      palette.addEventListener('dragstart', (e) => {
+        const target = e.target.closest('.chip');
+        if (!target) return;
+        draggedValue = target.textContent;
+        e.dataTransfer.setData('text/plain', draggedValue);
+        e.dataTransfer.effectAllowed = 'copy';
+      });
+
+      // For keyboard users, allow pressing Enter on a chip to push
+      palette.addEventListener('keydown', (e) => {
+        const target = e.target.closest('.chip');
+        if (!target) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          animatePush(target.textContent);
+        }
+      });
+
+      stackFrame.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        stackFrame.style.borderColor = 'rgba(6,182,212,0.18)';
+      });
+
+      stackFrame.addEventListener('dragleave', () => {
+        stackFrame.style.borderColor = 'rgba(255,255,255,0.04)';
+      });
+
+      stackFrame.addEventListener('drop', (e) => {
+        e.preventDefault();
+        stackFrame.style.borderColor = 'rgba(255,255,255,0.04)';
+        const val = e.dataTransfer.getData('text/plain') || draggedValue;
+        if (val) {
+          animatePush(val);
+        }
+        draggedValue = null;
+      });
+
+      // Clicking on a node to pop multiple times? Allow clicking the top node to pop
+      stackSlot.addEventListener('click', (e) => {
+        const node = e.target.closest('.node');
+        if (!node) return;
+        // Only allow clicking top node
+        const nodes = stackSlot.children;
+        if (nodes.length === 0) return;
+        const topNode = nodes[nodes.length - 1];
+        if (node === topNode) {
+          animatePop();
+        } else {
+          announce('Only the top element can be popped (LIFO).');
+        }
+      });
+
+      // Window resize -> update pointer position
+      window.addEventListener('resize', () => {
+        updateIndicators();
+      });
+
+      // Initial render
+      renderStack();
+
+      // Small initial instructions announcement
+      announce('Stack module ready. Type a value and press Push, or drag a chip into the stack area.');
+
+      // Expose functions for debugging in console (optional)
+      window._stackModule = {
+        push: (v) => animatePush(String(v)),
+        pop: () => animatePop(),
+        peek
+      };
+    })();
+  </script>
+</body>
+</html>

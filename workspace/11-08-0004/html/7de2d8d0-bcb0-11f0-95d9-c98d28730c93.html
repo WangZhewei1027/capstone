@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Adjacency List — Interactive Module</title>
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --accent:#60a5fa;
+      --muted:#94a3b8;
+      --card:#0b1320;
+      --success:#10b981;
+      --danger:#f97373;
+      --glass: rgba(255,255,255,0.03);
+      --shadow: 0 6px 18px rgba(2,6,23,0.6);
+      --gap:16px; /* minimum spacing */
+      --safe:24px; /* safe area margin */
+    }
+    /* Safe area */
+    html,body{height:100%;}
+    body{
+      margin:0;
+      padding:var(--safe);
+      background:linear-gradient(180deg,var(--bg) 0%, #071026 100%);
+      color:#e6eef8;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      box-sizing:border-box;
+    }
+    *,*::before,*::after{box-sizing:inherit}
+    a{color:var(--accent)}
+    /* Layout */
+    .container{
+      display:flex;
+      gap:var(--gap);
+      min-height:calc(100vh - (var(--safe) * 2));
+    }
+    /* Left column: text + controls */
+    .panel{
+      width:360px;
+      min-width:260px;
+      background:linear-gradient(180deg,var(--panel), rgba(255,255,255,0.02));
+      border-radius:12px;
+      padding:20px;
+      box-shadow:var(--shadow);
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    .panel h1{
+      margin:0;font-size:18px;color:var(--accent);
+      letter-spacing:0.3px;
+    }
+    .meta{
+      font-size:13px;color:var(--muted);line-height:1.35;
+      background:var(--glass);
+      padding:12px;border-radius:8px;
+    }
+    .controls{
+      display:flex;flex-direction:column;gap:12px;
+    }
+    .row{display:flex;gap:12px;align-items:center;}
+    .btn{
+      background:linear-gradient(180deg,var(--accent),#3b82f6);
+      border:none;padding:8px 12px;border-radius:8px;color:#04263b;
+      font-weight:600;cursor:pointer;box-shadow:0 6px 10px rgba(59,130,246,0.12);
+    }
+    .btn.ghost{
+      background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent);
+      box-shadow:none;font-weight:600;
+    }
+    .toggle{
+      display:inline-flex;align-items:center;gap:8px;
+    }
+    .control-group{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px;}
+    input[type="text"], textarea, select{
+      background:transparent;border:1px solid rgba(255,255,255,0.05);padding:8px;border-radius:8px;
+      color:inherit;font-size:13px;outline:none;
+    }
+    textarea{min-height:80px;resize:vertical;}
+    .small{font-size:12px;color:var(--muted)}
+    /* Right column: visualization + adjacency list */
+    .workspace{
+      flex:1;display:flex;flex-direction:column;gap:var(--gap);
+      min-width:200px;
+    }
+    .canvas-wrap{
+      flex:1;min-height:320px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
+      border-radius:12px;padding:12px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,0.03);
+    }
+    /* svg for edges covers full canvas */
+    svg.edges{
+      position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
+    }
+    /* nodes are absolutely positioned buttons */
+    .node{
+      position:absolute;min-width:40px;height:40px;border-radius:50%;display:inline-grid;place-items:center;
+      background:linear-gradient(180deg,#233b63,#12304f);color:#dbeafe;font-weight:700;border:2px solid rgba(255,255,255,0.06);
+      box-shadow:0 6px 12px rgba(2,6,23,0.6);cursor:pointer;user-select:none;touch-action:none;
+      transition:transform 170ms cubic-bezier(.2,.9,.25,1), box-shadow 170ms;
+    }
+    .node:focus{outline:2px solid rgba(96,165,250,0.18)}
+    .node:hover{transform:translateY(-4px) scale(1.02);}
+    .node.pulse{animation:pulse 800ms ease-out;}
+    @keyframes pulse{0%{transform:scale(1);}50%{transform:scale(1.08);}100%{transform:scale(1);}}
+    /* adjacency list panel */
+    .adj-panel{
+      display:flex;gap:var(--gap);align-items:flex-start;
+      flex-wrap:wrap;
+    }
+    .adj-card{
+      background:linear-gradient(180deg,#071129,#071226);padding:12px;border-radius:12px;
+      min-width:220px;max-width:100%;flex:1;border:1px solid rgba(255,255,255,0.03);
+    }
+    .adj-title{font-size:13px;color:var(--muted);margin:0 0 8px 0}
+    .adj-list{display:flex;flex-direction:column;gap:8px;max-height:240px;overflow:auto;padding-right:6px;}
+    .v-item{
+      display:flex;gap:8px;align-items:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.01);
+      cursor:default;border:1px solid transparent;
+    }
+    .v-item:hover{background:rgba(255,255,255,0.015);border-color:rgba(255,255,255,0.02)}
+    .v-name{width:36px;height:36px;border-radius:50%;display:inline-grid;place-items:center;background:#0b1220;color:var(--accent);font-weight:700}
+    .neighbors{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .n-chip{background:rgba(255,255,255,0.02);padding:6px 8px;border-radius:999px;font-size:13px;color:var(--muted);cursor:pointer}
+    .n-chip:hover{background:rgba(96,165,250,0.12);color:var(--accent)}
+    .highlight{box-shadow:inset 0 0 0 2px rgba(96,165,250,0.06);background:linear-gradient(180deg, rgba(96,165,250,0.03), rgba(96,165,250,0.01))}
+    .legend{font-size:12px;color:var(--muted)}
+    /* small responsive */
+    @media (max-width:980px){
+      .container{flex-direction:column;}
+      .panel{width:auto;}
+    }
+    /* accessibility: focus visible outline for keyboard users */
+    :focus-visible{outline:2px solid rgba(96,165,250,0.22);outline-offset:2px}
+    /* subtle tip box */
+    .tip{font-size:13px;color:var(--muted);background:rgba(255,255,255,0.02);padding:10px;border-radius:10px}
+    /* spacing constraints */
+    .controls > *{margin-bottom:0}
+    .control-row{display:flex;gap:var(--gap);align-items:center}
+    button[disabled]{opacity:0.35;cursor:not-allowed}
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <!-- Left panel: Title, objectives, interactions -->
+    <aside class="panel" aria-labelledby="conceptTitle">
+      <h1 id="conceptTitle">Adjacency List — Visual & Interactive</h1>
+
+      <div class="meta" aria-live="polite">
+        Concept at a glance: An adjacency list stores for each vertex a list of its neighbors. This module links the storage representation to a live graph you can edit and explore.
+      </div>
+
+      <div class="control-group" aria-labelledby="objectiveTitle">
+        <h2 id="objectiveTitle" style="margin:0;font-size:14px;color:var(--accent)">Learning Objective</h2>
+        <p class="small" style="margin:8px 0 0 0">
+          After interacting you will be able to:
+          - create vertices and edges, and see how each change updates an adjacency list;
+          - understand the one-to-many mapping: vertex → neighbor-list;
+          - observe differences when toggling directed vs undirected edges.
+        </p>
+      </div>
+
+      <div class="control-group" aria-labelledby="interactionTitle">
+        <h2 id="interactionTitle" style="margin:0;font-size:14px;color:var(--accent)">Interaction Design</h2>
+        <div class="small" style="margin-top:8px">
+          How to interact:
+          <ul style="margin:8px 0 0 18px;padding:0;color:var(--muted)">
+            <li>Double-click or press "Add Node" to create a vertex (auto-named). You may also type a name.</li>
+            <li>Drag nodes to reposition them. Edges redraw live.</li>
+            <li>Toggle "Add Edge" and then click a source node, then a target to add an edge. For undirected graphs, both directions are added.</li>
+            <li>Click a node to highlight its row in the adjacency list; clicking a neighbor chip highlights that neighbor node.</li>
+            <li>Use "Import/Export" JSON to load or save adjacency lists.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="controls" role="region" aria-label="Controls">
+        <div class="row">
+          <input id="nodeNameInput" type="text" placeholder="Optional node name (e.g., A, city1)" aria-label="Node name" />
+          <button id="addNodeBtn" class="btn" aria-label="Add node">Add Node</button>
+        </div>
+
+        <div class="control-row">
+          <label style="display:flex;align-items:center;gap:8px">
+            <input id="modeEdge" type="checkbox" /> <span class="small">Add Edge Mode</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px">
+            <input id="modeRemove" type="checkbox" /> <span class="small">Remove Mode</span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <label style="display:flex;align-items:center;gap:8px">
+            <input id="directedToggle" type="checkbox" /> <span class="small">Directed</span>
+          </label>
+          <button id="clearBtn" class="btn ghost" aria-label="Clear all">Clear</button>
+        </div>
+
+        <div class="control-group">
+          <label for="jsonArea">Import / Export (Adjacency list JSON)</label>
+          <textarea id="jsonArea" aria-label="Adjacency JSON" placeholder='{"A":["B","C"], "B":["C"]}'></textarea>
+          <div style="display:flex;gap:12px;margin-top:8px">
+            <button id="exportBtn" class="btn ghost">Export</button>
+            <button id="importBtn" class="btn">Import</button>
+          </div>
+        </div>
+
+        <div class="tip" id="status" aria-live="polite">Tip: Double-click empty space in the canvas to create a node quickly.</div>
+      </div>
+
+    </aside>
+
+    <!-- Right side: workspace with canvas and adjacency list -->
+    <section class="workspace" aria-label="Graph workspace">
+      <div class="canvas-wrap" id="canvasWrap" tabindex="0" aria-label="Graph canvas. Double-click to add node.">
+        <!-- SVG edges -->
+        <svg class="edges" id="edgesSvg" aria-hidden="true"></svg>
+        <!-- nodes will be appended here -->
+      </div>
+
+      <div class="adj-panel" role="region" aria-label="Adjacency list">
+        <div class="adj-card" style="flex:0 0 380px;">
+          <div class="adj-title">Adjacency List (live)</div>
+          <div class="adj-list" id="adjList" tabindex="0" aria-live="polite"></div>
+          <div style="margin-top:10px" class="legend">Click a vertex to highlight its neighbors; click neighbor chips to focus its node.</div>
+        </div>
+
+        <div class="adj-card" style="flex:1;">
+          <div class="adj-title">Explanation</div>
+          <p class="small" style="margin:8px 0 0 0">
+            Representation: an object mapping each vertex name to an array of neighbor names.
+            For example, {"A": ["B","C"], "B": ["C"]} means A connects to B and C; B connects to C.
+            In undirected mode, edges are stored symmetrically (both endpoints list each other).
+          </p>
+
+          <p class="small" style="margin-top:10px">
+            Visual feedback includes animated edge draws, node pulses on selection, and adjacency rows highlighting to show the direct mapping between a vertex and its list.
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    /*
+      Interactive Adjacency List Module
+      - Create nodes (double-click or Add Node)
+      - Drag nodes
+      - Add/Remove edges (via modes)
+      - Live adjacency list updates
+      - Import/Export JSON
+      - Visual animations: edge draw + node pulse + highlight
+    */
+
+    // State
+    const state = {
+      nodes: {}, // id -> {id, name, x, y, el}
+      edges: new Set(), // "src|dst"
+      nextId: 0,
+      modeAddEdge: false,
+      modeRemove: false,
+      directed: false,
+      pendingEdgeSource: null
+    };
+
+    // DOM refs
+    const canvasWrap = document.getElementById('canvasWrap');
+    const edgesSvg = document.getElementById('edgesSvg');
+    const adjList = document.getElementById('adjList');
+    const nodeNameInput = document.getElementById('nodeNameInput');
+    const addNodeBtn = document.getElementById('addNodeBtn');
+    const modeEdge = document.getElementById('modeEdge');
+    const modeRemove = document.getElementById('modeRemove');
+    const directedToggle = document.getElementById('directedToggle');
+    const clearBtn = document.getElementById('clearBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const jsonArea = document.getElementById('jsonArea');
+    const status = document.getElementById('status');
+
+    // Utility: clamp inside canvas
+    function clampToCanvas(x,y){
+      const rect = canvasWrap.getBoundingClientRect();
+      const padding = 24;
+      const minX = padding;
+      const minY = padding;
+      const maxX = rect.width - padding;
+      const maxY = rect.height - padding;
+      return [Math.max(minX, Math.min(maxX, x)), Math.max(minY, Math.min(maxY, y))];
+    }
+
+    // Create node
+    function createNode(name, x=null, y=null){
+      const id = String(state.nextId++);
+      const nodeName = name ? String(name) : generateName();
+      const rect = canvasWrap.getBoundingClientRect();
+      const posX = x !== null ? x : rect.width/2 + (Math.random()-0.5)*120;
+      const posY = y !== null ? y : rect.height/2 + (Math.random()-0.5)*80;
+
+      const nodeEl = document.createElement('button');
+      nodeEl.className = 'node';
+      nodeEl.setAttribute('data-id', id);
+      nodeEl.setAttribute('aria-label', `Vertex ${nodeName}`);
+      nodeEl.setAttribute('title', nodeName);
+      nodeEl.innerText = nodeName;
+      nodeEl.style.left = (posX - 20) + 'px';
+      nodeEl.style.top = (posY - 20) + 'px';
+      nodeEl.tabIndex = 0;
+
+      // Events: click, pointer for drag
+      nodeEl.addEventListener('pointerdown', onNodePointerDown);
+      nodeEl.addEventListener('click', onNodeClick);
+
+      canvasWrap.appendChild(nodeEl);
+
+      state.nodes[id] = {
+        id, name: nodeName, x: posX, y: posY, el: nodeEl
+      };
+
+      updateAdjList();
+      redrawEdges();
+      announce(`Node "${nodeName}" created.`);
+      return id;
+    }
+
+    function generateName(){
+      // Try single letters A, B, ... Z, then A1, A2...
+      const n = Object.keys(state.nodes).length;
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      if (n < 26) return letters[n];
+      const first = letters[(n/26|0) % 26];
+      const second = n % 26;
+      return first + letters[second];
+    }
+
+    // Node pointer drag
+    let dragState = null;
+    function onNodePointerDown(e){
+      e.preventDefault();
+      const el = e.currentTarget;
+      const id = el.getAttribute('data-id');
+      el.setPointerCapture(e.pointerId);
+      dragState = {id, startX: e.clientX, startY: e.clientY, el, origLeft: parseFloat(el.style.left), origTop: parseFloat(el.style.top), pointerId: e.pointerId};
+      el.style.transition = 'none';
+      const move = onPointerMove;
+      const up = onPointerUp;
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+
+      function onPointerMove(ev){
+        if (!dragState) return;
+        if (ev.pointerId !== dragState.pointerId) return;
+        const dx = ev.clientX - dragState.startX;
+        const dy = ev.clientY - dragState.startY;
+        const rect = canvasWrap.getBoundingClientRect();
+        const [nx, ny] = clampToCanvas(dragState.origLeft + 20 + dx, dragState.origTop + 20 + dy);
+        const left = nx - 20;
+        const top = ny - 20;
+        dragState.el.style.left = left + 'px';
+        dragState.el.style.top = top + 'px';
+        state.nodes[dragState.id].x = nx;
+        state.nodes[dragState.id].y = ny;
+        redrawEdges();
+      }
+
+      function onPointerUp(ev){
+        if (!dragState) return;
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        dragState.el.releasePointerCapture(dragState.pointerId);
+        dragState.el.style.transition = '';
+        dragState = null;
+        announce('Node moved.');
+      }
+    }
+
+    // Node click (for edge creation, removal, highlight)
+    function onNodeClick(e){
+      e.stopPropagation();
+      const id = e.currentTarget.getAttribute('data-id');
+      const node = state.nodes[id];
+      if (!node) return;
+
+      if (state.modeRemove){
+        // Remove node and its edges
+        removeNode(id);
+        return;
+      }
+
+      if (state.modeAddEdge){
+        if (!state.pendingEdgeSource){
+          state.pendingEdgeSource = id;
+          highlightNode(id, true);
+          status.textContent = `Selected source "${node.name}". Click a target to add an edge.`;
+          return;
+        } else {
+          const src = state.pendingEdgeSource;
+          const dst = id;
+          state.pendingEdgeSource = null;
+          highlightNode(src, false);
+          if (src === dst){ announce('Cannot create self-edge.'); return; }
+          addEdgeById(src, dst);
+          return;
+        }
+      }
+
+      // Default: highlight this node and ping its neighbors
+      highlightNodeList(id);
+    }
+
+    function highlightNode(id, on){
+      const nd = state.nodes[id];
+      if (!nd) return;
+      if (on) nd.el.classList.add('highlight');
+      else nd.el.classList.remove('highlight');
+    }
+
+    function highlightNodeList(id){
+      // animate node and its neighbors
+      const allIds = Object.keys(state.nodes);
+      allIds.forEach(i => state.nodes[i].el.classList.remove('pulse'));
+      const node = state.nodes[id];
+      if (!node) return;
+      node.el.classList.add('pulse');
+      const neighbors = getAdjObject()[node.name] || [];
+      // pulse neighbors
+      neighbors.forEach(nName => {
+        const nId = findNodeIdByName(nName);
+        if (nId) state.nodes[nId].el.classList.add('pulse');
+      });
+      // update adjacency UI highlight
+      const rows = adjList.querySelectorAll('.v-item');
+      rows.forEach(r => r.classList.toggle('highlight', r.dataset.name === node.name));
+      announce(`Vertex "${node.name}" selected; ${neighbors.length} neighbor(s).`);
+    }
+
+    // Add edge by ids
+    function addEdgeById(srcId, dstId){
+      const src = state.nodes[srcId];
+      const dst = state.nodes[dstId];
+      if (!src || !dst) return;
+      const key = `${src.name}|${dst.name}`;
+      if (state.edges.has(key)){
+        announce('Edge already exists.');
+        return;
+      }
+      state.edges.add(key);
+      if (!state.directed){
+        const key2 = `${dst.name}|${src.name}`;
+        state.edges.add(key2);
+      }
+      animateEdgeDraw(src, dst);
+      updateAdjList();
+      announce(`Edge ${src.name} → ${dst.name} added.`);
+    }
+
+    function removeNode(id){
+      const node = state.nodes[id];
+      if (!node) return;
+      // remove related edges
+      const name = node.name;
+      for (const e of Array.from(state.edges)){
+        const [a,b] = e.split('|');
+        if (a === name || b === name) state.edges.delete(e);
+      }
+      // remove element
+      node.el.remove();
+      delete state.nodes[id];
+      updateAdjList();
+      redrawEdges();
+      announce(`Vertex "${name}" removed.`);
+    }
+
+    function addEdgeNames(aName, bName){
+      // helper if importing
+      const aId = ensureNodeWithName(aName);
+      const bId = ensureNodeWithName(bName);
+      addEdgeById(aId, bId);
+    }
+
+    function ensureNodeWithName(name){
+      // find or create node with given name
+      const id = findNodeIdByName(name);
+      if (id) return id;
+      return createNode(name);
+    }
+
+    function findNodeIdByName(name){
+      for (const id in state.nodes){
+        if (state.nodes[id].name === name) return id;
+      }
+      return null;
+    }
+
+    // Adjacency object derived from nodes + edges
+    function getAdjObject(){
+      const adj = {};
+      for (const id in state.nodes) adj[state.nodes[id].name] = [];
+      for (const e of state.edges){
+        const [a,b] = e.split('|');
+        if (!adj[a]) adj[a] = [];
+        // push unique
+        if (!adj[a].includes(b)) adj[a].push(b);
+      }
+      return adj;
+    }
+
+    // Update adjacency list DOM
+    function updateAdjList(){
+      const adj = getAdjObject();
+      adjList.innerHTML = '';
+      for (const v of Object.keys(adj).sort()){
+        const row = document.createElement('div');
+        row.className = 'v-item';
+        row.dataset.name = v;
+        const nameWrap = document.createElement('div');
+        nameWrap.className = 'v-name';
+        nameWrap.textContent = v;
+        row.appendChild(nameWrap);
+        const neighborsWrap = document.createElement('div');
+        neighborsWrap.className = 'neighbors';
+        const neighbors = adj[v];
+        if (neighbors.length === 0){
+          const em = document.createElement('div');
+          em.className = 'small';
+          em.style.color = 'var(--muted)';
+          em.textContent = '—';
+          neighborsWrap.appendChild(em);
+        } else {
+          neighbors.forEach(n => {
+            const chip = document.createElement('button');
+            chip.className = 'n-chip';
+            chip.textContent = n;
+            chip.title = `Focus ${n}`;
+            chip.addEventListener('click', ()=> {
+              const nid = findNodeIdByName(n);
+              if (nid){
+                const el = state.nodes[nid].el;
+                el.focus();
+                el.classList.add('pulse');
+                setTimeout(()=>el.classList.remove('pulse'),700);
+              }
+            });
+            neighborsWrap.appendChild(chip);
+          });
+        }
+        row.appendChild(neighborsWrap);
+        // clicking row focuses node
+        row.addEventListener('click', ()=> {
+          const nid = findNodeIdByName(v);
+          if (nid){
+            state.nodes[nid].el.focus();
+            highlightNodeList(nid);
+          }
+        });
+        adjList.appendChild(row);
+      }
+    }
+
+    // Redraw all edges as SVG lines
+    function redrawEdges(){
+      // clear
+      while (edgesSvg.firstChild) edgesSvg.removeChild(edgesSvg.firstChild);
+      const adj = getAdjObject();
+      for (const src in adj){
+        for (const dst of adj[src]){
+          const srcId = findNodeIdByName(src);
+          const dstId = findNodeIdByName(dst);
+          if (!srcId || !dstId) continue;
+          const a = state.nodes[srcId];
+          const b = state.nodes[dstId];
+          drawLine(a,b,false);
+        }
+      }
+    }
+
+    // Draw line instantly or animated
+    function drawLine(a,b,animate=true){
+      const svgNS = "http://www.w3.org/2000/svg";
+      const line = document.createElementNS(svgNS,'line');
+      line.setAttribute('x1', a.x);
+      line.setAttribute('y1', a.y);
+      line.setAttribute('x2', b.x);
+      line.setAttribute('y2', b.y);
+      line.setAttribute('stroke', 'rgba(96,165,250,0.9)');
+      line.setAttribute('stroke-width', '2.4');
+      line.setAttribute('stroke-linecap','round');
+      line.setAttribute('opacity','0.95');
+      // arrowheads for directed
+      if (state.directed){
+        line.setAttribute('marker-end','url(#arrow)');
+      }
+      // animation via stroke-dasharray
+      if (animate){
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx,dy);
+        line.style.strokeDasharray = len;
+        line.style.strokeDashoffset = len;
+        line.style.transition = 'stroke-dashoffset 420ms ease-out';
+        // append then trigger
+        edgesSvg.appendChild(line);
+        requestAnimationFrame(()=>line.style.strokeDashoffset = '0');
+      } else {
+        edgesSvg.appendChild(line);
+      }
+    }
+
+    // Draw animated edge between two nodes
+    function animateEdgeDraw(a,b){
+      drawLine(a,b,true);
+      // If undirected, also draw reverse quickly without animation of dash (to reflect storage)
+      if (!state.directed){
+        // also draw reverse line for symmetry
+        setTimeout(()=>drawLine(b,a,false), 220);
+      }
+    }
+
+    // Arrow marker defs for directed graphs
+    (function ensureMarkers(){
+      const svgNS = "http://www.w3.org/2000/svg";
+      const defs = document.createElementNS(svgNS,'defs');
+      const marker = document.createElementNS(svgNS,'marker');
+      marker.setAttribute('id','arrow');
+      marker.setAttribute('markerWidth','8');
+      marker.setAttribute('markerHeight','8');
+      marker.setAttribute('refX','6');
+      marker.setAttribute('refY','3');
+      marker.setAttribute('orient','auto');
+      const path = document.createElementNS(svgNS,'path');
+      path.setAttribute('d','M0,0 L6,3 L0,6 z');
+      path.setAttribute('fill','rgba(96,165,250,0.95)');
+      marker.appendChild(path);
+      defs.appendChild(marker);
+      edgesSvg.appendChild(defs);
+    })();
+
+    // UI wiring
+    addNodeBtn.addEventListener('click', ()=>{
+      const val = nodeNameInput.value.trim();
+      createNode(val || null);
+      nodeNameInput.value = '';
+    });
+
+    canvasWrap.addEventListener('dblclick', (e)=>{
+      // create node at pointer position
+      const rect = canvasWrap.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const [nx, ny] = clampToCanvas(x, y);
+      createNode(null, nx, ny);
+    });
+
+    // Canvas click clears pending edge selection
+    canvasWrap.addEventListener('click', (e)=>{
+      if (state.pendingEdgeSource){
+        highlightNode(state.pendingEdgeSource, false);
+        state.pendingEdgeSource = null;
+        status.textContent = 'Add Edge cancelled.';
+      }
+    });
+
+    modeEdge.addEventListener('change', (e)=>{
+      state.modeAddEdge = e.target.checked;
+      if (state.modeAddEdge){
+        modeRemove.checked = false;
+        state.modeRemove = false;
+        status.textContent = 'Edge mode on: click source then target to add edge.';
+      } else {
+        state.pendingEdgeSource = null;
+        status.textContent = 'Edge mode off.';
+      }
+    });
+
+    modeRemove.addEventListener('change', (e)=>{
+      state.modeRemove = e.target.checked;
+      if (state.modeRemove){
+        modeEdge.checked = false;
+        state.modeAddEdge = false;
+        state.pendingEdgeSource = null;
+        status.textContent = 'Remove mode on: click a node to remove it and connected edges.';
+      } else {
+        status.textContent = 'Remove mode off.';
+      }
+    });
+
+    directedToggle.addEventListener('change', (e)=>{
+      state.directed = e.target.checked;
+      // when toggling to undirected, enforce symmetry: if A->B exists, add B->A
+      if (!state.directed){
+        const edgesNow = Array.from(state.edges);
+        edgesNow.forEach(k => {
+          const [a,b] = k.split('|');
+          const rev = `${b}|${a}`;
+          if (!state.edges.has(rev)) state.edges.add(rev);
+        });
+      }
+      redrawEdges();
+      updateAdjList();
+      announce('Graph mode: ' + (state.directed ? 'Directed' : 'Undirected'));
+    });
+
+    clearBtn.addEventListener('click', ()=>{
+      // remove DOM nodes
+      for (const id in state.nodes){
+        state.nodes[id].el.remove();
+      }
+      state.nodes = {};
+      state.edges.clear();
+      state.nextId = 0;
+      state.pendingEdgeSource = null;
+      updateAdjList();
+      redrawEdges();
+      announce('Graph cleared.');
+    });
+
+    exportBtn.addEventListener('click', ()=>{
+      const adj = getAdjObject();
+      jsonArea.value = JSON.stringify(adj, null, 2);
+      announce('Exported adjacency list to textarea.');
+    });
+
+    importBtn.addEventListener('click', ()=>{
+      const text = jsonArea.value.trim();
+      if (!text){ announce('Paste adjacency JSON to import.'); return; }
+      try{
+        const parsed = JSON.parse(text);
+        // clear existing
+        for (const id in state.nodes) state.nodes[id].el.remove();
+        state.nodes = {};
+        state.edges.clear();
+        state.nextId = 0;
+        // create nodes and edges
+        for (const v in parsed){
+          ensureNodeWithName(v);
+        }
+        for (const v in parsed){
+          const arr = parsed[v];
+          if (!Array.isArray(arr)) continue;
+          arr.forEach(n => {
+            addEdgeNames(v,n);
+          });
+        }
+        updateAdjList();
+        redrawEdges();
+        announce('Imported adjacency list.');
+      }catch(err){
+        announce('Invalid JSON. Please correct.');
+      }
+    });
+
+    // small announcer for screen readers
+    function announce(msg){
+      status.textContent = msg;
+    }
+
+    // Initial sample graph
+    (function seed(){
+      const a = createNode('A', 120, 80);
+      const b = createNode('B', 280, 120);
+      const c = createNode('C', 200, 220);
+      addEdgeById(a,b);
+      addEdgeById(b,c);
+      addEdgeById(a,c);
+    })();
+
+    // Accessibility: keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if (e.key === 'n' && (e.ctrlKey || e.metaKey)){ // Ctrl+N to add node
+        e.preventDefault();
+        createNode();
+      }
+      if (e.key === 'e' && (e.ctrlKey || e.metaKey)){ // toggle edge mode
+        e.preventDefault();
+        modeEdge.checked = !modeEdge.checked;
+        modeEdge.dispatchEvent(new Event('change'));
+      }
+      if (e.key === 'Delete'){
+        // if a node has focus, remove it (when in remove mode or with modifier)
+        const active = document.activeElement;
+        if (active && active.classList && active.classList.contains('node')){
+          const id = active.getAttribute('data-id');
+          removeNode(id);
+        }
+      }
+    });
+
+    // Prevent selecting text on double click drag
+    canvasWrap.addEventListener('dragstart', e => e.preventDefault());
+
+    // Resize handling to re-clamp node positions within new bounds (keeps them visible)
+    window.addEventListener('resize', () => {
+      for (const id in state.nodes){
+        const n = state.nodes[id];
+        const [nx, ny] = clampToCanvas(n.x, n.y);
+        n.x = nx; n.y = ny;
+        n.el.style.left = (nx - 20) + 'px';
+        n.el.style.top = (ny - 20) + 'px';
+      }
+      redrawEdges();
+    });
+
+    // Small helper: tap/click outside to cancel pending edge selection
+    document.addEventListener('click', (e)=>{
+      const inside = canvasWrap.contains(e.target) || e.target.closest('.panel') || e.target.closest('.adj-card');
+      if (!inside && state.pendingEdgeSource){
+        highlightNode(state.pendingEdgeSource, false);
+        state.pendingEdgeSource = null;
+        status.textContent = 'Add Edge cancelled.';
+      }
+    });
+
+  </script>
+</body>
+</html>

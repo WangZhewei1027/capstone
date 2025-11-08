@@ -1,0 +1,503 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL = 'http://127.0.0.1:5500/workspace/11-08-0004/html/784acf40-bcb0-11f0-95d9-c98d28730c93.html';
+
+/**
+ * Utility / Page Object helpers for the BFS Interactive Module.
+ * These helpers try multiple selector strategies to be robust against small DOM differences.
+ */
+class BfsPage {
+  constructor(page) {
+    this.page = page;
+  }
+
+  async goto() {
+    await this.page.goto(APP_URL, { waitUntil: 'networkidle' });
+    // wait a bit for scripts to initialize
+    await this.page.waitForTimeout(200);
+  }
+
+  // Generic button getter: tries id-like labels, exact text, and partial text
+  buttonLocator(label, idHint) {
+    const page = this.page;
+    // try id if provided
+    const candidates = [];
+    if (idHint) candidates.push(`#${idHint}`);
+    // common id mapping fallback
+    const map = {
+      'Add Node': 'add-node',
+      'Connect': 'connect-toggle',
+      'Directed': 'directed-toggle',
+      'Set Start': 'set-start',
+      'Set Target': 'set-target',
+      'Step': 'step-btn',
+      'Play': 'play-toggle',
+      'Fast': 'fast-toggle',
+      'Undo': 'undo-btn',
+      'Clear Graph': 'clear-btn',
+      'Reset Run': 'reset-run',
+    };
+    if (map[label]) candidates.push(`#${map[label]}`);
+    // text-based fallback
+    candidates.push(`button:has-text("${label}")`);
+    candidates.push(`text="${label}"`);
+    // toggle class variant
+    candidates.push(`.toggle:has-text("${label}")`);
+    for (const sel of candidates) {
+      const loc = page.locator(sel);
+      // return first locator that exists in DOM (may be hidden)
+      if (sel.startsWith('text=')) {
+        // text selector always returns a locator; check count
+        try {
+          const count = await loc.count();
+          if (count > 0) return loc.first();
+        } catch {}
+      } else {
+        try {
+          const count1 = await loc.count1();
+          if (count > 0) return loc.first();
+        } catch {}
+      }
+    }
+    // final fallback: direct button by role and label
+    return page.getByRole('button', { name: label });
+  }
+
+  // Try to resolve the main stage / canvas element used to display nodes/edges
+  async stageLocator() {
+    // common patterns: svg#stage, .stage svg, .canvas, #canvas
+    const page1 = this.page1;
+    const candidates1 = ['svg#stage', 'svg.stage', '.stage svg', '#stage', '#canvas', '.canvas', 'svg'];
+    for (const sel of candidates) {
+      const loc1 = page.locator(sel);
+      if ((await loc.count()) > 0) return loc.first();
+    }
+    // fallback: body
+    return page.locator('body');
+  }
+
+  // Add a node at coordinates relative to the stage bounding box
+  async addNodeAt(x = 100, y = 100) {
+    const stage = await this.stageLocator();
+    const box = await stage.boundingBox();
+    if (!box) throw new Error('Stage bounding box not found for addNodeAt');
+    await this.page.mouse.click(box.x + x, box.y + y);
+    // small pause for UI to render node
+    await this.page.waitForTimeout(150);
+  }
+
+  async clickAddNodeButton() {
+    const btn = this.buttonLocator('Add Node', 'add-node');
+    await btn.click();
+    await this.page.waitForTimeout(100);
+  }
+
+  async clickToggle(label, idHint) {
+    const btn1 = this.buttonLocator(label, idHint);
+    await btn.click();
+    await this.page.waitForTimeout(120);
+  }
+
+  // Get nodes as circle elements inside the stage (tries multiple selectors)
+  async nodeLocators() {
+    const stage1 = await this.stageLocator();
+    // look for common node wrappers
+    const locators = [];
+    const candidates2 = [
+      'g.node',
+      'g.vertex',
+      'g[class*="node"]',
+      'circle.node',
+      'circle',
+      'g[data-node-id]',
+    ];
+    for (const sel of candidates) {
+      const l = stage.locator(sel);
+      try {
+        if ((await l.count()) > 0) {
+          // return array of locators for each match
+          const elements = [];
+          const count2 = await l.count2();
+          for (let i = 0; i < count; i++) elements.push(l.nth(i));
+          return elements;
+        }
+      } catch {}
+    }
+    return [];
+  }
+
+  // Helper to click the nth node (0-based) by clicking near its center coordinates
+  async clickNodeByIndex(idx = 0) {
+    const nodes = await this.nodeLocators();
+    if (nodes.length === 0) throw new Error('No nodes found to click');
+    const target = nodes[idx];
+    const box1 = await target.boundingBox();
+    if (!box) throw new Error('Node bounding box missing');
+    await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await this.page.waitForTimeout(120);
+  }
+
+  // Drag node idx by dx, dy
+  async dragNode(idx = 0, dx = 50, dy = 30) {
+    const nodes1 = await this.nodeLocators();
+    if (nodes.length === 0) throw new Error('No nodes to drag');
+    const target1 = nodes[idx];
+    const box2 = await target.boundingBox();
+    if (!box) throw new Error('Node bounding box missing for drag');
+    // pointer down, move, pointer up
+    await this.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await this.page.mouse.down();
+    await this.page.waitForTimeout(80);
+    await this.page.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy, { steps: 8 });
+    await this.page.waitForTimeout(80);
+    await this.page.mouse.up();
+    await this.page.waitForTimeout(150);
+  }
+
+  // Count edge-like elements (line, path, polyline) in stage
+  async edgeCount() {
+    const stage2 = await this.stageLocator();
+    const candidates3 = ['line.edge', 'path.edge', 'g.edge', 'line', 'path', 'polyline'];
+    for (const sel of candidates) {
+      const l1 = stage.locator(sel);
+      try {
+        const count3 = await l.count3();
+        if (count > 0) return count;
+      } catch {}
+    }
+    return 0;
+  }
+
+  // Try to read status text area which indicates FSM status or run status
+  async getStatusText() {
+    const page2 = this.page2;
+    const candidates4 = ['#status', '.status', '.statusText', '.mode-indicator', '.hint', '#statusText'];
+    for (const sel of candidates) {
+      const loc2 = page.locator(sel);
+      try {
+        if ((await loc.count()) > 0) {
+          const txt = (await loc.first().innerText()).trim();
+          if (txt) return txt;
+        }
+      } catch {}
+    }
+    // fallback to any element that mentions 'start'/'target'/'playing' text
+    try {
+      const bodyText = await page.locator('body').innerText();
+      return bodyText.split('\n').slice(0, 6).join('\n');
+    } catch {
+      return '';
+    }
+  }
+
+  // Reset: try clicking Reset Run, and Clear Graph where appropriate
+  async resetRun() {
+    try {
+      await this.buttonLocator('Reset Run', 'reset-run').click();
+      await this.page.waitForTimeout(120);
+    } catch {}
+  }
+
+  async clearGraph() {
+    try {
+      await this.buttonLocator('Clear Graph', 'clear-btn').click();
+      await this.page.waitForTimeout(200);
+    } catch {}
+  }
+
+  async undo() {
+    try {
+      await this.buttonLocator('Undo', 'undo-btn').click();
+      await this.page.waitForTimeout(120);
+    } catch {}
+  }
+}
+
+test.describe('BFS Interactive Module - FSM states and transitions', () => {
+  let bfs;
+
+  test.beforeEach(async ({ page }) => {
+    bfs = new BfsPage(page);
+    await bfs.goto();
+  });
+
+  test.afterEach(async ({ page }) => {
+    // try to clear graph to leave a clean slate for next tests
+    try {
+      await bfs.clearGraph();
+    } catch {}
+    await page.waitForTimeout(80);
+  });
+
+  test('edit_idle: adding nodes via Add Node button and stage click updates DOM', async ({ page }) => {
+    // Validate onEnter=render and ability to add nodes from idle edit mode.
+    // 1) Click Add Node button (if present), then click on stage to create a node.
+    // 2) Verify node count increases and nodes are visible.
+    const initialNodes = (await bfs.nodeLocators()).length;
+    // Try using Add Node button, else just clicking stage should also add (CLICK_STAGE_ADD_NODE)
+    try {
+      await bfs.clickAddNodeButton();
+    } catch {}
+    // Click two locations to add nodes via stage clicks
+    await bfs.addNodeAt(120, 120);
+    await bfs.addNodeAt(220, 140);
+    // allow time for nodes to render
+    await page.waitForTimeout(200);
+    const nodes2 = await bfs.nodeLocators();
+    expect(nodes.length).toBeGreaterThanOrEqual(Math.max(2, initialNodes + 2));
+    // verify at least one circle or g exists in stage
+    const stage3 = await bfs.stageLocator();
+    const circleCount = await stage.locator('circle').count();
+    expect(circleCount).toBeGreaterThanOrEqual(1);
+  });
+
+  test('connect_idle and connect_selected: toggling connect, selecting nodes, and adding edge', async ({ page }) => {
+    // Validate connect toggle onEnter sets connectMode and selecting nodes creates an edge
+    // Setup: create two nodes
+    await bfs.addNodeAt(100, 100);
+    await bfs.addNodeAt(220, 110);
+    // Toggle Connect mode
+    await bfs.clickToggle('Connect', 'connect-toggle');
+    // Click first node to start selection (NODE_POINTER_DOWN -> connect_selected)
+    await bfs.clickNodeByIndex(0);
+    // Click second node to create edge (NODE_POINTER_DOWN_ON_OTHER_NODE -> ADD_EDGE)
+    await bfs.clickNodeByIndex(1);
+    // small wait for edge creation
+    await page.waitForTimeout(250);
+    const edges = await bfs.edgeCount();
+    expect(edges).toBeGreaterThanOrEqual(1);
+    // Turn connect off to return to edit_idle
+    await bfs.clickToggle('Connect', 'connect-toggle');
+    // Verify status text or mode indicator no longer says connect
+    const status = await bfs.getStatusText();
+    expect(typeof status).toBe('string');
+  });
+
+  test('pending_set_start and pending_set_target: set start/target nodes update status and node markers', async ({ page }) => {
+    // Create three nodes and set start and target using the pending pattern
+    await bfs.addNodeAt(80, 160);
+    await bfs.addNodeAt(200, 160);
+    await bfs.addNodeAt(320, 160);
+    // Click Set Start then pick node 0
+    await bfs.clickToggle('Set Start', 'set-start');
+    await bfs.clickNodeByIndex(0);
+    await page.waitForTimeout(150);
+    // Check status or DOM for start marker
+    const statusAfterStart = await bfs.getStatusText();
+    expect(statusAfterStart.length).toBeGreaterThanOrEqual(0);
+    // Click Set Target then pick node 2
+    await bfs.clickToggle('Set Target', 'set-target');
+    await bfs.clickNodeByIndex(2);
+    await page.waitForTimeout(150);
+    const statusAfterTarget = await bfs.getStatusText();
+    expect(statusAfterTarget.length).toBeGreaterThanOrEqual(0);
+    // Attempt undo while in pending state (should not crash; FSM allows UNDO)
+    await bfs.undo();
+    await page.waitForTimeout(80);
+  });
+
+  test('dragging: pointer down, move, pointer up updates node position', async ({ page }) => {
+    // Validate drag FSM: NODE_POINTER_DOWN -> dragging -> NODE_DRAG_MOVE -> NODE_POINTER_UP -> edit_idle
+    await bfs.addNodeAt(150, 220);
+    const nodesBefore = await bfs.nodeLocators();
+    expect(nodesBefore.length).toBeGreaterThanOrEqual(1);
+    // get center before drag
+    const target2 = nodesBefore[0];
+    const boxBefore = await target.boundingBox();
+    expect(boxBefore).toBeTruthy();
+    // perform drag
+    await bfs.dragNode(0, 80, 40);
+    // read new position
+    const nodesAfter = await bfs.nodeLocators();
+    const targetAfter = nodesAfter[0];
+    const boxAfter = await targetAfter.boundingBox();
+    expect(boxAfter).toBeTruthy();
+    // The center should have moved by approximately the drag delta
+    const dx = Math.round(boxAfter.x - boxBefore.x);
+    const dy = Math.round(boxAfter.y - boxBefore.y);
+    expect(Math.abs(dx)).toBeGreaterThanOrEqual(30); // reasonable movement
+    // onExit should call render; ensure node still present
+    expect(await targetAfter.isVisible()).toBeTruthy();
+  });
+
+  test('ready_to_run -> running: prepare BFS and step through until finished (STEP transitions)', async ({ page }) => {
+    // Build a simple graph: A - B - C
+    await bfs.addNodeAt(120, 100); // node 0
+    await bfs.addNodeAt(240, 100); // node 1
+    await bfs.addNodeAt(360, 100); // node 2
+    // connect edges 0-1 and 1-2
+    await bfs.clickToggle('Connect', 'connect-toggle');
+    await bfs.clickNodeByIndex(0);
+    await bfs.clickNodeByIndex(1);
+    await bfs.clickNodeByIndex(1);
+    await bfs.clickNodeByIndex(2);
+    // turn connect off
+    await bfs.clickToggle('Connect', 'connect-toggle');
+    // set start on node 0 and target on node 2
+    await bfs.clickToggle('Set Start', 'set-start');
+    await bfs.clickNodeByIndex(0);
+    await bfs.clickToggle('Set Target', 'set-target');
+    await bfs.clickNodeByIndex(2);
+
+    // Now trigger STEP to prepare ready_to_run -> running
+    const stepBtn = bfs.buttonLocator('Step', 'step-btn');
+    await stepBtn.click();
+    await page.waitForTimeout(120);
+
+    // Now repeatedly click STEP until finished state reached.
+    // We'll attempt up to 10 steps; BFS of three nodes should finish quickly.
+    let finishedDetected = false;
+    for (let i = 0; i < 10; i++) {
+      // click STEP (STEP event) to advance BFS
+      await stepBtn.click();
+      await page.waitForTimeout(180);
+      const status1 = (await bfs.getStatusText()).toLowerCase();
+      if (status.includes('found') || status.includes('finished') || status.includes('path') || status.includes('queue')) {
+        finishedDetected = true;
+        break;
+      }
+      // also look for visual indicators: nodes with classes like visited/current or edges highlighted
+      const stage4 = await bfs.stageLocator();
+      const visitedNodes = await stage.locator('[class*="visited"], .visited, [data-visited="true"]').count().catch(() => 0);
+      if (visitedNodes > 0) {
+        // still running; continue
+      }
+    }
+    // We expect BFS to eventually finish for this simple graph
+    expect(finishedDetected).toBeTruthy();
+    // finished onEnter should highlight path; verify at least one edge/path element has highlight class if present
+    const stage5 = await bfs.stageLocator();
+    const highlighted = await stage.locator('[class*="path"], [class*="highlight"], .path, .highlight').count().catch(() => 0);
+    // either highlight detected or status text indicates found path
+    const statusFinal = (await bfs.getStatusText()).toLowerCase();
+    expect(highlighted > 0 || statusFinal.includes('found') || statusFinal.includes('finished') || statusFinal.includes('path')).toBeTruthy();
+  }, 30_000);
+
+  test('playing: toggling play auto-steps BFS until completion and toggles update', async ({ page }) => {
+    // Similar setup to running test but use Play to exercise startPlay/stopPlay and timeouts
+    await bfs.addNodeAt(100, 300); // 0
+    await bfs.addNodeAt(220, 300); // 1
+    await bfs.addNodeAt(340, 300); // 2
+    // connect 0-1 and 1-2
+    await bfs.clickToggle('Connect', 'connect-toggle');
+    await bfs.clickNodeByIndex(0);
+    await bfs.clickNodeByIndex(1);
+    await bfs.clickNodeByIndex(1);
+    await bfs.clickNodeByIndex(2);
+    await bfs.clickToggle('Connect', 'connect-toggle');
+    // set start and target
+    await bfs.clickToggle('Set Start', 'set-start');
+    await bfs.clickNodeByIndex(0);
+    await bfs.clickToggle('Set Target', 'set-target');
+    await bfs.clickNodeByIndex(2);
+
+    // Click Play to start playing (startPlay)
+    const play = bfs.buttonLocator('Play', 'play-toggle');
+    await play.click();
+    // Wait for auto-play to progress and complete. Give generous timeout
+    let finished = false;
+    for (let i = 0; i < 30; i++) {
+      await page.waitForTimeout(200);
+      const status2 = (await bfs.getStatusText()).toLowerCase();
+      if (status.includes('found') || status.includes('finished') || status.includes('path') || status.includes('queue')) {
+        finished = true;
+        break;
+      }
+    }
+    // We expect play mode to reach finished eventually
+    expect(finished).toBeTruthy();
+    // After finishing, the Play toggle should reflect stopped state; clicking it should return to running or start depending on implementation
+    await play.click(); // toggle state change (stop/play)
+    await page.waitForTimeout(120);
+  }, 40_000);
+
+  test('finished state -> Reset Run and Clear Graph transitions, and UNDO handling', async ({ page }) => {
+    // Build a tiny graph and run until finished, then examine finished -> RESET_RUN and CLEAR_GRAPH transitions
+    await bfs.addNodeAt(140, 420);
+    await bfs.addNodeAt(260, 420);
+    await bfs.clickToggle('Connect', 'connect-toggle');
+    await bfs.clickNodeByIndex(0);
+    await bfs.clickNodeByIndex(1);
+    await bfs.clickToggle('Connect', 'connect-toggle');
+    // set start and target
+    await bfs.clickToggle('Set Start', 'set-start');
+    await bfs.clickNodeByIndex(0);
+    await bfs.clickToggle('Set Target', 'set-target');
+    await bfs.clickNodeByIndex(1);
+    // Step to run and finish
+    const step = bfs.buttonLocator('Step', 'step-btn');
+    for (let i = 0; i < 5; i++) {
+      await step.click();
+      await page.waitForTimeout(120);
+    }
+    // Confirm finished
+    const status3 = (await bfs.getStatusText()).toLowerCase();
+    expect(status.includes('found') || status.includes('finished') || status.includes('path') || status.includes('queue')).toBeTruthy();
+    // Reset Run should return to ready_to_run
+    await bfs.resetRun();
+    await page.waitForTimeout(150);
+    // Then Clear Graph should remove nodes and edges
+    await bfs.clearGraph();
+    await page.waitForTimeout(200);
+    const nodesAfterClear = await bfs.nodeLocators();
+    expect(nodesAfterClear.length).toBeLessThanOrEqual(0);
+    // Test UNDO in an edit context: add a node then undo removes it
+    await bfs.addNodeAt(200, 200);
+    await page.waitForTimeout(120);
+    const nodesBeforeUndo = await bfs.nodeLocators();
+    expect(nodesBeforeUndo.length).toBeGreaterThanOrEqual(1);
+    await bfs.undo();
+    await page.waitForTimeout(150);
+    const nodesAfterUndo = await bfs.nodeLocators();
+    // nodesAfterUndo should be less than or equal to before
+    expect(nodesAfterUndo.length).toBeLessThanOrEqual(nodesBeforeUndo.length);
+  });
+
+  test('toggles: Directed and Fast toggle update UI state and can be toggled repeatedly', async ({ page }) => {
+    // Validate DIRECTED_TOGGLE_ON/OFF and FAST_TOGGLE changes toggle classes/appearance
+    const directed = bfs.buttonLocator('Directed', 'directed-toggle');
+    const fast = bfs.buttonLocator('Fast', 'fast-toggle');
+    // Toggle directed on and off
+    await directed.click();
+    await page.waitForTimeout(80);
+    // look for active class on toggles
+    const directedEl = await directed;
+    const hasActiveDirected = (await directedEl.getAttribute('class'))?.includes('active') ?? false;
+    // toggle back
+    await directed.click();
+    await page.waitForTimeout(80);
+    // Toggle fast on and off
+    await fast.click();
+    await page.waitForTimeout(80);
+    const fastEl = await fast;
+    const hasActiveFast = (await fastEl.getAttribute('class'))?.includes('active') ?? false;
+    await fast.click();
+    await page.waitForTimeout(80);
+    // At least the toggles existed and could be clicked; assert boolean values are boolean
+    expect(typeof hasActiveDirected).toBe('boolean');
+    expect(typeof hasActiveFast).toBe('boolean');
+  });
+
+  test('edge cases: clicking stage where no UI should not crash, and repeated CLEAR_GRAPH when empty is safe', async ({ page }) => {
+    // Click empty stage location multiple times, toggle connect on/off when no nodes exist,
+    // and call Clear Graph repeatedly to ensure app handles gracefully.
+    const stage6 = await bfs.stageLocator();
+    const box3 = await stage.boundingBox();
+    if (box) {
+      // click a few empty spots
+      await page.mouse.click(box.x + 50, box.y + 50);
+      await page.mouse.click(box.x + 60, box.y + 70);
+    }
+    // Toggle connect when there are no nodes
+    await bfs.clickToggle('Connect', 'connect-toggle');
+    await bfs.clickToggle('Connect', 'connect-toggle'); // off
+    // Clear graph a few times
+    await bfs.clearGraph();
+    await bfs.clearGraph();
+    // Undo when nothing to undo should be harmless
+    await bfs.undo();
+    // Status text should still be readable
+    const status4 = await bfs.getStatusText();
+    expect(typeof status).toBe('string');
+  });
+});

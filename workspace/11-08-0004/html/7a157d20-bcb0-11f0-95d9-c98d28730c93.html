@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Bellman-Ford Explorer</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --card: #0b1220;
+      --muted: #94a3b8;
+      --accent: #60a5fa;
+      --good: #22c55e;
+      --bad: #ef4444;
+      --glass: rgba(255,255,255,0.03);
+      --node-fill: linear-gradient(#082033,#0a2b3b);
+    }
+    /* Safe area margins */
+    html,body{height:100%; margin:0;}
+    body{
+      background: linear-gradient(180deg,#071024 0%, #071629 60%);
+      color:#e6eef8;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      padding:var(--safe-margin);
+      box-sizing:border-box;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Layout */
+    .container{
+      display:flex;
+      gap:var(--gap);
+      height:calc(100% - (var(--safe-margin) * 2));
+      align-items:stretch;
+    }
+    .panel{
+      background:var(--card);
+      border-radius:12px;
+      padding:18px;
+      box-sizing:border-box;
+      min-width:260px;
+      max-width:420px;
+      overflow:auto;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    }
+
+    .main{
+      flex:1;
+      min-width:420px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      align-items:stretch;
+    }
+
+    h1{
+      font-size:18px;
+      margin:0;
+    }
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.3;
+    }
+
+    /* Controls */
+    .controls{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .row{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    label{font-size:13px; color:var(--muted);}
+    .button{
+      background:linear-gradient(180deg,#0f2b47,#0b243a);
+      color:#dff4ff;
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.04);
+      cursor:pointer;
+      font-size:13px;
+    }
+    .button[disabled]{opacity:0.45; cursor:default;}
+    .small{
+      padding:6px 8px; font-size:13px;
+    }
+    .important{background:linear-gradient(180deg,#1e3a8a,#153a6a);}
+
+    input[type="number"], input[type="text"]{
+      padding:8px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.06);
+      background:transparent;
+      color:inherit;
+      width:120px;
+      font-size:13px;
+    }
+    input[type="checkbox"]{width:16px;height:16px;}
+    .hint{
+      font-size:12px;
+      color:var(--muted);
+    }
+    .badge{
+      background:var(--glass);
+      border-radius:8px;
+      padding:6px 8px;
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    /* Canvas area */
+    .canvas-wrap{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      min-height:360px;
+      overflow:hidden;
+      padding:12px;
+      gap:12px;
+    }
+    .svg-wrap{
+      flex:1;
+      border-radius:8px;
+      background:transparent;
+      position:relative;
+    }
+
+    /* Bottom info */
+    .info{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .panel .section-title{
+      font-size:13px;
+      margin:0;
+      color:var(--muted);
+    }
+
+    /* Nodes & edges via SVG */
+    svg{width:100%; height:100%; display:block; overflow:visible;}
+    .edge {
+      stroke:#7aa2d6;
+      stroke-width:3;
+      fill:none;
+      opacity:0.9;
+      transition:stroke 220ms, stroke-width 220ms, opacity 220ms;
+    }
+    .edge.failed{stroke:#94a3b8; opacity:0.6;}
+    .edge.success{stroke:var(--good); stroke-width:4.5; opacity:1;}
+    .edge.current{stroke:#f59e0b; stroke-width:4.5; opacity:1;}
+    .edge.neg{stroke:var(--bad); stroke-width:4.5;}
+    .edge.pred{stroke:#60a5fa; stroke-width:4.5;}
+
+    .node{
+      cursor:pointer;
+      transition:transform 180ms;
+    }
+    .node .circle{
+      fill: radial-gradient(circle at 30% 30%, rgba(150,200,255,0.14), rgba(0,0,0,0.1));
+      fill:#071629;
+      stroke:rgba(255,255,255,0.06);
+      stroke-width:1.5;
+      filter: drop-shadow(0 6px 12px rgba(2,6,23,0.6));
+      transition:fill 180ms, r 180ms, stroke 180ms;
+    }
+    .node .label{
+      font-size:12px;
+      fill:#e6eef8;
+      pointer-events:none;
+    }
+    .node .dist{
+      font-size:11px;
+      fill:#cfeeff;
+      pointer-events:none;
+    }
+    .node:hover{transform:scale(1.04);}
+    .node.selected circle{stroke:#60a5fa; stroke-width:2.5;}
+    .node.source circle{stroke: #fbbf24; stroke-width:2.5;}
+
+    .table{
+      background: rgba(255,255,255,0.02);
+      padding:8px;
+      border-radius:8px;
+      font-size:13px;
+      color:var(--muted);
+      max-height:140px;
+      overflow:auto;
+    }
+    .table-row{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      padding:6px 8px;
+      border-radius:6px;
+    }
+    .table-row:nth-child(odd){background:transparent;}
+    .dist-val{min-width:56px;}
+    .pred-val{min-width:60px;}
+
+    /* Small responsiveness */
+    @media (max-width:900px){
+      .container{flex-direction:column;}
+      .panel{max-width:none; width:100%;}
+      .main{min-width:0;}
+    }
+
+    /* tiny helper for accessible focus */
+    button:focus, input:focus {outline:2px solid rgba(96,165,250,0.18); outline-offset:2px; border-radius:8px;}
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="Bellman-Ford interactive module">
+    <aside class="panel" aria-labelledby="title">
+      <div>
+        <h1 id="title">Bellman-Ford Algorithm — Interactive Explorer</h1>
+        <p class="muted">Step through relaxations, visualize distance updates, and detect negative cycles.</p>
+      </div>
+
+      <div>
+        <h2 class="section-title">Learning Objective</h2>
+        <p class="muted">After using this module, you should be able to:
+          see how Bellman-Ford relaxes edges over V−1 iterations,
+          understand predecessor updates for shortest paths,
+          and observe how negative cycles are detected.</p>
+      </div>
+
+      <div>
+        <h2 class="section-title">Interaction Design</h2>
+        <p class="muted">
+          Interact using the canvas and controls:
+          - Click an empty area to add a node. Drag nodes to reposition.
+          - Click a node to start edge-creation; click another node to finish.
+            Use the Weight input to set the edge weight. Toggle "Make undirected" to create bidirectional edges.
+          - Select a source node by clicking it (gold outline). Choose "Run Step" to perform one relaxation step.
+            Use "Play" to animate all steps. "Detect Negative Cycle" runs the final check and highlights offending edges.
+        </p>
+        <p class="muted">Visual feedback: edges being relaxed are highlighted, successful relaxations flash green and the target node's distance updates. Failed relaxations are dimmed. Negative cycles are shown in red.</p>
+      </div>
+
+      <div>
+        <h2 class="section-title">Layout Description</h2>
+        <p class="muted">
+          The interface uses a two-column responsive layout:
+          - Left panel (this panel) contains instructions, controls, and the distances table.
+          - Right main area contains the interactive SVG canvas where the graph is built and animations occur.
+          Spacing: 24px safe margins, 16px minimum gaps between controls. Controls are grouped and accessible by keyboard. The canvas scales responsively.
+        </p>
+      </div>
+
+      <div class="controls" aria-label="Controls">
+        <div class="row" role="group" aria-label="Graph creation tools">
+          <button id="btn-clear" class="button" title="Clear graph">Clear Graph</button>
+          <button id="btn-reset" class="button" title="Reset algorithm state">Reset</button>
+        </div>
+
+        <div class="row" role="group" aria-label="Edge creation">
+          <label for="edge-weight">Edge weight</label>
+          <input type="number" id="edge-weight" value="1" step="1" aria-label="Edge weight" />
+          <label for="undirected" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="undirected" aria-label="Make undirected" /> Make undirected
+          </label>
+        </div>
+
+        <div class="row" role="group" aria-label="Algorithm controls">
+          <button id="btn-step" class="button small" title="Perform one relaxation step">Run Step</button>
+          <button id="btn-play" class="button small important" title="Play/pause animation">Play</button>
+          <button id="btn-detect" class="button small" title="Detect negative cycle">Detect Negative Cycle</button>
+        </div>
+
+        <div class="row" role="group" aria-label="Source selection">
+          <span class="badge">Source</span>
+          <span id="source-label" class="muted" style="margin-left:8px;">(Click a node on canvas)</span>
+        </div>
+
+        <div class="row" role="group" aria-label="Presets">
+          <button id="preset1" class="button">Preset: Negative Edge (no cycle)</button>
+          <button id="preset2" class="button">Preset: Negative Cycle</button>
+        </div>
+
+        <div class="row" style="margin-top:4px;">
+          <div class="hint">Tip: Click a node to start creating an edge, then click target. Drag nodes to rearrange.</div>
+        </div>
+
+      </div>
+
+      <div>
+        <h2 class="section-title">Distances & Predecessors</h2>
+        <div id="table" class="table" aria-live="polite" aria-atomic="true">
+          <!-- Rows inserted dynamically -->
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="canvas-wrap" role="region" aria-label="Graph canvas and controls">
+        <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+          <div class="muted">Graph Canvas</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div class="muted">Iteration:</div>
+            <div id="iter-display" class="badge">0 / 0</div>
+            <div class="muted">Step:</div>
+            <div id="step-display" class="badge">0 / 0</div>
+          </div>
+        </div>
+
+        <div class="svg-wrap" id="svg-wrap" tabindex="0" aria-label="Graph drawing area">
+          <svg id="svg" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#7aa2d6" />
+              </marker>
+
+              <marker id="arrow-good" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e" />
+              </marker>
+
+              <marker id="arrow-bad" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
+              </marker>
+            </defs>
+            <!-- dynamic edges and nodes appear here -->
+          </svg>
+        </div>
+
+        <div class="info">
+          <div class="muted">Status: <span id="status" class="muted">Ready</span></div>
+          <div>
+            <button id="btn-help" class="button small" title="Keyboard help">Keyboard Help</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    /* Bellman-Ford Interactive Module
+       - Create nodes by clicking SVG canvas
+       - Click node to select source or start edge creation
+       - Click another node to create edge, weight taken from input
+       - Drag nodes to reposition
+       - Step through algorithm or autoplay
+       - Detect negative cycles
+    */
+
+    (function(){
+      // State structures
+      let nodes = []; // {id, x, y}
+      let edges = []; // {id, u, v, w}
+      let nodeIdCounter = 0;
+      let edgeIdCounter = 0;
+
+      let svg = document.getElementById('svg');
+      let svgWrap = document.getElementById('svg-wrap');
+      let tableDiv = document.getElementById('table');
+      let sourceLabel = document.getElementById('source-label');
+      let iterDisplay = document.getElementById('iter-display');
+      let stepDisplay = document.getElementById('step-display');
+      let status = document.getElementById('status');
+
+      // Algorithm related
+      let sourceNodeId = null;
+      let distances = {}; // id -> number or Infinity
+      let preds = {}; // id -> predecessor id or null
+      let steps = []; // precomputed steps: {iter, edgeIndex, u, v, w, prevDistV, prevDistU, changed}
+      let currentStepIndex = 0;
+      let playing = false;
+      let playTimer = null;
+
+      // UI elements
+      const btnClear = document.getElementById('btn-clear');
+      const btnReset = document.getElementById('btn-reset');
+      const btnStep = document.getElementById('btn-step');
+      const btnPlay = document.getElementById('btn-play');
+      const btnDetect = document.getElementById('btn-detect');
+      const edgeWeightInput = document.getElementById('edge-weight');
+      const undirectedCheckbox = document.getElementById('undirected');
+      const preset1 = document.getElementById('preset1');
+      const preset2 = document.getElementById('preset2');
+      const btnHelp = document.getElementById('btn-help');
+
+      // Interaction helpers
+      let creatingEdgeFrom = null;
+      let draggingNode = null;
+      let dragOffset = {x:0,y:0};
+
+      // Ensure spacing/accessibility: minimum distances handled via CSS
+
+      // Utility functions
+      function createNode(x,y){
+        const id = 'n' + (++nodeIdCounter);
+        nodes.push({id,x,y});
+        render();
+      }
+
+      function clearGraph(){
+        nodes = [];
+        edges = [];
+        nodeIdCounter = 0;
+        edgeIdCounter = 0;
+        sourceNodeId = null;
+        resetAlgorithmState();
+        render();
+      }
+
+      function resetAlgorithmState(){
+        distances = {};
+        preds = {};
+        steps = [];
+        currentStepIndex = 0;
+        iterDisplay.textContent = '0 / 0';
+        stepDisplay.textContent = '0 / 0';
+        updateTable();
+        stopPlay();
+        status.textContent = 'Ready';
+        updateEdgeStyles();
+      }
+
+      function addEdge(uId,vId,w){
+        const id = 'e' + (++edgeIdCounter);
+        edges.push({id,u:uId,v:vId,w:Number(w)});
+        render();
+      }
+
+      // SVG helpers
+      function clearSVG(){
+        while (svg.lastChild) svg.removeChild(svg.lastChild);
+      }
+
+      function render(){
+        clearSVG();
+        // re-add defs (markers)
+        const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+        defs.innerHTML = document.querySelector('svg defs').innerHTML;
+        svg.appendChild(defs);
+
+        // Draw edges first
+        for(const e of edges){
+          const u = nodes.find(n=>n.id===e.u);
+          const v = nodes.find(n=>n.id===e.v);
+          if(!u||!v) continue;
+          const edgeG = document.createElementNS('http://www.w3.org/2000/svg','g');
+          edgeG.setAttribute('data-edge-id', e.id);
+          const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+          line.setAttribute('d', describeEdgePath(u,v));
+          line.setAttribute('class','edge');
+          line.setAttribute('marker-end','url(#arrow)');
+          line.setAttribute('fill','none');
+          line.setAttribute('stroke-linecap','round');
+          edgeG.appendChild(line);
+
+          // edge weight label (midpoint)
+          const mid = getEdgeMid(u,v,0.4);
+          const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+          rect.setAttribute('x', mid.x-20);
+          rect.setAttribute('y', mid.y-18);
+          rect.setAttribute('rx','6');
+          rect.setAttribute('ry','6');
+          rect.setAttribute('width','40');
+          rect.setAttribute('height','20');
+          rect.setAttribute('fill','rgba(0,0,0,0.35)');
+          rect.setAttribute('stroke','none');
+          rect.setAttribute('pointer-events','none');
+
+          const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+          text.setAttribute('x', mid.x);
+          text.setAttribute('y', mid.y-4);
+          text.setAttribute('text-anchor','middle');
+          text.setAttribute('fill','#e6eef8');
+          text.setAttribute('font-size','11');
+          text.textContent = e.w;
+
+          edgeG.appendChild(rect);
+          edgeG.appendChild(text);
+
+          svg.appendChild(edgeG);
+        }
+
+        // Draw nodes
+        for(const n of nodes){
+          const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+          g.setAttribute('class','node');
+          g.setAttribute('transform',`translate(${n.x},${n.y})`);
+          g.setAttribute('data-node-id', n.id);
+          g.setAttribute('tabindex',0);
+          // circle
+          const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          circle.setAttribute('r',20);
+          circle.setAttribute('class','circle');
+          circle.setAttribute('cx',0);
+          circle.setAttribute('cy',0);
+          g.appendChild(circle);
+
+          // label
+          const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+          label.setAttribute('y',2);
+          label.setAttribute('text-anchor','middle');
+          label.setAttribute('class','label');
+          label.textContent = n.id;
+          g.appendChild(label);
+
+          // distance badge (top-right)
+          const dist = document.createElementNS('http://www.w3.org/2000/svg','text');
+          dist.setAttribute('x',16);
+          dist.setAttribute('y',-18);
+          dist.setAttribute('text-anchor','middle');
+          dist.setAttribute('class','dist');
+          const dval = (distances[n.id]===undefined) ? '∞' : (distances[n.id]===Infinity ? '∞' : String(distances[n.id]));
+          dist.textContent = dval;
+          g.appendChild(dist);
+
+          // attach handlers
+          g.addEventListener('mousedown', onNodeMouseDown);
+          g.addEventListener('touchstart', onNodeTouchStart, {passive:false});
+          g.addEventListener('click', onNodeClick);
+
+          svg.appendChild(g);
+
+          // mark source visually
+          if(n.id === sourceNodeId){
+            g.classList.add('source');
+          }
+        }
+
+        updateTable();
+        updateEdgeStyles();
+      }
+
+      function updateEdgeStyles(){
+        // update edge classes based on algorithm state (pred edges green, neg cycles red, current)
+        // default: edge class edge
+        document.querySelectorAll('[data-edge-id]').forEach(g=>{
+          const id = g.getAttribute('data-edge-id');
+          const path = g.querySelector('path');
+          if(!path) return;
+          path.classList.remove('success','failed','current','neg','pred');
+          path.setAttribute('marker-end','url(#arrow)');
+        });
+      }
+
+      function describeEdgePath(u,v){
+        // straight or curved if bidirectional exists
+        const sameReverse = edges.some(e => e.u===v.id && e.v===u.id);
+        const dx = v.x - u.x;
+        const dy = v.y - u.y;
+        const dist = Math.hypot(dx,dy);
+        if(dist < 1) return '';
+        const nx = dx/dist;
+        const ny = dy/dist;
+        const pad = 28; // move endpoints away from node circle
+        const sx = u.x + nx*pad;
+        const sy = u.y + ny*pad;
+        const tx = v.x - nx*pad;
+        const ty = v.y - ny*pad;
+        if(sameReverse){
+          // make a small curve: control point offset perpendicular
+          const mx = (sx+tx)/2;
+          const my = (sy+ty)/2;
+          const perpX = -ny;
+          const perpY = nx;
+          const offset = 18;
+          const cx = mx + perpX*offset;
+          const cy = my + perpY*offset;
+          return `M ${sx} ${sy} Q ${cx} ${cy} ${tx} ${ty}`;
+        } else {
+          return `M ${sx} ${sy} L ${tx} ${ty}`;
+        }
+      }
+
+      function getEdgeMid(u,v,t){
+        // t between 0 and 1
+        const sameReverse = edges.some(e => e.u===v.id && e.v===u.id);
+        const dx = v.x - u.x;
+        const dy = v.y - u.y;
+        const dist = Math.hypot(dx,dy);
+        const nx = dx/dist;
+        const ny = dy/dist;
+        const pad = 28;
+        const sx = u.x + nx*pad;
+        const sy = u.y + ny*pad;
+        const tx = v.x - nx*pad;
+        const ty = v.y - ny*pad;
+        if(sameReverse){
+          const mx = (sx+tx)/2;
+          const my = (sy+ty)/2;
+          const perpX = -ny;
+          const perpY = nx;
+          const offset = 18;
+          const cx = mx + perpX*offset;
+          const cy = my + perpY*offset;
+          // Quadratic Bezier point
+          const x = Math.pow(1-t,2)*sx + 2*(1-t)*t*cx + Math.pow(t,2)*tx;
+          const y = Math.pow(1-t,2)*sy + 2*(1-t)*t*cy + Math.pow(t,2)*ty;
+          return {x,y};
+        } else {
+          const x = sx + (tx-sx)*t;
+          const y = sy + (ty-sy)*t;
+          return {x,y};
+        }
+      }
+
+      // Mouse & touch handlers for canvas
+      svgWrap.addEventListener('click', function(ev){
+        // Add node if clicked on empty space (not on a node)
+        // Only for primary button
+        if(ev.target.closest('.node')) return;
+        // compute svg coords
+        const pt = getSVGPoint(ev.clientX, ev.clientY);
+        createNode(pt.x, pt.y);
+      });
+
+      function getSVGPoint(clientX, clientY){
+        const rect = svg.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        return {x,y};
+      }
+
+      // Node interactions: click, drag, select start edge
+      function onNodeClick(ev){
+        ev.stopPropagation();
+        const nodeEl = ev.currentTarget;
+        const id = nodeEl.getAttribute('data-node-id');
+
+        // If we are currently dragging (mouse down) ignore click
+        if(draggingNode) return;
+
+        // If no source selected yet, select as source for algorithm by shift key or long click?
+        // Use single click to toggle edge creation. If creatingEdgeFrom is null, set to this node (start creating).
+        if(creatingEdgeFrom && creatingEdgeFrom !== id){
+          // create edge from creatingEdgeFrom -> id
+          const w = Number(edgeWeightInput.value) || 0;
+          addEdge(creatingEdgeFrom,id,w);
+          if(undirectedCheckbox.checked){
+            addEdge(id, creatingEdgeFrom, w);
+          }
+          creatingEdgeFrom = null;
+          status.textContent = 'Edge created';
+          render();
+          return;
+        }
+
+        // If creatingEdgeFrom is this node, toggle it off
+        if(creatingEdgeFrom === id){
+          creatingEdgeFrom = null;
+          status.textContent = 'Edge creation canceled';
+          updateSelectionVisual();
+          return;
+        }
+
+        // If Ctrl or Alt pressed => set as source for algorithm
+        if(ev.ctrlKey || ev.metaKey || ev.shiftKey){
+          sourceNodeId = id;
+          sourceLabel.textContent = id;
+          status.textContent = 'Source selected';
+          resetAlgorithmState();
+          render();
+          return;
+        }
+
+        // Default: start edge creation from this node
+        creatingEdgeFrom = id;
+        status.textContent = 'Click target node to create edge from ' + id;
+        updateSelectionVisual();
+      }
+
+      function updateSelectionVisual(){
+        document.querySelectorAll('.node').forEach(el=>{
+          el.classList.remove('selected');
+          const id = el.getAttribute('data-node-id');
+          if(creatingEdgeFrom && id === creatingEdgeFrom) el.classList.add('selected');
+        });
+      }
+
+      // Dragging nodes
+      function onNodeMouseDown(ev){
+        ev.stopPropagation();
+        ev.preventDefault();
+        const g = ev.currentTarget;
+        const id = g.getAttribute('data-node-id');
+        draggingNode = nodes.find(n=>n.id===id);
+        const pt = getSVGPoint(ev.clientX, ev.clientY);
+        dragOffset.x = draggingNode.x - pt.x;
+        dragOffset.y = draggingNode.y - pt.y;
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      }
+
+      function onNodeTouchStart(ev){
+        ev.stopPropagation();
+        ev.preventDefault();
+        const touch = ev.touches[0];
+        const g = ev.currentTarget;
+        const id = g.getAttribute('data-node-id');
+        draggingNode = nodes.find(n=>n.id===id);
+        const pt = getSVGPoint(touch.clientX, touch.clientY);
+        dragOffset.x = draggingNode.x - pt.x;
+        dragOffset.y = draggingNode.y - pt.y;
+        document.addEventListener('touchmove', onTouchMove, {passive:false});
+        document.addEventListener('touchend', onTouchEnd);
+      }
+
+      function onMouseMove(ev){
+        if(!draggingNode) return;
+        const pt = getSVGPoint(ev.clientX, ev.clientY);
+        draggingNode.x = pt.x + dragOffset.x;
+        draggingNode.y = pt.y + dragOffset.y;
+        render();
+      }
+      function onMouseUp(ev){
+        draggingNode = null;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      }
+      function onTouchMove(ev){
+        if(!draggingNode) return;
+        const touch = ev.touches[0];
+        const pt = getSVGPoint(touch.clientX, touch.clientY);
+        draggingNode.x = pt.x + dragOffset.x;
+        draggingNode.y = pt.y + dragOffset.y;
+        render();
+      }
+      function onTouchEnd(ev){
+        draggingNode = null;
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', onTouchEnd);
+      }
+
+      // Table update
+      function updateTable(){
+        // distances/preds for each node
+        tableDiv.innerHTML = '';
+        const header = document.createElement('div');
+        header.className='table-row';
+        header.innerHTML = '<strong style="min-width:40px;">Node</strong><strong class="dist-val">Distance</strong><strong class="pred-val">Predecessor</strong>';
+        tableDiv.appendChild(header);
+        for(const n of nodes){
+          const row = document.createElement('div');
+          row.className='table-row';
+          const name = document.createElement('div');
+          name.style.minWidth='40px';
+          name.textContent = n.id;
+          const d = document.createElement('div');
+          d.className='dist-val';
+          d.textContent = (distances[n.id]===undefined) ? '∞' : (distances[n.id]===Infinity ? '∞' : String(distances[n.id]));
+          if(distances[n.id]===Infinity) d.style.color = '#94a3b8';
+          const p = document.createElement('div');
+          p.className='pred-val';
+          p.textContent = preds[n.id] || '-';
+          row.appendChild(name);
+          row.appendChild(d);
+          row.appendChild(p);
+          tableDiv.appendChild(row);
+        }
+      }
+
+      // Algorithm logic: create steps array
+      function prepareSteps(){
+        steps = [];
+        distances = {};
+        preds = {};
+        // initialize
+        for(const n of nodes){
+          distances[n.id] = Infinity;
+          preds[n.id] = null;
+        }
+        if(!sourceNodeId){
+          status.textContent = 'Select a source node (click a node with Ctrl/Cmd/Shift) to run the algorithm.';
+          updateTable();
+          return;
+        }
+        distances[sourceNodeId] = 0;
+        const V = nodes.length;
+        // store initial step index 0 as initial state
+        let iterCount = Math.max(0, V - 1);
+        // For deterministic order, iterate edges in insertion order
+        for(let iter=1; iter<=iterCount; iter++){
+          for(let ei=0; ei<edges.length; ei++){
+            const e = edges[ei];
+            const u = e.u, v = e.v, w = e.w;
+            const prevU = distances[u];
+            const prevV = distances[v];
+            const willChange = (prevU !== Infinity && prevU + w < prevV);
+            // store snapshot with change info but do not yet mutate distances
+            steps.push({
+              iter, edgeIndex: ei, u, v, w,
+              prevDistU: prevU,
+              prevDistV: prevV,
+              changed: willChange
+            });
+            // apply relaxation (so subsequent steps use updated distances)
+            if(willChange){
+              distances[v] = prevU + w;
+              preds[v] = u;
+            }
+          }
+        }
+        // After finishing, we want the distances and preds to reflect final values.
+        // But for stepping visualization, we need a separate copy representing initial state before replay.
+        // So rebuild initial distances/preds for replay stepping
+        const initialDistances = {};
+        const initialPreds = {};
+        for(const n of nodes){ initialDistances[n.id] = Infinity; initialPreds[n.id] = null; }
+        initialDistances[sourceNodeId] = 0;
+        distances = initialDistances;
+        preds = initialPreds;
+
+        // Add final detection steps count info
+        iterDisplay.textContent = `0 / ${iterCount}`;
+        stepDisplay.textContent = `0 / ${steps.length}`;
+        status.textContent = 'Prepared steps — ready to step through';
+        currentStepIndex = 0;
+        updateTable();
+      }
+
+      function applyStep(index){
+        if(index < 0 || index >= steps.length) return;
+        const s = steps[index];
+        // Visual highlight: edge s.edgeIndex
+        highlightEdge(s.edgeIndex, 'current');
+        iterDisplay.textContent = `${s.iter} / ${Math.max(0,nodes.length-1)}`;
+        stepDisplay.textContent = `${index+1} / ${steps.length}`;
+        // Show previous values as context
+        const u = s.u, v = s.v, w = s.w;
+        const prevU = distances[u];
+        const prevV = distances[v];
+        // Check if relaxation applies (based on current distances)
+        if(prevU !== Infinity && prevU + w < prevV){
+          // successful relaxation
+          distances[v] = prevU + w;
+          preds[v] = u;
+          // animate: mark edge success and update node badge
+          highlightEdge(s.edgeIndex, 'success');
+          render(); // re-render to update distances shown on nodes
+          flashNode(v,'#22c55e');
+          status.textContent = `Relaxed edge ${u} -> ${v}, distance updated to ${distances[v]}`;
+        } else {
+          // failed relaxation
+          highlightEdge(s.edgeIndex, 'failed');
+          status.textContent = `Checked edge ${u} -> ${v}: no update`;
+        }
+        updateTable();
+      }
+
+      function highlightEdge(edgeIndex, cls){
+        // Reset first
+        document.querySelectorAll('[data-edge-id] path').forEach(p=>{
+          p.classList.remove('success','failed','current','neg','pred');
+        });
+        const e = edges[edgeIndex];
+        if(!e) return;
+        const g = document.querySelector('[data-edge-id="'+e.id+'"]');
+        if(!g) return;
+        const p = g.querySelector('path');
+        p.classList.add(cls);
+        if(cls === 'success') p.setAttribute('marker-end','url(#arrow-good)');
+        else if(cls === 'failed') p.setAttribute('marker-end','url(#arrow)');
+        else if(cls === 'neg') p.setAttribute('marker-end','url(#arrow-bad)');
+        else p.setAttribute('marker-end','url(#arrow)');
+      }
+
+      function flashNode(nodeId,color){
+        const g = document.querySelector('[data-node-id="'+nodeId+'"]');
+        if(!g) return;
+        const circ = g.querySelector('circle');
+        const prev = circ.getAttribute('stroke');
+        circ.style.transition = 'box-shadow 160ms';
+        circ.style.filter = `drop-shadow(0 0 6px ${color})`;
+        setTimeout(()=>{ circ.style.filter = ''; }, 560);
+      }
+
+      // Running steps
+      function doStep(){
+        if(steps.length === 0){
+          prepareSteps();
+          if(steps.length === 0) return;
+        }
+        if(currentStepIndex >= steps.length){
+          status.textContent = 'Completed V-1 iterations';
+          return;
+        }
+        applyStep(currentStepIndex);
+        currentStepIndex++;
+        if(currentStepIndex >= steps.length){
+          status.textContent = 'Completed V-1 iterations';
+        }
+      }
+
+      function play(){
+        if(playing) return;
+        if(steps.length === 0) prepareSteps();
+        playing = true;
+        btnPlay.textContent = 'Pause';
+        status.textContent = 'Playing';
+        playTimer = setInterval(()=>{
+          if(currentStepIndex >= steps.length){
+            stopPlay();
+            status.textContent = 'Finished';
+            return;
+          }
+          doStep();
+        }, 700);
+      }
+      function stopPlay(){
+        playing = false;
+        btnPlay.textContent = 'Play';
+        if(playTimer) clearInterval(playTimer);
+        playTimer = null;
+      }
+
+      // Detect negative cycle step
+      function detectNegativeCycle(){
+        if(nodes.length === 0) return;
+        if(sourceNodeId === null){
+          status.textContent = 'Select a source node first.';
+          return;
+        }
+        // Ensure we have final distances/preds (either by applying all steps or prepared)
+        if(steps.length === 0){
+          prepareSteps();
+          // apply all steps to get final distances
+          while(currentStepIndex < steps.length){
+            applyStep(currentStepIndex);
+            currentStepIndex++;
+          }
+        } else {
+          // If not all steps applied, apply remaining
+          while(currentStepIndex < steps.length){
+            applyStep(currentStepIndex);
+            currentStepIndex++;
+          }
+        }
+        // Now run one more pass over edges to find negative cycle edges
+        let negEdges = [];
+        for(let ei=0; ei<edges.length; ei++){
+          const e = edges[ei];
+          const u = e.u, v = e.v, w = e.w;
+          const du = distances[u];
+          const dv = distances[v];
+          if(du !== Infinity && du + w < dv){
+            negEdges.push(ei);
+          }
+        }
+        if(negEdges.length === 0){
+          status.textContent = 'No negative cycle detected.';
+          // subtle feedback: flash green on status
+          return;
+        }
+        // highlight edges & nodes involved
+        document.querySelectorAll('[data-edge-id] path').forEach(p=>{
+          p.classList.remove('success','failed','current','neg','pred');
+          p.setAttribute('marker-end','url(#arrow)');
+        });
+        const involvedNodes = new Set();
+        for(const ei of negEdges){
+          const e = edges[ei];
+          const g = document.querySelector('[data-edge-id="'+e.id+'"]');
+          if(!g) continue;
+          const p = g.querySelector('path');
+          p.classList.add('neg');
+          p.setAttribute('marker-end','url(#arrow-bad)');
+          involvedNodes.add(e.u); involvedNodes.add(e.v);
+        }
+        // flash involved nodes
+        involvedNodes.forEach(id=>flashNode(id,'#ef4444'));
+        status.textContent = 'Negative cycle detected — highlighted in red';
+      }
+
+      // Buttons
+      btnClear.addEventListener('click', function(){ clearGraph(); });
+      btnReset.addEventListener('click', function(){ resetAlgorithmState(); render(); });
+      btnStep.addEventListener('click', function(){ doStep(); });
+      btnPlay.addEventListener('click', function(){
+        if(playing) stopPlay(); else play();
+      });
+      btnDetect.addEventListener('click', function(){ detectNegativeCycle(); });
+
+      // Presets
+      preset1.addEventListener('click', function(){
+        clearGraph();
+        // Create 5 nodes
+        createNode(120,80); createNode(320,80); createNode(520,80);
+        createNode(220,240); createNode(420,240);
+        // add edges (some negative weight, but no negative cycle)
+        // identifiers will be n1..n5
+        // wait for nodes to populate nodes array
+        setTimeout(()=>{
+          addEdge('n1','n2',6);
+          addEdge('n1','n3',5);
+          addEdge('n2','n4',-2);
+          addEdge('n3','n4',1);
+          addEdge('n4','n5',2);
+          addEdge('n5','n2',1);
+          render();
+          status.textContent = 'Loaded preset: negative edge (no cycle). Select a source (Ctrl+Click) to run.';
+        },10);
+      });
+
+      preset2.addEventListener('click', function(){
+        clearGraph();
+        createNode(120,100); createNode(320,100); createNode(520,100);
+        createNode(220,260); createNode(420,260);
+        setTimeout(()=>{
+          addEdge('n1','n2',4);
+          addEdge('n2','n3',-10);
+          addEdge('n3','n2',1);
+          addEdge('n3','n4',2);
+          addEdge('n4','n5',3);
+          addEdge('n5','n3',1);
+          render();
+          status.textContent = 'Loaded preset: contains a negative cycle. Select a source (Ctrl+Click) to run.';
+        },10);
+      });
+
+      btnHelp.addEventListener('click', function(){
+        alert('Keyboard & interaction tips:\n\n- Click empty canvas to add a node.\n- Drag nodes to reposition.\n- Click a node to start edge creation; click another node to finish the edge. Use the "Edge weight" input to set weight.\n- Hold Ctrl (or Cmd/Meta) and click a node to mark it as the source for Bellman-Ford.\n- Use "Run Step" to advance one relaxation, "Play" to animate.\n- Use "Detect Negative Cycle" to check for negative cycles after all relaxations.');
+      });
+
+      // Keyboard shortcuts
+      window.addEventListener('keydown', function(ev){
+        if(ev.key === ' ' && document.activeElement === document.body){
+          // space toggles play/pause
+          ev.preventDefault();
+          if(playing) stopPlay(); else play();
+        }
+        if(ev.key === 'r' || ev.key === 'R'){
+          // reset
+          resetAlgorithmState();
+          render();
+        }
+      });
+
+      // initialize
+      render();
+      resetAlgorithmState();
+
+      // Make initial hint nodes for user
+      setTimeout(()=>{
+        status.textContent = 'Tip: Click canvas to add nodes. Hold Ctrl/Cmd and click a node to set the source.';
+      },300);
+
+    })();
+  </script>
+</body>
+</html>

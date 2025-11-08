@@ -1,0 +1,145 @@
+{
+  "topic": "Union-Find Interactive Module",
+  "description": "Finite State Machine modeling the user interactions, animations, and internal operations of an interactive Union‑Find (Disjoint Set) visualizer.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "updateButtons",
+      "onExit": "",
+      "on": {
+        "CLICK_NODE": "selected_one",
+        "POINTER_DOWN_NODE": "dragging",
+        "ADD_NODE": "creating_node",
+        "AUTO_CREATE": "auto_creating",
+        "RESET": "resetting",
+        "DEMO_STEP": "demo_running",
+        "KEYBOARD_ADD": "creating_node",
+        "RESIZE": "idle"
+      }
+    },
+    {
+      "name": "selected_one",
+      "onEnter": "updateSelectionVisuals",
+      "onExit": "updateButtons",
+      "on": {
+        "CLICK_NODE": "idle",
+        "CLICK_SECOND_NODE": "selected_two",
+        "CLICK_FIND": "finding",
+        "POINTER_DOWN_NODE": "dragging",
+        "ADD_NODE": "creating_node",
+        "RESET": "resetting",
+        "AUTO_CREATE": "auto_creating",
+        "DESELECT_NODE": "idle",
+        "RESIZE": "selected_one"
+      }
+    },
+    {
+      "name": "selected_two",
+      "onEnter": "updateSelectionVisuals",
+      "onExit": "updateButtons",
+      "on": {
+        "CLICK_NODE": "selected_one",
+        "CLICK_UNION": "unioning",
+        "POINTER_DOWN_NODE": "dragging",
+        "DESELECT_NODE": "idle",
+        "RESET": "resetting",
+        "AUTO_CREATE": "auto_creating"
+      }
+    },
+    {
+      "name": "dragging",
+      "onEnter": "initiateDrag (onPointerDownNode -> sets dragState & setPointerCapture)",
+      "onExit": "endDrag (release pointer capture, clear dragState)",
+      "on": {
+        "POINTER_MOVE": "dragging",
+        "POINTER_UP": "RETURN_TO_PREVIOUS_SELECTION_STATE",
+        "RESIZE": "dragging"
+      }
+    },
+    {
+      "name": "finding",
+      "onEnter": "findWithTrace(x, pathCompressionCheckbox.checked) (async animation & optional compression)",
+      "onExit": "updateArrays; updateLinks; updateButtons",
+      "on": {
+        "ANIMATION_STEP": "finding",
+        "COMPRESSION_STEP_COMPLETE": "finding",
+        "ANIMATION_COMPLETE": "idle",
+        "USER_CANCEL": "idle"
+      }
+    },
+    {
+      "name": "unioning",
+      "onEnter": "union(a,b) (calls findRepresentative, modifies parent/size, updateArrays/updateLinks and animates highlights)",
+      "onExit": "clear highlights; updateButtons; updateArrays; updateLinks",
+      "on": {
+        "UNION_ANIMATION_COMPLETE": "idle",
+        "UNION_COMPLETE": "idle"
+      }
+    },
+    {
+      "name": "demo_running",
+      "onEnter": "demoStep (scripted: select two nodes, union them, schedule/find one node -> triggers unioning then finding internally)",
+      "onExit": "updateButtons",
+      "on": {
+        "DEMO_UNION_DONE": "finding",
+        "DEMO_COMPLETE": "idle",
+        "USER_CANCEL": "idle"
+      }
+    },
+    {
+      "name": "creating_node",
+      "onEnter": "createNodeAt(x,y) (adds node, updates parent/size, updateArrays/updateLinks, log)",
+      "onExit": "updateButtons; updateArrays; updateLinks",
+      "on": {
+        "CREATE_COMPLETE": "idle",
+        "RESIZE": "creating_node"
+      }
+    },
+    {
+      "name": "auto_creating",
+      "onEnter": "autoCreate(n) (resetAll then create multiple nodes in ring, updateArrays/updateLinks, log)",
+      "onExit": "updateButtons",
+      "on": {
+        "AUTO_CREATE_COMPLETE": "idle"
+      }
+    },
+    {
+      "name": "resetting",
+      "onEnter": "resetAll (clear parent/size/nodes/links/log; updateArrays)",
+      "onExit": "updateButtons",
+      "on": {
+        "RESET_COMPLETE": "idle"
+      }
+    }
+  ],
+  "events": [
+    "CLICK_NODE",
+    "CLICK_SECOND_NODE",
+    "CLICK_UNION",
+    "CLICK_FIND",
+    "POINTER_DOWN_NODE",
+    "POINTER_MOVE",
+    "POINTER_UP",
+    "ADD_NODE",
+    "AUTO_CREATE",
+    "RESET",
+    "DEMO_STEP",
+    "KEYBOARD_ADD",
+    "TOGGLE_PATH_COMPRESSION",
+    "TOGGLE_UNION_BY_SIZE",
+    "DESELECT_NODE",
+    "ANIMATION_STEP",
+    "ANIMATION_COMPLETE",
+    "COMPRESSION_STEP_COMPLETE",
+    "UNION_COMPLETE",
+    "UNION_ANIMATION_COMPLETE",
+    "DEMO_UNION_DONE",
+    "DEMO_COMPLETE",
+    "CREATE_COMPLETE",
+    "AUTO_CREATE_COMPLETE",
+    "RESET_COMPLETE",
+    "USER_CANCEL",
+    "RESIZE"
+  ],
+  "notes": "High-level notes about the modeled interactions and implementation details:\n- Selection and dragging are orthogonal in the implementation: dragging is initiated with pointerdown and returns to the selection state that was active before dragging. The FSM models 'dragging' as a transient state; the transition POINTER_UP returns to the previous selection state (idle, selected_one or selected_two).\n- Finding is asynchronous: findWithTrace highlights a path sequentially, may perform path compression (multiple COMPRESSION steps), updates parent[]/size[] and UI arrays, then resolves with ANIMATION_COMPLETE. During finding UI buttons (union/find) are effectively disabled via updateButtons until completion.\n- Unioning is synchronous in data changes but animates a short highlight; the FSM models the animation period via UNION_ANIMATION_COMPLETE/UNION_COMPLETE before returning to idle.\n- Demo step sequences a union and then a find; it is modeled as a composite state (demo_running) which drives unioning and then finding and finishes with DEMO_COMPLETE.\n- Creating nodes, auto-creating, and resetting are modeled as brief busy states (creating_node, auto_creating, resetting) that perform a deterministic set of synchronous changes and then return to idle (CREATE_COMPLETE / AUTO_CREATE_COMPLETE / RESET_COMPLETE). In the real code these complete immediately; events are used here to represent completion boundaries.\n- Visual and DOM update helper functions referenced as onEnter/onExit actions correspond to the functions found in the source: updateButtons, updateSelectionVisuals, createNodeAt, autoCreate, resetAll, union, findWithTrace, updateArrays, updateLinks, log, and drag lifecycle handled by onPointerDownNode and pointer event handlers.\n- Accessibility and keyboard shortcut (Ctrl/Cmd+N) maps to KEYBOARD_ADD which triggers creating_node.\n- RESIZE causes updateLinks to be invoked in many states to keep visual links correct."
+}

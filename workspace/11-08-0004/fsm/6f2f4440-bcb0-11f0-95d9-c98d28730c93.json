@@ -1,0 +1,121 @@
+{
+  "topic": "Priority Queue Interactive Module (Binary Heap Visualization)",
+  "description": "Models the interactive states of a priority-queue (binary heap) visualization web app: user inputs, scheduling of animations, automatic vs step-by-step execution, and visual feedback (highlights, swaps, insert/remove animations).",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "renderViews",
+      "on": {
+        "INSERT_CLICK": "scheduling_insert",
+        "DEQUEUE_CLICK": "scheduling_dequeue",
+        "PEEK_CLICK": "peek_highlight",
+        "CLEAR_CLICK": "clearing",
+        "MODE_CHANGE": "mode_changing",
+        "STEP_MODE_ENABLE": "idle",
+        "STEP_MODE_DISABLE": "idle",
+        "DEMO_SEED": "demo_seeding",
+        "RESIZE": "idle"
+      }
+    },
+    {
+      "name": "scheduling_insert",
+      "onEnter": "computeInsertActions_and_createNodeDom_and_storePendingItem_and_log",
+      "onExit": "updatePendingControls",
+      "on": {
+        "SCHEDULED_AS_STEP": "step_waiting",
+        "SCHEDULED_AS_AUTO": "running_auto"
+      }
+    },
+    {
+      "name": "scheduling_dequeue",
+      "onEnter": "computeRemoveActions_and_log",
+      "onExit": "updatePendingControls",
+      "on": {
+        "SCHEDULED_AS_STEP": "step_waiting",
+        "SCHEDULED_AS_AUTO": "running_auto"
+      }
+    },
+    {
+      "name": "running_auto",
+      "onEnter": "executeActionsAndApply_and_log_and_render",
+      "onExit": "finalizeHeapAfterActions_and_render",
+      "on": {
+        "ACTIONS_FINISHED": "idle"
+      }
+    },
+    {
+      "name": "step_waiting",
+      "onEnter": "enableNextStep_and_announcePending_and_log",
+      "onExit": "disableNextStep_if_no_pending",
+      "on": {
+        "NEXT_STEP_CLICK": "executing_step",
+        "INSERT_CLICK": "scheduling_insert",
+        "DEQUEUE_CLICK": "scheduling_dequeue",
+        "CLEAR_CLICK": "clearing",
+        "STEP_MODE_DISABLE": "idle"
+      }
+    },
+    {
+      "name": "executing_step",
+      "onEnter": "applySingleAction_and_animate_and_log",
+      "onExit": "renderViews_and_updateLogForPending",
+      "on": {
+        "STEP_ACTION_COMPLETE_WITH_PENDING": "step_waiting",
+        "STEP_ACTION_COMPLETE_NO_PENDING": "idle"
+      }
+    },
+    {
+      "name": "peek_highlight",
+      "onEnter": "highlightRoot_and_log_and_announce",
+      "onExit": "removeHighlight_and_render",
+      "on": {
+        "HIGHLIGHT_TIMEOUT": "idle"
+      }
+    },
+    {
+      "name": "mode_changing",
+      "onEnter": "setMode_and_heapifyWhole_and_log_and_render",
+      "onExit": "renderViews",
+      "on": {
+        "MODE_CHANGE_COMPLETE": "idle"
+      }
+    },
+    {
+      "name": "clearing",
+      "onEnter": "clearHeap_clearDom_clearPending_clearPendingItemsMap_and_log",
+      "onExit": "renderViews",
+      "on": {
+        "CLEARED": "idle"
+      }
+    },
+    {
+      "name": "demo_seeding",
+      "onEnter": "seedDemo_and_render_and_log",
+      "on": {
+        "DEMO_SEED_COMPLETE": "idle"
+      }
+    }
+  ],
+  "events": [
+    "INSERT_CLICK",
+    "DEQUEUE_CLICK",
+    "PEEK_CLICK",
+    "CLEAR_CLICK",
+    "MODE_CHANGE",
+    "SPEED_CHANGE",
+    "STEP_MODE_ENABLE",
+    "STEP_MODE_DISABLE",
+    "NEXT_STEP_CLICK",
+    "SCHEDULED_AS_STEP",
+    "SCHEDULED_AS_AUTO",
+    "ACTIONS_FINISHED",
+    "STEP_ACTION_COMPLETE_WITH_PENDING",
+    "STEP_ACTION_COMPLETE_NO_PENDING",
+    "HIGHLIGHT_TIMEOUT",
+    "DEMO_SEED",
+    "DEMO_SEED_COMPLETE",
+    "RESIZE",
+    "CLEARED"
+  ],
+  "notes": "Summary of behaviors, conditions and onEnter/onExit actions referenced above:\n- renderViews: calls renderHeapImmediate() and renderQueueView().\n- computeInsertActions_and_createNodeDom_and_storePendingItem_and_log: when Insert clicked, a new item is created (pendingItemsMap), a DOM node is created (createNodeDom), computeInsertActions(currentHeap, item) is executed and a log entry is made. That computation yields an actions array. This state decides whether the actions are executed immediately or queued for step mode.\n- computeRemoveActions_and_log: computeRemoveActions(currentHeap) and log the Dequeue scheduling.\n- SCHEDULED_AS_STEP vs SCHEDULED_AS_AUTO: internal decision determined by the current stepMode flag. If stepMode is true transitions go to step_waiting; otherwise run actions automatically (running_auto).\n- running_auto.onEnter (executeActionsAndApply_and_log_and_render): calls executeActionsAndApply(actions) which replays actions while mutating the logical heap (using applyInsertToHeap/applyRemoveFromHeap as finalization where applicable). Visual animations (animateSwap, insert/remove animations) occur; runActionsSequentially is used for per-action animations. When all actions complete, ACTIONS_FINISHED occurs and the FSM goes to idle.\n- step_waiting: step mode active and there are pending actions. next-step button enabled. INSERT/DEQUEUE can be clicked while waiting and will schedule/append more pending actions.\n- executing_step.onEnter (applySingleAction_and_animate_and_log): handles exactly one pending action (insert/remove/swap/highlight). It mutates heap state for that action and animates it. On completion, if pendingActions remains go to step_waiting (STEP_ACTION_COMPLETE_WITH_PENDING); otherwise go idle (STEP_ACTION_COMPLETE_NO_PENDING).\n- peek_highlight: highlights the root briefly and announces via accessibility helper; returns to idle after timeout (HIGHLIGHT_TIMEOUT).\n- mode_changing.onEnter: toggles isMin flag, calls heapifyWhole() to rebuild heap for the new comparator, logs the change and re-renders. When complete MODE_CHANGE_COMPLETE -> idle.\n- clearing.onEnter: empties logical heap, removes DOM nodes/edges, clears pendingActions and pendingItemsMap, disables Next Step button, logs. Emits CLEARED -> idle.\n- demo_seeding: initial seed of demo items; seeds nodes and heapifyWhole(), then returns to idle.\n- Events that represent UI/DOM timing and animation completions are modeled as ACTIONS_FINISHED, STEP_ACTION_COMPLETE_*, and HIGHLIGHT_TIMEOUT. These are produced by internal callbacks/timers in the app (sleep timers, animation end waits).\n- Conditional transitions: insert & dequeue flows depend on the stepMode flag. The scheduling states encapsulate that decision and emit SCHEDULED_AS_STEP or SCHEDULED_AS_AUTO accordingly.\n- UI control side-effects: enabling/disabling of Next Step button, logging (log()), and announcements (announce()) are performed as onEnter/onExit actions in the relevant states (step_waiting enables Next Step; clearing/idle disable when appropriate).\n- Speed changes (SPEED_CHANGE) only affect animDuration and do not change FSM state; it's listed as an event but mapped to no state transition.\n- Resize triggers re-render (RESIZE -> idle) to recompute node positions.\n\nThis FSM captures the user-facing interactive modes: idle, scheduling actions, automatic execution, step-by-step waiting + execution, peek highlight, mode change, clearing, and demo seeding. Internal implementation details (arrays, maps) are represented by named onEnter actions for clarity."
+}

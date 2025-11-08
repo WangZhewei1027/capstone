@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Divide and Conquer — Interactive Module</title>
+  <style>
+    :root{
+      --safe-pad: 24px;
+      --gap: 16px;
+      --bg: #0f1720;
+      --panel: #0b1220;
+      --accent: #06b6d4;
+      --muted: #94a3b8;
+      --good: #16a34a;
+      --warn: #f97316;
+      --danger: #ef4444;
+      --card-radius: 12px;
+      --node-w: 120px;
+      --node-h: 44px;
+      --depth-step: 94px;
+    }
+
+    /* Safe area margins */
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071026 0%, #0b1220 100%);
+      color:#e6eef6;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding: var(--safe-pad);
+      box-sizing: border-box;
+    }
+
+    /* Overall layout */
+    .module{
+      display:flex;
+      gap: var(--gap);
+      align-items:flex-start;
+    }
+
+    /* Responsive: stack on narrow screens */
+    @media (max-width:900px){
+      .module{ flex-direction: column; }
+    }
+
+    /* Left column: info + controls */
+    .sidebar{
+      flex: 0 0 360px;
+      min-width:240px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: var(--card-radius);
+      padding: 18px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+    }
+
+    .title{
+      font-size:20px;
+      font-weight:700;
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    .subtitle{ color:var(--muted); font-size:13px; margin-top:4px; }
+
+    .panel{
+      background: rgba(255,255,255,0.02);
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .controls{
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+    }
+
+    .row{ display:flex; gap: var(--gap); align-items:center; }
+    .row.space-between{ justify-content:space-between; }
+
+    input[type="text"]{
+      background: rgba(255,255,255,0.02);
+      color: #e6eef6;
+      border: 1px solid rgba(255,255,255,0.03);
+      padding:8px 10px;
+      border-radius:8px;
+      flex:1;
+      min-width:0;
+    }
+
+    button{
+      background: linear-gradient(180deg, #0ea5a2, #0891b2);
+      color: #022;
+      border: none;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-weight:600;
+      cursor:pointer;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.5);
+      min-width:0;
+    }
+    button.secondary{
+      background: linear-gradient(180deg,#1f2937,#111827);
+      color:var(--muted);
+      border: 1px solid rgba(255,255,255,0.03);
+      box-shadow:none;
+    }
+    button:focus{ outline: 3px solid rgba(6,182,212,0.18); }
+
+    label{ font-size:13px; color:var(--muted); }
+
+    .small{
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    /* Visualizer column */
+    .visual{
+      flex:1;
+      min-width:320px;
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+    }
+
+    .viz-card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      padding: 12px;
+      border-radius: var(--card-radius);
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    /* Array view */
+    #array-view{
+      display:flex;
+      gap:8px;
+      align-items:end;
+      min-height: 120px;
+      padding:12px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.008));
+      border-radius:10px;
+    }
+
+    .bar{
+      flex: 1 1 0;
+      min-width: 28px;
+      margin: 0 4px;
+      background: linear-gradient(180deg,#38bdf8,#0891b2);
+      border-radius:8px 8px 4px 4px;
+      display:flex;
+      align-items:flex-end;
+      justify-content:center;
+      color:#012;
+      font-weight:700;
+      box-shadow: 0 6px 14px rgba(6,12,20,0.5);
+      cursor:pointer;
+      transition: transform 220ms ease, box-shadow 220ms ease;
+      position:relative;
+      z-index:1;
+    }
+    .bar:hover{ transform: translateY(-6px) scale(1.02); }
+    .bar .label{
+      padding:6px 6px;
+      background: rgba(255,255,255,0.9);
+      color:#012;
+      border-radius:6px;
+      font-size:12px;
+      transform: translateY(-8px);
+      box-shadow: 0 4px 10px rgba(2,6,23,0.5);
+    }
+
+    .bar.inactive{
+      opacity:0.45;
+      filter:grayscale(0.2);
+    }
+
+    /* Tree view area is relative for absolute nodes and svg connectors */
+    .tree-wrap{
+      position:relative;
+      min-height: calc(var(--depth-step) * 4);
+      overflow:visible;
+      padding: 18px 12px 36px 12px;
+    }
+
+    .tree-canvas{
+      position:relative;
+      width:100%;
+      height:100%;
+      min-height: 220px;
+    }
+
+    svg.connector{
+      position:absolute;
+      left:0; top:0;
+      width:100%;
+      height:100%;
+      pointer-events:none;
+      overflow:visible;
+    }
+
+    .node{
+      width: var(--node-w);
+      height: var(--node-h);
+      border-radius:10px;
+      position:absolute;
+      transform-origin:center top;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      padding:8px;
+      box-shadow: 0 8px 16px rgba(2,6,23,0.5);
+      transition: transform 360ms cubic-bezier(.2,.9,.2,1), opacity 220ms;
+      cursor:pointer;
+      user-select:none;
+    }
+    .node .range{ font-weight:700; color:#022; background:white; padding:6px 8px; border-radius:6px; font-size:13px; }
+    .node.unsplit{ background: linear-gradient(180deg,#475569,#111827); border:1px solid rgba(255,255,255,0.03); }
+    .node.split{ background: linear-gradient(180deg,#f59e0b,#f97316); }
+    .node.solved{ background: linear-gradient(180deg,#34d399,#059669); color:#022; }
+    .node.merging{ background: linear-gradient(180deg,#60a5fa,#2563eb); }
+
+    .node.small-label{ font-size:12px; color: rgba(2,6,23,0.9); }
+
+    /* Floating clone for merge animation */
+    .clone{
+      position:absolute;
+      z-index:9999;
+      pointer-events:none;
+      transition: transform var(--dur) cubic-bezier(.2,.9,.2,1), opacity var(--dur);
+      will-change: transform;
+    }
+
+    /* Footer / legend */
+    .legend{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; color:var(--muted); font-size:13px; }
+    .legend .chip{ display:inline-flex; gap:8px; align-items:center; padding:6px 8px; border-radius:999px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.02); }
+    .color{ width:12px; height:12px; border-radius:4px; }
+
+    /* Accessibility focus outlines for bars and nodes when keyboard navigated */
+    .bar:focus, .node:focus{ outline: 3px solid rgba(6,182,212,0.14); outline-offset:3px; }
+  </style>
+</head>
+<body>
+  <main aria-labelledby="title" style="max-width:1200px; margin:0 auto;">
+    <div class="module" role="application" aria-label="Divide and Conquer interactive module">
+
+      <!-- Sidebar: Title, objective, controls, explanation -->
+      <aside class="sidebar" aria-labelledby="title">
+        <div>
+          <div id="title" class="title">Divide and Conquer — Visual & Interactive</div>
+          <div class="subtitle">Explore how a problem is split, solved, and combined (Merge-style).</div>
+        </div>
+
+        <div class="panel" aria-hidden="false">
+          <div style="font-weight:700; margin-bottom:6px;">Learning Objective</div>
+          <div class="small">
+            After interacting you'll be able to:
+            <ul style="margin:8px 0 0 18px; padding:0;">
+              <li>See how a problem is recursively split into subproblems</li>
+              <li>Observe leaf solving and the merging (combining) step</li>
+              <li>Relate the divide-and-conquer pattern to Merge Sort's split/merge phases</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="panel controls" aria-hidden="false">
+          <div style="font-weight:700;">Interaction Design (how to use)</div>
+          <div class="small">
+            - Click an array element to select a segment root, then click any node in the Tree to split it into two halves.<br>
+            - Use "Auto Play" to animate full recursive split → solve → merge process.<br>
+            - "Step" advances a single step. "Reset" returns to the unsplit root.
+          </div>
+
+          <div class="row">
+            <label for="arr-input" class="small">Array values (comma-separated)</label>
+          </div>
+          <div class="row">
+            <input id="arr-input" aria-label="Array values input" type="text" value="7,2,9,4,1,6,8,3">
+            <button id="apply" title="Apply">Apply</button>
+          </div>
+
+          <div class="row">
+            <button id="random" class="secondary" title="Randomize">Randomize</button>
+            <button id="reset" class="secondary" title="Reset">Reset</button>
+          </div>
+
+          <div class="row">
+            <button id="auto">Auto Play</button>
+            <button id="step" class="secondary">Step</button>
+            <button id="split-selected" class="secondary">Split Selected</button>
+            <button id="combine-selected" class="secondary">Combine Selected</button>
+          </div>
+
+          <div class="row">
+            <label for="speed" class="small">Speed</label>
+            <input id="speed" type="range" min="100" max="2000" value="700" style="flex:1;" aria-label="Animation speed in milliseconds">
+            <div class="small" id="speed-label">700 ms</div>
+          </div>
+
+          <div style="margin-top:4px;">
+            <div style="font-weight:700;">Interaction details</div>
+            <div class="small" style="margin-top:6px;">
+              - Clicking tree nodes triggers split when allowed.<br>
+              - Keyboard: Tab to focus nodes and press Enter to split/solve.<br>
+              - Visual feedback: nodes animate when created, change color to indicate split/solved/merging.
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" aria-hidden="false">
+          <div style="font-weight:700; margin-bottom:8px;">Layout Description</div>
+          <div class="small">
+            - Left column contains all controls and explanatory text (fixed width).<br>
+            - Right area contains the visualizer: top Array View, below Tree View with SVG connectors.<br>
+            - Spacing: 24px safe padding around viewport, 16px minimum gap between interactive controls.<br>
+            - Accessibility: all interactive items are focusable, labeled, and keyboard operable. Responsive layout stacks columns on small screens.
+          </div>
+        </div>
+
+        <div class="legend" aria-hidden="false" style="margin-top:auto;">
+          <div class="chip"><span class="color" style="background:#475569"></span> Unsplit</div>
+          <div class="chip"><span class="color" style="background:#f97316"></span> Split (waiting)</div>
+          <div class="chip"><span class="color" style="background:#34d399"></span> Solved</div>
+          <div class="chip"><span class="color" style="background:#60a5fa"></span> Merging</div>
+        </div>
+
+      </aside>
+
+      <!-- Visualizer -->
+      <section class="visual" aria-live="polite">
+        <div class="viz-card" aria-label="Array view card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="font-weight:700;">Array View</div>
+            <div class="small">Click bars to focus segments</div>
+          </div>
+          <div id="array-view" role="list" aria-label="Array elements" tabindex="0"></div>
+        </div>
+
+        <div class="viz-card tree-wrap" aria-label="Recursion tree view">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="font-weight:700;">Recursion Tree</div>
+            <div class="small">Click nodes to split / combine</div>
+          </div>
+
+          <div class="tree-canvas" id="tree-canvas" tabindex="0" aria-label="Divide and conquer tree"></div>
+          <svg class="connector" id="connector-svg" aria-hidden="true"></svg>
+        </div>
+
+      </section>
+    </div>
+  </main>
+
+  <script>
+    /*
+      Divide and Conquer Interactive Module
+      - Vanilla JS, self-contained
+      - Model: a tree of nodes representing [start,end) ranges on the array
+      - Actions: split node, solve leaf (single element), combine (merge children)
+      - Auto/Step runs recursive split -> solve -> merge with animations
+    */
+
+    (function(){
+      // ---- Utilities ----
+      function $(sel, root=document) { return root.querySelector(sel); }
+      function create(tag, attrs={}, parent=null){
+        const el = document.createElement(tag);
+        for (const k in attrs) {
+          if (k === 'text') el.textContent = attrs[k];
+          else el.setAttribute(k, attrs[k]);
+        }
+        if (parent) parent.appendChild(el);
+        return el;
+      }
+
+      // ---- DOM refs ----
+      const arrInput = $('#arr-input');
+      const applyBtn = $('#apply');
+      const randomBtn = $('#random');
+      const resetBtn = $('#reset');
+      const autoBtn = $('#auto');
+      const stepBtn = $('#step');
+      const splitBtn = $('#split-selected');
+      const combineBtn = $('#combine-selected');
+      const speedInput = $('#speed');
+      const speedLabel = $('#speed-label');
+      const arrayView = $('#array-view');
+      const treeCanvas = $('#tree-canvas');
+      const svg = $('#connector-svg');
+
+      // ---- State ----
+      let values = [];
+      let rootNode = null;
+      let nodesById = new Map();
+      let selectedNodeId = null;
+      let animating = false;
+      let stepQueue = []; // for step mode
+      let autoMode = false;
+
+      // Unique id generator
+      let idCounter = 1;
+      function nextId(){ return 'n'+(idCounter++); }
+
+      // ---- Node model ----
+      function makeNode(start, end, depth=0, parent=null){
+        const id = nextId();
+        const node = {
+          id, start, end, depth, parent,
+          children: null, // [left,right] when split
+          solved: false,
+          merging: false,
+          element: null,
+          solvedArray: null
+        };
+        nodesById.set(id, node);
+        return node;
+      }
+
+      // ---- Initialize ----
+      function parseInputToArray(text){
+        const parts = text.split(',').map(s=>s.trim()).filter(Boolean);
+        const parsed = parts.map(s=>Number(s));
+        if (parsed.some(v => Number.isNaN(v))) return null;
+        return parsed;
+      }
+
+      function setValuesFromInput(){
+        const parsed = parseInputToArray(arrInput.value);
+        if (!parsed || parsed.length === 0) {
+          alert('Please enter a comma-separated list of numbers (e.g. 4,1,7,3)');
+          return false;
+        }
+        values = parsed.slice(0, 16); // cap to 16 for clarity
+        arrInput.value = values.join(',');
+        resetTree();
+        return true;
+      }
+
+      function randomize(){
+        const n = Math.floor(Math.random()*8)+4;
+        values = Array.from({length:n}, (_,i)=> Math.floor(Math.random()*99)+1);
+        arrInput.value = values.join(',');
+        resetTree();
+      }
+
+      function resetTree(){
+        nodesById.clear();
+        idCounter = 1;
+        rootNode = makeNode(0, values.length, 0, null);
+        selectedNodeId = rootNode.id;
+        renderAll();
+      }
+
+      // ---- Rendering ----
+      function renderAll(){
+        renderArray();
+        renderTree();
+      }
+
+      function renderArray(){
+        arrayView.innerHTML = '';
+        const max = Math.max(...values, 1);
+        values.forEach((v,i) => {
+          const bar = create('div', { class: 'bar', tabindex:0, role:'button', 'aria-label':`value ${v} at index ${i}`, 'data-index': i }, arrayView);
+          const h = Math.max(24, Math.round((v / max) * 100));
+          bar.style.height = (60 + h) + 'px';
+          bar.innerHTML = `<div class="label">${v}</div>`;
+          bar.addEventListener('click', ()=> {
+            // Selecting part of array selects root node covering that index
+            focusNodeCoveringIndex(i);
+          });
+          bar.addEventListener('keydown', (e)=>{
+            if (e.key === 'Enter') focusNodeCoveringIndex(i);
+          });
+        });
+      }
+
+      function focusNodeCoveringIndex(i){
+        // find smallest node that contains i (prefer leaf)
+        let best = null;
+        for (const node of nodesById.values()){
+          if (node.start <= i && i < node.end){
+            if (!best || (node.end - node.start) < (best.end - best.start)) best = node;
+          }
+        }
+        if (best){
+          selectedNodeId = best.id;
+          ensureVisibleNode(best);
+          renderTree();
+        }
+      }
+
+      function ensureVisibleNode(node){
+        // scroll tree canvas so node is visible (if needed)
+        if (!node.element) return;
+        const rect = node.element.getBoundingClientRect();
+        const parentRect = treeCanvas.getBoundingClientRect();
+        if (rect.top < parentRect.top || rect.bottom > parentRect.bottom){
+          treeCanvas.scrollTop += (rect.top - parentRect.top) - 40;
+        }
+      }
+
+      function computeDepths(node, d=0){
+        node.depth = d;
+        if (node.children){
+          computeDepths(node.children[0], d+1);
+          computeDepths(node.children[1], d+1);
+        }
+      }
+
+      function allNodes(){
+        return Array.from(nodesById.values());
+      }
+
+      function renderTree(){
+        // Clear existing
+        treeCanvas.innerHTML = '';
+        svg.innerHTML = '';
+        if (!rootNode) return;
+
+        // Update depths and compute container height
+        computeDepths(rootNode, 0);
+        const maxDepth = Math.max(...allNodes().map(n => n.depth));
+        const height = (maxDepth+2) * parseInt(getComputedStyle(document.documentElement).getPropertyValue('--depth-step')) + 40;
+        treeCanvas.style.minHeight = height + 'px';
+        svg.style.height = treeCanvas.clientHeight + 'px';
+
+        // For position compute x by midpoint of [start,end) relative to array width
+        const canvasWidth = treeCanvas.clientWidth || treeCanvas.getBoundingClientRect().width || 600;
+        function xpos(node){
+          const total = values.length;
+          const mid = (node.start + node.end) / 2;
+          const frac = total ? (mid / total) : 0;
+          const pad = 12;
+          return Math.max(pad, Math.min(canvasWidth - parseInt(getComputedStyle(document.documentElement).getPropertyValue('--node-w')) - pad, Math.round(frac * (canvasWidth - 40))));
+        }
+
+        // Draw nodes
+        for (const node of allNodes()){
+          const el = create('div', { class: 'node', tabindex:0, role:'button', 'data-id': node.id }, treeCanvas);
+          node.element = el;
+          el.style.width = getComputedStyle(document.documentElement).getPropertyValue('--node-w');
+          el.style.height = getComputedStyle(document.documentElement).getPropertyValue('--node-h');
+          el.style.left = xpos(node) + 'px';
+          el.style.top = (node.depth * parseInt(getComputedStyle(document.documentElement).getPropertyValue('--depth-step'))) + 'px';
+
+          // CSS classes by state
+          el.classList.remove('unsplit','split','solved','merging');
+          if (node.merging) el.classList.add('merging');
+          else if (node.solved) el.classList.add('solved');
+          else if (node.children) el.classList.add('split');
+          else el.classList.add('unsplit');
+
+          // inner content: range + small label showing size or values if solved
+          const size = node.end - node.start;
+          let labelText = `[${node.start},${node.end})`;
+          el.innerHTML = `<div class="range">${labelText}</div>`;
+
+          if (node.solved){
+            const vals = node.solvedArray ? node.solvedArray.join(',') : '';
+            const small = create('div', { class:'small-label', text: vals }, el);
+            small.style.position = 'absolute';
+            small.style.bottom = '-18px';
+            small.style.background = 'transparent';
+            small.style.color = 'rgba(230,238,246,0.9)';
+            small.style.fontSize = '12px';
+          } else {
+            const small = create('div', { class:'small-label', text: `size ${size}` }, el);
+            small.style.position = 'absolute';
+            small.style.bottom = '-18px';
+          }
+
+          // highlight selected
+          el.style.boxShadow = selectedNodeId === node.id ? '0 12px 26px rgba(6,182,212,0.12)' : '';
+
+          // events
+          el.addEventListener('click', ()=>{
+            selectedNodeId = node.id;
+            renderTree();
+          });
+          el.addEventListener('keydown', (e)=>{
+            if (e.key === 'Enter'){
+              selectedNodeId = node.id;
+              renderTree();
+            }
+          });
+        }
+
+        // Draw connectors after nodes exist
+        for (const node of allNodes()){
+          if (node.children){
+            const p = node.element;
+            const c1 = node.children[0].element;
+            const c2 = node.children[1].element;
+            if (!p || !c1 || !c2) continue;
+            const pr = p.getBoundingClientRect();
+            const cr1 = c1.getBoundingClientRect();
+            const cr2 = c2.getBoundingClientRect();
+            const parentRect = treeCanvas.getBoundingClientRect();
+
+            const px = pr.left + pr.width/2 - parentRect.left;
+            const py = pr.top + pr.height - parentRect.top;
+
+            const x1 = cr1.left + cr1.width/2 - parentRect.left;
+            const y1 = cr1.top - parentRect.top;
+            const x2 = cr2.left + cr2.width/2 - parentRect.left;
+            const y2 = cr2.top - parentRect.top;
+
+            // create path p->c1 and p->c2
+            const path1 = document.createElementNS('http://www.w3.org/2000/svg','path');
+            path1.setAttribute('d', `M ${px} ${py} C ${px} ${ (py+y1)/2 } ${x1} ${ (py+y1)/2 } ${x1} ${y1}`);
+            path1.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+            path1.setAttribute('fill','none');
+            path1.setAttribute('stroke-width','2');
+            svg.appendChild(path1);
+
+            const path2 = document.createElementNS('http://www.w3.org/2000/svg','path');
+            path2.setAttribute('d', `M ${px} ${py} C ${px} ${ (py+y2)/2 } ${x2} ${ (py+y2)/2 } ${x2} ${y2}`);
+            path2.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+            path2.setAttribute('fill','none');
+            path2.setAttribute('stroke-width','2');
+            svg.appendChild(path2);
+          }
+        }
+      }
+
+      // ---- Actions: split, solve, combine ----
+      function canSplit(node){
+        return node && !node.children && (node.end - node.start) > 1 && !animating;
+      }
+
+      function splitNode(node){
+        if (!canSplit(node)) return;
+        node.children = [
+          makeNode(node.start, Math.floor((node.start+node.end)/2), node.depth+1, node),
+          makeNode(Math.floor((node.start+node.end)/2), node.end, node.depth+1, node)
+        ];
+        // animate creation: briefly scale from 0
+        renderTree();
+        animateNodeCreation(node.children[0].element);
+        animateNodeCreation(node.children[1].element);
+      }
+
+      function animateNodeCreation(el){
+        el.style.transform = 'scale(0.1) translateY(-8px)';
+        el.style.opacity = '0';
+        requestAnimationFrame(()=> {
+          el.style.transition = 'transform 380ms cubic-bezier(.2,.9,.2,1), opacity 260ms';
+          el.style.transform = '';
+          el.style.opacity = '1';
+          setTimeout(()=> { el.style.transition = ''; }, 420);
+        });
+      }
+
+      function solveLeaf(node){
+        if (!node) return;
+        if (node.children) return;
+        if (node.solved) return;
+        // Solve means set solvedArray; leaves get their single elements (or unsplit range)
+        node.solvedArray = values.slice(node.start, node.end);
+        node.solved = true;
+        renderTree();
+      }
+
+      function canCombine(node){
+        return node && node.children && node.children.every(c=>c.solved) && !node.solved && !animating;
+      }
+
+      function combineNode(node){
+        if (!canCombine(node)) return;
+        animating = true;
+        node.merging = true;
+        renderTree();
+
+        // Create floating clones of the children's values and animate them to parent's visual position
+        const left = node.children[0];
+        const right = node.children[1];
+
+        const sources = [];
+        // for each value in left.solvedArray and right.solvedArray, create clone element positioned at child node
+        const parentRect = treeCanvas.getBoundingClientRect();
+        const pEl = node.element;
+        const pRect = pEl.getBoundingClientRect();
+
+        const targetX = pRect.left + pRect.width/2;
+        const targetY = pRect.top + pRect.height/2;
+
+        const clones = [];
+        const dur = Math.max(400, Number(speedInput.value) || 700);
+        const allVals = left.solvedArray.concat(right.solvedArray);
+        let index = 0;
+
+        function makeCloneForValue(val, fromNode){
+          const fe = document.createElement('div');
+          fe.className = 'clone';
+          fe.style.setProperty('--dur', dur+'ms');
+          fe.textContent = val;
+          fe.style.padding = '6px 8px';
+          fe.style.borderRadius = '8px';
+          fe.style.background = '#fff';
+          fe.style.color = '#012';
+          fe.style.fontWeight = '700';
+          fe.style.boxShadow = '0 10px 22px rgba(2,6,23,0.35)';
+          document.body.appendChild(fe);
+
+          const fromRect = fromNode.element.getBoundingClientRect();
+          fe.style.left = (fromRect.left + fromRect.width/2) + 'px';
+          fe.style.top = (fromRect.top + fromRect.height/2) + 'px';
+          fe.style.transform = 'translate(-50%,-50%) scale(0.8)';
+          fe.style.opacity = '0.01';
+
+          // trigger move
+          requestAnimationFrame(()=> {
+            fe.style.transition = `transform ${dur}ms cubic-bezier(.2,.9,.2,1), opacity ${dur}ms`;
+            fe.style.transform = `translate(${targetX - (fromRect.left + fromRect.width/2)}px,${targetY - (fromRect.top + fromRect.height/2)}px) scale(0.84)`;
+            fe.style.opacity = '1';
+          });
+
+          clones.push(fe);
+        }
+
+        // create clones staggered for visual effect
+        left.solvedArray.forEach((v, i) => { setTimeout(()=> makeCloneForValue(v, left), i*120); });
+        right.solvedArray.forEach((v, i) => { setTimeout(()=> makeCloneForValue(v, right), (left.solvedArray.length + i)*120); });
+
+        // after animation completes, set parent's solvedArray to merged (sorted) array (like merge step)
+        setTimeout(()=> {
+          // simple merge assuming children arrays are sorted (they are)
+          node.solvedArray = mergeArrays(left.solvedArray, right.solvedArray);
+          node.solved = true;
+          node.merging = false;
+
+          // remove clones with fade
+          clones.forEach((c, i) => {
+            setTimeout(()=> {
+              c.style.opacity = '0';
+              setTimeout(()=> { c.remove(); }, 320);
+            }, i*40);
+          });
+
+          renderTree();
+          animating = false;
+        }, dur + (allVals.length * 120) + 80);
+      }
+
+      function mergeArrays(a,b){
+        const res = [];
+        let i=0,j=0;
+        while(i<a.length && j<b.length){
+          if (a[i] <= b[j]) res.push(a[i++]); else res.push(b[j++]);
+        }
+        while(i<a.length) res.push(a[i++]);
+        while(j<b.length) res.push(b[j++]);
+        return res;
+      }
+
+      // ---- Walk for auto play: split all then solve leaves then merge bottom-up ----
+      function prepareAutoQueue(){
+        stepQueue = [];
+        // 1) full split actions: traverse nodes and schedule splits when size>1
+        function scheduleSplits(node){
+          if (node.end - node.start <= 1) return;
+          stepQueue.push({type:'split', nodeId: node.id});
+          // we will consider children after split, but for queue we simulate by computing mid now
+          const mid = Math.floor((node.start+node.end)/2);
+          node.children = node.children || [ makeNode(node.start, mid, node.depth+1, node), makeNode(mid, node.end, node.depth+1, node) ];
+          scheduleSplits(node.children[0]);
+          scheduleSplits(node.children[1]);
+        }
+        // Work on a temporary copy so we don't mutate displayed tree prematurely
+        const tempRoot = makeNode(rootNode.start, rootNode.end, rootNode.depth, null);
+        scheduleSplits(tempRoot);
+
+        // Clear the temporary children we added to real nodes (they are just schedule placeholders)
+        // Rebuild actual tree to original single node
+        nodesById = new Map();
+        idCounter = 1;
+        rootNode = makeNode(0, values.length, 0, null);
+        renderTree();
+
+        // 2) Solve leaves: schedule solve for all final leaves (single elements)
+        // But we need a stable list of node ranges that will be leaves after all splits
+        function collectLeavesRanges(start, end, arr){
+          if (end - start <= 1){ arr.push({start,end}); return; }
+          const mid = Math.floor((start+end)/2);
+          collectLeavesRanges(start, mid, arr);
+          collectLeavesRanges(mid, end, arr);
+        }
+        const leaves = [];
+        collectLeavesRanges(rootNode.start, rootNode.end, leaves);
+        // For each leaf range, schedule a sequence: focus node by range, solve
+        // We'll map by locating the node id dynamically during execution.
+
+        // We'll push commands for merge steps bottom-up: schedule merges for each parent range size 2,4,... until full.
+        // For simplicity, we will compute all ranges by sizes doubling.
+        const merges = [];
+        let size = 2;
+        while(size <= values.length){
+          for(let s=0;s<values.length; s+=size){
+            const e = Math.min(s+size, values.length);
+            if (e - s > 1) merges.push({start:s,end:e});
+          }
+          size *= 2;
+        }
+
+        // Build a final queue:
+        const finalQueue = [];
+        // Re-split all nodes (actual operations) in order: perform recursive splits
+        function pushSplits(node){
+          if (node.end - node.start <= 1) return;
+          finalQueue.push({type:'split', nodeId: node.id});
+          const mid = Math.floor((node.start+node.end)/2);
+          node.children = [ makeNode(node.start, mid, node.depth+1, node), makeNode(mid, node.end, node.depth+1, node) ];
+          pushSplits(node.children[0]);
+          pushSplits(node.children[1]);
+        }
+        // Recreate root and generate splits
+        nodesById = new Map();
+        idCounter = 1;
+        rootNode = makeNode(0, values.length, 0, null);
+        pushSplits(rootNode);
+
+        // Now schedule solve for every leaf node in current nodesById
+        const currentLeaves = [];
+        for (const node of nodesById.values()){
+          if (!node.children) currentLeaves.push(node);
+        }
+        // ensure deterministic order left-to-right
+        currentLeaves.sort((a,b)=> (a.start - b.start));
+        currentLeaves.forEach(node => finalQueue.push({type:'solve', nodeId: node.id}));
+
+        // Then schedule combines bottom-up by depth descending
+        const parents = Array.from(nodesById.values()).filter(n => n.children);
+        // sort by depth desc so children combine before parent
+        parents.sort((a,b)=> b.depth - a.depth);
+        parents.forEach(node => finalQueue.push({type:'combine', nodeId: node.id}));
+
+        return finalQueue;
+      }
+
+      function runAuto(){
+        if (animating) return;
+        autoMode = true;
+        const queue = prepareAutoQueue();
+        let i=0;
+
+        function step(){
+          if (i >= queue.length){ autoMode = false; return; }
+          const cmd = queue[i++];
+          if (cmd.type === 'split'){
+            const node = nodesById.get(cmd.nodeId);
+            if (node && canSplit(node)) { splitNode(node); }
+            setTimeout(step, Number(speedInput.value) || 700);
+          } else if (cmd.type === 'solve'){
+            const node = nodesById.get(cmd.nodeId);
+            if (node && !node.children) solveLeaf(node);
+            setTimeout(step, Number(speedInput.value) || 700);
+          } else if (cmd.type === 'combine'){
+            const node = nodesById.get(cmd.nodeId);
+            if (node && canCombine(node)){
+              combineNode(node);
+              // wait for animation to finish
+              const wait = Math.max(500, Number(speedInput.value) || 700) + ( (node.children[0].solvedArray.length + node.children[1].solvedArray.length) * 120 );
+              setTimeout(step, wait + 60);
+            } else {
+              setTimeout(step, 120);
+            }
+          } else {
+            setTimeout(step, 120);
+          }
+        }
+        step();
+      }
+
+      // Step mode: execute one queued operation at a time (queue created by prepareAutoQueue but applied progressively)
+      function prepareStepQueue(){
+        if (animating) return;
+        stepQueue = prepareAutoQueue();
+      }
+
+      function doStep(){
+        if (!stepQueue || stepQueue.length === 0){
+          prepareStepQueue();
+          if (!stepQueue || stepQueue.length === 0) return;
+        }
+        const cmd = stepQueue.shift();
+        if (cmd.type === 'split'){
+          const node = nodesById.get(cmd.nodeId);
+          if (node && canSplit(node)) splitNode(node);
+        } else if (cmd.type === 'solve'){
+          const node = nodesById.get(cmd.nodeId);
+          if (node && !node.children) solveLeaf(node);
+        } else if (cmd.type === 'combine'){
+          const node = nodesById.get(cmd.nodeId);
+          if (node && canCombine(node)) combineNode(node);
+        }
+      }
+
+      // ---- Event wiring ----
+      applyBtn.addEventListener('click', ()=> { setValuesFromInput(); });
+      randomBtn.addEventListener('click', ()=> { randomize(); });
+      resetBtn.addEventListener('click', ()=> { setValuesFromInput(); });
+      speedInput.addEventListener('input', ()=> { speedLabel.textContent = speedInput.value + ' ms'; });
+
+      autoBtn.addEventListener('click', ()=> { if (!animating) runAuto(); });
+      stepBtn.addEventListener('click', ()=> { if (!animating) doStep(); });
+
+      splitBtn.addEventListener('click', ()=> {
+        const node = nodesById.get(selectedNodeId);
+        if (canSplit(node)) splitNode(node);
+      });
+
+      combineBtn.addEventListener('click', ()=> {
+        const node = nodesById.get(selectedNodeId);
+        if (canCombine(node)) combineNode(node);
+      });
+
+      // Keyboard shortcuts for accessibility
+      document.addEventListener('keydown', (e)=>{
+        if (e.key === ' ' && document.activeElement && document.activeElement.classList.contains('bar')){
+          document.activeElement.click();
+          e.preventDefault();
+        } else if (e.key === 's' && (e.ctrlKey || e.metaKey) ){
+          // Ctrl/Cmd+S -> split selected
+          const node = nodesById.get(selectedNodeId);
+          if (canSplit(node)) splitNode(node);
+          e.preventDefault();
+        } else if (e.key === 'm' && (e.ctrlKey || e.metaKey)){
+          const node = nodesById.get(selectedNodeId);
+          if (canCombine(node)) combineNode(node);
+          e.preventDefault();
+        }
+      });
+
+      // Initialization
+      if (!setValuesFromInput()) {
+        values = [7,2,9,4,1,6,8,3];
+        arrInput.value = values.join(',');
+        resetTree();
+      } else {
+        resetTree();
+      }
+
+      // initial render
+      renderAll();
+
+      // Resize observer to re-render connectors if container changes
+      const ro = new ResizeObserver(()=> renderTree());
+      ro.observe(treeCanvas);
+      ro.observe(arrayView);
+
+    })();
+  </script>
+</body>
+</html>

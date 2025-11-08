@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Binary Tree Explorer</title>
+  <style>
+    /* Box model and safe-area */
+    :root {
+      --safe: 24px; /* safe area margin */
+      --gap: 16px; /* minimum spacing between interactive elements */
+      --panel-width: 360px;
+      --node-radius: 20;
+      --depth-gap: 90px;
+      --accent: #2b7cff;
+      --muted: #6b7280;
+      --bg: #fbfdff;
+      --danger: #e53e3e;
+      --success: #16a34a;
+      --pulse: rgba(43,124,255,0.15);
+    }
+    * { box-sizing: border-box; }
+    html,body { height: 100%; margin:0; background: var(--bg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color: #0f172a; }
+    body {
+      padding: var(--safe);
+      display: flex;
+      align-items: stretch;
+      min-height: 100vh;
+    }
+
+    /* Layout */
+    .container {
+      display: grid;
+      grid-template-columns: var(--panel-width) 1fr;
+      gap: var(--gap);
+      width: 100%;
+      align-items: start;
+    }
+
+    /* Panel */
+    .panel {
+      background: white;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 6px 20px rgba(17,24,39,0.06);
+      min-height: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+    .panel h2 {
+      margin: 0 0 6px 0;
+      font-size: 18px;
+    }
+    .panel p.small { margin: 0; color: var(--muted); font-size: 13px; }
+
+    label { font-size: 13px; color: #0f172a; display:block; margin-bottom:6px; }
+
+    input[type="number"], input[type="range"], select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #e6e9ef;
+      font-size: 14px;
+      background: #fff;
+    }
+    .controls { display: grid; gap: var(--gap); }
+
+    .row {
+      display:flex;
+      gap: var(--gap);
+      align-items: center;
+    }
+    .row .flex { flex:1; }
+
+    button {
+      background: linear-gradient(180deg,#2b7cff,#2166d6);
+      color: white;
+      border: none;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform .08s ease, box-shadow .08s;
+      box-shadow: 0 6px 18px rgba(43,124,255,0.14);
+    }
+    button:active { transform: translateY(1px); }
+    button.secondary {
+      background: white;
+      color: #0f172a;
+      border: 1px solid #e6e9ef;
+      box-shadow: none;
+      font-weight: 600;
+    }
+    button.warn {
+      background: linear-gradient(180deg,#ff7a7a,#ff4a4a);
+      box-shadow: 0 6px 18px rgba(255,74,74,0.12);
+    }
+
+    .small-btn {
+      padding: 8px 10px;
+      font-size: 13px;
+      border-radius: 8px;
+    }
+
+    .stats {
+      display:flex;
+      gap: var(--gap);
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* Canvas area */
+    .canvas-wrap {
+      background: linear-gradient(180deg,#ffffff,#fbfdff);
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(17,24,39,0.04);
+      padding: 14px;
+      min-height: 480px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display:flex;
+      gap: var(--gap);
+      align-items:center;
+      margin-bottom: 12px;
+    }
+
+    .explain {
+      background: #f8fafc;
+      color: #0f172a;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height:1.35;
+    }
+
+    /* SVG nodes and lines */
+    svg {
+      width: 100%;
+      height: calc(100% - 60px);
+      display: block;
+    }
+    .edge {
+      stroke: #c7d2fe;
+      stroke-width: 2;
+      fill: none;
+      transition: stroke .18s;
+    }
+    .edge.active {
+      stroke: rgba(43,124,255,0.6);
+      stroke-width: 3;
+    }
+    .node {
+      cursor: default;
+      transition: transform .28s cubic-bezier(.2,.9,.25,1), opacity .2s;
+    }
+    .circle {
+      fill: white;
+      stroke: #c7d2fe;
+      stroke-width: 2;
+      transition: stroke .16s, fill .16s, r .12s;
+      filter: drop-shadow(0 6px 18px rgba(17,24,39,0.06));
+    }
+    .circle.highlight {
+      fill: var(--pulse);
+      stroke: var(--accent);
+      stroke-width: 3;
+    }
+    .circle.inserted {
+      animation: pop .36s ease forwards;
+      stroke: var(--success);
+    }
+    .label {
+      font-size: 12px;
+      fill: #071133;
+      font-weight: 700;
+      pointer-events: none;
+      transition: fill .12s;
+    }
+    .label.dim { fill: #94a3b8; font-weight:600; }
+
+    @keyframes pop {
+      0% { transform: scale(.6); opacity: 0; }
+      60% { transform: scale(1.12); opacity: 1; }
+      100% { transform: scale(1); }
+    }
+
+    /* traversal highlight */
+    .node.visited .circle {
+      fill: #fff3e6;
+      stroke: #ff9900;
+      stroke-width: 3;
+    }
+    .node.current .circle {
+      fill: #e6f0ff;
+      stroke: var(--accent);
+      stroke-width: 3;
+    }
+
+    /* responsive */
+    @media (max-width: 980px) {
+      .container { grid-template-columns: 1fr; }
+      .panel { order: 2; }
+      .canvas-wrap { order: 1; min-height: 540px; }
+    }
+
+    /* small accessibility tweaks */
+    .sr-only { position: absolute; left:-9999px; width:1px; height:1px; top:auto; overflow:hidden; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .note { font-size: 12px; color: #475569; }
+  </style>
+</head>
+<body>
+  <div class="container" role="main" aria-label="Binary Tree Interactive Module">
+    <!-- Left Panel: Controls and Explanation -->
+    <aside class="panel" aria-labelledby="title">
+      <div>
+        <h2 id="title">Binary Tree — Interactive Explorer</h2>
+        <p class="small">Build a binary search tree, visualize structure, and watch traversals animate step-by-step.</p>
+      </div>
+
+      <div class="controls" aria-live="polite">
+        <div>
+          <label for="valueInput">Node value (integer)</label>
+          <input id="valueInput" type="number" value="50" aria-label="Node value to insert" />
+        </div>
+
+        <div class="row">
+          <button id="insertBtn" class="small-btn">Insert</button>
+          <button id="deleteBtn" class="small-btn secondary">Delete</button>
+          <button id="clearBtn" class="small-btn warn">Clear</button>
+        </div>
+
+        <div>
+          <label for="randomCount">Random fill</label>
+          <div class="row">
+            <input id="randomCount" type="number" value="6" min="1" max="20" aria-label="Number of random nodes" />
+            <button id="randomBtn" class="small-btn secondary">Fill</button>
+          </div>
+        </div>
+
+        <div aria-label="Traversal controls">
+          <label>Traversals</label>
+          <div class="row">
+            <select id="traversalSelect" aria-label="Choose traversal">
+              <option value="inorder">In-order</option>
+              <option value="preorder">Pre-order</option>
+              <option value="postorder">Post-order</option>
+              <option value="level">Level-order (BFS)</option>
+            </select>
+            <button id="traverseBtn" class="small-btn">Animate</button>
+          </div>
+          <div class="row" style="align-items:center;">
+            <label style="margin:0;">Speed</label>
+            <input id="speedRange" type="range" min="50" max="1200" value="350" />
+            <span id="speedVal" class="muted" style="min-width:48px; text-align:right;">350 ms</span>
+          </div>
+        </div>
+
+        <div class="stats" aria-live="polite">
+          <div>Nodes: <strong id="statNodes">0</strong></div>
+          <div>Height: <strong id="statHeight">0</strong></div>
+          <div>Leaves: <strong id="statLeaves">0</strong></div>
+        </div>
+
+        <div class="explain" style="margin-top:8px;">
+          <strong>How to use</strong>
+          <p class="note" style="margin:6px 0 0 0;">
+            Insert integers to build the tree (duplicates are ignored). Click "Animate" to watch traversals highlight nodes in visiting order. Height, node count, and leaves update instantly.
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right: Visualization -->
+    <section class="canvas-wrap" aria-label="Binary tree visualization">
+      <div class="toolbar" role="toolbar" aria-label="Canvas toolbar">
+        <div class="muted">Canvas</div>
+        <div style="flex:1"></div>
+        <button id="autoLayoutBtn" class="secondary small-btn">Auto-layout</button>
+        <button id="exportBtn" class="secondary small-btn">Copy SVG</button>
+      </div>
+
+      <svg id="svgCanvas" role="img" aria-label="Binary tree SVG" focusable="false">
+        <!-- Edges and nodes injected by script -->
+      </svg>
+
+      <div style="margin-top:12px; display:flex; gap:12px; align-items:center;">
+        <div style="flex:1; font-size:13px;" aria-live="polite">
+          <span class="muted">Status:</span>
+          <span id="statusText">Empty tree. Insert nodes to begin.</span>
+        </div>
+        <div style="font-size:13px; color:var(--muted)">Tip: Use wide screens for best experience.</div>
+      </div>
+      <div class="sr-only" aria-live="polite" id="ariaAnnouncements"></div>
+    </section>
+  </div>
+
+  <!-- Design Plan and details (inline for documentation & teaching) -->
+  <div style="position:fixed; right:var(--safe); bottom:var(--safe); width:320px; max-width:80vw; background:rgba(255,255,255,0.95); border-radius:10px; padding:12px; box-shadow:0 6px 18px rgba(2,6,23,0.08); font-size:13px;">
+    <strong>Design Plan</strong>
+    <div style="margin-top:8px; font-weight:700;">Concept Title:</div>
+    <div class="muted" style="margin-bottom:6px;">Binary Tree — structure & traversals (BST insert demo)</div>
+
+    <div style="font-weight:700;">Learning Objective:</div>
+    <div class="muted" style="margin-bottom:6px;">
+      Build and manipulate a binary search tree. Understand structural properties (height, leaves, size) and internalize traversal orders via animated step-throughs.
+    </div>
+
+    <div style="font-weight:700;">Interaction Design:</div>
+    <div class="muted" style="margin-bottom:6px;">
+      - Click "Insert" with a value: the tree inserts the node following BST rules. The path from the root is highlighted step-by-step, and the new node pops into place.<br>
+      - "Delete" removes a node (BST delete rules). Removal animates (fade/scale) and tree reflows.<br>
+      - "Random fill" generates several nodes quickly to create a richer tree.<br>
+      - Select a traversal and "Animate": nodes are highlighted in visiting order with timing controlled by the speed slider. The currently visited node uses a distinct color and screen-reader announcements are made for accessibility.<br>
+      - Visual feedback: node and edge highlights, pop/scale animations on insert, smooth position transitions when layout changes, and an animated traversal sequence that reinforces how each traversal visits nodes.
+    </div>
+
+    <div style="font-weight:700;">Layout Description:</div>
+    <div class="muted">
+      - Left panel (controls) fixed-width with 24px safe margins and 16px spacing between controls.<br>
+      - Right area is a responsive SVG canvas that auto-computes and animates node positions. Depth determines vertical spacing (90px) and in-order index determines horizontal placement.<br>
+      - Accessibility: accessible labels, aria-live updates for traversal steps, keyboard-focusable controls, responsive layout stacks on small screens.<br>
+      - Visual balance: controls are compact for fast experimentation; canvas maximizes space for clear tree visuals.
+    </div>
+  </div>
+
+  <script>
+    /****************************************************************
+     * Binary Tree Interactive Module (vanilla JS)
+     * - BST insertion/deletion
+     * - Animated traversals (in/pre/post/level)
+     * - SVG render with auto layout and smooth transitions
+     ****************************************************************/
+
+    // Basic tree node
+    class TreeNode {
+      constructor(val) {
+        this.val = val;
+        this.left = null;
+        this.right = null;
+        this.id = TreeNode._nextId++;
+      }
+    }
+    TreeNode._nextId = 1;
+
+    // Module state
+    const state = {
+      root: null,
+      nodesMap: new Map(), // id -> node
+      layout: new Map(),   // id -> {x,y}
+      svgSize: { w: 800, h: 600 }
+    };
+
+    // DOM refs
+    const svg = document.getElementById('svgCanvas');
+    const insertBtn = document.getElementById('insertBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const valueInput = document.getElementById('valueInput');
+    const clearBtn = document.getElementById('clearBtn');
+    const randomBtn = document.getElementById('randomBtn');
+    const randomCount = document.getElementById('randomCount');
+    const traversalSelect = document.getElementById('traversalSelect');
+    const traverseBtn = document.getElementById('traverseBtn');
+    const speedRange = document.getElementById('speedRange');
+    const speedVal = document.getElementById('speedVal');
+    const statNodes = document.getElementById('statNodes');
+    const statHeight = document.getElementById('statHeight');
+    const statLeaves = document.getElementById('statLeaves');
+    const statusText = document.getElementById('statusText');
+    const autoLayoutBtn = document.getElementById('autoLayoutBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const ariaAnnouncements = document.getElementById('ariaAnnouncements');
+
+    // Event wiring
+    insertBtn.addEventListener('click', () => {
+      const v = parseInt(valueInput.value, 10);
+      if (Number.isNaN(v)) {
+        announce('Please enter a valid integer.');
+        return;
+      }
+      insertValue(v);
+    });
+
+    deleteBtn.addEventListener('click', () => {
+      const v = parseInt(valueInput.value, 10);
+      if (Number.isNaN(v)) {
+        announce('Please enter a valid integer to delete.');
+        return;
+      }
+      deleteValue(v);
+    });
+
+    clearBtn.addEventListener('click', () => {
+      clearTree();
+    });
+
+    randomBtn.addEventListener('click', () => {
+      const n = parseInt(randomCount.value, 10) || 6;
+      fillRandom(Math.min(Math.max(n,1), 20));
+    });
+
+    traverseBtn.addEventListener('click', () => {
+      const mode = traversalSelect.value;
+      runTraversal(mode);
+    });
+
+    speedRange.addEventListener('input', () => {
+      speedVal.textContent = speedRange.value + ' ms';
+    });
+
+    autoLayoutBtn.addEventListener('click', () => {
+      render(true);
+      announce('Auto layout performed.');
+    });
+
+    exportBtn.addEventListener('click', () => {
+      copySVG();
+      announce('SVG copied to clipboard (if supported).');
+    });
+
+    // Helpers
+    function announce(msg) {
+      statusText.textContent = msg;
+      ariaAnnouncements.textContent = msg;
+    }
+
+    // BST insertion with animated path highlight
+    async function insertValue(val) {
+      if (!state.root) {
+        state.root = new TreeNode(val);
+        state.nodesMap.set(state.root.id, state.root);
+        updateStats();
+        render(true, {newNodeId: state.root.id});
+        announce(`Inserted ${val} as root.`);
+        return;
+      }
+      // search and insert
+      let current = state.root;
+      const path = [];
+      while (current) {
+        path.push(current);
+        if (val === current.val) {
+          announce(`Value ${val} already exists. Duplicates ignored.`);
+          await flashNode(current.id, 'highlight', 500);
+          return;
+        } else if (val < current.val) {
+          if (current.left) current = current.left;
+          else {
+            current.left = new TreeNode(val);
+            state.nodesMap.set(current.left.id, current.left);
+            path.push(current.left);
+            updateStats();
+            await animateInsertionPath(path, current.left.id);
+            announce(`Inserted ${val}.`);
+            return;
+          }
+        } else {
+          if (current.right) current = current.right;
+          else {
+            current.right = new TreeNode(val);
+            state.nodesMap.set(current.right.id, current.right);
+            path.push(current.right);
+            updateStats();
+            await animateInsertionPath(path, current.right.id);
+            announce(`Inserted ${val}.`);
+            return;
+          }
+        }
+      }
+    }
+
+    async function animateInsertionPath(pathNodes, newNodeId) {
+      // Render intermediate steps highlighting path
+      render(false);
+      for (let i = 0; i < pathNodes.length - 1; i++) {
+        highlightNode(pathNodes[i].id);
+        await delay(220);
+        unhighlightNode(pathNodes[i].id);
+      }
+      // Render final with new node popping
+      render(true, {newNodeId});
+      await delay(420);
+      unhighlightNode(newNodeId);
+      render(true);
+    }
+
+    // Delete value (BST delete)
+    function deleteValue(val) {
+      if (!state.root) {
+        announce('Tree is empty.');
+        return;
+      }
+      const result = bstDelete(state.root, val);
+      if (!result.found) {
+        announce(`Value ${val} not found.`);
+        return;
+      }
+      state.root = result.root;
+      // rebuild nodesMap
+      state.nodesMap.clear();
+      if (state.root) rebuildMap(state.root);
+      updateStats();
+      render(true);
+      announce(`Deleted ${val}.`);
+    }
+
+    function bstDelete(root, val) {
+      // returns {root: newRoot, found: boolean}
+      let found = false;
+      function remove(node, val) {
+        if (!node) return null;
+        if (val < node.val) {
+          node.left = remove(node.left, val);
+          return node;
+        } else if (val > node.val) {
+          node.right = remove(node.right, val);
+          return node;
+        } else {
+          found = true;
+          // node to delete
+          if (!node.left && !node.right) return null;
+          if (!node.left) return node.right;
+          if (!node.right) return node.left;
+          // both children: replace with in-order successor
+          let succParent = node;
+          let succ = node.right;
+          while (succ.left) {
+            succParent = succ;
+            succ = succ.left;
+          }
+          node.val = succ.val;
+          node.id = succ.id; // carry id for visual continuity
+          // remove successor
+          if (succParent.left === succ) succParent.left = succ.right;
+          else succParent.right = succ.right;
+          return node;
+        }
+      }
+      const newRoot = remove(root, val);
+      return { root: newRoot, found };
+    }
+
+    function rebuildMap(node) {
+      if (!node) return;
+      state.nodesMap.set(node.id, node);
+      rebuildMap(node.left);
+      rebuildMap(node.right);
+    }
+
+    // Random fill
+    function fillRandom(n) {
+      clearTree(false);
+      const vals = new Set();
+      while (vals.size < n) {
+        vals.add(Math.floor(Math.random() * 99) + 1);
+      }
+      const arr = Array.from(vals);
+      // insert with small delay for visible effect
+      (async () => {
+        for (let v of arr) {
+          await delay(120);
+          await insertValue(v);
+        }
+      })();
+    }
+
+    // Traversals animations
+    async function runTraversal(mode) {
+      if (!state.root) {
+        announce('Tree is empty.');
+        return;
+      }
+      const order = [];
+      if (mode === 'inorder') inorder(state.root, order);
+      else if (mode === 'preorder') preorder(state.root, order);
+      else if (mode === 'postorder') postorder(state.root, order);
+      else if (mode === 'level') bfs(state.root, order);
+
+      if (!order.length) return;
+      announce(`${capitalize(mode)} traversal started.`);
+      render(true); // ensure layout is up to date
+      for (let i = 0; i < order.length; i++) {
+        const id = order[i].id;
+        markCurrent(id);
+        announce(`Visit ${order[i].val}`);
+        await delay(parseInt(speedRange.value, 10));
+        markVisited(id);
+        await delay(120);
+      }
+      announce(`${capitalize(mode)} traversal complete.`);
+      // clear current markers after a short pause
+      await delay(300);
+      clearMarkers();
+    }
+
+    function inorder(node, out) {
+      if (!node) return;
+      inorder(node.left, out);
+      out.push(node);
+      inorder(node.right, out);
+    }
+    function preorder(node, out) {
+      if (!node) return;
+      out.push(node);
+      preorder(node.left, out);
+      preorder(node.right, out);
+    }
+    function postorder(node, out) {
+      if (!node) return;
+      postorder(node.left, out);
+      postorder(node.right, out);
+      out.push(node);
+    }
+    function bfs(root, out) {
+      const q = [root];
+      while (q.length) {
+        const n = q.shift();
+        out.push(n);
+        if (n.left) q.push(n.left);
+        if (n.right) q.push(n.right);
+      }
+    }
+
+    // UI rendering
+    function clearTree(renderNow=true) {
+      state.root = null;
+      state.nodesMap.clear();
+      state.layout.clear();
+      updateStats();
+      if (renderNow) render(true);
+      announce('Cleared tree.');
+    }
+
+    function updateStats() {
+      const nodes = state.nodesMap.size;
+      statNodes.textContent = nodes;
+      statHeight.textContent = state.root ? treeHeight(state.root) : 0;
+      statLeaves.textContent = state.root ? leafCount(state.root) : 0;
+    }
+
+    function treeHeight(node) {
+      if (!node) return 0;
+      return 1 + Math.max(treeHeight(node.left), treeHeight(node.right));
+    }
+    function leafCount(node) {
+      if (!node) return 0;
+      if (!node.left && !node.right) return 1;
+      return leafCount(node.left) + leafCount(node.right);
+    }
+
+    // SVG building
+    function render(forceLayout=false, opts={}) {
+      // Resize svg to container
+      const rect = svg.getBoundingClientRect();
+      state.svgSize.w = Math.max(rect.width, 300);
+      state.svgSize.h = Math.max(rect.height, 300);
+      svg.innerHTML = ''; // clear
+
+      if (!state.root) {
+        // draw hint text
+        const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+        txt.setAttribute('x', state.svgSize.w/2);
+        txt.setAttribute('y', 60);
+        txt.setAttribute('text-anchor', 'middle');
+        txt.setAttribute('fill', '#94a3b8');
+        txt.setAttribute('font-size', '14');
+        txt.textContent = 'Empty tree — insert nodes to visualize';
+        svg.appendChild(txt);
+        return;
+      }
+
+      // compute layout (in-order spacing)
+      computeLayout(state.root, forceLayout);
+
+      // draw edges first
+      drawEdges(state.root);
+
+      // draw nodes (so they are on top)
+      drawNodes(state.root, opts);
+    }
+
+    function computeLayout(root, force) {
+      // assign x via in-order index; y via depth
+      let index = 0;
+      const gapX = Math.max(60, state.svgSize.w / (Math.max(1, state.nodesMap.size) + 1));
+      function inorderPos(node, depth) {
+        if (!node) return;
+        inorderPos(node.left, depth+1);
+        index++;
+        const x = Math.round(index * gapX);
+        const y = Math.round(40 + depth * parseInt(getComputedStyle(document.documentElement).getPropertyValue('--depth-gap')) || 90);
+        state.layout.set(node.id, {x, y, depth});
+        inorderPos(node.right, depth+1);
+      }
+      inorderPos(root, 0);
+      // adjust height of svg area if needed
+      const maxDepth = Math.max(...Array.from(state.layout.values()).map(v => v.depth));
+      const requiredH = 60 + (maxDepth + 1) * 90;
+      svg.style.height = Math.max(requiredH, 200) + 'px';
+    }
+
+    function drawEdges(root) {
+      if (!root) return;
+      const edgesGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+      edgesGroup.setAttribute('class','edges');
+      svg.appendChild(edgesGroup);
+      function connect(parent) {
+        if (!parent) return;
+        const ppos = state.layout.get(parent.id);
+        if (parent.left) {
+          const cpos = state.layout.get(parent.left.id);
+          const path = makeCurve(ppos.x, ppos.y, cpos.x, cpos.y);
+          const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+          p.setAttribute('d', path);
+          p.setAttribute('class','edge');
+          p.setAttribute('data-from', parent.id);
+          p.setAttribute('data-to', parent.left.id);
+          edgesGroup.appendChild(p);
+          connect(parent.left);
+        }
+        if (parent.right) {
+          const cpos = state.layout.get(parent.right.id);
+          const path = makeCurve(ppos.x, ppos.y, cpos.x, cpos.y);
+          const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+          p.setAttribute('d', path);
+          p.setAttribute('class','edge');
+          p.setAttribute('data-from', parent.id);
+          p.setAttribute('data-to', parent.right.id);
+          edgesGroup.appendChild(p);
+          connect(parent.right);
+        }
+      }
+      connect(root);
+    }
+
+    function drawNodes(root, opts={}) {
+      const nodesGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+      nodesGroup.setAttribute('class','nodes');
+      svg.appendChild(nodesGroup);
+
+      function draw(node) {
+        if (!node) return;
+        const pos = state.layout.get(node.id);
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('class','node');
+        g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+        g.setAttribute('data-id', node.id);
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circle.setAttribute('r', parseInt(getComputedStyle(document.documentElement).getPropertyValue('--node-radius')) || 20);
+        circle.setAttribute('class','circle');
+        circle.setAttribute('cx', 0);
+        circle.setAttribute('cy', 0);
+        circle.setAttribute('fill', 'white');
+        g.appendChild(circle);
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('class','label');
+        label.setAttribute('text-anchor','middle');
+        label.setAttribute('dy','4');
+        label.textContent = node.val;
+        g.appendChild(label);
+
+        // interactions: clicking a node selects its value into input and briefly highlights
+        g.addEventListener('click', (e) => {
+          valueInput.value = node.val;
+          flashNode(node.id, 'highlight', 600);
+          announce(`Selected ${node.val}`);
+          e.stopPropagation();
+        });
+        g.addEventListener('mouseenter', () => {
+          circle.classList.add('highlight');
+        });
+        g.addEventListener('mouseleave', () => {
+          circle.classList.remove('highlight');
+        });
+
+        // class for just-inserted node
+        if (opts.newNodeId === node.id) {
+          circle.classList.add('inserted');
+        }
+
+        nodesGroup.appendChild(g);
+
+        // draw children
+        draw(node.left);
+        draw(node.right);
+      }
+      draw(root);
+    }
+
+    function makeCurve(x1,y1,x2,y2) {
+      const midX = (x1 + x2) / 2;
+      const dy = Math.abs(y2 - y1) / 2;
+      // cubic bezier for smoother curves
+      return `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
+    }
+
+    // Visual helpers
+    function highlightNode(id) {
+      const g = svg.querySelector(`g.node[data-id="${id}"]`);
+      if (g) {
+        g.classList.add('current');
+        const circle = g.querySelector('.circle');
+        if (circle) circle.classList.add('highlight');
+        // highlight incoming edge if any
+        const edge = svg.querySelector(`path[data-to="${id}"]`);
+        if (edge) edge.classList.add('active');
+      }
+    }
+    function unhighlightNode(id) {
+      const g = svg.querySelector(`g.node[data-id="${id}"]`);
+      if (g) {
+        g.classList.remove('current');
+        const circle = g.querySelector('.circle');
+        if (circle) circle.classList.remove('highlight');
+        const edge = svg.querySelector(`path[data-to="${id}"]`);
+        if (edge) edge.classList.remove('active');
+      }
+    }
+
+    function markCurrent(id) {
+      clearMarkers(); // keep single current
+      const g = svg.querySelector(`g.node[data-id="${id}"]`);
+      if (g) {
+        g.classList.add('current');
+        const edge = svg.querySelector(`path[data-to="${id}"]`);
+        if (edge) edge.classList.add('active');
+      }
+    }
+    function markVisited(id) {
+      const g = svg.querySelector(`g.node[data-id="${id}"]`);
+      if (g) {
+        g.classList.remove('current');
+        g.classList.add('visited');
+        const c = g.querySelector('.circle');
+        if (c) c.classList.add('highlight');
+        const edge = svg.querySelector(`path[data-to="${id}"]`);
+        if (edge) edge.classList.remove('active');
+      }
+    }
+    function clearMarkers() {
+      svg.querySelectorAll('g.node').forEach(g => {
+        g.classList.remove('current','visited');
+        const c = g.querySelector('.circle');
+        if (c) c.classList.remove('highlight','inserted');
+      });
+      svg.querySelectorAll('path.edge').forEach(p => p.classList.remove('active'));
+    }
+
+    function flashNode(id, cls='highlight', ms=400) {
+      return new Promise(resolve => {
+        const g = svg.querySelector(`g.node[data-id="${id}"]`);
+        if (!g) { resolve(); return; }
+        g.classList.add(cls);
+        setTimeout(()=> {
+          g.classList.remove(cls);
+          resolve();
+        }, ms);
+      });
+    }
+
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function capitalize(s) {
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    // Clipboard export
+    function copySVG() {
+      const serializer = new XMLSerializer();
+      const str = serializer.serializeToString(svg);
+      const blob = new Blob([str], {type: 'image/svg+xml'});
+      const data = [new ClipboardItem({'image/svg+xml': blob})];
+      if (navigator.clipboard && navigator.clipboard.write) {
+        navigator.clipboard.write(data).catch(()=>{ /* ignore */ });
+      } else {
+        // fallback: open in new window
+        const w = window.open();
+        w.document.write(str);
+        w.document.close();
+      }
+    }
+
+    // initial render
+    render(true);
+    announce('Interactive Binary Tree ready.');
+
+    // ensure responsive re-render on resize
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => render(true), 140);
+    });
+
+    // Accessible keyboard: Enter key on input triggers insert
+    valueInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        insertBtn.click();
+      }
+    });
+
+  </script>
+</body>
+</html>

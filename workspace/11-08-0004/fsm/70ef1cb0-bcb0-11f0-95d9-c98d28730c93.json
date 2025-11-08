@@ -1,0 +1,129 @@
+{
+  "topic": "Fibonacci Interactive Module",
+  "description": "Models the interactive states and transitions of a Fibonacci sequence visualizer (controls: step forward/back, autoplay, slider/goto, reset) including animations for adding/removing terms and convergence/ratio updates.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "renderAll / syncControls (display current sequence & visuals)",
+      "onExit": "none",
+      "on": {
+        "CLICK_STEP_FORWARD": "animating_add",
+        "CLICK_STEP_BACK": "animating_remove",
+        "CLICK_PLAY_PAUSE": "playing",
+        "SLIDER_CHANGE": "idle",
+        "GOTO_CHANGE": "jumping",
+        "CLICK_RESET": "idle",
+        "KEY_RIGHT": "animating_add",
+        "KEY_LEFT": "animating_remove",
+        "KEY_SPACE": "playing"
+      }
+    },
+    {
+      "name": "playing",
+      "onEnter": "startInterval (setInterval -> INTERVAL_TICK every 1100ms); update play button ARIA/text",
+      "onExit": "clearInterval (stop autoplay); update play button ARIA/text",
+      "on": {
+        "INTERVAL_TICK": "animating_add",
+        "CLICK_PLAY_PAUSE": "idle",
+        "CLICK_STEP_BACK": "animating_remove",
+        "CLICK_STEP_FORWARD": "animating_add",
+        "SLIDER_CHANGE": "playing",
+        "GOTO_CHANGE": "jumping",
+        "CLICK_RESET": "playing",
+        "KEY_RIGHT": "animating_add",
+        "KEY_LEFT": "animating_remove",
+        "KEY_SPACE": "idle"
+      }
+    },
+    {
+      "name": "animating_add",
+      "onEnter": "setAnimatingTrue(); animateAddNext() (compute sizes, run slide/fade animation, schedule finalization)",
+      "onExit": "setAnimatingFalse(); syncControls(); renderList(); renderBars(); updateRatioDisplay(); renderCombineStageInitial()",
+      "on": {
+        "ANIMATION_DONE": "playing_or_idle_after_add",
+        "CLICK_PLAY_PAUSE": "playing (toggle state recorded, but animation continues until ANIMATION_DONE)",
+        "SLIDER_CHANGE": "animating_add",
+        "CLICK_RESET": "animating_add"
+      }
+    },
+    {
+      "name": "animating_remove",
+      "onEnter": "setAnimatingTrue(); animateRemoveLast() (fade out and decrement count, schedule finalization)",
+      "onExit": "setAnimatingFalse(); syncControls(); renderList(); renderBars(); updateRatioDisplay(); renderCombineStageInitial()",
+      "on": {
+        "ANIMATION_DONE": "playing_or_idle_after_remove",
+        "CLICK_PLAY_PAUSE": "playing (toggle state recorded, animation completes)",
+        "SLIDER_CHANGE": "animating_remove",
+        "CLICK_RESET": "animating_remove"
+      }
+    },
+    {
+      "name": "jumping",
+      "onEnter": "startJumpSequence() (async: repeatedly perform animateAddNext or animateRemoveLast until goto target reached; uses performStepForwardWithPromise for forward steps)",
+      "onExit": "ensure animating=false; syncControls(); renderAll()",
+      "on": {
+        "JUMP_STEP": "animating_add_or_remove_during_jump",
+        "JUMP_COMPLETE": "playing_or_idle_after_jump",
+        "CLICK_RESET": "jumping"
+      }
+    },
+    {
+      "name": "done",
+      "onEnter": "clearInterval(); set playing=false; update play button UI (cannot autoplay further); renderAll()",
+      "onExit": "none",
+      "on": {
+        "CLICK_STEP_BACK": "animating_remove",
+        "SLIDER_CHANGE": "idle",
+        "GOTO_CHANGE": "jumping",
+        "CLICK_PLAY_PAUSE": "done",
+        "CLICK_RESET": "done",
+        "KEY_LEFT": "animating_remove",
+        "KEY_RIGHT": "done",
+        "KEY_SPACE": "done"
+      }
+    },
+    {
+      "name": "playing_or_idle_after_add",
+      "onEnter": "determine next stable state: if state.playing === true && state.count < MAX_TERMS -> playing; if state.count >= MAX_TERMS -> done; else -> idle",
+      "onExit": "none",
+      "on": {}
+    },
+    {
+      "name": "playing_or_idle_after_remove",
+      "onEnter": "determine next stable state: if state.playing === true -> playing; else -> idle",
+      "onExit": "none",
+      "on": {}
+    },
+    {
+      "name": "animating_add_or_remove_during_jump",
+      "onEnter": "internal transient: perform a single animateAddNext() or animateRemoveLast() as part of jump sequence",
+      "onExit": "return to jumping (if more steps) or JUMP_COMPLETE",
+      "on": {}
+    },
+    {
+      "name": "idle_stay",
+      "onEnter": "applyCountChange() (from slider) and renderAll()",
+      "onExit": "none",
+      "on": {}
+    }
+  ],
+  "events": [
+    "CLICK_STEP_FORWARD",
+    "CLICK_STEP_BACK",
+    "CLICK_PLAY_PAUSE",
+    "INTERVAL_TICK",
+    "SLIDER_CHANGE",
+    "GOTO_CHANGE",
+    "CLICK_RESET",
+    "ANIMATION_DONE",
+    "ANIMATION_START",
+    "JUMP_STEP",
+    "JUMP_COMPLETE",
+    "KEY_RIGHT",
+    "KEY_LEFT",
+    "KEY_SPACE",
+    "REACH_MAX",
+    "REACH_MIN"
+  ],
+  "notes": "Key implementation details and constraints:\n- 'animating' is a boolean guard used to prevent concurrent animations; animateAddNext() and animateRemoveLast() early-return if animating is true.\n- animateAddNext(): computes pixel sizes, injects DOM squares, animates sliding/fading, increments state.count on completion, updates UI (renderList/renderBars/updateRatioDisplay) and sets animating=false. It is asynchronous (~1s) and triggers ANIMATION_DONE on completion.\n- animateRemoveLast(): synchronous decrement followed by brief fade-out animation (~360ms); triggers ANIMATION_DONE after completion.\n- play/pause toggles state.playing. On entering playing, an interval is started (1100ms) producing INTERVAL_TICK which attempts to call animateAddNext if not animating and count < MAX_TERMS. If MAX_TERMS reached, the interval clears itself and playing is set false -> transition to done/idle.\n- GOTO_CHANGE triggers an async 'jumping' sequence which repeatedly invokes animateAddNext or animateRemoveLast until the requested target is reached. Each individual step uses the same animation primitives and yields ANIMATION_DONE events; when the jump finishes, JUMP_COMPLETE occurs.\n- SLIDER_CHANGE and direct numeric input (goto) can change state.count synchronously; slider changes call renderAll immediately. GOTO change performs animated steps to reach the target.\n- CLICK_RESET sets count to MIN_TERMS (2) and re-renders if no current animation; ignored if animating.\n- Keyboard shortcuts map to the same events: ArrowRight -> CLICK_STEP_FORWARD, ArrowLeft -> CLICK_STEP_BACK, Space -> CLICK_PLAY_PAUSE. Inputs focused on text/number/button do not trigger global shortcuts.\n- 'done' represents the reachable terminal-high state when count == MAX_TERMS (12). In code the app does not enter a distinct persistent 'done' flag but sets playing=false and prevents further forward steps; this FSM models that as an explicit state.\n- The transient states (playing_or_idle_after_add, playing_or_idle_after_remove, animating_add_or_remove_during_jump, idle_stay) represent internal decision or transient activities used to route back to stable states (idle/playing/done) depending on runtime flags (state.playing, count bounds)."
+}

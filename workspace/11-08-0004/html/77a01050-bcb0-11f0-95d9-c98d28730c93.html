@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sliding Window — Interactive Module</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --muted: #94a3b8;
+      --accent: #36a3f7;
+      --accent-2: #6ee7b7;
+      --danger: #ff6b6b;
+      --glass: rgba(255,255,255,0.03);
+      --radius: 10px;
+      --font-sans: system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071021 0%, #071824 100%);
+      font-family: var(--font-sans);
+      color: #e6eef8;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    .app{
+      box-sizing: border-box;
+      padding: var(--safe-margin);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 520px;
+      gap: var(--gap);
+      align-items: start;
+    }
+    /* Responsive: stack on narrow screens */
+    @media (max-width: 980px){
+      .app{ grid-template-columns: 1fr; }
+    }
+
+    /* Left column (text + controls) */
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+    }
+    h1{ margin:0 0 8px 0; font-size:20px; letter-spacing: -0.2px; }
+    .muted{ color: var(--muted); font-size:14px; margin-bottom:12px; }
+
+    .section{
+      margin-bottom: 18px;
+    }
+    .label{
+      font-size:13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    /* Controls */
+    .controls{
+      display:flex;
+      gap: var(--gap);
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .controls > * { min-width: 0; }
+    input[type="text"]{
+      background: var(--glass);
+      border: 1px solid rgba(255,255,255,0.04);
+      color: inherit;
+      padding: 8px 10px;
+      border-radius: 8px;
+      outline: none;
+      min-width: 220px;
+    }
+    input[type="range"]{
+      accent-color: var(--accent);
+      width: 220px;
+    }
+    button{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.04);
+      color: inherit;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      font-size:14px;
+    }
+    button.primary{
+      background: linear-gradient(180deg,var(--accent), #2b86c9);
+      border: none;
+      box-shadow: 0 6px 18px rgba(54,163,247,0.12);
+      color: #042131;
+      font-weight: 600;
+    }
+    .control-row{
+      display:flex;
+      gap: var(--gap);
+      align-items:center;
+      margin-top:12px;
+      flex-wrap:wrap;
+    }
+    .tiny{
+      font-size:13px;
+      color: var(--muted);
+    }
+    .toggle{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* Right column viz */
+    .viz{
+      width:100%;
+      max-width: 100%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: 0 8px 32px rgba(3,7,18,0.6);
+    }
+    .array-row{
+      display:flex;
+      gap: 12px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius: 12px;
+      overflow-x:auto;
+      scrollbar-width: thin;
+      align-items: center;
+    }
+    .cell{
+      min-width:56px;
+      min-height:56px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: rgba(255,255,255,0.02);
+      border-radius:10px;
+      font-weight:700;
+      font-size:16px;
+      color: #eaf6ff;
+      border: 1px solid rgba(255,255,255,0.03);
+      transition: transform 180ms ease, box-shadow 180ms ease;
+      position: relative;
+      user-select: none;
+      cursor: pointer;
+    }
+    .cell:active{ transform: translateY(2px); }
+    .cell .index{
+      position:absolute;
+      top:6px;
+      right:6px;
+      font-size:11px;
+      color:var(--muted);
+    }
+
+    /* Sliding window overlay */
+    .window{
+      position: relative;
+      height: 84px;
+      margin-top: 8px;
+      pointer-events: none; /* overlay only; dragging handled separately */
+    }
+    .window-rect{
+      position:absolute;
+      top: 6px;
+      bottom: 6px;
+      border-radius: 10px;
+      border: 2px dashed rgba(54,163,247,0.45);
+      background: linear-gradient(90deg, rgba(54,163,247,0.06), rgba(110,231,183,0.02));
+      box-shadow: 0 8px 30px rgba(54,163,247,0.06);
+      transition: left 260ms cubic-bezier(.15,.9,.3,1), width 260ms cubic-bezier(.15,.9,.3,1);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color: #042131;
+      font-weight:700;
+      pointer-events: auto;
+      cursor: grab;
+    }
+    .window-rect:active{ cursor:grabbing; }
+
+    .summary{
+      display:flex;
+      gap: var(--gap);
+      margin-top: 14px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius: 10px;
+      padding: 12px;
+      min-width: 150px;
+      border: 1px solid rgba(255,255,255,0.03);
+      color: #cfeeff;
+    }
+    .big{
+      font-size:20px;
+      font-weight:800;
+      color: #e9fbff;
+    }
+    .operations{
+      color: var(--muted);
+      font-size:13px;
+      margin-top:6px;
+    }
+
+    /* computation area with animated numbers */
+    .computation{
+      margin-top: 18px;
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.01);
+      border: 1px solid rgba(255,255,255,0.02);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      font-size:14px;
+    }
+    .fade{
+      transition: background 260ms ease, color 260ms ease;
+      padding: 6px;
+      border-radius: 8px;
+      display:inline-block;
+    }
+
+    /* small helper */
+    .hint{ color:var(--muted); font-size:13px; margin-top:10px; }
+
+    /* focus outlines for keyboard accessibility */
+    button:focus, input:focus, .cell:focus{
+      outline: 2px solid rgba(54,163,247,0.36);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Sliding Window interactive tutorial">
+    <div class="panel" id="leftPanel">
+      <h1>Sliding Window — Fixed-size Window Sums</h1>
+      <div class="muted">Interactive demonstration of moving a fixed-size window across an array and computing sums efficiently.</div>
+
+      <div class="section" aria-labelledby="objective">
+        <div class="label" id="objective">Learning Objective</div>
+        <div class="tiny">
+          After interacting you will understand how a fixed-size sliding window moves across an array and how the window sum
+          can be updated incrementally in O(1) per step (sliding window) versus recomputing O(k).
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Interaction Design</div>
+        <div class="tiny">
+          Use the controls to edit the array, set the window size, step through positions, drag the window across the array,
+          or press Play to animate. Toggle between "Naive recompute" and "Sliding update" to compare the number of operations.
+          Visual highlights and animated numeric updates show how the sum changes and which elements are added or removed.
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Layout Description</div>
+        <div class="tiny">
+          Left column: controls and explanatory text. Right column: visualization (array, window overlay, computation cards).
+          Safe margins of 24px on all sides and minimum spacing of 16px between interactive elements are enforced.
+          The interface is responsive: stacked layout on narrow screens. Keyboard arrows step left/right; controls have clear labels.
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Array (edit numbers separated by commas)</div>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <input id="arrayInput" type="text" aria-label="Array input" value="4, 2, 1, 7, 8, 3, 5, 2">
+          <button id="applyBtn" title="Apply array">Apply</button>
+          <button id="randomBtn" class="primary" title="Generate random array">Randomize</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Window size (k)</div>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <input id="kRange" type="range" min="1" max="8" value="3" aria-label="Window size slider">
+          <div class="tiny">k = <span id="kValue">3</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Controls</div>
+        <div class="controls">
+          <div class="control-row">
+            <button id="stepBackBtn" title="Step back (Left Arrow)">◀ Step</button>
+            <button id="stepForwardBtn" title="Step forward (Right Arrow)">Step ▶</button>
+            <button id="playBtn" title="Play/Pause animation">Play ▶</button>
+            <button id="resetBtn" title="Reset to start">Reset ⟲</button>
+          </div>
+          <div class="control-row" style="margin-left:4px;">
+            <label class="toggle">
+              <input id="modeToggle" type="checkbox" aria-label="Use sliding update mode" checked>
+              <span style="margin-left:6px;">Use Sliding Update (vs. Naive recompute)</span>
+            </label>
+            <label class="toggle" style="margin-left:12px;">
+              <input id="showMath" type="checkbox" aria-label="Show math details">
+              <span style="margin-left:6px;">Show math</span>
+            </label>
+          </div>
+        </div>
+        <div class="hint">Tip: Drag the cyan dashed window (on the right) to reposition it quickly. Click any array cell to center the window there.</div>
+      </div>
+    </div>
+
+    <div class="viz panel" id="rightPanel">
+      <div aria-live="polite">
+        <div class="label">Array Visualization</div>
+        <div class="array-row" id="arrayRow" tabindex="0" aria-label="Array elements; click to select position"></div>
+
+        <div class="window" id="windowLayer" aria-hidden="false">
+          <div class="window-rect" id="windowRect" style="left:0px; width:0px;" role="slider" tabindex="0"
+               aria-label="Sliding window; drag to move" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+            <div id="windowLabel" style="padding:8px 10px; background: rgba(255,255,255,0.02); border-radius:8px;">
+              Window
+            </div>
+          </div>
+        </div>
+
+        <div class="summary" id="summaryArea">
+          <div class="card">
+            <div class="tiny">Current window sum</div>
+            <div class="big" id="currentSum">—</div>
+            <div class="operations tiny" id="operationInfo">Operations: 0</div>
+          </div>
+
+          <div class="card">
+            <div class="tiny">Best seen (max) window sum</div>
+            <div class="big" id="bestSum">—</div>
+            <div class="operations tiny" id="bestPos">Position: —</div>
+          </div>
+
+          <div class="card">
+            <div class="tiny">Step</div>
+            <div class="big" id="positionLabel">- / -</div>
+            <div class="operations tiny">Use arrows or play to animate</div>
+          </div>
+        </div>
+
+        <div class="computation" id="computationArea">
+          <div id="mathText" class="fade" aria-live="polite">
+            Click Play or Step to start. The computation details appear here.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  (function(){
+    // Utility
+    function $(id){ return document.getElementById(id); }
+
+    // Initial state
+    let arr = [4,2,1,7,8,3,5,2];
+    let k = 3;
+    let start = 0; // index where window starts
+    let playing = false;
+    let playTimer = null;
+    let modeSliding = true; // true => sliding update, false => naive recompute
+    let showMath = false;
+
+    // For demonstration: counters
+    let totalOperations = 0; // counts scalar ops as demonstration (comparative)
+    let naiveOps = 0;
+    let slidingOps = 0;
+
+    // DOM references
+    const arrayRow = $('arrayRow');
+    const windowRect = $('windowRect');
+    const windowLayer = $('windowLayer');
+    const kRange = $('kRange');
+    const kValue = $('kValue');
+    const arrayInput = $('arrayInput');
+    const applyBtn = $('applyBtn');
+    const randomBtn = $('randomBtn');
+    const stepBackBtn = $('stepBackBtn');
+    const stepForwardBtn = $('stepForwardBtn');
+    const playBtn = $('playBtn');
+    const resetBtn = $('resetBtn');
+    const modeToggle = $('modeToggle');
+    const showMathToggle = $('showMath');
+    const currentSumEl = $('currentSum');
+    const bestSumEl = $('bestSum');
+    const positionLabel = $('positionLabel');
+    const computationArea = $('computationArea');
+    const mathText = $('mathText');
+    const operationInfo = $('operationInfo');
+    const bestPosEl = $('bestPos');
+
+    // Constants
+    const cellWidth = 56 + 12; // cell min width + gap approx, updated when rendering
+    const minGap = 12;
+
+    // Rendering
+    function renderArray(){
+      arrayRow.innerHTML = '';
+      arr.forEach((v,i)=>{
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.tabIndex = 0;
+        cell.setAttribute('role','button');
+        cell.setAttribute('aria-label', 'Array element ' + i + ' value ' + v);
+        cell.innerHTML = '<div>' + v + '</div><div class="index">' + i + '</div>';
+        cell.addEventListener('click', ()=> {
+          // center window so that start = clicked index if possible
+          let newStart = i;
+          if (newStart > arr.length - k) newStart = Math.max(0, arr.length - k);
+          updateStart(newStart, true);
+        });
+        cell.addEventListener('keydown', (e)=>{
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            cell.click();
+          }
+        });
+        arrayRow.appendChild(cell);
+      });
+      // update range max for k
+      kRange.max = Math.max(1, arr.length);
+      if (k > arr.length){
+        k = arr.length;
+        kRange.value = k;
+        kValue.textContent = k;
+      }
+      positionLabel.textContent = (start+1) + ' / ' + Math.max(1, arr.length - k + 1);
+      syncWindowRect(true);
+    }
+
+    function syncWindowRect(snapToCells=false){
+      // Compute left offset and width relative to arrayRow coordinate
+      const children = Array.from(arrayRow.children);
+      if (children.length === 0){
+        windowRect.style.left = '0px';
+        windowRect.style.width = '0px';
+        windowRect.setAttribute('aria-valuemin','0');
+        windowRect.setAttribute('aria-valuemax','0');
+        windowRect.setAttribute('aria-valuenow','0');
+        return;
+      }
+      // compute bounding rect for each cell
+      const firstCell = children[0];
+      const rowRect = arrayRow.getBoundingClientRect();
+      const cellRects = children.map(c => c.getBoundingClientRect());
+      // left of start cell relative to arrayRow
+      const left = (cellRects[start].left - rowRect.left) - 6; // small offset
+      // right: end cell
+      const endIdx = Math.min(arr.length-1, start + k - 1);
+      const right = (cellRects[endIdx].right - rowRect.left) + 6;
+      const width = Math.max(40, right - left);
+      windowRect.style.left = left + 'px';
+      windowRect.style.width = width + 'px';
+      windowRect.setAttribute('aria-valuemin','0');
+      windowRect.setAttribute('aria-valuemax', Math.max(0, arr.length - k));
+      windowRect.setAttribute('aria-valuenow', start);
+      // highlight cells inside window
+      children.forEach((c, idx)=>{
+        if (idx >= start && idx < start + k){
+          c.style.boxShadow = '0 8px 30px rgba(54,163,247,0.12)';
+          c.style.transform = 'translateY(-4px)';
+          c.style.background = 'linear-gradient(180deg, rgba(54,163,247,0.04), rgba(110,231,183,0.01))';
+        } else {
+          c.style.boxShadow = 'none';
+          c.style.transform = 'translateY(0)';
+          c.style.background = 'rgba(255,255,255,0.02)';
+        }
+      });
+    }
+
+    // Computation logic
+    let currentSum = null;
+    let best = { sum: -Infinity, start: 0 };
+
+    function recomputeWindowSum(pos){
+      // naive recompute: sum all k elements
+      let s = 0;
+      for (let i=pos; i<pos+k; i++){
+        s += arr[i];
+        naiveOps++; // count this addition as one operation for demonstration
+      }
+      return s;
+    }
+
+    function computeInitial(){
+      naiveOps = 0; slidingOps = 0;
+      if (arr.length === 0 || k === 0) {
+        currentSum = 0;
+        best = { sum: -Infinity, start: 0 };
+        updateUI();
+        return;
+      }
+      currentSum = recomputeWindowSum(start);
+      best = { sum: currentSum, start: start };
+      updateUI();
+    }
+
+    function stepForward(ignorePlay=false){
+      if (arr.length === 0) return;
+      if (start >= arr.length - k) {
+        // reached end
+        if (playing && !ignorePlay) togglePlay(false);
+        return;
+      }
+      // compute new sum based on mode
+      const outIdx = start;
+      const inIdx = start + k;
+      let prevSum = currentSum;
+      if (modeSliding){
+        // sliding update: subtract outgoing, add incoming
+        slidingOps += 2; // one subtract, one add
+        currentSum = currentSum - arr[outIdx] + arr[inIdx];
+        totalOperations++;
+        // prepare math text
+        if (showMath) {
+          mathText.innerHTML = `Sliding update: newSum = prevSum - out(${arr[outIdx]}) + in(${arr[inIdx]}) = ${prevSum} - ${arr[outIdx]} + ${arr[inIdx]} = ${currentSum}`;
+        }
+      } else {
+        // naive recompute
+        const newSum = recomputeWindowSum(start + 1);
+        currentSum = newSum;
+        if (showMath) {
+          mathText.innerHTML = `Naive recompute: sum elements [${start+1}..${start+1+k-1}] => ${currentSum}`;
+        }
+      }
+      start++;
+      // update best
+      if (currentSum > best.sum){
+        best.sum = currentSum;
+        best.start = start;
+      }
+      animateNumber(currentSumEl, currentSum);
+      animateHighlightChange(start, outIdx, inIdx);
+      positionLabel.textContent = (start+1) + ' / ' + Math.max(1, arr.length - k + 1);
+      bestSumEl.textContent = best.sum;
+      bestPosEl.textContent = 'Position: ' + (best.start + 1);
+      operationInfo.textContent = `Naive ops: ${naiveOps}, Sliding ops: ${slidingOps}`;
+      syncWindowRect();
+    }
+
+    function stepBack(){
+      if (arr.length === 0) return;
+      if (start <= 0) return;
+      // revert one step. For demonstration we will recompute (simpler) rather than invert.
+      start--;
+      // recompute currentSum accordingly using selected mode header
+      if (modeSliding){
+        // recompute naive for correctness in back step
+        currentSum = recomputeWindowSum(start);
+      } else {
+        currentSum = recomputeWindowSum(start);
+      }
+      if (currentSum > best.sum){
+        best.sum = currentSum;
+        best.start = start;
+      }
+      animateNumber(currentSumEl, currentSum);
+      positionLabel.textContent = (start+1) + ' / ' + Math.max(1, arr.length - k + 1);
+      bestSumEl.textContent = best.sum;
+      bestPosEl.textContent = 'Position: ' + (best.start + 1);
+      operationInfo.textContent = `Naive ops: ${naiveOps}, Sliding ops: ${slidingOps}`;
+      syncWindowRect();
+      if (showMath) mathText.innerHTML = `Moved back to position ${start+1}, recomputed sum = ${currentSum}.`;
+    }
+
+    // UI helpers
+    function updateUI(){
+      animateNumber(currentSumEl, currentSum);
+      bestSumEl.textContent = best.sum === -Infinity ? '—' : best.sum;
+      bestPosEl.textContent = best.sum === -Infinity ? 'Position: —' : ('Position: ' + (best.start + 1));
+      positionLabel.textContent = (start+1) + ' / ' + Math.max(1, arr.length - k + 1);
+      operationInfo.textContent = `Naive ops: ${naiveOps}, Sliding ops: ${slidingOps}`;
+      if (showMath) mathText.innerHTML = `Initial window at position ${start+1}: sum = ${currentSum}.`;
+      else mathText.innerHTML = `Click Play or Step to start.`;
+      syncWindowRect();
+    }
+
+    function animateNumber(el, value){
+      // simple animation counting from current displayed to new value
+      const startVal = parseInt(el.textContent) || 0;
+      const endVal = value;
+      const duration = 300;
+      const startTime = performance.now();
+      function step(now){
+        const t = Math.min(1, (now - startTime) / duration);
+        const ease = t<.5 ? 2*t*t : -1 + (4 - 2*t)*t;
+        const cur = Math.round(startVal + (endVal - startVal) * ease);
+        el.textContent = cur;
+        if (t < 1) requestAnimationFrame(step);
+        else el.textContent = endVal;
+      }
+      requestAnimationFrame(step);
+    }
+
+    function animateHighlightChange(newStart, outIdx, inIdx){
+      // briefly flash outgoing and incoming cells
+      const children = Array.from(arrayRow.children);
+      if (children[outIdx]){
+        children[outIdx].style.transition = 'background 200ms, transform 200ms';
+        children[outIdx].style.background = 'linear-gradient(90deg, rgba(255,107,107,0.12), rgba(255,255,255,0.01))';
+        setTimeout(()=> { children[outIdx].style.background = ''; syncWindowRect(); }, 320);
+      }
+      if (children[inIdx]){
+        children[inIdx].style.transition = 'background 200ms, transform 200ms';
+        children[inIdx].style.background = 'linear-gradient(90deg, rgba(110,231,183,0.12), rgba(255,255,255,0.01))';
+        setTimeout(()=> { children[inIdx].style.background = ''; syncWindowRect(); }, 320);
+      }
+    }
+
+    // Updating start index and optionally animate
+    function updateStart(newStart, immediate){
+      if (newStart < 0) newStart = 0;
+      if (newStart > arr.length - k) newStart = Math.max(0, arr.length - k);
+      start = newStart;
+      // recompute using selected mode
+      naiveOps = 0; slidingOps = 0;
+      currentSum = recomputeWindowSum(start);
+      best = { sum: currentSum, start: start };
+      updateUI();
+      syncWindowRect(!immediate);
+    }
+
+    // Controls binding
+    applyBtn.addEventListener('click', ()=>{
+      const val = arrayInput.value.trim();
+      if (!val) return;
+      const parts = val.split(',').map(s => s.trim()).filter(s => s !== '');
+      const nums = [];
+      for (let p of parts){
+        const n = Number(p);
+        if (Number.isNaN(n)){ alert('Invalid number: "' + p + '"'); return; }
+        nums.push(n);
+      }
+      arr = nums;
+      // reset start and k
+      if (k > arr.length) k = Math.max(1, arr.length);
+      kRange.value = k;
+      kValue.textContent = k;
+      start = 0;
+      computeInitial();
+      renderArray();
+    });
+
+    randomBtn.addEventListener('click', ()=>{
+      const len = Math.floor(Math.random() * 6) + 5; // 5..10
+      arr = Array.from({length:len}, ()=> Math.floor(Math.random() * 12) + 1);
+      arrayInput.value = arr.join(', ');
+      if (k > arr.length) k = arr.length;
+      kRange.max = Math.max(1, arr.length);
+      kRange.value = k;
+      kValue.textContent = k;
+      start = 0;
+      computeInitial();
+      renderArray();
+    });
+
+    kRange.addEventListener('input', ()=>{
+      k = Math.max(1, parseInt(kRange.value));
+      kValue.textContent = k;
+      if (k > arr.length) k = arr.length;
+      // clamp start if needed
+      if (start > arr.length - k) start = Math.max(0, arr.length - k);
+      computeInitial();
+      renderArray();
+    });
+
+    stepForwardBtn.addEventListener('click', ()=> stepForward(true));
+    stepBackBtn.addEventListener('click', ()=> stepBack());
+    resetBtn.addEventListener('click', ()=>{
+      start = 0;
+      computeInitial();
+      renderArray();
+    });
+
+    modeToggle.addEventListener('change', (e)=>{
+      modeSliding = e.target.checked;
+      if (showMath) mathText.innerHTML = modeSliding ? 'Using sliding update (incremental changes).' : 'Using naive recompute for each window.';
+    });
+    showMathToggle.addEventListener('change', (e)=>{
+      showMath = e.target.checked;
+      if (!showMath) mathText.innerHTML = 'Click Play or Step to start.';
+      else mathText.innerHTML = 'Math details enabled.';
+    });
+
+    // Play controls
+    function togglePlay(force){
+      if (typeof force === 'boolean') playing = force;
+      else playing = !playing;
+      playBtn.textContent = playing ? 'Pause ⏸' : 'Play ▶';
+      if (playing){
+        playTimer = setInterval(()=>{
+          stepForward();
+          // stop when reach end
+          if (start >= arr.length - k) {
+            togglePlay(false);
+          }
+        }, 800);
+      } else {
+        clearInterval(playTimer);
+        playTimer = null;
+      }
+    }
+    playBtn.addEventListener('click', ()=> togglePlay());
+
+    // Keyboard controls: left/right arrow to step
+    window.addEventListener('keydown', (e)=>{
+      if (e.code === 'ArrowRight'){ e.preventDefault(); stepForward(true); }
+      if (e.code === 'ArrowLeft'){ e.preventDefault(); stepBack(); }
+      if (e.code === 'Space'){ /* prevent page scroll while focused on controls */ }
+    });
+
+    // Dragging the window overlay to reposition
+    (function enableWindowDrag(){
+      let dragging = false;
+      let startX = 0;
+      let startLeft = 0;
+      windowRect.addEventListener('mousedown', (e)=>{
+        if (arr.length === 0) return;
+        dragging = true;
+        startX = e.clientX;
+        const rect = windowRect.getBoundingClientRect();
+        startLeft = rect.left;
+        windowRect.style.transition = 'none';
+        e.preventDefault();
+      });
+      window.addEventListener('mousemove', (e)=>{
+        if (!dragging) return;
+        const rowRect = arrayRow.getBoundingClientRect();
+        let delta = e.clientX - startX;
+        let left = startLeft + delta;
+        // clamp left
+        left = Math.max(rowRect.left - 12, Math.min(left, rowRect.right - 12 - windowRect.offsetWidth));
+        // determine nearest index by computing center of cell under pointer
+        const children = Array.from(arrayRow.children);
+        let closestIdx = 0;
+        let minDist = Infinity;
+        children.forEach((c, idx)=>{
+          const r = c.getBoundingClientRect();
+          const center = (r.left + r.right) / 2;
+          const dist = Math.abs(center - (left + windowRect.offsetWidth / 2));
+          if (dist < minDist){ minDist = dist; closestIdx = idx; }
+        });
+        // set start to closestIdx but ensure full window fits
+        let proposalStart = closestIdx;
+        if (proposalStart > arr.length - k) proposalStart = Math.max(0, arr.length - k);
+        if (proposalStart < 0) proposalStart = 0;
+        // update visual quickly
+        start = proposalStart;
+        syncWindowRect();
+      });
+      window.addEventListener('mouseup', (e)=>{
+        if (!dragging) return;
+        dragging = false;
+        windowRect.style.transition = '';
+        // recompute sum properly at the new start
+        currentSum = recomputeWindowSum(start);
+        if (currentSum > best.sum) { best.sum = currentSum; best.start = start; }
+        updateUI();
+      });
+      // touch events
+      windowRect.addEventListener('touchstart', (e)=>{
+        if (arr.length === 0) return;
+        dragging = true;
+        startX = e.touches[0].clientX;
+        const rect = windowRect.getBoundingClientRect();
+        startLeft = rect.left;
+        windowRect.style.transition = 'none';
+        e.preventDefault();
+      }, {passive:false});
+      window.addEventListener('touchmove', (e)=>{
+        if (!dragging) return;
+        const touch = e.touches[0];
+        const rowRect = arrayRow.getBoundingClientRect();
+        let delta = touch.clientX - startX;
+        let left = startLeft + delta;
+        left = Math.max(rowRect.left - 12, Math.min(left, rowRect.right - 12 - windowRect.offsetWidth));
+        const children = Array.from(arrayRow.children);
+        let closestIdx = 0;
+        let minDist = Infinity;
+        children.forEach((c, idx)=>{
+          const r = c.getBoundingClientRect();
+          const center = (r.left + r.right) / 2;
+          const dist = Math.abs(center - (left + windowRect.offsetWidth / 2));
+          if (dist < minDist){ minDist = dist; closestIdx = idx; }
+        });
+        let proposalStart = closestIdx;
+        if (proposalStart > arr.length - k) proposalStart = Math.max(0, arr.length - k);
+        if (proposalStart < 0) proposalStart = 0;
+        start = proposalStart;
+        syncWindowRect();
+      }, {passive:false});
+      window.addEventListener('touchend', (e)=>{
+        if (!dragging) return;
+        dragging = false;
+        windowRect.style.transition = '';
+        currentSum = recomputeWindowSum(start);
+        if (currentSum > best.sum) { best.sum = currentSum; best.start = start; }
+        updateUI();
+      });
+    })();
+
+    // Initialize UI
+    arrayInput.value = arr.join(', ');
+    kRange.value = k;
+    kValue.textContent = k;
+    computeInitial();
+    renderArray();
+
+    // Resize observer to keep overlay aligned when window size changes
+    let ro = new ResizeObserver(()=> syncWindowRect(true));
+    ro.observe(arrayRow);
+
+    // Announce accessibility: set title attribute
+    windowRect.title = 'Drag or use arrow keys to move the sliding window';
+
+    // initial operation info & math
+    operationInfo.textContent = `Naive ops: ${naiveOps}, Sliding ops: ${slidingOps}`;
+    mathText.innerHTML = 'Click Play or Step to start. Toggle "Show math" to see the formula used during updates.';
+  })();
+</script>
+</body>
+</html>

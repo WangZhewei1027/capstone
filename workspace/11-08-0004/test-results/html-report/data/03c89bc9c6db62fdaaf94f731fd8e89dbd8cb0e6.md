@@ -1,0 +1,82 @@
+# Page snapshot
+
+```yaml
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic "K-Nearest Neighbors interactive area" [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - heading "K-Nearest Neighbors (KNN) — Interactive Classifier" [level=1] [ref=e7]
+          - paragraph [ref=e8]: Drag the query point, add labeled points, change K and metric, and watch classification update.
+        - generic [ref=e9]:
+          - generic [ref=e11]: Class A
+          - generic [ref=e13]: Class B
+          - generic [ref=e15]: Query
+      - img "KNN scatter plot" [ref=e17]
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - generic [ref=e20]: "K:"
+          - generic [ref=e21]: "3"
+          - slider [ref=e23]: "3"
+          - generic [ref=e24]: "Metric:"
+          - combobox "Distance metric" [ref=e25]:
+            - option "Euclidean" [selected]
+            - option "Manhattan"
+            - option "Chebyshev"
+        - generic [ref=e26]:
+          - button "Add Class A" [ref=e27] [cursor=pointer]
+          - button "Add Class B" [ref=e28] [cursor=pointer]
+          - button "Delete" [ref=e29] [cursor=pointer]
+          - button "Randomize" [ref=e30] [cursor=pointer]
+          - button "Clear" [ref=e31] [cursor=pointer]
+    - generic [ref=e32]:
+      - generic "Controls" [ref=e33]:
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - text: Inverse-distance weighting
+            - generic [ref=e36]: If enabled, closer neighbors count more.
+          - checkbox "Toggle inverse distance weighting" [ref=e38]
+        - generic [ref=e39]:
+          - text: Prediction details
+          - generic [ref=e40]:
+            - generic [ref=e41]:
+              - generic [ref=e42]: Predicted
+              - generic [ref=e43]: —
+            - generic [ref=e46]:
+              - generic [ref=e47]: Confidence
+              - generic [ref=e48]: —
+        - generic [ref=e49]:
+          - text: Query point controls
+          - generic [ref=e50]:
+            - button "Center Query" [ref=e52] [cursor=pointer]
+            - generic [ref=e53]: Use arrow keys when canvas focused to nudge
+        - generic [ref=e54]:
+          - text: Interaction tips
+          - generic [ref=e55]:
+            - text: • Click "Add Class A/B" then click canvas to place points.
+            - text: • Drag any point (including the query) to move it.
+            - text: • Toggle "Delete" then click a point to remove it.
+            - text: • Hold focus on the canvas and use ↑↓←→ to nudge the query point.
+      - generic "Learning plan" [ref=e56]:
+        - heading "Concept Title" [level=3] [ref=e57]
+        - paragraph [ref=e58]:
+          - strong [ref=e59]: K-Nearest Neighbors (KNN) — classification via local neighborhood
+        - heading "Learning Objective" [level=3] [ref=e60]
+        - paragraph [ref=e61]: After interacting with this module, you will understand how a KNN classifier uses the K closest labeled examples to predict the class of a query point, how changing K and distance metrics affects predictions, and how inverse-distance weighting changes neighbor influence.
+        - heading "Interaction Design" [level=3] [ref=e62]
+        - paragraph [ref=e63]: "Interactions:"
+        - list [ref=e64]:
+          - listitem [ref=e65]: Click "Add Class A/B", then click the canvas to place labeled points for that class.
+          - listitem [ref=e66]: Drag points to reposition them; drag the blue query point to see live prediction updates.
+          - listitem [ref=e67]: Toggle "Delete" to remove points by clicking them.
+          - listitem [ref=e68]: Adjust K with the slider and change the metric (Euclidean / Manhattan / Chebyshev). Toggle inverse-distance weighting to see nearest points contribute more.
+        - text: "Visual feedback:"
+        - list [ref=e69]:
+          - listitem [ref=e70]: Animated pulsing rings highlight the K nearest neighbors.
+          - listitem [ref=e71]: Lines connect the query to neighbors; their thickness indicates weighting.
+          - listitem [ref=e72]: A low-resolution colored decision-field is drawn as the background and smoothly updates when parameters or points change.
+          - listitem [ref=e73]: The query point fills with the predicted class color and a confidence bar shows relative support.
+        - paragraph
+        - heading "Layout Description" [level=3] [ref=e74]
+        - paragraph [ref=e75]: "The layout follows a two-column responsive design with a 24 px safe margin and 16 px gaps. Left column: interactive canvas card (title, legend, canvas, quick controls). Right column: stacked control panel (metric, weighting, prediction details, tips) and a plan card describing the module. Controls are grouped with at least 16 px spacing and use clear labels. The canvas is large and centered to maintain focus; controls are on the right for quick adjustments. All interactive controls are keyboard-focusable and labeled for accessibility."
+```

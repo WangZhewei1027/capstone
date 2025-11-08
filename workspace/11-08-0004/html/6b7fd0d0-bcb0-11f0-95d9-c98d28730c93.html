@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Hash Table — Separate Chaining</title>
+  <style>
+    /* Safe area margins: 24px on all sides */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 24px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: #f4f6f8;
+      color: #0d1b2a;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      box-sizing: border-box;
+    }
+
+    /* Layout grid */
+    .app {
+      display: grid;
+      grid-template-columns: 360px 1fr 320px;
+      gap: 24px; /* minimum spacing is 16px; we use 24 for comfort */
+      align-items: start;
+      min-height: calc(100vh - 48px);
+    }
+
+    /* Responsive fallback */
+    @media (max-width: 1100px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Panels */
+    .panel {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 6px 18px rgba(9,20,32,0.06);
+    }
+
+    header.title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    header.title h1 {
+      font-size: 1.1rem;
+      margin: 0;
+      line-height: 1.1;
+    }
+
+    .muted {
+      color: #43627a;
+      font-size: 0.92rem;
+    }
+
+    /* Info list */
+    .info-section {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .info-section h3 {
+      margin: 6px 0;
+      font-size: 0.95rem;
+    }
+
+    .info-section p {
+      margin: 0;
+      color: #3b5566;
+      font-size: 0.9rem;
+      line-height: 1.3;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      color: #274151;
+    }
+
+    input[type="text"], select {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #d6e0e6;
+      font-size: 0.95rem;
+      outline: none;
+      color: #072031;
+      background: #fbfdfe;
+    }
+
+    input[type="text"]:focus, select:focus {
+      border-color: #7fb3d5;
+      box-shadow: 0 0 0 4px rgba(127,179,213,0.12);
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    button {
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      background: #0b7285;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: transform 120ms ease, box-shadow 120ms;
+    }
+
+    button.secondary {
+      background: #e6f0f4;
+      color: #08303b;
+      font-weight: 700;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .small {
+      padding: 8px 10px;
+      font-size: 0.9rem;
+      border-radius: 8px;
+    }
+
+    /* Center visualization area */
+    .canvas {
+      min-height: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+
+    .table-area {
+      background: linear-gradient(180deg,#ffffff, #fbfdfe);
+      border-radius: 12px;
+      padding: 18px;
+      border: 1px solid #e1eef4;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .table-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status {
+      font-size: 0.9rem;
+      color: #0b7285;
+      font-weight: 700;
+    }
+
+    /* Buckets layout */
+    .buckets {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .bucket {
+      min-width: 120px;
+      background: linear-gradient(180deg,#fff,#f7fbfc);
+      border-radius: 10px;
+      border: 1px solid #dceff5;
+      padding: 8px;
+      box-shadow: 0 6px 18px rgba(16,28,36,0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      flex: 0 0 120px;
+    }
+
+    .bucket .index {
+      font-size: 0.85rem;
+      color: #274151;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .chain {
+      min-height: 60px;
+      background: linear-gradient(180deg,#f8fbfd,#ffffff);
+      border-radius: 8px;
+      border: 1px dashed #d6e6ea;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .node {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      background: #fffe;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #d9eff4;
+      color: #072031;
+      font-weight: 700;
+      box-shadow: 0 2px 6px rgba(9,20,32,0.04);
+      transition: transform 260ms cubic-bezier(.2,.9,.3,1), box-shadow 180ms;
+    }
+
+    .node.highlight {
+      background: linear-gradient(90deg,#fff7e6,#fff);
+      box-shadow: 0 4px 18px rgba(11,114,133,0.14);
+      transform: translateY(-4px) scale(1.02);
+    }
+
+    .node.removing {
+      opacity: 0;
+      transform: translateX(20px) scale(.9);
+      transition: all 260ms ease;
+    }
+
+    .node .keylabel {
+      font-size: 0.95rem;
+      color: #03303a;
+    }
+
+    .node .meta {
+      font-size: 0.75rem;
+      color: #356a78;
+      background: rgba(11,114,133,0.06);
+      padding: 2px 6px;
+      border-radius: 6px;
+      margin-left: 6px;
+    }
+
+    /* floating token used for animated movement */
+    .token {
+      position: absolute;
+      pointer-events: none;
+      z-index: 1000;
+      transform-origin: center;
+      transition: transform 420ms cubic-bezier(.2,.9,.3,1), opacity 220ms;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #cfe7ef;
+      background: linear-gradient(180deg,#ffffff,#f1fbff);
+      box-shadow: 0 12px 30px rgba(9,20,32,0.12);
+    }
+
+    /* right panel: steps and messages */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .box {
+      background: #ffffff;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #e6f2f6;
+      font-size: 0.92rem;
+      color: #153b47;
+    }
+    .step-line {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:6px;
+      border-radius:8px;
+    }
+    .step-line.active {
+      background: linear-gradient(90deg,#eef9fa,#ffffff);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+      border-left: 4px solid #0b7285;
+    }
+
+    .metrics {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .metric {
+      background: #f3fbfc;
+      color: #0b7285;
+      border-radius: 8px;
+      padding: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .aria-live {
+      position: absolute;
+      left: -9999px;
+      top: auto;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }
+
+    footer.instructions {
+      margin-top: 12px;
+      font-size: 0.86rem;
+      color: #385661;
+      line-height: 1.25;
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Hash Table learning module">
+
+    <!-- LEFT PANEL: Descriptive sections & controls -->
+    <aside class="panel" aria-labelledby="title">
+      <header class="title">
+        <h1 id="title">Hash Table — Separate Chaining (Interactive)</h1>
+      </header>
+
+      <div class="info-section" aria-hidden="false">
+        <div>
+          <h3>Learning Objective</h3>
+          <p>Interactively understand how hashing maps keys to bucket indices and how collisions are handled using separate chaining (linked lists). See hash calculation, chain traversal, and how operations' cost depends on collisions and load factor.</p>
+        </div>
+
+        <div>
+          <h3>Interaction Design</h3>
+          <p>Type a key and Insert to animate the hash computation and watch the key travel to its bucket. Search highlights the computed bucket and steps through any chain comparing nodes. Delete removes a node with a shrinking animation. Controls are clickable and keyboard-friendly. Feedback includes step-by-step hash computation, comparison counts, and load factor updates.</p>
+        </div>
+
+        <div>
+          <h3>Layout Description</h3>
+          <p>Three-column layout (controls, visualization, steps). Safe 24px margins and 16px minimum spacing ensure clarity. The visualization occupies the central column with horizontal, scrollable buckets. Panels collapse vertically on narrow screens for accessibility and responsiveness.</p>
+        </div>
+      </div>
+
+      <div style="margin-top:8px;">
+        <h3>Controls</h3>
+        <div class="controls" role="region" aria-label="Hash table controls">
+          <div>
+            <label for="keyInput">Key (string)</label>
+            <input id="keyInput" type="text" placeholder="e.g. apple" aria-label="Key to insert search or delete" />
+          </div>
+
+          <div class="row">
+            <div style="flex:1">
+              <label for="tableSize">Table size (buckets)</label>
+              <select id="tableSize" aria-label="Select table size">
+                <option value="5">5</option>
+                <option value="7" selected>7</option>
+                <option value="10">10</option>
+                <option value="13">13</option>
+                <option value="17">17</option>
+              </select>
+            </div>
+            <div style="min-width:110px;">
+              <label>Hash function</label>
+              <div class="muted" style="padding:8px 10px; border-radius:8px; background:#fbfdfe; border:1px solid #e6f6fb; text-align:center;">
+                sum(chars) % N
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <button id="insertBtn" class="small" title="Insert key" aria-label="Insert key">Insert</button>
+            <button id="searchBtn" class="small secondary" title="Search key" aria-label="Search key">Search</button>
+            <button id="deleteBtn" class="small secondary" title="Delete key" aria-label="Delete key">Delete</button>
+            <button id="clearBtn" class="small" style="background:#c02424;" title="Clear table" aria-label="Clear table">Clear</button>
+          </div>
+
+          <div class="row">
+            <div style="flex:1">
+              <label for="visualSpeed">Animation speed</label>
+              <select id="visualSpeed" aria-label="Animation speed">
+                <option value="1.2">Slow</option>
+                <option value="0.9" selected>Normal</option>
+                <option value="0.6">Fast</option>
+              </select>
+            </div>
+            <div style="min-width:120px;">
+              <label>Mode</label>
+              <div style="display:flex; gap:8px;">
+                <button id="explainBtn" class="small secondary" title="Toggle explanations" aria-pressed="false">Toggle Steps</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <footer class="instructions">
+        Tips: Type keys (letters, numbers). After Insert, try searching and deleting. Resize the table to see changes in bucket distribution. The module uses a simple, deterministic hash: sum of Unicode code points mod N — this is explorable and predictable for learning.
+      </footer>
+    </aside>
+
+    <!-- CENTER: Visualization -->
+    <main class="panel canvas" role="main" aria-live="polite">
+      <div class="table-area" id="tableArea" aria-label="Hash table visualization">
+        <div class="table-header">
+          <div style="display:flex; gap:12px; align-items:center;">
+            <div class="status">Separate chaining</div>
+            <div class="muted">Buckets are shown left-to-right. Chains list nodes vertically.</div>
+          </div>
+          <div class="metrics" aria-hidden="false">
+            <div class="metric" id="itemCount">Items: 0</div>
+            <div class="metric" id="tableLoad">Load: 0 / 7</div>
+            <div class="metric" id="avgChain">Avg chain: 0.00</div>
+          </div>
+        </div>
+
+        <div class="buckets" id="buckets" role="list" aria-label="Buckets list">
+          <!-- Buckets populated by JS -->
+        </div>
+
+        <!-- token used to animate movement -->
+        <div id="animContainer" style="position:relative; min-height:1px;"></div>
+      </div>
+    </main>
+
+    <!-- RIGHT: Steps, messages, and details -->
+    <aside class="panel steps" aria-label="Interaction steps and messages">
+      <div class="box" id="hashSteps" aria-live="polite">
+        <strong>Hash computation</strong>
+        <div id="hashDetail" style="margin-top:8px; color:#244b56;">Enter a key and perform an action to see steps.</div>
+      </div>
+
+      <div class="box" id="operationSteps" aria-live="polite">
+        <strong>Operation steps</strong>
+        <div id="opDetail" style="margin-top:8px; color:#244b56;">Awaiting input...</div>
+      </div>
+
+      <div class="box" id="comparisonBox" aria-live="polite">
+        <strong>Comparisons</strong>
+        <div id="comparisons" style="margin-top:8px; color:#244b56;">0</div>
+      </div>
+
+      <div class="box" id="explainBox" style="display:none;">
+        <strong>Explanations</strong>
+        <div style="margin-top:8px; color:#244b56;">
+          This module uses separate chaining. Each bucket stores a chain (list). Collisions put multiple keys in the same chain. Search traverses that chain and compares keys until it finds a match or reaches the end.
+        </div>
+      </div>
+
+      <div class="box" id="hintBox">
+        <strong>Why sum-of-chars?</strong>
+        <div style="margin-top:8px; color:#244b56;">
+          It's a simple, deterministic hash good for demonstration. Real-world systems use more complex functions for better distribution.
+        </div>
+      </div>
+
+      <div class="aria-live" aria-live="assertive" aria-atomic="true" id="liveRegion"></div>
+    </aside>
+  </div>
+
+  <script>
+    // ====== Simple, readable code implementing the interactive module ======
+    (function () {
+      // Elements
+      const keyInput = document.getElementById('keyInput');
+      const insertBtn = document.getElementById('insertBtn');
+      const searchBtn = document.getElementById('searchBtn');
+      const deleteBtn = document.getElementById('deleteBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const tableSizeSelect = document.getElementById('tableSize');
+      const bucketsEl = document.getElementById('buckets');
+      const hashDetail = document.getElementById('hashDetail');
+      const opDetail = document.getElementById('opDetail');
+      const comparisonsEl = document.getElementById('comparisons');
+      const itemCountEl = document.getElementById('itemCount');
+      const tableLoadEl = document.getElementById('tableLoad');
+      const avgChainEl = document.getElementById('avgChain');
+      const animContainer = document.getElementById('animContainer');
+      const visualSpeed = document.getElementById('visualSpeed');
+      const explainBtn = document.getElementById('explainBtn');
+      const explainBox = document.getElementById('explainBox');
+      const liveRegion = document.getElementById('liveRegion');
+
+      let tableSize = parseInt(tableSizeSelect.value, 10);
+      let table = []; // array of arrays for chains
+      let totalItems = 0;
+      let showExplain = false;
+
+      // animation duration multiplier
+      function speedFactor() {
+        return Number(visualSpeed.value) || 1;
+      }
+
+      // initialize table
+      function initTable(n) {
+        tableSize = n;
+        table = new Array(n);
+        for (let i = 0; i < n; i++) table[i] = [];
+        renderBuckets();
+        updateMetrics();
+        hashDetail.textContent = 'Hash will be computed as (sum of char codes) mod N. N = ' + n;
+        opDetail.textContent = 'Table cleared.';
+        comparisonsEl.textContent = '0';
+        liveRegion.textContent = 'Table initialized with ' + n + ' buckets.';
+      }
+
+      // render buckets visually
+      function renderBuckets() {
+        bucketsEl.innerHTML = '';
+        for (let i = 0; i < tableSize; i++) {
+          const bucket = document.createElement('div');
+          bucket.className = 'bucket';
+          bucket.setAttribute('data-index', i);
+          bucket.setAttribute('role', 'listitem');
+          bucket.setAttribute('aria-label', 'Bucket ' + i);
+
+          const idx = document.createElement('div');
+          idx.className = 'index';
+          idx.textContent = 'Index ' + i;
+
+          const chain = document.createElement('div');
+          chain.className = 'chain';
+          chain.setAttribute('data-chain', i);
+          chain.setAttribute('aria-label', 'Chain for bucket ' + i);
+
+          bucket.appendChild(idx);
+          bucket.appendChild(chain);
+          bucketsEl.appendChild(bucket);
+        }
+      }
+
+      // helper: simple hash as sum of code points mod N
+      function computeHash(key) {
+        const steps = [];
+        let sum = 0;
+        for (let ch of key) {
+          const code = ch.codePointAt(0);
+          sum += code;
+          steps.push({ch, code, running: sum});
+        }
+        const index = ((sum % tableSize) + tableSize) % tableSize;
+        return {sum, index, steps};
+      }
+
+      // update metrics display
+      function updateMetrics() {
+        itemCountEl.textContent = 'Items: ' + totalItems;
+        tableLoadEl.textContent = 'Load: ' + totalItems + ' / ' + tableSize;
+        const avg = (totalItems / tableSize) || 0;
+        avgChainEl.textContent = 'Avg chain: ' + avg.toFixed(2);
+      }
+
+      // create a node element for a key
+      function createNodeEl(key, meta) {
+        const node = document.createElement('div');
+        node.className = 'node';
+        node.setAttribute('data-key', key);
+        node.setAttribute('role', 'listitem');
+        node.setAttribute('aria-label', 'Key ' + key);
+        const label = document.createElement('span');
+        label.className = 'keylabel';
+        label.textContent = key;
+        node.appendChild(label);
+
+        if (meta) {
+          const metaEl = document.createElement('span');
+          metaEl.className = 'meta';
+          metaEl.textContent = meta;
+          node.appendChild(metaEl);
+        }
+        return node;
+      }
+
+      // place a DOM node into chain DOM
+      function appendNodeToChain(index, nodeEl) {
+        const chain = bucketsEl.querySelector('[data-chain="' + index + '"]');
+        chain.appendChild(nodeEl);
+      }
+
+      // animate token movement from input area to bucket
+      function animateTokenToBucket(key, bucketIndex) {
+        return new Promise(resolve => {
+          const token = document.createElement('div');
+          token.className = 'token';
+          token.innerHTML = '<strong>' + escapeHtml(key) + '</strong>';
+          document.body.appendChild(token);
+
+          // starting position: over the key input
+          const inputRect = keyInput.getBoundingClientRect();
+          token.style.left = (inputRect.left + inputRect.width/2) + 'px';
+          token.style.top = (inputRect.top + inputRect.height/2) + 'px';
+          token.style.opacity = '0';
+          token.style.transform = 'translate(-50%,-50%) scale(.9)';
+          requestAnimationFrame(() => {
+            token.style.opacity = '1';
+            token.style.transform = 'translate(-50%,-50%) scale(1)';
+          });
+
+          // next frame, compute target
+          setTimeout(() => {
+            const bucket = bucketsEl.querySelector('.bucket[data-index="' + bucketIndex + '"]');
+            const targetRect = bucket.getBoundingClientRect();
+            const destX = targetRect.left + targetRect.width/2;
+            const destY = targetRect.top + targetRect.height/2;
+
+            // compute timing
+            const duration = 420 * speedFactor();
+
+            token.style.transition = 'transform ' + duration + 'ms cubic-bezier(.2,.9,.3,1), left ' + duration + 'ms linear, top ' + duration + 'ms linear, opacity 220ms';
+            token.style.left = destX + 'px';
+            token.style.top = destY + 'px';
+            token.style.transform = 'translate(-50%,-50%) scale(.98)';
+
+            setTimeout(() => {
+              // fade
+              token.style.opacity = '0';
+              setTimeout(() => {
+                token.remove();
+                resolve();
+              }, 220);
+            }, duration + 30);
+          }, 20);
+        });
+      }
+
+      // insert key with animation and hash step presentation
+      async function insertKey(key) {
+        if (!key) {
+          opDetail.textContent = 'Please enter a key to insert.';
+          return;
+        }
+        // avoid duplicate exact same keys? For teaching we allow duplicates.
+        opDetail.textContent = 'Computing hash...';
+        const {sum,index,steps} = computeHash(key);
+        showHashSteps(steps, sum, index);
+
+        // animate token
+        await animateTokenToBucket(key, index);
+        // add to data
+        table[index].push(key);
+        totalItems++;
+        // create DOM node and append
+        const nodeEl = createNodeEl(key, 'h:' + index);
+        appendNodeToChain(index, nodeEl);
+
+        // little appear animation
+        nodeEl.style.transform = 'translateY(-10px)';
+        nodeEl.style.opacity = '0';
+        setTimeout(() => {
+          nodeEl.style.transition = 'all 260ms cubic-bezier(.2,.9,.3,1)';
+          nodeEl.style.transform = 'translateY(0)';
+          nodeEl.style.opacity = '1';
+        }, 10);
+
+        opDetail.textContent = 'Inserted key "' + key + '" into bucket ' + index + '.';
+        comparisonsEl.textContent = '0';
+        updateMetrics();
+        liveRegion.textContent = 'Inserted ' + key + ' at bucket ' + index + '.';
+      }
+
+      // search: highlight bucket and traverse chain comparing nodes
+      async function searchKey(key) {
+        if (!key) {
+          opDetail.textContent = 'Please enter a key to search.';
+          return;
+        }
+        opDetail.textContent = 'Computing hash...';
+        const {sum,index,steps} = computeHash(key);
+        showHashSteps(steps, sum, index);
+
+        // highlight bucket
+        const bucketEl = bucketsEl.querySelector('.bucket[data-index="' + index + '"]');
+        if (!bucketEl) {
+          opDetail.textContent = 'Invalid bucket.';
+          return;
+        }
+        bucketEl.style.boxShadow = '0 8px 30px rgba(11,114,133,0.06)';
+        setTimeout(() => bucketEl.style.boxShadow = '', 600 * speedFactor());
+
+        const chainArray = table[index];
+        opDetail.textContent = 'Searching chain of bucket ' + index + '...';
+        let comparisons = 0;
+        comparisonsEl.textContent = comparisons;
+
+        const chainNodes = Array.from(bucketsEl.querySelectorAll('[data-chain="' + index + '"] .node'));
+
+        // sequentially highlight each node for comparison
+        for (let i = 0; i < chainNodes.length; i++) {
+          const node = chainNodes[i];
+          // highlight
+          node.classList.add('highlight');
+          await delay(300 * speedFactor());
+          comparisons++;
+          comparisonsEl.textContent = '' + comparisons;
+          // compare keys (string equality)
+          const nodeKey = node.getAttribute('data-key');
+          if (nodeKey === key) {
+            opDetail.textContent = 'Found key "' + key + '" in bucket ' + index + ' after ' + comparisons + ' comparisons.';
+            liveRegion.textContent = 'Key ' + key + ' found in bucket ' + index + '.';
+            // keep it highlighted for a moment then remove highlight
+            await delay(750 * speedFactor());
+            node.classList.remove('highlight');
+            return;
+          } else {
+            // not found, remove highlight and continue
+            await delay(200 * speedFactor());
+            node.classList.remove('highlight');
+          }
+        }
+        opDetail.textContent = 'Key "' + key + '" not found in bucket ' + index + '. Comparisons: ' + comparisons + '.';
+        liveRegion.textContent = 'Search completed. ' + key + ' not found.';
+      }
+
+      // delete: search then remove node
+      async function deleteKey(key) {
+        if (!key) {
+          opDetail.textContent = 'Please enter a key to delete.';
+          return;
+        }
+        opDetail.textContent = 'Computing hash...';
+        const {sum,index,steps} = computeHash(key);
+        showHashSteps(steps, sum, index);
+
+        const chainArray = table[index];
+        const bucketNodes = Array.from(bucketsEl.querySelectorAll('[data-chain="' + index + '"] .node'));
+        let comparisons = 0;
+        comparisonsEl.textContent = comparisons;
+        let foundIndex = -1;
+        for (let i = 0; i < bucketNodes.length; i++) {
+          const node = bucketNodes[i];
+          node.classList.add('highlight');
+          await delay(300 * speedFactor());
+          comparisons++;
+          comparisonsEl.textContent = comparisons;
+          const nodeKey = node.getAttribute('data-key');
+          if (nodeKey === key) {
+            foundIndex = i;
+            // animate removal
+            node.classList.add('removing');
+            opDetail.textContent = 'Deleting "' + key + '" from bucket ' + index + '...';
+            await delay(300 * speedFactor());
+            node.remove();
+            break;
+          } else {
+            await delay(200 * speedFactor());
+            node.classList.remove('highlight');
+          }
+        }
+        if (foundIndex >= 0) {
+          // remove from data table
+          // remove only first matching entry
+          const arr = table[index];
+          for (let i = 0; i < arr.length; i++) {
+            if (arr[i] === key) {
+              arr.splice(i,1);
+              totalItems--;
+              break;
+            }
+          }
+          opDetail.textContent = 'Deleted key "' + key + '" from bucket ' + index + '. Comparisons: ' + comparisons + '.';
+          liveRegion.textContent = 'Deleted ' + key + ' from bucket ' + index + '.';
+        } else {
+          opDetail.textContent = 'Key "' + key + '" not found in bucket ' + index + '.';
+          liveRegion.textContent = 'Delete: ' + key + ' not found.';
+        }
+        comparisonsEl.textContent = comparisons;
+        updateMetrics();
+      }
+
+      // utility: show hash computation steps
+      function showHashSteps(steps, total, idx) {
+        hashDetail.innerHTML = ''; // clear
+        const container = document.createElement('div');
+        const list = document.createElement('div');
+        list.style.display = 'flex';
+        list.style.flexWrap = 'wrap';
+        list.style.gap = '8px';
+        for (let i = 0; i < steps.length; i++) {
+          const s = steps[i];
+          const el = document.createElement('div');
+          el.className = 'step-line';
+          el.style.border = '1px solid #eaf5f7';
+          el.style.padding = '6px';
+          el.style.background = '#fbfeff';
+          el.innerHTML = '<strong>' + escapeHtml(s.ch) + '</strong> → code ' + s.code + ' (sum: ' + s.running + ')';
+          list.appendChild(el);
+        }
+        const modLine = document.createElement('div');
+        modLine.className = 'step-line active';
+        modLine.style.marginTop = '8px';
+        modLine.innerHTML = 'sum = ' + total + ' → index = sum % ' + tableSize + ' = ' + idx;
+        container.appendChild(list);
+        container.appendChild(modLine);
+        hashDetail.appendChild(container);
+      }
+
+      // helpers
+      function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (m) {
+          return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+        });
+      }
+
+      // event handlers wired to UI
+      insertBtn.addEventListener('click', async () => {
+        const key = keyInput.value.trim();
+        await insertKey(key);
+      });
+      searchBtn.addEventListener('click', async () => {
+        const key = keyInput.value.trim();
+        await searchKey(key);
+      });
+      deleteBtn.addEventListener('click', async () => {
+        const key = keyInput.value.trim();
+        await deleteKey(key);
+      });
+      clearBtn.addEventListener('click', () => {
+        initTable(Number(tableSizeSelect.value));
+        totalItems = 0;
+      });
+
+      tableSizeSelect.addEventListener('change', () => {
+        const n = Number(tableSizeSelect.value);
+        initTable(n);
+      });
+
+      visualSpeed.addEventListener('change', () => {
+        // no-op, speedFactor used on each animation
+      });
+
+      explainBtn.addEventListener('click', () => {
+        showExplain = !showExplain;
+        explainBox.style.display = showExplain ? 'block' : 'none';
+        explainBtn.setAttribute('aria-pressed', String(showExplain));
+      });
+
+      // keyboard: allow Enter to insert
+      keyInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          insertBtn.click();
+        }
+      });
+
+      // initialize on load
+      initTable(tableSize);
+
+      // expose for debugging (optional)
+      window._ht = {
+        table: table,
+        insertKey: insertKey,
+        searchKey: searchKey,
+        deleteKey: deleteKey,
+        computeHash: computeHash
+      };
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+{
+  "topic": "Interactive Longest Common Subsequence (LCS) Module",
+  "description": "Models the interactive states and transitions of the LCS visualization: building the grid, animating DP table computation (play/step/pause), inspecting cell details and tooltips, and animating backtracking to show the LCS.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "resetState",
+      "onExit": "noop",
+      "on": {
+        "BUILD_GRID": "ready",
+        "COMPUTE_CLICK": "computing_playing",
+        "STEP_CLICK": "computing_paused",
+        "RESET_CLICK": "idle",
+        "EXAMPLE_CHANGE": "idle",
+        "SPEED_CHANGE": "idle"
+      }
+    },
+    {
+      "name": "ready",
+      "description": "Grid is built and ready for computation (no computed DP values yet).",
+      "onEnter": "buildGrid",
+      "onExit": "noop",
+      "on": {
+        "COMPUTE_CLICK": "computing_playing",
+        "PLAY_CLICK": "computing_playing",
+        "STEP_CLICK": "computing_paused",
+        "RESET_CLICK": "idle",
+        "EXAMPLE_CHANGE": "ready",
+        "SPEED_CHANGE": "ready",
+        "CELL_CLICK": "ready"
+      }
+    },
+    {
+      "name": "computing_playing",
+      "description": "Animation is running / autoplay is active. The module repeatedly computes cells from the compute queue.",
+      "onEnter": "startAutoPlay",
+      "onExit": "pauseAutoPlay",
+      "on": {
+        "ANIM_STEP": "computing_playing",
+        "COMPUTE_STEP": "computing_playing",
+        "COMPUTE_FINISHED": "computed",
+        "PLAY_CLICK": "computing_paused",
+        "STEP_CLICK": "computing_playing",
+        "RESET_CLICK": "ready",
+        "CELL_CLICK": "computing_playing",
+        "EXPLAIN_TOGGLE": "computing_playing",
+        "SPEED_CHANGE": "computing_playing"
+      }
+    },
+    {
+      "name": "computing_paused",
+      "description": "Computation has started (some cells may be computed) but autoplay is paused. Step executes one cell at a time.",
+      "onEnter": "pauseAutoPlay",
+      "onExit": "noop",
+      "on": {
+        "STEP_CLICK": "computing_paused",
+        "PLAY_CLICK": "computing_playing",
+        "COMPUTE_CLICK": "computing_playing",
+        "COMPUTE_FINISHED": "computed",
+        "RESET_CLICK": "ready",
+        "CELL_CLICK": "computing_paused",
+        "EXPLAIN_TOGGLE": "computing_paused",
+        "SPEED_CHANGE": "computing_paused"
+      }
+    },
+    {
+      "name": "computed",
+      "description": "DP table computation is complete. Cells are clickable for inspection. LCS length is shown. Backtracking may be started from here.",
+      "onEnter": "finishComputation",
+      "onExit": "noop",
+      "on": {
+        "SHOW_PATH_CLICK": "backtracking",
+        "CELL_CLICK": "inspecting",
+        "CELL_HOVER": "tooltip_visible",
+        "EXPLAIN_TOGGLE": "computed",
+        "RESET_CLICK": "ready",
+        "PLAY_CLICK": "computing_playing",
+        "SPEED_CHANGE": "computed"
+      }
+    },
+    {
+      "name": "backtracking",
+      "description": "Animating backtracking path to build and highlight the LCS.",
+      "onEnter": "clearPathHighlights; planBacktrack; animateBacktrack",
+      "onExit": "noop",
+      "on": {
+        "BACKTRACK_STEP": "backtracking",
+        "BACKTRACK_COMPLETE": "computed",
+        "RESET_CLICK": "ready",
+        "CELL_CLICK": "backtracking",
+        "EXPLAIN_TOGGLE": "backtracking",
+        "SPEED_CHANGE": "backtracking"
+      }
+    },
+    {
+      "name": "inspecting",
+      "description": "A single computed cell has been clicked; explanation text shown for that cell. Transient state that returns to computed.",
+      "onEnter": "showCellDetail",
+      "onExit": "noop",
+      "on": {
+        "INSPECT_DONE": "computed",
+        "RESET_CLICK": "ready",
+        "EXPLAIN_TOGGLE": "inspecting"
+      }
+    },
+    {
+      "name": "tooltip_visible",
+      "description": "Tooltip for a hovered computed cell is visible and positioned near the cell.",
+      "onEnter": "showCellHover; showTooltipAt",
+      "onExit": "clearTooltip",
+      "on": {
+        "CELL_LEAVE": "computed",
+        "ESCAPE_KEY": "computed",
+        "RESET_CLICK": "ready",
+        "EXPLAIN_TOGGLE": "tooltip_visible",
+        "SPEED_CHANGE": "tooltip_visible"
+      }
+    }
+  ],
+  "events": [
+    "BUILD_GRID",
+    "COMPUTE_CLICK",
+    "PLAY_CLICK",
+    "STEP_CLICK",
+    "RESET_CLICK",
+    "SHOW_PATH_CLICK",
+    "EXPLAIN_TOGGLE",
+    "SPEED_CHANGE",
+    "EXAMPLE_CHANGE",
+    "CELL_CLICK",
+    "CELL_HOVER",
+    "CELL_LEAVE",
+    "ESCAPE_KEY",
+    "ANIM_STEP",
+    "COMPUTE_STEP",
+    "COMPUTE_FINISHED",
+    "BACKTRACK_STARTED",
+    "BACKTRACK_STEP",
+    "BACKTRACK_COMPLETE",
+    "INSPECT_DONE"
+  ],
+  "notes": "This FSM abstracts the interactive module into key, user-observable states. Implementation notes:\n- Actions referenced (e.g., buildGrid, planBacktrack, startAutoPlay, pauseAutoPlay, computeNextStep, finishComputation, animateBacktrack, showCellDetail, showCellHover, showTooltipAt, clearTooltip, resetState, resetHighlights, clearPathHighlights) map to the functions in the provided script.\n- 'computing_playing' corresponds to animating mode (autoPlay true); 'computing_paused' corresponds to manual / step mode.\n- 'computed' is reached when the computeQueue is exhausted and the dp table is fully filled.\n- 'inspecting' is transient: clicking a computed cell updates the explanation area and does not change DP state; the UI remains functionally in the 'computed' realm.\n- Tooltip visibility is modeled as its own state (tooltip_visible) that is entered on mouseenter when showCellExplain is enabled and dp has been computed; it is exited on mouseleave or Escape.\n- Speed changes and example selection are modeled as events that perform parameter updates (speed, input values) but do not necessarily change the primary state except when handlers rebuild the grid.\n- Reset transitions clear highlights, rebuild the grid and call resetState, returning the UI to the ready/idle baseline.\n- Some events in the code are implemented as internal timeouts (animation timer): these are represented here as ANIM_STEP/COMPUTE_STEP/COMPUTE_FINISHED events to capture the asynchronous progression of computation and backtracking."
+}

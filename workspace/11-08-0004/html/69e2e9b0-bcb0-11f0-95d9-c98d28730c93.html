@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hash Map Explorer — Separate Chaining</title>
+  <style>
+    :root{
+      --bg:#0f1720;
+      --panel:#0b1420;
+      --accent:#48b0a8;
+      --muted:#9aa7b2;
+      --card:#0d1b26;
+      --success:#2ecc71;
+      --danger:#ff6b6b;
+      --glass: rgba(255,255,255,0.03);
+      --radius:10px;
+      --gap:16px;
+    }
+    /* Safe area margins: 24px */
+    html,body{
+      height:100%;
+      margin:0;
+      padding:24px; /* safe area */
+      background: linear-gradient(180deg,#05101a 0%,#071826 60%);
+      color:#e6f0f2;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      box-sizing:border-box;
+    }
+    *,*::before,*::after{box-sizing:inherit}
+    a{color:var(--accent)}
+    main{
+      display:grid;
+      grid-template-columns: 380px 1fr;
+      gap:var(--gap);
+      align-items:start;
+      min-height:calc(100vh - 48px);
+    }
+
+    /* Responsive: stack columns */
+    @media (max-width:900px){
+      main{grid-template-columns:1fr; padding-bottom:24px}
+    }
+
+    .panel{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:var(--radius);
+      padding:20px;
+      box-shadow: 0 8px 24px rgba(2,6,23,0.6);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    /* Left column: documentation + controls */
+    .doc{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    h1{
+      font-size:18px;
+      margin:0 0 6px 0;
+      color:var(--accent);
+      letter-spacing:0.4px;
+    }
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.35;
+    }
+    .section-title{
+      margin:12px 0 6px 0;
+      color:#cfeae6;
+      font-weight:600;
+      font-size:13px;
+    }
+    .controls{
+      background:var(--glass);
+      border-radius:8px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .row{
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    label{font-size:13px;color:var(--muted)}
+    input[type="text"]{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      color:inherit;
+      padding:10px 12px;
+      border-radius:8px;
+      min-width:160px;
+      outline:none;
+    }
+    select, button{
+      background:linear-gradient(180deg,#06232a,#052026);
+      color:inherit;
+      border:1px solid rgba(255,255,255,0.04);
+      padding:10px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      font-size:14px;
+    }
+    button.secondary{
+      background:transparent;
+      border:1px dashed rgba(255,255,255,0.04);
+    }
+    .small{
+      padding:8px 10px;
+      font-size:13px;
+      min-width:80px;
+    }
+    .log{
+      background:transparent;
+      border-radius:8px;
+      padding:10px;
+      font-size:13px;
+      color:var(--muted);
+      height:110px;
+      overflow:auto;
+      border:1px dashed rgba(255,255,255,0.03);
+    }
+
+    /* Right column: visualization */
+    .vis{
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+    .canvas{
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      border-radius:12px;
+      padding:18px;
+      min-height:420px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .info-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* Bucket array */
+    .buckets-wrap{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:flex-start;
+      padding:8px;
+    }
+    .bucket{
+      width:120px;
+      min-height:90px;
+      background:linear-gradient(180deg,#061421,#071a25);
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.03);
+      padding:8px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      position:relative;
+      transition:transform .18s ease;
+    }
+    .bucket:focus-within, .bucket:hover{
+      transform:translateY(-6px);
+    }
+    .bidx{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:4px;
+    }
+    .bucket-list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      min-height:30px;
+      flex-grow:1;
+    }
+
+    /* Node chips in chains */
+    .node{
+      background:linear-gradient(180deg,#08323a,#0a2f3a);
+      border-radius:8px;
+      padding:8px 10px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      color:#e6f6f5;
+      font-size:13px;
+      border:1px solid rgba(255,255,255,0.03);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+      transition:box-shadow .15s, transform .15s, background .18s;
+    }
+    .node .k{
+      background:rgba(255,255,255,0.03);
+      padding:6px 8px;
+      border-radius:6px;
+      font-weight:600;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .node .v{
+      font-size:13px;
+      color:#dff4f0;
+      font-weight:600;
+    }
+    .node.highlight{
+      box-shadow:0 8px 30px rgba(72,176,168,0.12);
+      transform:translateX(6px);
+      background:linear-gradient(90deg, rgba(72,176,168,0.06), rgba(255,255,255,0.02));
+    }
+    .node.found{
+      outline:2px solid rgba(46,204,113,0.12);
+      background:linear-gradient(90deg, rgba(46,204,113,0.06), rgba(255,255,255,0.02));
+    }
+    .node.notfound{
+      outline:2px solid rgba(255,107,107,0.08);
+      background:linear-gradient(90deg, rgba(255,107,107,0.04), rgba(255,255,255,0.01));
+    }
+
+    /* Floating chip used for animation */
+    .floating{
+      position:fixed;
+      z-index:9999;
+      pointer-events:none;
+      transition:transform 450ms cubic-bezier(.2,.9,.28,1), opacity 350ms;
+      transform-origin:center;
+    }
+
+    /* Footer area */
+    .legend{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .pill{
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      padding:6px 8px;
+      background:rgba(255,255,255,0.02);
+      border-radius:999px;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .pill .dot{width:10px;height:10px;border-radius:50%}
+    .dot.hash{background:var(--accent)}
+    .dot.found{background:var(--success)}
+    .dot.collision{background:#f7c948}
+
+    /* small helper */
+    .muted-block{color:var(--muted);font-size:13px}
+    .sr-only{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
+
+    /* Ensure minimum spacing between interactive elements: 16px enforced in layout via gap values */
+  </style>
+</head>
+<body>
+  <main role="main" aria-labelledby="module-title">
+    <!-- Left column: Documentation and controls -->
+    <section class="panel doc" aria-labelledby="module-title">
+      <div>
+        <h1 id="module-title">Hash Map Explorer — Separate Chaining</h1>
+        <div class="muted">Interactive module to learn how a hash map maps keys to buckets and resolves collisions with separate chaining.</div>
+      </div>
+
+      <div class="section-title">Learning Objective</div>
+      <div class="muted">
+        After using this module you will be able to:
+        <ul style="margin:8px 0 0 20px">
+          <li>Compute a hash for a string key and map it to a bucket index.</li>
+          <li>Observe how collisions are handled using separate chaining (linked lists per bucket).</li>
+          <li>Trace insertion, lookup, and deletion through animated visual steps.</li>
+        </ul>
+      </div>
+
+      <div class="section-title">Interaction Design</div>
+      <div class="muted">
+        Interact with controls to insert, lookup, or delete string keys. Actions animate a key chip moving into the calculated bucket. During lookup/delete the module sequentially highlights nodes in the bucket's chain to simulate comparisons. Controls:
+        <ul style="margin:8px 0 0 20px">
+          <li>Type a key and click Insert / Lookup / Delete.</li>
+          <li>Change table size or hash function to explore collision behavior.</li>
+          <li>Adjust speed or try Random key to see collisions emerge.</li>
+        </ul>
+      </div>
+
+      <div class="section-title">Layout Description</div>
+      <div class="muted">
+        Two-column layout: controls & explanation on the left, visualization on the right. Spacing uses a 24px safe margin and at least 16px gap between interactive controls. The visualization shows a horizontal array of buckets with vertical chains. Accessible labels and keyboard focus are provided for major controls. The UI is responsive: on narrow screens it stacks vertically.
+      </div>
+
+      <div class="section-title">Controls</div>
+      <div class="controls" role="region" aria-label="Hash map controls">
+        <div class="row" style="align-items:center">
+          <label for="keyInput">Key</label>
+          <input id="keyInput" type="text" aria-label="Key input" placeholder="e.g., apple" />
+          <button id="insertBtn" class="small" aria-label="Insert key">Insert</button>
+          <button id="lookupBtn" class="small" aria-label="Lookup key">Lookup</button>
+          <button id="deleteBtn" class="small" aria-label="Delete key">Delete</button>
+        </div>
+
+        <div class="row">
+          <label for="hashSelect">Hash function</label>
+          <select id="hashSelect" aria-label="Choose hash function" title="Choose hash function">
+            <option value="sum">Sum char codes (simple)</option>
+            <option value="poly">Polynomial rolling (base 31)</option>
+          </select>
+
+          <label for="sizeSelect">Table size</label>
+          <select id="sizeSelect" aria-label="Table size">
+            <option value="5">5</option>
+            <option value="7" selected>7</option>
+            <option value="11">11</option>
+            <option value="17">17</option>
+            <option value="29">29</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="speedRange">Speed</label>
+          <input id="speedRange" type="range" min="200" max="1200" step="50" value="600" aria-label="Animation speed" />
+          <div class="muted-block" id="speedValue">Delay: 600 ms</div>
+        </div>
+
+        <div class="row">
+          <button id="randomBtn" class="secondary">Random Key</button>
+          <button id="clearBtn" class="secondary">Clear All</button>
+          <div style="flex:1"></div>
+          <div class="pill" title="Legend">
+            <span style="font-size:13px;color:var(--muted)">Legend</span>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:4px">Action Log</div>
+        <div id="log" class="log" role="log" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- Right column: Visualization -->
+    <section class="panel vis" aria-label="Visualization">
+      <div class="info-row">
+        <div style="display:flex;flex-direction:column">
+          <div style="font-weight:700;color:#dff4f0">Bucket Array (Separate Chaining)</div>
+          <div class="muted" style="margin-top:4px">Each bucket contains a chain (list) of nodes for collided keys.</div>
+        </div>
+        <div class="legend" aria-hidden="true">
+          <div class="pill"><span class="dot hash" aria-hidden="true"></span> Hash target</div>
+          <div class="pill"><span class="dot found" aria-hidden="true"></span> Found node</div>
+          <div class="pill"><span class="dot collision" aria-hidden="true"></span> Collision</div>
+        </div>
+      </div>
+
+      <div class="canvas" id="canvas" tabindex="0" aria-label="Hash map canvas">
+        <div id="bucketsWrap" class="buckets-wrap" aria-live="polite" aria-atomic="true">
+          <!-- buckets inserted here -->
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+          <div class="muted">Tip: Try inserting many keys to observe collisions.</div>
+          <div class="muted">Table size affects collision frequency.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="sr-only" aria-hidden="false">
+    Module demonstrates mapping keys to bucket indices using a hash function and storing collided keys in chains.
+  </div>
+
+  <script>
+    // Hash Map Explorer (separate chaining) — Vanilla JS, self-contained.
+
+    // DOM references
+    const keyInput = document.getElementById('keyInput');
+    const insertBtn = document.getElementById('insertBtn');
+    const lookupBtn = document.getElementById('lookupBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const randomBtn = document.getElementById('randomBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const hashSelect = document.getElementById('hashSelect');
+    const sizeSelect = document.getElementById('sizeSelect');
+    const speedRange = document.getElementById('speedRange');
+    const speedValue = document.getElementById('speedValue');
+    const logEl = document.getElementById('log');
+    const bucketsWrap = document.getElementById('bucketsWrap');
+
+    // State
+    let tableSize = parseInt(sizeSelect.value, 10);
+    let hashFn = hashSum;
+    let delay = parseInt(speedRange.value, 10); // ms
+    let buckets = []; // array of arrays [{key, id}]
+    let idCounter = 1;
+
+    // Accessibility: focus key input on load
+    window.addEventListener('load', () => { keyInput.focus(); initialize(); });
+
+    // Initialize empty buckets and render
+    function initialize(){
+      tableSize = parseInt(sizeSelect.value, 10);
+      buckets = Array.from({length: tableSize}, ()=>[]);
+      renderBuckets();
+      log('Initialized hash table with size ' + tableSize + '.');
+    }
+
+    // Logging helper
+    function log(msg, type='info') {
+      const time = new Date().toLocaleTimeString();
+      const p = document.createElement('div');
+      p.textContent = `[${time}] ${msg}`;
+      p.style.marginBottom = '6px';
+      if(type==='error') p.style.color = 'var(--danger)';
+      logEl.prepend(p);
+    }
+
+    // Hash functions
+    function hashSum(str){
+      // simple sum of char codes
+      let s = 0;
+      for (let i=0;i<str.length;i++) s += str.charCodeAt(i);
+      return s % tableSize;
+    }
+    function hashPoly(str){
+      // polynomial rolling hash base 31
+      let h = 0;
+      const base = 31;
+      for (let i=0;i<str.length;i++){
+        h = (h * base + str.charCodeAt(i)) >>> 0;
+        h %= 2**31 - 1;
+      }
+      return h % tableSize;
+    }
+
+    // Render buckets
+    function renderBuckets(){
+      bucketsWrap.innerHTML = '';
+      buckets.forEach((chain, idx)=>{
+        const b = document.createElement('div');
+        b.className = 'bucket';
+        b.setAttribute('data-idx', idx);
+        b.setAttribute('tabindex','0');
+        b.setAttribute('aria-label', `Bucket ${idx}, ${chain.length} items`);
+        const idxLabel = document.createElement('div');
+        idxLabel.className = 'bidx';
+        idxLabel.textContent = `Index ${idx}`;
+        const list = document.createElement('div');
+        list.className = 'bucket-list';
+        list.setAttribute('data-list', idx);
+        // nodes
+        chain.forEach(node=>{
+          const n = createNodeElement(node);
+          list.appendChild(n);
+        });
+
+        b.appendChild(idxLabel);
+        b.appendChild(list);
+        bucketsWrap.appendChild(b);
+      });
+    }
+
+    // Create node DOM element
+    function createNodeElement(node){
+      const el = document.createElement('div');
+      el.className = 'node';
+      el.dataset.id = String(node.id);
+      el.innerHTML = `<div class="k">${escapeHtml(node.key)}</div><div class="v">${escapeHtml(String(node.value))}</div>`;
+      return el;
+    }
+
+    // Insert action with animation
+    async function insertKey(key){
+      if(!key) { log('Insert aborted: key is empty.', 'error'); return; }
+      const idx = computeHashIndex(key);
+      // check duplicate
+      if (buckets[idx].some(n => n.key === key)){
+        log(`Insert: key "${key}" already exists in bucket ${idx}.`, 'error');
+        flashBucket(idx, 'notfound');
+        return;
+      }
+      const node = {key, value: `val${idCounter}`, id: idCounter++};
+      log(`Compute hash for "${key}": index ${idx}.`);
+      await animateToBucket(key, idx);
+      // append to chain (tail)
+      buckets[idx].push(node);
+      renderBuckets();
+      highlightNodeInBucket(idx, node.id, 'found', 700);
+      log(`Inserted "${key}" into bucket ${idx}.`);
+    }
+
+    // Lookup with traversal animation
+    async function lookupKey(key){
+      if(!key){ log('Lookup aborted: key is empty.', 'error'); return; }
+      const idx = computeHashIndex(key);
+      log(`Lookup: hash("${key}") => ${idx}. Traversing bucket...`);
+      const chain = buckets[idx];
+      if(chain.length === 0){
+        flashBucket(idx, 'notfound');
+        log(`Bucket ${idx} is empty. Key "${key}" not found.`, 'error');
+        return;
+      }
+      // Animate traversal: highlight each node sequentially
+      for (let i=0;i<chain.length;i++){
+        const node = chain[i];
+        const nodeEl = getNodeElementById(node.id);
+        await highlightElement(nodeEl, 400);
+        if(node.key === key){
+          // found
+          nodeEl.classList.add('found');
+          log(`Found "${key}" at bucket ${idx}, position ${i}.`);
+          await sleep(700);
+          nodeEl.classList.remove('found');
+          return;
+        } else {
+          // mark checked briefly
+          nodeEl.classList.add('notfound');
+          await sleep(200);
+          nodeEl.classList.remove('notfound');
+        }
+      }
+      flashBucket(idx, 'notfound');
+      log(`Key "${key}" not found in bucket ${idx}.`, 'error');
+    }
+
+    // Delete with traversal and removal animation
+    async function deleteKey(key){
+      if(!key){ log('Delete aborted: key is empty.', 'error'); return; }
+      const idx = computeHashIndex(key);
+      log(`Delete: hash("${key}") => ${idx}. Traversing bucket...`);
+      const chain = buckets[idx];
+      for (let i=0;i<chain.length;i++){
+        const node = chain[i];
+        const nodeEl = getNodeElementById(node.id);
+        await highlightElement(nodeEl, 400);
+        if(node.key === key){
+          nodeEl.classList.add('found');
+          await sleep(350);
+          // animate removal: floating chip from node position to trash (fade)
+          await animateRemoveNode(nodeEl);
+          // remove from data
+          buckets[idx].splice(i,1);
+          renderBuckets();
+          log(`Deleted "${key}" from bucket ${idx}.`);
+          return;
+        } else {
+          nodeEl.classList.add('notfound');
+          await sleep(200);
+          nodeEl.classList.remove('notfound');
+        }
+      }
+      flashBucket(idx, 'notfound');
+      log(`Key "${key}" not found. Nothing deleted.`, 'error');
+    }
+
+    // Utility: compute index based on selected hash function
+    function computeHashIndex(key){
+      // choose fn
+      const fn = (hashSelect.value === 'poly') ? hashPoly : hashSum;
+      return fn(String(key));
+    }
+
+    // Animate a floating chip from controls into the bucket area
+    function animateToBucket(key, idx){
+      return new Promise((resolve)=>{
+        const sourceRect = keyInput.getBoundingClientRect();
+        // Create floating chip
+        const chip = document.createElement('div');
+        chip.className = 'node floating';
+        chip.style.left = sourceRect.left + 'px';
+        chip.style.top = sourceRect.top + 'px';
+        chip.style.opacity = '0';
+        chip.innerHTML = `<div class="k">${escapeHtml(key)}</div><div class="v">…</div>`;
+        document.body.appendChild(chip);
+        // target: bucket's list area
+        const listEl = document.querySelector(`.bucket [data-list="${idx}"]`);
+        // fallback if not found
+        if(!listEl){
+          document.body.removeChild(chip);
+          resolve();
+          return;
+        }
+        const targetRect = listEl.getBoundingClientRect();
+        // initial position
+        chip.style.opacity = '1';
+        chip.style.transform = `translate(0px, 0px) scale(1)`;
+        // compute translation
+        const dx = targetRect.left + targetRect.width/2 - sourceRect.left - sourceRect.width/2;
+        const dy = targetRect.top + targetRect.height/2 - sourceRect.top - sourceRect.height/2;
+        // slight scale
+        chip.style.transition = `transform ${Math.max(350, delay)}ms cubic-bezier(.2,.9,.28,1), opacity 200ms`;
+        requestAnimationFrame(()=>{
+          chip.style.transform = `translate(${dx}px, ${dy}px) scale(.92)`;
+        });
+        // after transition
+        setTimeout(()=>{
+          chip.style.opacity = '0';
+          setTimeout(()=>{ if(chip.parentElement) chip.remove(); resolve(); }, 220);
+        }, Math.max(380, delay+60));
+      });
+    }
+
+    // Highlight a node element (brief) to simulate compare
+    function highlightElement(el, duration){
+      return new Promise((resolve)=>{
+        if(!el){ resolve(); return; }
+        el.classList.add('highlight');
+        setTimeout(()=>{
+          el.classList.remove('highlight');
+          resolve();
+        }, Math.max(180, duration * (delay/600)));
+      });
+    }
+
+    // Flash entire bucket (shake or color) to indicate not found/empty
+    function flashBucket(idx, mode){
+      const bucket = document.querySelector(`.bucket[data-idx="${idx}"]`);
+      if(!bucket) return;
+      if(mode==='notfound'){
+        bucket.animate([{transform:'translateY(0)'},{transform:'translateY(-6px)'},{transform:'translateY(0)'}], {duration:420, iterations:1});
+        bucket.style.boxShadow = '0 8px 24px rgba(255,107,107,0.06)';
+        setTimeout(()=>{ bucket.style.boxShadow=''; }, 650);
+      }
+    }
+
+    // Highlight newly created node briefly
+    function highlightNodeInBucket(idx, id, cls='found', ms=700){
+      const el = getNodeElementById(id);
+      if(!el) return;
+      el.classList.add(cls);
+      setTimeout(()=> el.classList.remove(cls), ms);
+    }
+
+    // Animate removal of node (fade + shrink)
+    function animateRemoveNode(nodeEl){
+      return new Promise((resolve)=>{
+        // clone and float
+        const rect = nodeEl.getBoundingClientRect();
+        const clone = nodeEl.cloneNode(true);
+        clone.classList.add('floating');
+        clone.style.left = rect.left + 'px';
+        clone.style.top = rect.top + 'px';
+        document.body.appendChild(clone);
+        // animate out (scale down + fade + translate)
+        requestAnimationFrame(()=>{
+          clone.style.transition = `transform ${Math.max(350, delay)}ms ease, opacity ${Math.max(250, delay/2)}ms`;
+          clone.style.transform = 'translateY(-24px) scale(.6)';
+          clone.style.opacity = '0';
+        });
+        setTimeout(()=>{
+          clone.remove();
+          resolve();
+        }, Math.max(380, delay+20));
+      });
+    }
+
+    // Helpers
+    function getNodeElementById(id){
+      return document.querySelector(`.node[data-id="${id}"]`);
+    }
+    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c])); }
+
+    // Random key generator
+    function randomKey(){
+      const words = ['apple','banana','cherry','delta','echo','foxtrot','golf','hotel','india','juliet','kilo','lemon','mango','nectar','olive','pearl','quartz','ruby','sapphire','tango'];
+      return words[Math.floor(Math.random()*words.length)] + (Math.random()<0.35?String(Math.floor(Math.random()*99)):'');
+    }
+
+    // Event bindings
+    insertBtn.addEventListener('click', async ()=>{
+      disableAll(true);
+      await insertKey(keyInput.value.trim());
+      disableAll(false);
+    });
+    lookupBtn.addEventListener('click', async ()=>{
+      disableAll(true);
+      await lookupKey(keyInput.value.trim());
+      disableAll(false);
+    });
+    deleteBtn.addEventListener('click', async ()=>{
+      disableAll(true);
+      await deleteKey(keyInput.value.trim());
+      disableAll(false);
+    });
+    randomBtn.addEventListener('click', ()=>{
+      const k = randomKey();
+      keyInput.value = k;
+      log(`Random key generated: "${k}"`);
+      keyInput.focus();
+    });
+    clearBtn.addEventListener('click', ()=>{
+      buckets = Array.from({length: tableSize}, ()=>[]);
+      renderBuckets();
+      log('Cleared all items.');
+    });
+
+    sizeSelect.addEventListener('change', ()=>{
+      tableSize = parseInt(sizeSelect.value,10);
+      initialize();
+    });
+    hashSelect.addEventListener('change', ()=>{
+      log('Hash function changed to: ' + (hashSelect.value==='poly'?'Polynomial rolling':'Sum char codes'));
+    });
+    speedRange.addEventListener('input', ()=>{
+      delay = parseInt(speedRange.value,10);
+      speedValue.textContent = `Delay: ${delay} ms`;
+    });
+
+    // Keyboard shortcuts: Enter for insert
+    keyInput.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        insertBtn.click();
+      }
+    });
+
+    // disable/enable UI during animations
+    function disableAll(flag){
+      const els = [insertBtn, lookupBtn, deleteBtn, randomBtn, clearBtn, hashSelect, sizeSelect];
+      els.forEach(el=>el.disabled = flag);
+      if(flag) { document.body.style.cursor = 'wait'; }
+      else { document.body.style.cursor = ''; }
+    }
+
+    // Initialize table on load
+    // Create initial buckets based on selected size
+    initialize();
+
+    // Expose a small debug function (optional)
+    window.__hashExplorer = {buckets, renderBuckets, computeHashIndex};
+  </script>
+</body>
+</html>

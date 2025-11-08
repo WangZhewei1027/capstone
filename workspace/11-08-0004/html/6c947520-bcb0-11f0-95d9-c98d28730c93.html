@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Linear Regression Explorer</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --ui-width: 320px;
+      --accent: #0b6cf5;
+      --muted: #6b7280;
+      --bg: #ffffff;
+      --card-bg: #f9fafb;
+      --shadow: 0 4px 12px rgba(13, 27, 38, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#ffffff 0%, #f6f8fb 100%);
+      color:#0f1724;
+    }
+    /* Safe area margins of 24px on all sides */
+    body{
+      padding:var(--safe-margin);
+      box-sizing:border-box;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Layout */
+    .module {
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+
+    .panel {
+      background:var(--card-bg);
+      box-shadow:var(--shadow);
+      border-radius:12px;
+      padding:18px;
+      box-sizing:border-box;
+    }
+
+    /* Left: description */
+    .info {
+      min-width:260px;
+      max-width:380px;
+      flex:1 1 var(--ui-width);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .title {
+      font-size:20px;
+      font-weight:700;
+      margin:0;
+    }
+    .subtitle {
+      font-size:13px;
+      color:var(--muted);
+      margin:0;
+    }
+    .section {
+      background:transparent;
+      padding:12px;
+      border-radius:8px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .controls {
+      min-width:280px;
+      flex:1 1 640px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+
+    /* Plot card */
+    .plot-card {
+      width:760px;
+      max-width:100%;
+      height:480px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      padding:14px;
+      box-sizing:border-box;
+    }
+
+    .plot-area {
+      flex:1 1 auto;
+      background:linear-gradient(0deg, rgba(255,255,255,0.4), rgba(255,255,255,0.6));
+      border-radius:8px;
+      position:relative;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:12px;
+    }
+
+    /* Controls row */
+    .controls-row {
+      display:flex;
+      gap:var(--gap);
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    label {font-size:13px; color:var(--muted);}
+
+    .slider {
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width:160px;
+      flex:1 1 auto;
+    }
+
+    input[type="range"] {
+      -webkit-appearance:none;
+      appearance:none;
+      height:6px;
+      border-radius:6px;
+      background:#e6eefc;
+      outline:none;
+    }
+    input[type="range"]::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:16px;height:16px;border-radius:50%;
+      background:var(--accent);
+      box-shadow:0 2px 6px rgba(11,108,245,0.28);
+      cursor:pointer;
+      border:none;
+    }
+
+    .btn {
+      padding:8px 12px;
+      border-radius:8px;
+      background:#fff;
+      border:1px solid #e6eefc;
+      color:var(--accent);
+      cursor:pointer;
+      font-weight:600;
+      min-width:80px;
+    }
+    .btn.primary{
+      background:var(--accent);
+      color:#fff;
+      border-color:transparent;
+    }
+    .btn.warn{
+      background:#fff4f4;color:#b91c1c;border:1px solid #ffd0d0;
+    }
+    .row {display:flex;gap:var(--gap);align-items:center;}
+
+    .metrics {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .metric {
+      background:#fff;
+      border-radius:8px;
+      padding:8px 10px;
+      min-width:120px;
+      text-align:center;
+      box-shadow:0 2px 8px rgba(12,20,30,0.04);
+    }
+    .metric b {display:block; font-size:15px;}
+    .muted {color:var(--muted); font-size:13px;}
+
+    /* Tooltip / instructions */
+    .hint {font-size:13px;color:var(--muted);}
+
+    /* SVG responsive */
+    svg {width:100%;height:100%;display:block;}
+
+    /* Point styles */
+    .point { cursor:grab; }
+    .point:active { cursor:grabbing; }
+
+    /* residual stroke */
+    .residual { stroke:#ef4444; stroke-width:2; stroke-opacity:0.85; stroke-linecap:round; }
+
+    /* predicted line */
+    .pred-line { stroke:var(--accent); stroke-width:3; stroke-linecap:round; stroke-opacity:0.95; }
+
+    /* fit line (analytic) */
+    .fit-line { stroke:#0bce6b; stroke-width:3; stroke-linecap:round; stroke-dasharray:6 6; stroke-opacity:0.95; }
+
+    .axis { stroke: #d1d5db; stroke-width:1; shape-rendering:crispEdges; }
+    .grid-line { stroke:#eef2ff; stroke-width:1; }
+    .axis-label { fill:var(--muted); font-size:12px; }
+
+    /* small screen behavior */
+    @media (max-width:900px){
+      .module {flex-direction:column; align-items:stretch;}
+      .info {order:2;}
+      .controls {order:1;}
+      .plot-card {height:420px;}
+    }
+    /* focus styles for accessibility */
+    button:focus, input[type="range"]:focus { outline:3px solid rgba(11,108,245,0.18); outline-offset:2px; border-radius:8px; }
+  </style>
+</head>
+<body>
+  <!--
+    Interactive Linear Regression Explorer
+    - Single page module: Explanation + interactive plot
+    - Safe margins: 24px (body padding)
+    - Spacing gap: 16px (CSS var)
+  -->
+  <main class="module" role="main" aria-labelledby="module-title">
+    <section class="panel info" aria-labelledby="module-title">
+      <h1 id="module-title" class="title">Linear Regression — Least Squares in Action</h1>
+      <p class="subtitle">Interactively explore how a straight-line model fits data points and how minimizing squared errors determines slope and intercept.</p>
+
+      <div class="section" aria-labelledby="objective-heading">
+        <h2 id="objective-heading" class="title" style="font-size:16px;margin:0">Learning Objective</h2>
+        <p class="hint" style="margin:0">
+          After interacting with this module you will be able to:
+        </p>
+        <ul style="margin:8px 0 0 18px; color:var(--muted);">
+          <li>See how slope and intercept change the predicted line.</li>
+          <li>Observe residuals (vertical errors) and how they determine the Sum of Squared Errors (SSE).</li>
+          <li>Compare the analytic least-squares fit with gradient-descent optimization.</li>
+        </ul>
+      </div>
+
+      <div class="section" aria-labelledby="interaction-heading">
+        <h3 id="interaction-heading" class="title" style="font-size:15px;margin:0">Interaction Design</h3>
+        <p class="hint" style="margin:0">
+          Controls and interactions (keyboard + pointer):
+        </p>
+        <ol style="margin:8px 0 0 18px; color:var(--muted);">
+          <li>Drag points to move them; click anywhere on the plot to add a point.</li>
+          <li>Use the slope and intercept sliders to change the current model; the predicted line and residuals update live.</li>
+          <li>Press "Fit (Analytic)" to compute the least-squares line — it animates from the current model to the optimal line.</li>
+          <li>Run "Gradient Descent" to see iterative updates and SSE decreasing; you can step or animate continuously.</li>
+          <li>Reset removes points and generates a fresh random dataset.</li>
+        </ol>
+      </div>
+
+      <div class="section" aria-labelledby="layout-heading">
+        <h3 id="layout-heading" class="title" style="font-size:15px;margin:0">Layout Description</h3>
+        <p class="hint" style="margin:0">
+          Spatial organization and responsiveness:
+        </p>
+        <ul style="margin:8px 0 0 18px; color:var(--muted);">
+          <li>Left column: concise instructions, objectives and interaction descriptions.</li>
+          <li>Right column: the interactive plot card with controls above/below the plot for immediate feedback.</li>
+          <li>Safe margins: 24px (body padding). Minimum spacing between controls: 16px (CSS gap variables).</li>
+          <li>Accessibility: semantic elements, focus styles, aria-live region for dynamic metrics, and keyboard-friendly controls.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Interactive Controls and Plot -->
+    <section class="panel controls" aria-label="Interactive linear regression controls">
+      <div class="plot-card" role="application" aria-label="Scatter plot and model">
+        <!-- Controls Row -->
+        <div class="controls-row" style="align-items:flex-start;">
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="row" style="align-items:center;">
+              <label for="slopeRange">Slope (m)</label>
+              <div style="width:12px;"></div>
+              <span id="slopeVal" aria-live="polite" style="min-width:70px; font-weight:600;">0.00</span>
+            </div>
+            <div class="slider" style="min-width:260px;">
+              <input id="slopeRange" type="range" min="-5" max="5" step="0.01" value="0">
+              <div class="muted" style="font-size:12px;">Keyboard: Use left/right to nudge</div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="row" style="align-items:center;">
+              <label for="interceptRange">Intercept (b)</label>
+              <div style="width:12px;"></div>
+              <span id="interceptVal" aria-live="polite" style="min-width:70px; font-weight:600;">0.00</span>
+            </div>
+            <div class="slider" style="min-width:260px;">
+              <input id="interceptRange" type="range" min="-10" max="10" step="0.05" value="0">
+            </div>
+          </div>
+
+          <div class="row" style="margin-left:auto;">
+            <button class="btn" id="addRandomBtn" title="Add random point">Add random</button>
+            <button class="btn primary" id="fitBtn" title="Compute analytic least-squares fit">Fit (Analytic)</button>
+          </div>
+        </div>
+
+        <!-- Plot area -->
+        <div class="plot-area" id="plotArea" role="region" aria-label="Scatterplot. Click to add a point. Drag points to move them."
+             tabindex="0">
+          <!-- SVG goes here -->
+          <svg id="svgPlot" viewBox="0 0 800 520" preserveAspectRatio="xMinYMin meet" aria-hidden="false" focusable="false">
+            <!-- Grid & axes -->
+            <defs>
+              <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#fff" stop-opacity="0"/>
+                <stop offset="100%" stop-color="#fff" stop-opacity="0.6"/>
+              </linearGradient>
+            </defs>
+            <g id="grid"></g>
+            <g id="axes"></g>
+            <g id="residuals"></g>
+            <g id="lines"></g>
+            <g id="points"></g>
+          </svg>
+        </div>
+
+        <!-- Footer controls -->
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="row" style="gap:8px;">
+            <button class="btn" id="resetBtn" title="Reset dataset">Reset</button>
+            <button class="btn" id="clearBtn" title="Clear all points">Clear</button>
+            <button class="btn" id="gdToggle" title="Toggle gradient descent">Start GD</button>
+            <button class="btn" id="gdStep" title="Single gradient descent step">Step GD</button>
+          </div>
+
+          <div style="display:flex;gap:12px;align-items:center;">
+            <div class="metric" aria-live="polite">
+              <div class="muted">SSE</div>
+              <b id="sseVal">0.00</b>
+            </div>
+            <div class="metric" aria-live="polite">
+              <div class="muted">R²</div>
+              <b id="r2Val">0.00</b>
+            </div>
+          </div>
+        </div>
+
+        <!-- formula & tips -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <div class="muted" style="font-size:13px;">
+            Analytic fit: m = cov(x,y)/var(x) · b = mean(y) - m·mean(x)
+          </div>
+          <div class="muted" style="font-size:13px;">
+            Tip: click a point to select and press Delete to remove
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /*****************************************************************************
+     * Interactive Linear Regression Explorer (vanilla JS)
+     * Features:
+     * - Click to add points, drag to move, select+Delete to remove
+     * - Slope/Intercept sliders control current model
+     * - Fit (analytic) animates to least-squares solution
+     * - Gradient Descent: step or animate; SSE updates
+     * - Residuals and R^2 shown live; smooth animations for visual feedback
+     *****************************************************************************/
+
+    (function () {
+      // Canvas and sizing (SVG viewBox 800x520 used)
+      const svg = document.getElementById('svgPlot');
+      const gridGroup = document.getElementById('grid');
+      const axesGroup = document.getElementById('axes');
+      const pointsGroup = document.getElementById('points');
+      const residualsGroup = document.getElementById('residuals');
+      const linesGroup = document.getElementById('lines');
+
+      // UI elements
+      const slopeRange = document.getElementById('slopeRange');
+      const interceptRange = document.getElementById('interceptRange');
+      const slopeVal = document.getElementById('slopeVal');
+      const interceptVal = document.getElementById('interceptVal');
+      const sseVal = document.getElementById('sseVal');
+      const r2Val = document.getElementById('r2Val');
+      const fitBtn = document.getElementById('fitBtn');
+      const addRandomBtn = document.getElementById('addRandomBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const gdToggle = document.getElementById('gdToggle');
+      const gdStep = document.getElementById('gdStep');
+      const plotArea = document.getElementById('plotArea');
+
+      // Data model: points = [{x:..., y:...}] in data coordinates (x,y range)
+      let points = [];
+      // Model parameters (slope m, intercept b)
+      let model = { m: 0.0, b: 0.0 };
+      // Analytical fit line path element
+      let predLineEl = null;
+      let fitLineEl = null;
+      // State for dragging
+      let dragging = null; // {index, el, offset}
+      let selectedIndex = null;
+
+      // Gradient descent state
+      let gdRunning = false;
+      let gdInterval = null;
+      let gdParams = { lr: 0.01, stepsPerTick: 1 };
+
+      // View mapping: data domain to SVG coordinates
+      const view = {
+        xMin: 0, xMax: 10,
+        yMin: 0, yMax: 10,
+        width: 760, height: 420, // visual interior size; viewBox used for full size including margins
+        marginLeft: 40, marginRight: 20, marginTop: 20, marginBottom: 60
+      };
+      // Derived svg coordinate box where points live:
+      // left = marginLeft, right = viewBox width - marginRight
+      const vb = { width: 800, height: 520 };
+
+      // Helpers: map data->pixel and back
+      function sx(x) {
+        const left = view.marginLeft;
+        const right = vb.width - view.marginRight;
+        return left + (x - view.xMin) / (view.xMax - view.xMin) * (right - left);
+      }
+      function sy(y) {
+        const top = view.marginTop;
+        const bottom = vb.height - view.marginBottom;
+        // invert y
+        return bottom - (y - view.yMin) / (view.yMax - view.yMin) * (bottom - top);
+      }
+      function ix(px) {
+        const left = view.marginLeft;
+        const right = vb.width - view.marginRight;
+        const ratio = Math.max(0, Math.min(1, (px - left) / (right - left)));
+        return view.xMin + ratio * (view.xMax - view.xMin);
+      }
+      function iy(py) {
+        const top = view.marginTop;
+        const bottom = vb.height - view.marginBottom;
+        const ratio = Math.max(0, Math.min(1, (bottom - py) / (bottom - top)));
+        return view.yMin + ratio * (view.yMax - view.yMin);
+      }
+
+      // Initialize grid and axes (static)
+      function drawGrid() {
+        gridGroup.innerHTML = '';
+        axesGroup.innerHTML = '';
+        // vertical grid lines
+        for (let xi = Math.ceil(view.xMin); xi <= Math.floor(view.xMax); xi++) {
+          const x = sx(xi);
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute('x1', x); line.setAttribute('x2', x);
+          line.setAttribute('y1', sy(view.yMin)); line.setAttribute('y2', sy(view.yMax));
+          line.setAttribute('class', 'grid-line');
+          gridGroup.appendChild(line);
+          // label
+          const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          lbl.setAttribute('x', x); lbl.setAttribute('y', sy(view.yMin) + 18);
+          lbl.setAttribute('text-anchor', 'middle');
+          lbl.setAttribute('class', 'axis-label');
+          lbl.textContent = xi.toString();
+          axesGroup.appendChild(lbl);
+        }
+        // horizontal grid lines
+        for (let yi = Math.ceil(view.yMin); yi <= Math.floor(view.yMax); yi++) {
+          const y = sy(yi);
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute('x1', sx(view.xMin)); line.setAttribute('x2', sx(view.xMax));
+          line.setAttribute('y1', y); line.setAttribute('y2', y);
+          line.setAttribute('class', 'grid-line');
+          gridGroup.appendChild(line);
+          // label left
+          const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          lbl.setAttribute('x', sx(view.xMin) - 8); lbl.setAttribute('y', y + 4);
+          lbl.setAttribute('text-anchor', 'end');
+          lbl.setAttribute('class', 'axis-label');
+          lbl.textContent = yi.toString();
+          axesGroup.appendChild(lbl);
+        }
+      }
+
+      // Render points and residuals & lines
+      function renderAll(animate=false) {
+        // Clear groups
+        pointsGroup.innerHTML = '';
+        residualsGroup.innerHTML = '';
+        linesGroup.innerHTML = '';
+
+        // Predicted line for current model (continuous)
+        predLineEl = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        predLineEl.setAttribute('class', 'pred-line');
+        const x0 = view.xMin, x1 = view.xMax;
+        predLineEl.setAttribute('x1', sx(x0));
+        predLineEl.setAttribute('y1', sy(model.m * x0 + model.b));
+        predLineEl.setAttribute('x2', sx(x1));
+        predLineEl.setAttribute('y2', sy(model.m * x1 + model.b));
+        linesGroup.appendChild(predLineEl);
+
+        // Compute analytic fit and draw as dashed (but not active model)
+        const analytic = analyticFit(points);
+        if (analytic) {
+          fitLineEl = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          fitLineEl.setAttribute('class', 'fit-line');
+          fitLineEl.setAttribute('x1', sx(x0));
+          fitLineEl.setAttribute('y1', sy(analytic.m * x0 + analytic.b));
+          fitLineEl.setAttribute('x2', sx(x1));
+          fitLineEl.setAttribute('y2', sy(analytic.m * x1 + analytic.b));
+          linesGroup.appendChild(fitLineEl);
+        }
+
+        // Draw residuals and points
+        points.forEach((p, i) => {
+          // residual line from (x, y) to (x, predicted)
+          const px = sx(p.x), py = sy(p.y);
+          const pyPred = sy(model.m * p.x + model.b);
+          const res = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          res.setAttribute('x1', px); res.setAttribute('x2', px);
+          res.setAttribute('y1', py); res.setAttribute('y2', pyPred);
+          res.setAttribute('class', 'residual');
+          res.style.opacity = 0.9;
+          residualsGroup.appendChild(res);
+
+          // circle
+          const grp = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          grp.setAttribute('data-index', i);
+          grp.setAttribute('role', 'button');
+          grp.setAttribute('tabindex', 0);
+          grp.setAttribute('aria-label', `Point ${i+1} at (${p.x.toFixed(2)}, ${p.y.toFixed(2)})`);
+          grp.style.cursor = 'grab';
+          grp.classList.add('point');
+
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute('cx', px); circle.setAttribute('cy', py);
+          circle.setAttribute('r', 7);
+          circle.setAttribute('fill', '#fff');
+          circle.setAttribute('stroke', '#0b6cf5');
+          circle.setAttribute('stroke-width', 2);
+          grp.appendChild(circle);
+
+          // shadow
+          const shadow = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          shadow.setAttribute('cx', px); shadow.setAttribute('cy', py+1.5);
+          shadow.setAttribute('r', 8);
+          shadow.setAttribute('fill', 'rgba(11,108,245,0.06)');
+          grp.insertBefore(shadow, circle);
+
+          // show index label small
+          const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          t.setAttribute('x', px + 11); t.setAttribute('y', py - 10);
+          t.setAttribute('class', 'axis-label');
+          t.textContent = (i + 1).toString();
+          pointsGroup.appendChild(grp);
+          pointsGroup.appendChild(t);
+
+          // attach events for dragging and keyboard
+          attachPointEvents(grp, i);
+        });
+
+        updateMetrics();
+        updateUISliders();
+      }
+
+      // Attach pointer and keyboard events to a point group
+      function attachPointEvents(group, index) {
+        group.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          const idx = Number(group.getAttribute('data-index'));
+          selectedIndex = idx;
+          dragging = { index: idx, el: group, startX: e.clientX, startY: e.clientY };
+          group.setPointerCapture(e.pointerId);
+        });
+
+        group.addEventListener('keydown', (e) => {
+          const idx = Number(group.getAttribute('data-index'));
+          if (e.key === 'Delete' || e.key === 'Backspace') {
+            // remove this point
+            points.splice(idx, 1);
+            // re-render
+            renderAll();
+          }
+        });
+
+        // pointermove handled globally for robust dragging
+      }
+
+      // Global pointermove and up
+      svg.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        // calculate corresponding data coordinates
+        const svgRect = svg.getBoundingClientRect();
+        const px = e.clientX - svgRect.left;
+        const py = e.clientY - svgRect.top;
+        const x = ix(px);
+        const y = iy(py);
+        // clamp to domain
+        const clampedX = Math.max(view.xMin, Math.min(view.xMax, x));
+        const clampedY = Math.max(view.yMin, Math.min(view.yMax, y));
+        points[dragging.index].x = clampedX;
+        points[dragging.index].y = clampedY;
+        renderAll();
+      });
+      svg.addEventListener('pointerup', (e) => {
+        if (!dragging) return;
+        dragging.el.releasePointerCapture(e.pointerId);
+        dragging = null;
+      });
+      svg.addEventListener('pointercancel', () => { dragging = null; });
+
+      // Add point on click (but avoid when clicked on existing point)
+      svg.addEventListener('click', (e) => {
+        // if click target is a point element or its child, ignore
+        if (e.target.closest && e.target.closest('.point')) return;
+        const svgRect = svg.getBoundingClientRect();
+        const px = e.clientX - svgRect.left;
+        const py = e.clientY - svgRect.top;
+        const x = ix(px);
+        const y = iy(py);
+        addPoint(x, y);
+      });
+
+      // Keyboard accessibility: when plot focused, pressing 'a' adds random point
+      plotArea.addEventListener('keydown', (e) => {
+        if (e.key === 'a' || e.key === 'A') {
+          const rx = view.xMin + Math.random() * (view.xMax - view.xMin);
+          const ry = view.yMin + Math.random() * (view.yMax - view.yMin);
+          addPoint(rx, ry);
+        }
+      });
+
+      // Utility: add point and rerender
+      function addPoint(x, y) {
+        points.push({ x: x, y: y });
+        renderAll();
+      }
+
+      // Randomize initial dataset
+      function resetData() {
+        points = [];
+        // create 6 random points roughly around a slope 0.8 and intercept 1.2 with noise
+        const baseM = 0.8 + (Math.random() - 0.5) * 0.6;
+        const baseB = 1.2 + (Math.random() - 0.5) * 2.0;
+        for (let i = 0; i < 6; i++) {
+          const x = 1 + i * ( (view.xMax - view.xMin - 2) / 5 ) + (Math.random() - 0.5) * 0.8;
+          const y = baseM * x + baseB + (Math.random() - 0.5) * 1.6;
+          points.push({ x: Math.max(view.xMin, Math.min(view.xMax, x)),
+                        y: Math.max(view.yMin, Math.min(view.yMax, y)) });
+        }
+        // reset model to a neutral line
+        model.m = 0.0; model.b = 0.0;
+        slopeRange.value = model.m.toFixed(2);
+        interceptRange.value = model.b.toFixed(2);
+        renderAll();
+      }
+
+      // Clear all points
+      function clearData() {
+        points = [];
+        renderAll();
+      }
+
+      // Update slider UI text
+      function updateUISliders() {
+        slopeVal.textContent = model.m.toFixed(2);
+        interceptVal.textContent = model.b.toFixed(2);
+        // sync ranges without triggering events inadvertently
+        slopeRange.value = model.m;
+        interceptRange.value = model.b;
+      }
+
+      // Compute metrics (SSE, R^2)
+      function updateMetrics() {
+        if (points.length === 0) {
+          sseVal.textContent = '0.00';
+          r2Val.textContent = '0.00';
+          return;
+        }
+        const N = points.length;
+        let sse = 0;
+        let sumY = 0;
+        for (const p of points) sumY += p.y;
+        const meanY = sumY / N;
+        let sst = 0;
+        for (const p of points) {
+          const pred = model.m * p.x + model.b;
+          const res = p.y - pred;
+          sse += res * res;
+          sst += (p.y - meanY) * (p.y - meanY);
+        }
+        const r2 = sst === 0 ? 1.0 : Math.max(0, 1 - sse / sst);
+        sseVal.textContent = sse.toFixed(3);
+        r2Val.textContent = r2.toFixed(3);
+      }
+
+      // Analytic least-squares fit (returns {m,b} or null if insufficient data)
+      function analyticFit(pts) {
+        const n = pts.length;
+        if (n < 2) return null;
+        let sxv = 0, syv = 0;
+        for (const p of pts) { sxv += p.x; syv += p.y; }
+        const meanX = sxv / n, meanY = syv / n;
+        let num = 0, den = 0;
+        for (const p of pts) {
+          const dx = p.x - meanX;
+          num += dx * (p.y - meanY);
+          den += dx * dx;
+        }
+        if (Math.abs(den) < 1e-12) return { m: 0, b: meanY };
+        const m = num / den;
+        const b = meanY - m * meanX;
+        return { m: m, b: b };
+      }
+
+      // Animate model parameters (interpolate) and rerender during animation
+      function animateToModel(target, duration = 700) {
+        const start = performance.now();
+        const init = { m: model.m, b: model.b };
+        return new Promise((resolve) => {
+          function step(ts) {
+            const t = Math.min(1, (ts - start) / duration);
+            // ease (cubic)
+            const easeT = (--t)*t*t+1;
+            model.m = init.m + (target.m - init.m) * easeT;
+            model.b = init.b + (target.b - init.b) * easeT;
+            renderAll();
+            if (easeT < 1) requestAnimationFrame(step);
+            else resolve();
+          }
+          requestAnimationFrame(step);
+        });
+      }
+
+      // Fit button action: compute analytic fit and animate to it
+      fitBtn.addEventListener('click', async () => {
+        const target = analyticFit(points);
+        if (!target) return;
+        await animateToModel(target, 800);
+      });
+
+      // Add random point
+      addRandomBtn.addEventListener('click', () => {
+        const rx = view.xMin + Math.random() * (view.xMax - view.xMin);
+        const ry = view.yMin + Math.random() * (view.yMax - view.yMin);
+        addPoint(rx, ry);
+      });
+
+      resetBtn.addEventListener('click', () => {
+        stopGD();
+        resetData();
+      });
+      clearBtn.addEventListener('click', () => {
+        stopGD();
+        clearData();
+      });
+
+      // Slider interactions: live-update model
+      slopeRange.addEventListener('input', (e) => {
+        model.m = Number(e.target.value);
+        renderAll();
+      });
+      interceptRange.addEventListener('input', (e) => {
+        model.b = Number(e.target.value);
+        renderAll();
+      });
+
+      // Keyboard nudge for sliders
+      slopeRange.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); slopeRange.stepDown(); slopeRange.dispatchEvent(new Event('input')); }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); slopeRange.stepUp(); slopeRange.dispatchEvent(new Event('input')); }
+      });
+      interceptRange.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); interceptRange.stepDown(); interceptRange.dispatchEvent(new Event('input')); }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); interceptRange.stepUp(); interceptRange.dispatchEvent(new Event('input')); }
+      });
+
+      // Gradient descent functions
+      function computeGradients(m, b) {
+        const n = points.length;
+        if (n === 0) return { dm: 0, db: 0 };
+        let dm = 0, db = 0;
+        for (const p of points) {
+          const pred = m * p.x + b;
+          const res = pred - p.y; // derivative wrt pred
+          dm += (2 / n) * res * p.x;
+          db += (2 / n) * res;
+        }
+        return { dm, db };
+      }
+
+      function gdStepOnce() {
+        if (points.length === 0) return;
+        const { dm, db } = computeGradients(model.m, model.b);
+        // Use learning rate scaled appropriately
+        const lr = gdParams.lr;
+        model.m -= lr * dm;
+        model.b -= lr * db;
+        renderAll();
+      }
+
+      // Toggle continuous GD animation
+      gdToggle.addEventListener('click', () => {
+        if (!gdRunning) {
+          startGD();
+        } else {
+          stopGD();
+        }
+      });
+
+      gdStep.addEventListener('click', () => {
+        stopGD();
+        gdStepOnce();
+      });
+
+      function startGD() {
+        if (gdRunning) return;
+        gdRunning = true;
+        gdToggle.textContent = 'Stop GD';
+        gdToggle.classList.add('warn');
+        // choose lr adaptively by rough measure of data spread
+        gdParams.lr = 0.03; // tuned for typical scales (x~0-10)
+        let steps = 0;
+        gdInterval = setInterval(() => {
+          // perform a few steps per tick for smoother animation
+          for (let k = 0; k < gdParams.stepsPerTick; k++) {
+            gdStepOnce();
+            steps++;
+          }
+        }, 60);
+      }
+      function stopGD() {
+        if (!gdRunning) return;
+        gdRunning = false;
+        if (gdInterval) clearInterval(gdInterval);
+        gdInterval = null;
+        gdToggle.textContent = 'Start GD';
+        gdToggle.classList.remove('warn');
+      }
+
+      // Single GD step (for Step button)
+      function gdStepOnce() {
+        if (points.length === 0) return;
+        const { dm, db } = computeGradients(model.m, model.b);
+        const lr = gdParams.lr;
+        model.m -= lr * dm;
+        model.b -= lr * db;
+        renderAll();
+      }
+
+      // Initial setup
+      drawGrid();
+      resetData();
+
+      // Ensure focus outlines and instructions are discoverable
+      plotArea.setAttribute('tabindex', 0);
+
+      // Accessibility: announce changes in model
+      const liveRegion = document.createElement('div');
+      liveRegion.setAttribute('aria-live', 'polite');
+      liveRegion.style.position = 'absolute';
+      liveRegion.style.left = '-9999px';
+      liveRegion.style.top = 'auto';
+      liveRegion.style.width = '1px';
+      liveRegion.style.height = '1px';
+      document.body.appendChild(liveRegion);
+
+      // Announce when analytic fit computed
+      fitBtn.addEventListener('click', () => {
+        const a = analyticFit(points);
+        if (!a) return;
+        liveRegion.textContent = `Analytic fit: slope ${a.m.toFixed(2)}, intercept ${a.b.toFixed(2)}.`;
+      });
+
+      // Clean up when tab closes (stop intervals)
+      window.addEventListener('beforeunload', () => {
+        stopGD();
+      });
+    })();
+  </script>
+</body>
+</html>

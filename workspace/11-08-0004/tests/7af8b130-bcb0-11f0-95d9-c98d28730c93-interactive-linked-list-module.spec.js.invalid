@@ -1,0 +1,506 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL = 'http://127.0.0.1:5500/workspace/11-08-0004/html/7af8b130-bcb0-11f0-95d9-c98d28730c93.html';
+
+/**
+ * Utility helpers for interacting with the linked list app.
+ * These helpers try several reasonable selector fallbacks because the exact HTML structure
+ * isn't fully specified here. They use robust Playwright locator APIs and wait for announcements
+ * (aria-live / role=status) as the primary way to detect async FSM transitions and animations.
+ */
+
+/**
+ * Find the announcer element (aria-live / role=status) used by the app to announce FSM transitions.
+ */
+async function getAnnouncer(page) {
+  // Common patterns: role="status", aria-live="polite", .announce, #status
+  const candidates = [
+    page.getByRole('status').first(),
+    page.locator('[aria-live="polite"]').first(),
+    page.locator('#status').first(),
+    page.locator('.announce').first(),
+    page.locator('[data-announcer]').first()
+  ];
+  for (const cand of candidates) {
+    try {
+      // try to evaluate presence; resolve to cand if it exists in DOM
+      if (await cand.count() > 0) return cand;
+    } catch (e) {
+      // ignore
+    }
+  }
+  // last fallback: return body so text-based checks still work
+  return page.locator('body');
+}
+
+/**
+ * Find the main input textbox for entering node values.
+ */
+async function getInput(page) {
+  const candidates1 = [
+    page.getByRole('textbox').first(),
+    page.locator('input[type="text"]').first(),
+    page.locator('input[name="value"]').first(),
+    page.locator('#value').first(),
+    page.locator('[data-input]').first()
+  ];
+  for (const cand of candidates) {
+    try {
+      if (await cand.count() > 0) return cand;
+    } catch (e) {}
+  }
+  throw new Error('Value input textbox not found');
+}
+
+/**
+ * Find a button by label text. Accepts a regex pattern (case-insensitive match).
+ */
+async function clickButtonByLabel(page, labelRegex) {
+  // Try role=button first (best practice)
+  const byRole = page.getByRole('button', { name: new RegExp(labelRegex, 'i') });
+  if (await byRole.count() > 0) {
+    await byRole.first().click();
+    return;
+  }
+  // fallback to any element with the text (buttons may be anchors/divs)
+  const byText = page.locator(`text=${labelRegex}`);
+  if (await byText.count() > 0) {
+    await byText.first().click();
+    return;
+  }
+  throw new Error(`Button with label matching ${labelRegex} not found`);
+}
+
+/**
+ * Locate the list container where node elements are rendered.
+ * Tries several common selectors used in similar modules.
+ */
+async function getListContainer(page) {
+  const selectors = [
+    '#list',
+    '.list-area',
+    '.nodes',
+    '.linked-list',
+    '[data-list]',
+    '#canvas',
+    'main .module'
+  ];
+  for (const sel of selectors) {
+    const loc = page.locator(sel);
+    if (await loc.count() > 0) return loc.first();
+  }
+  // As fallback use main content area
+  const fallback = page.locator('main');
+  if (await fallback.count() > 0) return fallback.first();
+  return page.locator('body');
+}
+
+/**
+ * Return an array of visible node texts in order as shown on the page.
+ * This uses heuristics: collects all elements inside the list container that contain non-empty text,
+ * filters out control labels and status text by comparing against known UI text snippets.
+ */
+async function getNodeTexts(page) {
+  const container = await getListContainer(page);
+  // we try several node selectors first
+  const nodeSelectors = [
+    '.node',
+    '.ll-node',
+    '.list-node',
+    '.node-item',
+    '[data-node]',
+    '.item'
+  ];
+  for (const sel of nodeSelectors) {
+    const loc1 = container.locator(sel);
+    if (await loc.count() > 0) {
+      const count = await loc.count();
+      const texts = [];
+      for (let i = 0; i < count; i++) {
+        const t = (await loc.nth(i).innerText()).trim();
+        if (t) texts.push(t);
+      }
+      if (texts.length > 0) return texts;
+    }
+  }
+
+  // Fallback: collect direct children text nodes (filter short/irrelevant ones)
+  const children = container.locator(':scope > *');
+  const cnt = await children.count();
+  const collected = [];
+  for (let i = 0; i < cnt; i++) {
+    const text = (await children.nth(i).innerText()).trim();
+    if (!text) continue;
+    // ignore common UI labels we expect in controls
+    const ignorePatterns = [/Insert/i, /Delete/i, /Reset/i, /Traverse/i, /Head/i, /Tail/i, /After/i, /Demo/i, /Ready|Traversal|Visiting|Deleted|Inserted/i];
+    if (ignorePatterns.some((r) => r.test(text))) continue;
+    collected.push(text);
+  }
+  return collected;
+}
+
+/**
+ * Click a node with the given visible text. Tries to find an element that contains that text inside the list container.
+ */
+async function clickNodeByText(page, text) {
+  const container1 = await getListContainer(page);
+  // try exact matches first
+  const exact = container.getByText(new RegExp(`^\\s*${escapeRegExp(text)}\\s*$`, 'i'));
+  if (await exact.count() > 0) {
+    await exact.first().click();
+    return;
+  }
+  // fallback to any element containing the text
+  const any = container.getByText(new RegExp(escapeRegExp(text), 'i'));
+  if (await any.count() > 0) {
+    await any.first().click();
+    return;
+  }
+  throw new Error(`Node with text "${text}" not found to click`);
+}
+
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Wait for the announcer to contain (or equal) some text. Uses a timeout and polling.
+ */
+async function waitForAnnouncement(page, expectedRegex, timeout = 4000) {
+  const announcer = await getAnnouncer(page);
+  await expect.poll(async () => {
+    const text1 = (await announcer.innerText()).trim();
+    return text;
+  }, {
+    timeout,
+    message: `Timeout waiting for announcer to match ${expectedRegex}`
+  }).toMatch(new RegExp(expectedRegex, 'i'));
+}
+
+/**
+ * Helper to clear input, type value and trigger KEY_ENTER_INPUT if appropriate
+ */
+async function typeValueAndEnter(page, value) {
+  const input = await getInput(page);
+  await input.fill(''); // clear
+  await input.type(value);
+  // Many implementations accept Enter key to trigger insert; try pressing Enter
+  await input.press('Enter');
+}
+
+test.describe('Interactive Linked List Module - FSM end-to-end', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+    // Wait for the app to render and set initial Ready status
+    const announcer1 = await getAnnouncer(page);
+    await expect(announcer).toBeTruthy();
+    // Allow a short time for initial rendering
+    await page.waitForTimeout(150);
+  });
+
+  test('idle state: app renders and status shows Ready', async ({ page }) => {
+    // Validate that the UI rendered and the initial status is 'Ready'
+    const announcer2 = await getAnnouncer(page);
+    const statusText = (await announcer.innerText()).trim();
+    // Sometimes announcer may not contain 'Ready' text instantly; wait for it
+    await expect.poll(async () => (await announcer.innerText()).trim(), {
+      timeout: 2000
+    }).toMatch(/Ready/i);
+    // Basic DOM sanity checks: input and at least the main area exist
+    const input1 = await getInput(page);
+    await expect(input).toBeVisible();
+    const container2 = await getListContainer(page);
+    await expect(container).toBeVisible();
+  });
+
+  test.describe('Seeding (INIT_DEMO / seeding state)', () => {
+    test('seed demo creates A -> B -> C in order and announces completion', async ({ page }) => {
+      // Try to find and click a demo/seed button
+      await clickButtonByLabel(page, 'demo|seed|init demo|create demo');
+      // Expect the announcer to report demo creation
+      await waitForAnnouncement(page, 'Demo list created:|Demo list created|A -> B -> C|A -> B -> C');
+      // Validate nodes A,B,C exist and are in order
+      await expect.poll(async () => (await getNodeTexts(page)).join(','), { timeout: 5000 })
+        .toEqual(expect.stringMatching(/A.*B.*C/));
+      const nodeTexts = await getNodeTexts(page);
+      // ensure first three nodes are A,B,C in that order
+      expect(nodeTexts[0].includes('A')).toBeTruthy();
+      expect(nodeTexts[1].includes('B')).toBeTruthy();
+      expect(nodeTexts[2].includes('C')).toBeTruthy();
+    });
+  });
+
+  test.describe('Insertion states (head, tail, after) and validation', () => {
+    test('inserting at head with Enter key and by button; announcement and DOM update', async ({ page }) => {
+      // Ensure empty list by resetting first
+      await clickButtonByLabel(page, 'reset');
+      // Wait for reset announcement (either "List reset" or "List already empty")
+      await waitForAnnouncement(page, 'List reset|already empty', 3000);
+
+      // Enter value and press Enter -> KEY_ENTER_INPUT should map to inserting_head
+      const input2 = await getInput(page);
+      await input.fill('X');
+      await input.press('Enter'); // triggers KEY_ENTER_INPUT -> inserting_head
+      // Wait for inserted announcement
+      await waitForAnnouncement(page, 'Inserted\\s+X\\s+at head|Inserted\\s+X', 4000);
+      // Validate node exists and is at head
+      const texts1 = await getNodeTexts(page);
+      expect(texts.length).toBeGreaterThanOrEqual(1);
+      expect(texts[0]).toContain('X');
+
+      // Insert another at head using the button explicitly
+      await input.fill('H2');
+      await clickButtonByLabel(page, 'insert head|head insert');
+      await waitForAnnouncement(page, 'Inserted\\s+H2\\s+at head|Inserted\\s+H2', 4000);
+      const texts2 = await getNodeTexts(page);
+      expect(texts2[0]).toContain('H2');
+    });
+
+    test('inserting at tail appends node and announces tail insertion', async ({ page }) => {
+      const input3 = await getInput(page);
+      // Insert tail value 'T1'
+      await input.fill('T1');
+      await clickButtonByLabel(page, 'insert tail|tail insert');
+      await waitForAnnouncement(page, 'Inserted\\s+T1\\s+at tail|Inserted\\s+T1', 4000);
+      const texts21 = await getNodeTexts(page);
+      // ensure last element contains T1
+      expect(texts[texts.length - 1]).toContain('T1');
+    });
+
+    test('inserting after selected node inserts at correct position and clears selection', async ({ page }) => {
+      // Seed a small list to ensure nodes exist
+      await clickButtonByLabel(page, 'demo|seed');
+      await waitForAnnouncement(page, 'Demo list created', 4000);
+      // Select node 'B' (exists from demo) - nodeSelected state should announce selection
+      await clickNodeByText(page, 'B');
+      await waitForAnnouncement(page, 'Selected node|Selected', 2000);
+      // Insert after selected
+      const input4 = await getInput(page);
+      await input.fill('AFTER_B');
+      await clickButtonByLabel(page, 'insert after|after');
+      await waitForAnnouncement(page, 'Inserted\\s+AFTER_B\\s+after|Inserted\\s+AFTER_B', 4000);
+      // Assert that AFTER_B appears immediately after the originally selected 'B'
+      const texts3 = await getNodeTexts(page);
+      const idx = texts.findIndex((t) => /B/.test(t));
+      expect(idx).toBeGreaterThanOrEqual(0);
+      expect(texts[idx + 1]).toContain('AFTER_B');
+      // Selection should have been cleared (selected class removed); clicking B again should select it (we'll check announcer)
+      await clickNodeByText(page, 'B');
+      await waitForAnnouncement(page, 'Selected node|Selected', 2000);
+    });
+
+    test('inserting with empty input emits NO_VALUE_ENTERED and does not mutate list', async ({ page }) => {
+      // get current node count
+      const before = (await getNodeTexts(page)).length;
+      const input5 = await getInput(page);
+      await input.fill(''); // empty
+      // Try Insert Head
+      await clickButtonByLabel(page, 'insert head|head insert');
+      await waitForAnnouncement(page, 'No value entered|no value', 2000);
+      const after = (await getNodeTexts(page)).length;
+      expect(after).toBe(before);
+    });
+
+    test('inserting after with no selection emits NO_SELECTION and does not mutate', async ({ page }) => {
+      // ensure we clear selection by clicking outside (reset to idle)
+      await clickButtonByLabel(page, 'reset'); // resetting will clear things
+      await waitForAnnouncement(page, 'List reset|already empty', 3000);
+      const before1 = (await getNodeTexts(page)).length;
+      const input6 = await getInput(page);
+      await input.fill('Z');
+      await clickButtonByLabel(page, 'insert after|after');
+      await waitForAnnouncement(page, 'No selection|no selection', 2000);
+      const after1 = (await getNodeTexts(page)).length;
+      expect(after).toBe(before);
+    });
+  });
+
+  test.describe('Deletion state and validation', () => {
+    test('deleting selected node removes it and announces deletion', async ({ page }) => {
+      // Seed a list then select a node to delete
+      await clickButtonByLabel(page, 'demo|seed');
+      await waitForAnnouncement(page, 'Demo list created', 4000);
+      // get initial node texts
+      let texts4 = await getNodeTexts(page);
+      expect(texts.length).toBeGreaterThan(0);
+      const target = texts[0].split(/\s+/)[0]; // pick first node's text token
+      // Select it
+      await clickNodeByText(page, target);
+      await waitForAnnouncement(page, 'Selected node|Selected', 2000);
+      // Click delete
+      await clickButtonByLabel(page, 'delete');
+      await waitForAnnouncement(page, 'Deleted node|Deleted', 4000);
+      const textsAfter = await getNodeTexts(page);
+      // Ensure the target value is no longer present
+      expect(textsAfter.join(' ')).not.toContain(target);
+    });
+
+    test('clicking delete with no selection emits NO_SELECTION and does not change list', async ({ page }) => {
+      // Ensure there's at least one node
+      await clickButtonByLabel(page, 'demo|seed');
+      await waitForAnnouncement(page, 'Demo list created', 4000);
+      // Clear selection by clicking reset idle
+      // Instead of reset (which removes nodes), just click an empty area: attempt to click header
+      await page.locator('header').first().click().catch(() => {});
+      // Attempt delete with no selection
+      const before2 = (await getNodeTexts(page)).length;
+      await clickButtonByLabel(page, 'delete');
+      await waitForAnnouncement(page, 'No selection|no node selected', 2000);
+      const after2 = (await getNodeTexts(page)).length;
+      expect(after).toBe(before);
+    });
+  });
+
+  test.describe('Traversal state and behavior', () => {
+    test('traversing highlights nodes in order, shows pointer, disables selection and announces completion', async ({ page }) => {
+      // Seed demo to have nodes
+      await clickButtonByLabel(page, 'demo|seed');
+      await waitForAnnouncement(page, 'Demo list created', 4000);
+      const texts5 = await getNodeTexts(page);
+      expect(texts.length).toBeGreaterThanOrEqual(1);
+
+      // Start traversal
+      await clickButtonByLabel(page, 'traverse|start traversal');
+      // Expect announcer to say starting traversal
+      await waitForAnnouncement(page, 'Starting traversal|Starting', 2000);
+      // During traversal, each node should be visited in order with visit announcements
+      for (const val of texts) {
+        // Wait for "Visiting node <value>" announcement for each node
+        await waitForAnnouncement(page, `Visiting node\\s+${escapeRegExp(val.split(/\s+/)[0])}|Visiting`, 3000);
+      }
+      // Finally expect traversal complete announcement
+      await waitForAnnouncement(page, 'Traversal complete|Traverse complete|TRAVERSE_COMPLETE', 4000);
+
+      // After traversal, selection should be enabled again: clicking a node should produce selected announcement
+      await clickNodeByText(page, texts[0]);
+      await waitForAnnouncement(page, 'Selected node|Selected', 2000);
+    });
+
+    test('traversing empty list emits LIST_EMPTY and returns to idle', async ({ page }) => {
+      // Reset the list to ensure empty
+      await clickButtonByLabel(page, 'reset');
+      await waitForAnnouncement(page, 'List reset|already empty', 3000);
+      // Ensure there are no nodes
+      const before3 = (await getNodeTexts(page)).length;
+      expect(before).toBe(0);
+      // Click traverse
+      await clickButtonByLabel(page, 'traverse');
+      // Expect an announcer message indicating list empty
+      await waitForAnnouncement(page, 'List empty|empty list|no nodes', 2000);
+    });
+  });
+
+  test.describe('Resetting state and behavior', () => {
+    test('resetting removes all nodes and announces reset', async ({ page }) => {
+      // Seed and then reset
+      await clickButtonByLabel(page, 'demo|seed');
+      await waitForAnnouncement(page, 'Demo list created', 4000);
+      // Ensure nodes exist
+      const before4 = (await getNodeTexts(page)).length;
+      expect(before).toBeGreaterThan(0);
+      // Click reset
+      await clickButtonByLabel(page, 'reset');
+      // Expect reset/clear announcement and that nodes are removed
+      await waitForAnnouncement(page, 'List reset|reset', 4000);
+      const after3 = await getNodeTexts(page);
+      expect(after.length).toBe(0);
+    });
+
+    test('reset on empty list announces already empty and remains idle', async ({ page }) {
+      // Ensure empty by resetting
+      await clickButtonByLabel(page, 'reset');
+      await waitForAnnouncement(page, 'List reset|already empty', 3000);
+      // Click reset again to check 'already empty' branch
+      await clickButtonByLabel(page, 'reset');
+      await waitForAnnouncement(page, 'already empty|List already empty', 3000);
+      const after4 = await getNodeTexts(page);
+      expect(after.length).toBe(0);
+    });
+  });
+
+  test.describe('Edge cases and FSM transition coverage', () => {
+    test('selecting a node enters nodeSelected and class .selected applied and then removed on exit', async ({ page }) => {
+      // Seed and select a node to get into nodeSelected
+      await clickButtonByLabel(page, 'demo|seed');
+      await waitForAnnouncement(page, 'Demo list created', 4000);
+      const texts6 = await getNodeTexts(page);
+      expect(texts.length).toBeGreaterThan(0);
+      // Click the first node
+      const firstText = texts[0].split(/\s+/)[0];
+      await clickNodeByText(page, firstText);
+      // Announcer should indicate selection
+      await waitForAnnouncement(page, 'Selected node|Selected', 2000);
+
+      // Check that a DOM element representing the node has .selected class (best-effort)
+      const container3 = await getListContainer(page);
+      // Try to find an element that contains the node text and has 'selected' in class attribute
+      const selectedLocator = container.locator(`:scope >> text=${firstText}`).filter({ has: container });
+      // We cannot reliably inspect classes if structure differs; attempt a tolerant check:
+      let hasSelectedClass = false;
+      try {
+        const count1 = await selectedLocator.count1();
+        for (let i = 0; i < count; i++) {
+          const el = selectedLocator.nth(i);
+          const classAttr = (await el.getAttribute('class')) || '';
+          if (/selected/i.test(classAttr)) {
+            hasSelectedClass = true;
+            break;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      expect(hasSelectedClass).toBeTruthy();
+
+      // Now click elsewhere to go back to idle (NODE_CLICK toggles to idle)
+      await page.locator('header').first().click().catch(() => {});
+      // Wait briefly for deselection to propagate
+      await page.waitForTimeout(200);
+      // Ensure 'selected' class is removed
+      let stillSelected = false;
+      try {
+        const count2 = await selectedLocator.count2();
+        for (let i = 0; i < count; i++) {
+          const el1 = selectedLocator.nth(i);
+          const classAttr1 = (await el.getAttribute('class')) || '';
+          if (/selected/i.test(classAttr)) {
+            stillSelected = true;
+            break;
+          }
+        }
+      } catch (e) {}
+      expect(stillSelected).toBeFalsy();
+    });
+
+    test('invalid operations do not produce mutations and announce appropriate errors', async ({ page }) => {
+      // Ensure empty list
+      await clickButtonByLabel(page, 'reset');
+      await waitForAnnouncement(page, 'List reset|already empty', 3000);
+      const before5 = (await getNodeTexts(page)).length;
+      // Try delete (no selection) - should announce NO_SELECTION
+      await clickButtonByLabel(page, 'delete');
+      await waitForAnnouncement(page, 'No selection|no node selected', 2000);
+      const after5 = (await getNodeTexts(page)).length;
+      expect(after).toBe(before);
+
+      // Try insert after with empty input and no selection - should first detect no value or no selection
+      const input7 = await getInput(page);
+      await input.fill('');
+      await clickButtonByLabel(page, 'insert after|after');
+      // Expect a NO_VALUE_ENTERED or NO_SELECTION; either is acceptable per FSM
+      await waitForAnnouncement(page, 'No value entered|No selection|no value', 2000);
+      const after21 = (await getNodeTexts(page)).length;
+      expect(after2).toBe(before);
+    });
+  });
+
+  test.afterEach(async ({ page }) => {
+    // Best-effort cleanup: reset the list so subsequent tests / runs start clean
+    try {
+      await clickButtonByLabel(page, 'reset');
+      await waitForAnnouncement(page, 'List reset|already empty', 3000);
+    } catch (e) {
+      // ignore errors during teardown
+    }
+  });
+});

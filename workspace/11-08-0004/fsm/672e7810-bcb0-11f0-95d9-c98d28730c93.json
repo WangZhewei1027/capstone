@@ -1,0 +1,152 @@
+{
+  "topic": "Hash Table Visualization (Separate Chaining)",
+  "description": "Models the interactive states and transitions of the separate-chaining hash table visualization (insert, search, delete, bucket adjustments, rehashing, random inserts and UI hover/feedback).",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "updateStats/renderBuckets (implicit)",
+      "on": {
+        "INSERT_CLICK": "inserting",
+        "ENTER_KEY": "inserting",
+        "SEARCH_CLICK": "searching",
+        "DELETE_CLICK": "deleting",
+        "RANDOM_CLICK": "bulkInserting",
+        "BUCKET_RANGE_INPUT": "adjustingBuckets",
+        "BUCKET_RANGE_CHANGE": "bucketsReinitialized",
+        "CLEAR_CLICK": "cleared",
+        "REHASH_CLICK": "rehashing",
+        "MOUSEOVER_BUCKET": "hovering"
+      }
+    },
+    {
+      "name": "inserting",
+      "onEnter": "computeHashIndex -> set hint 'Hash computed -> bucket X. Inserting...' -> animateInsert(key,targetIdx)",
+      "onExit": "renderBuckets/updateStats -> set hint 'Inserted \"key\" into bucket X.'",
+      "on": {
+        "ANIMATION_DONE": "idle",
+        "INSERT_INVALID": "inputError"
+      }
+    },
+    {
+      "name": "searching",
+      "onEnter": "computeHashIndex -> set hint 'Searching bucket X...' -> stepThroughNodes (highlight each node sequentially)",
+      "onExit": "clear any node highlights",
+      "on": {
+        "SEARCH_FOUND": "idle",
+        "SEARCH_NOT_FOUND": "idle",
+        "NODE_HIGHLIGHT_ADD": "nodeHighlighted",
+        "NODE_HIGHLIGHT_REMOVE": "searching"
+      }
+    },
+    {
+      "name": "deleting",
+      "onEnter": "computeHashIndex -> set hint 'Searching bucket X for deletion...' -> stepThroughNodes; on match animate removal & remove from data model",
+      "onExit": "updateStats/renderBuckets -> set hint 'Deleted \"key\".'",
+      "on": {
+        "DELETE_DONE": "idle",
+        "DELETE_NOT_FOUND": "idle",
+        "NODE_HIGHLIGHT_ADD": "nodeHighlighted",
+        "NODE_HIGHLIGHT_REMOVE": "deleting"
+      }
+    },
+    {
+      "name": "nodeHighlighted",
+      "onEnter": "apply .highlight class to node -> show hint 'Checking node i with key \"...\"...'",
+      "onExit": "remove .highlight class",
+      "on": {
+        "NEXT_NODE": "searching",
+        "MATCH_FOUND": "searching",
+        "MATCH_FOR_DELETE": "deleting"
+      }
+    },
+    {
+      "name": "bulkInserting",
+      "onEnter": "generate up to 4 random keys -> sequentially await insertKey(k) (each performs computeHashIndex + animateInsert) with small inter-item delays",
+      "onExit": "set hint 'Random inserts complete' (or specific inserted hint from insert flow)",
+      "on": {
+        "BULK_INSERT_COMPLETE": "idle",
+        "INSERT_INVALID": "inputError"
+      }
+    },
+    {
+      "name": "adjustingBuckets",
+      "onEnter": "update bucketCountLabel while sliding (BUCKET_RANGE_INPUT handler)",
+      "onExit": "none (waiting for BUCKET_RANGE_CHANGE)",
+      "on": {
+        "BUCKET_RANGE_CHANGE": "bucketsReinitialized",
+        "CANCEL": "idle"
+      }
+    },
+    {
+      "name": "bucketsReinitialized",
+      "onEnter": "initBuckets(n) -> renderBuckets -> updateStats -> set hint about cleared table",
+      "onExit": "idle",
+      "on": {
+        "INIT_COMPLETE": "idle"
+      }
+    },
+    {
+      "name": "cleared",
+      "onEnter": "initBuckets(currentBucketCount) -> renderBuckets -> set hint 'Table cleared.'",
+      "onExit": "idle",
+      "on": {
+        "CLEAR_COMPLETE": "idle"
+      }
+    },
+    {
+      "name": "rehashing",
+      "onEnter": "compute newCount = min(40, bucketCount*2) -> collect all keys -> bucketRange.value=newCount -> initBuckets(newCount) (clears table) -> re-insert all keys into new buckets without floating animation -> renderBuckets/updateStats -> set hint 'Rehash complete.'",
+      "onExit": "idle",
+      "on": {
+        "REHASH_COMPLETE": "idle"
+      }
+    },
+    {
+      "name": "hovering",
+      "onEnter": "apply visual highlight styles to hovered bucket (boxShadow/borderColor)",
+      "onExit": "remove hover styles",
+      "on": {
+        "MOUSEOUT_BUCKET": "idle",
+        "MOUSEOVER_BUCKET": "hovering"
+      }
+    },
+    {
+      "name": "inputError",
+      "onEnter": "set hint to a non-empty/key required message (e.g. 'Please enter a non-empty key.' or 'Please enter a key to search.')",
+      "onExit": "idle",
+      "on": {
+        "DISMISS": "idle"
+      }
+    }
+  ],
+  "events": [
+    "INSERT_CLICK",
+    "ENTER_KEY",
+    "SEARCH_CLICK",
+    "DELETE_CLICK",
+    "RANDOM_CLICK",
+    "BUCKET_RANGE_INPUT",
+    "BUCKET_RANGE_CHANGE",
+    "CLEAR_CLICK",
+    "REHASH_CLICK",
+    "MOUSEOVER_BUCKET",
+    "MOUSEOUT_BUCKET",
+    "ANIMATION_DONE",
+    "SEARCH_FOUND",
+    "SEARCH_NOT_FOUND",
+    "DELETE_DONE",
+    "DELETE_NOT_FOUND",
+    "NODE_HIGHLIGHT_ADD",
+    "NODE_HIGHLIGHT_REMOVE",
+    "NEXT_NODE",
+    "MATCH_FOUND",
+    "MATCH_FOR_DELETE",
+    "BULK_INSERT_COMPLETE",
+    "INIT_COMPLETE",
+    "REHASH_COMPLETE",
+    "INSERT_INVALID",
+    "DISMISS",
+    "CANCEL"
+  ],
+  "notes": "Implementation notes and assumptions: \n- Many operations are asynchronous (animateInsert returns a Promise, search/delete step with timeouts). The FSM models these as busy states (inserting, searching, deleting, bulkInserting, rehashing) that return to 'idle' when their async work completes.\n- The code does not strictly block other UI actions while animations run; this FSM models the intended primary flows. Nested operations (e.g., random bulk inserts calling insertKey repeatedly) are represented by a bulkInserting state that internally awaits inserting flows.\n- BUCKET_RANGE_INPUT is a transient state for slider movement that updates the label only; BUCKET_RANGE_CHANGE triggers actual reinitialization (initBuckets) and clears the table.\n- Hovering is a lightweight visual micro-state (applies CSS styles on mouseover/mouseout) and coexists conceptually with idle; modelled here as a state reachable from idle.\n- Input validation errors (empty key) immediately update the hint and return to idle (modelled as inputError). \n- onEnter/onExit action names are descriptive of the JS functions/steps invoked (computeHashIndex, animateInsert, initBuckets, renderBuckets, updateStats, etc.)."
+}

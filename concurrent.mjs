@@ -36,19 +36,18 @@ For this module, include the following sections:
 
 // 简单的测试配置
 const TEST_CONFIG = {
-  workspace: "11-08-0003",
-  concurrencyLimit: 50,
+  workspace: "11-08-0004",
+  concurrencyLimit: 150,
   defaultTopic: "bubble sort", // 默认主题
   enableFSM: true, // 启用 FSM 生成（Agent 2）
-  enableTests: true, // 启用 Playwright 测试生成（Agent 3）
+  enableTests: true, // 启用 Playwright 测con试生成（Agent 3）
   showProgress: false, // 是否显示详细进度
   generationsPerQuestion: 3, // 每个问题生成的次数（默认1次）
-
   // 每个 Agent 使用的模型配置
   models: {
-    htmlAgent: "gpt-4o-mini", // Agent 1: HTML 生成
-    fsmAgent: "gpt-4o-mini", // Agent 2: FSM 生成
-    testAgent: "gpt-4o-mini", // Agent 3: 测试生成
+    htmlAgent: "gpt-5-mini", // Agent 1: HTML 生成
+    fsmAgent: "gpt-5-mini", // Agent 2: FSM 生成
+    testAgent: "gpt-5-mini", // Agent 3: 测试生成
   },
 };
 

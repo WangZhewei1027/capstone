@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Depth-First Search — Interactive Module</title>
+  <style>
+    /* Safe area margins: 24px on all sides */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px; /* minimum spacing between interactive elements */
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #60a5fa;
+      --muted: #94a3b8;
+      --node-fill: #06223a;
+      --node-stroke: #2b6cb0;
+      --visited-fill: #2563eb;
+      --active-fill: #38bdf8;
+      --backtracked-fill: #065f46;
+      --edge-stroke: #334155;
+      --edge-exploring: #f59e0b;
+      --edge-explored: #10b981;
+      --danger: #ef4444;
+      --glass: rgba(255,255,255,0.03);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html,body {
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg, #071025 0%, #021324 100%);
+      color: #e6eef8;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    .app {
+      box-sizing: border-box;
+      padding: var(--safe-margin);
+      min-height: calc(100vh - calc(var(--safe-margin) * 2));
+      display: flex;
+      gap: var(--gap);
+      align-items: stretch;
+    }
+
+    /* Layout: canvas left, controls right (responsive: stack vertically on narrow screens) */
+    .canvas-area {
+      flex: 1 1 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: var(--gap);
+      min-width: 280px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.7);
+    }
+
+    .controls {
+      width: 360px;
+      max-width: 44%;
+      min-width: 260px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: var(--gap);
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      align-items: stretch;
+    }
+
+    @media (max-width: 960px) {
+      .app { flex-direction: column; }
+      .controls { width: auto; max-width: none; min-width: auto; }
+    }
+
+    header {
+      display:flex;
+      gap: var(--gap);
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: var(--gap);
+    }
+
+    h1 {
+      margin:0;
+      font-size: 1.25rem;
+      line-height:1.1;
+      color: #e6f0ff;
+    }
+
+    .subtitle {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .instruction {
+      font-size: 0.9rem;
+      color: var(--muted);
+      background: var(--glass);
+      padding: 10px;
+      border-radius: 8px;
+      line-height: 1.3;
+    }
+
+    /* SVG area sizing */
+    #svgCanvas {
+      width: 100%;
+      height: calc(100vh - 2*var(--safe-margin) - 200px);
+      min-height: 420px;
+      border-radius: 8px;
+      background: radial-gradient(circle at 10% 20%, rgba(96,165,250,0.03), transparent 8%),
+                  linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+      display:block;
+      cursor: crosshair;
+    }
+
+    /* Node and edge styling via classes; also accessible via JS */
+    .edge {
+      stroke: var(--edge-stroke);
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: stroke 160ms ease, opacity 160ms ease;
+      opacity: 0.95;
+    }
+    .edge.directed {
+      marker-end: url(#arrowhead);
+    }
+
+    .node {
+      cursor: pointer;
+      transition: transform 120ms ease;
+    }
+
+    .node-circle {
+      fill: var(--node-fill);
+      stroke: var(--node-stroke);
+      stroke-width: 2.5;
+      r: 22;
+      transition: fill 160ms ease, stroke 160ms ease;
+      filter: drop-shadow(0 4px 14px rgba(2,6,23,0.7));
+    }
+
+    .node-label {
+      font-size: 12px;
+      fill: #e6eef8;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .node-order {
+      font-size: 11px;
+      fill: #ffffff;
+      opacity: 0.95;
+      font-weight: 600;
+      pointer-events:none;
+    }
+
+    /* Controls layout */
+    .btn-row {
+      display:flex;
+      gap: var(--gap);
+      flex-wrap:wrap;
+    }
+    button {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color: #e6eef8;
+      border: 1px solid rgba(255,255,255,0.04);
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      min-height: 44px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap: 8px;
+      font-size: 0.92rem;
+    }
+    button.secondary {
+      background: transparent;
+      border: 1px dashed rgba(255,255,255,0.03);
+      color: var(--muted);
+    }
+    button.warn {
+      background: linear-gradient(180deg, rgba(255,0,0,0.06), rgba(255,0,0,0.03));
+      border-color: rgba(239,68,68,0.18);
+      color: var(--danger);
+    }
+
+    .control-block {
+      background: rgba(255,255,255,0.02);
+      padding: var(--gap);
+      border-radius: 8px;
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      display:block;
+    }
+
+    input[type="range"] {
+      width:100%;
+    }
+
+    .stack-visual {
+      display:flex;
+      gap:8px;
+      flex-direction:column;
+      align-items:stretch;
+      min-height:40px;
+      padding:6px;
+      background: rgba(255,255,255,0.01);
+      border-radius:8px;
+    }
+
+    .stack-list {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .stack-item {
+      background: rgba(255,255,255,0.02);
+      padding:6px 10px;
+      border-radius:10px;
+      font-weight:600;
+      color:#e6eef8;
+      border:1px solid rgba(255,255,255,0.03);
+      min-width:36px;
+      text-align:center;
+    }
+
+    .panel-title {
+      font-weight:700;
+      font-size:0.95rem;
+      color:#e6f3ff;
+    }
+
+    .small-muted {
+      font-size:0.83rem;
+      color:var(--muted);
+    }
+
+    .legend {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .legend .item {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      font-size:0.85rem;
+      color:var(--muted);
+    }
+    .legend .swatch {
+      width:14px;
+      height:14px;
+      border-radius:4px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    footer.info {
+      font-size: 0.82rem;
+      color: var(--muted);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:var(--gap);
+    }
+
+    /* TEMP line while dragging to create edge */
+    .temp-line {
+      stroke: #7dd3fc;
+      stroke-width: 2.5;
+      stroke-dasharray: 6 6;
+      opacity:0.9;
+    }
+
+    /* small hint corner */
+    .hint {
+      position: absolute;
+      right: var(--gap);
+      bottom: var(--gap);
+      background: rgba(255,255,255,0.02);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    /* focus outlines for accessibility */
+    button:focus, .control-block button:focus, svg:focus {
+      outline: 3px solid rgba(96,165,250,0.12);
+      outline-offset: 2px;
+    }
+
+    /* subtle responsive tweak */
+    @media (max-width:480px){
+      #svgCanvas { min-height: 320px; }
+      .controls { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Depth-First Search interactive module">
+    <!-- Canvas / Graph area -->
+    <section class="canvas-area" aria-label="Graph drawing canvas">
+      <header>
+        <div>
+          <h1>Depth-First Search (DFS)</h1>
+          <div class="subtitle">Interactive visualizer: build a graph, choose a start node, and step through DFS.</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="small-muted">Concept: DFS traversal</div>
+          <div class="small-muted" style="margin-top:6px;">Safe margins: 24px • Spacing ≥ 16px</div>
+        </div>
+      </header>
+
+      <div class="instruction" role="region" aria-label="Quick instructions">
+        How to interact:
+        - Click empty space to add a node.
+        - Drag a node to move it.
+        - Hold Shift and drag from a node to another to create an edge.
+        - Toggle "Set Start Node" and click a node to select the start.
+        - Run: Step or Play to animate DFS; watch the call-stack and edge exploration.
+      </div>
+
+      <!-- SVG canvas for graph -->
+      <svg id="svgCanvas" tabindex="0" aria-label="Graph canvas with nodes and edges">
+        <!-- Definitions (arrowheads) -->
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="10" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#cbd5e1"></path>
+          </marker>
+        </defs>
+
+        <!-- temporary elements inserted by JS (edges, nodes) -->
+      </svg>
+
+      <!-- small helper -->
+      <div class="hint" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L12 22" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/><path d="M2 12L22 12" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/></svg>
+        Click to add nodes
+      </div>
+    </section>
+
+    <!-- Controls -->
+    <aside class="controls" aria-label="Controls and information panel">
+      <!-- Concept and objective -->
+      <div class="control-block" aria-label="learning objective">
+        <div class="panel-title">Learning Objective</div>
+        <div class="small-muted">
+          After interacting with this module you will be able to:
+          - Construct a small graph and run a depth-first search.
+          - Observe the order in which nodes are discovered.
+          - See how the (call) stack changes during recursion/backtracking.
+          - Distinguish exploring edges vs backtracked nodes.
+        </div>
+      </div>
+
+      <!-- Interaction design (concise) -->
+      <div class="control-block" aria-label="interaction design">
+        <div class="panel-title">Interaction Design</div>
+        <div class="small-muted">
+          - Click canvas to add nodes. Drag nodes to reposition. Hold Shift and drag from one node to another to create an edge.
+          - Use Set Start Node to mark where DFS begins. Use Step to walk the recorded events or Play to animate automatically.
+          - Visual feedback: visited nodes light up and show discovery order; edges animate with a moving dot when being explored; stack display updates on pushes/pops.
+        </div>
+      </div>
+
+      <!-- Controls rows -->
+      <div class="control-block" aria-label="execution controls">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="panel-title">Execution</div>
+          <div class="small-muted">Mode: <span id="modeLabel">Recursive</span></div>
+        </div>
+
+        <div class="btn-row" role="group" aria-label="playback controls">
+          <button id="playBtn" title="Play/Pause (auto)" aria-pressed="false">Play</button>
+          <button id="stepBtn" title="Step forward">Step</button>
+          <button id="resetBtn" class="secondary" title="Reset traversal state">Reset</button>
+          <button id="clearBtn" class="warn" title="Clear the entire graph">Clear Graph</button>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;">
+          <label for="speed" class="small-muted">Speed</label>
+          <input id="speed" type="range" min="100" max="1500" value="700" />
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button id="toggleDir" class="secondary" title="Toggle directed/undirected">Undirected</button>
+          <button id="startSelectBtn" title="Click then choose a node as start">Set Start Node</button>
+          <button id="delModeBtn" class="secondary" title="Toggle delete mode">Delete Mode</button>
+        </div>
+      </div>
+
+      <!-- Stack and legend -->
+      <div class="control-block" aria-label="visual feedback">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="panel-title">Call Stack</div>
+          <div class="small-muted">Top → right</div>
+        </div>
+
+        <div class="stack-visual" aria-live="polite">
+          <div class="stack-list" id="stackList" aria-label="stack contents"></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <div class="small-muted">Legend</div>
+          <div class="legend" aria-hidden="true">
+            <div class="item"><div class="swatch" style="background:var(--active-fill)"></div>Active</div>
+            <div class="item"><div class="swatch" style="background:var(--visited-fill)"></div>Visited</div>
+            <div class="item"><div class="swatch" style="background:var(--backtracked-fill)"></div>Backtracked</div>
+            <div class="item"><div class="swatch" style="background:var(--edge-exploring)"></div>Exploring edge</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info / layout description -->
+      <div class="control-block" aria-label="layout description">
+        <div class="panel-title">Layout Description</div>
+        <div class="small-muted">
+          Canvas (left): large SVG drawing area for nodes and edges (interactive). Controls (right): grouped panels — execution buttons, speed, toggles, stack and legend, and instructions.
+          Spacing follows the safe area (24px) with minimum 16px gaps between interactive elements. The UI is responsive: on narrow screens the controls stack under the canvas.
+        </div>
+      </div>
+
+      <footer class="info" aria-hidden="true">
+        <div>DFS Visualizer</div>
+        <div style="color:var(--muted)">No external libraries • Vanilla JS</div>
+      </footer>
+    </aside>
+  </div>
+
+  <script>
+    // Self-contained DFS interactive module (vanilla JS)
+    // Consistent formatting and comments for clarity.
+    (function () {
+      /* ---------------------------
+         Data models and state
+         --------------------------- */
+      const svg = document.getElementById('svgCanvas');
+      let nodes = []; // {id, x, y}
+      let edges = []; // {id, from, to, directed}
+      let nodeIdCounter = 1;
+      let edgeIdCounter = 1;
+      let directed = false;
+      let deleteMode = false;
+      let setStartMode = false;
+      let startNodeId = null;
+
+      // Traversal playback
+      let actions = [];      // sequence of action objects describing DFS events
+      let snapshots = [];    // snapshots of state after each action
+      let currentStep = 0;   // index into snapshots
+      let playing = false;
+      let playTimer = null;
+
+      // DOM refs
+      const playBtn = document.getElementById('playBtn');
+      const stepBtn = document.getElementById('stepBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const toggleDirBtn = document.getElementById('toggleDir');
+      const startSelectBtn = document.getElementById('startSelectBtn');
+      const delModeBtn = document.getElementById('delModeBtn');
+      const speedRange = document.getElementById('speed');
+      const stackList = document.getElementById('stackList');
+      const modeLabel = document.getElementById('modeLabel');
+
+      // SVG groups for ordering
+      const edgeGroup = createSVGElement('g', {id:'edges'});
+      const tempGroup = createSVGElement('g', {id:'temp'});
+      const nodeGroup = createSVGElement('g', {id:'nodes'});
+      svg.appendChild(edgeGroup);
+      svg.appendChild(tempGroup);
+      svg.appendChild(nodeGroup);
+
+      // Temporary drag/edge creation vars
+      let draggingNodeId = null;
+      let dragOffset = {x:0,y:0};
+      let creatingEdgeFrom = null;
+      let tempLine = null;
+
+      // Colors and styles (kept in sync with CSS variables)
+      const styles = {
+        visitedFill: getComputedStyle(document.documentElement).getPropertyValue('--visited-fill').trim() || '#2563eb',
+        activeFill: getComputedStyle(document.documentElement).getPropertyValue('--active-fill').trim() || '#38bdf8',
+        backtrackedFill: getComputedStyle(document.documentElement).getPropertyValue('--backtracked-fill').trim() || '#065f46',
+        nodeFill: getComputedStyle(document.documentElement).getPropertyValue('--node-fill').trim() || '#06223a',
+        edgeExploring: getComputedStyle(document.documentElement).getPropertyValue('--edge-exploring').trim() || '#f59e0b',
+        edgeExplored: getComputedStyle(document.documentElement).getPropertyValue('--edge-explored').trim() || '#10b981',
+        edgeNormal: getComputedStyle(document.documentElement).getPropertyValue('--edge-stroke').trim() || '#334155',
+        nodeStroke: getComputedStyle(document.documentElement).getPropertyValue('--node-stroke').trim() || '#2b6cb0'
+      };
+
+      /* ---------------------------
+         Utility helpers
+         --------------------------- */
+      function createSVGElement(tag, attrs = {}) {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for (const k in attrs) el.setAttribute(k, attrs[k]);
+        return el;
+      }
+
+      function uid(prefix='id') { return `${prefix}_${Math.random().toString(36).substr(2,9)}`; }
+
+      // find node by id
+      function getNode(id) {
+        return nodes.find(n => n.id === id);
+      }
+      function getEdge(id) {
+        return edges.find(e => e.id === id);
+      }
+      function findEdgeBetween(a,b) {
+        return edges.find(e => (e.from === a && e.to === b) || (!e.directed && e.from === b && e.to === a));
+      }
+
+      // convert client coords to SVG coords (for responsive transforms)
+      function svgPoint(clientX, clientY) {
+        const pt = svg.createSVGPoint();
+        pt.x = clientX; pt.y = clientY;
+        return pt.matrixTransform(svg.getScreenCTM().inverse());
+      }
+
+      /* ---------------------------
+         Graph editing: add/remove/move
+         --------------------------- */
+      function addNode(x,y) {
+        const id = 'n' + (nodeIdCounter++);
+        const node = {id, x, y};
+        nodes.push(node);
+        renderNode(node);
+        return node;
+      }
+
+      function removeNode(id) {
+        // remove node and related edges
+        nodes = nodes.filter(n => n.id !== id);
+        edges = edges.filter(e => e.from !== id && e.to !== id);
+        // clear start if removed
+        if (startNodeId === id) startNodeId = null;
+        rebuildAll();
+      }
+
+      function addEdge(from, to) {
+        if (from === to) return null;
+        // Prevent duplicates for undirected graphs
+        if (findEdgeBetween(from,to)) return null;
+        const id = 'e' + (edgeIdCounter++);
+        const edge = {id, from, to, directed};
+        edges.push(edge);
+        renderEdge(edge);
+        return edge;
+      }
+
+      function removeEdge(id) {
+        edges = edges.filter(e => e.id !== id);
+        rebuildAll();
+      }
+
+      /* ---------------------------
+         Rendering functions
+         --------------------------- */
+      function rebuildAll() {
+        // clear groups
+        while (edgeGroup.firstChild) edgeGroup.removeChild(edgeGroup.firstChild);
+        while (nodeGroup.firstChild) nodeGroup.removeChild(nodeGroup.firstChild);
+        // recreate edges then nodes
+        for (const e of edges) renderEdge(e);
+        for (const n of nodes) renderNode(n);
+      }
+
+      function renderEdge(edge) {
+        // line element with id and data
+        const line = createSVGElement('line', {
+          id: edge.id,
+          class: 'edge' + (edge.directed ? ' directed' : ''),
+          'data-from': edge.from,
+          'data-to': edge.to
+        });
+        const from = getNode(edge.from);
+        const to = getNode(edge.to);
+        if (!from || !to) return;
+        line.setAttribute('x1', from.x);
+        line.setAttribute('y1', from.y);
+        line.setAttribute('x2', to.x);
+        line.setAttribute('y2', to.y);
+        edgeGroup.appendChild(line);
+
+        // add invisible thicker path for easier clicking (delete)
+        const hit = createSVGElement('line', {
+          'pointer-events': 'stroke',
+          stroke: 'transparent',
+          'stroke-width': 18,
+          'data-edge-hit': edge.id
+        });
+        hit.setAttribute('x1', from.x);
+        hit.setAttribute('y1', from.y);
+        hit.setAttribute('x2', to.x);
+        hit.setAttribute('y2', to.y);
+        hit.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (deleteMode) removeEdge(edge.id);
+        });
+        edgeGroup.appendChild(hit);
+      }
+
+      function renderNode(node) {
+        // group container
+        const g = createSVGElement('g', {id: node.id, class: 'node', tabindex: 0});
+        g.setAttribute('transform', `translate(${node.x},${node.y})`);
+        // circle
+        const circle = createSVGElement('circle', {class: 'node-circle', r: 22});
+        // label (identifier)
+        const lbl = createSVGElement('text', {class: 'node-label', 'text-anchor': 'middle', 'dy': '-6'});
+        lbl.textContent = node.id;
+        // order badge
+        const order = createSVGElement('text', {class: 'node-order', 'text-anchor': 'middle', 'dy': 14});
+        order.textContent = ''; // filled when visited
+        g.appendChild(circle);
+        g.appendChild(lbl);
+        g.appendChild(order);
+        nodeGroup.appendChild(g);
+
+        // events
+        g.addEventListener('mousedown', nodeMouseDown);
+        g.addEventListener('touchstart', nodeTouchStart, {passive:false});
+        g.addEventListener('click', nodeClick);
+        g.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') nodeClick(ev);
+        });
+      }
+
+      function updatePositions() {
+        // reposition edges and nodes based on their x/y
+        for (const e of edges) {
+          const line = document.getElementById(e.id);
+          const f = getNode(e.from);
+          const t = getNode(e.to);
+          if (!line || !f || !t) continue;
+          line.setAttribute('x1', f.x);
+          line.setAttribute('y1', f.y);
+          line.setAttribute('x2', t.x);
+          line.setAttribute('y2', t.y);
+        }
+        for (const n of nodes) {
+          const g = document.getElementById(n.id);
+          if (!g) continue;
+          g.setAttribute('transform', `translate(${n.x},${n.y})`);
+        }
+      }
+
+      /* ---------------------------
+         Input event handlers
+         --------------------------- */
+
+      // Canvas click to add node
+      svg.addEventListener('click', function (ev) {
+        // Only add node if clicked empty area (not on an existing element)
+        if (ev.target === svg || ev.target === edgeGroup || ev.target === nodeGroup) {
+          const pt = svgPoint(ev.clientX, ev.clientY);
+          const x = Math.max(40, Math.min(svg.clientWidth - 40, pt.x));
+          const y = Math.max(40, Math.min(svg.clientHeight - 40, pt.y));
+          addNode(x, y);
+        }
+      });
+
+      // Node mouse events
+      function nodeMouseDown(ev) {
+        ev.stopPropagation();
+        const nodeId = this.id;
+        const pt = svgPoint(ev.clientX, ev.clientY);
+        const node = getNode(nodeId);
+        if (!node) return;
+
+        if (deleteMode) {
+          removeNode(nodeId);
+          return;
+        }
+
+        if (setStartMode) {
+          startNodeId = nodeId;
+          setStartMode = false;
+          startSelectBtn.classList.remove('active');
+          updateModeUI();
+          rebuildAll();
+          return;
+        }
+
+        // If shift pressed => start creating an edge
+        if (ev.shiftKey) {
+          creatingEdgeFrom = nodeId;
+          // create temp line
+          tempLine = createSVGElement('line', {class:'temp-line'});
+          tempGroup.appendChild(tempLine);
+          tempLine.setAttribute('x1', node.x);
+          tempLine.setAttribute('y1', node.y);
+          tempLine.setAttribute('x2', node.x);
+          tempLine.setAttribute('y2', node.y);
+          document.addEventListener('mousemove', tempMouseMove);
+          document.addEventListener('mouseup', tempMouseUp);
+          return;
+        }
+
+        // Start dragging node
+        draggingNodeId = nodeId;
+        const ptLocal = svgPoint(ev.clientX, ev.clientY);
+        dragOffset.x = node.x - ptLocal.x;
+        dragOffset.y = node.y - ptLocal.y;
+        document.addEventListener('mousemove', nodeMouseMove);
+        document.addEventListener('mouseup', nodeMouseUp);
+      }
+
+      function nodeTouchStart(ev) {
+        ev.preventDefault();
+        const touch = ev.changedTouches[0];
+        nodeMouseDown.call(this, {clientX: touch.clientX, clientY: touch.clientY, shiftKey: ev.shiftKey, stopPropagation:()=>{}});
+      }
+
+      function nodeMouseMove(ev) {
+        if (!draggingNodeId) return;
+        const pt = svgPoint(ev.clientX, ev.clientY);
+        const node = getNode(draggingNodeId);
+        node.x = Math.max(24, Math.min(svg.clientWidth - 24, pt.x + dragOffset.x));
+        node.y = Math.max(24, Math.min(svg.clientHeight - 24, pt.y + dragOffset.y));
+        updatePositions();
+      }
+
+      function nodeMouseUp(ev) {
+        draggingNodeId = null;
+        document.removeEventListener('mousemove', nodeMouseMove);
+        document.removeEventListener('mouseup', nodeMouseUp);
+      }
+
+      function tempMouseMove(ev) {
+        if (!tempLine) return;
+        const pt = svgPoint(ev.clientX, ev.clientY);
+        tempLine.setAttribute('x2', pt.x);
+        tempLine.setAttribute('y2', pt.y);
+      }
+
+      function tempMouseUp(ev) {
+        // completed drag - if over a node, create edge
+        if (!creatingEdgeFrom) cleanupTemp();
+        const target = document.elementFromPoint(ev.clientX, ev.clientY);
+        let targetNodeId = null;
+        if (target) {
+          const g = target.closest && target.closest('g.node');
+          if (g) targetNodeId = g.id;
+        }
+        if (targetNodeId) {
+          const created = addEdge(creatingEdgeFrom, targetNodeId);
+          if (created) {
+            created.directed = directed;
+          }
+        }
+        cleanupTemp();
+      }
+
+      function cleanupTemp() {
+        creatingEdgeFrom = null;
+        if (tempLine && tempLine.parentElement) tempLine.parentElement.removeChild(tempLine);
+        tempLine = null;
+        document.removeEventListener('mousemove', tempMouseMove);
+        document.removeEventListener('mouseup', tempMouseUp);
+      }
+
+      // Node click: either select start node, delete, or normal click
+      function nodeClick(ev) {
+        ev.stopPropagation();
+        const id = this.id;
+        if (deleteMode) {
+          removeNode(id);
+          return;
+        }
+        if (setStartMode) {
+          startNodeId = id;
+          setStartMode = false;
+          updateModeUI();
+          rebuildAll();
+          return;
+        }
+        // If not in special modes, simply highlight (toggle)
+        // For now no extra on simple click
+      }
+
+      // Edge deletion via clicking on edge's transparent hit line is set in renderEdge
+
+      /* ---------------------------
+         DFS action generation (recursive)
+         --------------------------- */
+
+      function buildAdjacency() {
+        const adj = new Map();
+        for (const n of nodes) adj.set(n.id, []);
+        for (const e of edges) {
+          if (!adj.has(e.from)) adj.set(e.from, []);
+          if (!adj.has(e.to)) adj.set(e.to, []);
+          adj.get(e.from).push(e.to);
+          if (!e.directed) adj.get(e.to).push(e.from);
+        }
+        // For deterministic demonstrations, sort adjacency by node id
+        for (const [k, arr] of adj) arr.sort();
+        return adj;
+      }
+
+      function generateActionsDFS(startId) {
+        actions = [];
+        if (!startId) return;
+        const adj = buildAdjacency();
+        const visited = new Set();
+        let orderCounter = 1;
+
+        function dfs(u) {
+          actions.push({type:'push', node:u});
+          actions.push({type:'visit', node:u, order: orderCounter++});
+          visited.add(u);
+          const neighbors = adj.get(u) || [];
+          for (const v of neighbors) {
+            actions.push({type:'edge', from:u, to:v});
+            if (!visited.has(v)) {
+              dfs(v);
+            } else {
+              // still record exploring an already-visited node (no recursion)
+            }
+          }
+          actions.push({type:'pop', node:u});
+        }
+
+        dfs(startId);
+      }
+
+      /* ---------------------------
+         Snapshot generation for stepping backward/forward reliably
+         --------------------------- */
+
+      function buildSnapshots() {
+        snapshots = [];
+        const state = {
+          visited: new Set(),
+          order: {},
+          edgeStatus: {}, // edgeId -> 'normal'|'exploring'|'explored'
+          stack: []
+        };
+        // init edgeStatus
+        for (const e of edges) state.edgeStatus[e.id] = 'normal';
+
+        // push initial snapshot (before any action)
+        snapshots.push(deepCloneState(state));
+
+        for (const act of actions) {
+          switch (act.type) {
+            case 'push':
+              state.stack.push(act.node);
+              break;
+            case 'visit':
+              state.visited.add(act.node);
+              state.order[act.node] = act.order;
+              break;
+            case 'edge':
+              // find corresponding edge id (if multiple edges exist pick first)
+              const eid = findEdgeIdByPair(act.from, act.to);
+              if (eid) {
+                state.edgeStatus[eid] = 'exploring';
+                // finalize immediately for snapshot: after exploring it's 'explored'
+                state.edgeStatus[eid] = 'explored';
+              }
+              break;
+            case 'pop':
+              // pop from stack if present
+              if (state.stack.length && state.stack[state.stack.length - 1] === act.node) {
+                state.stack.pop();
+              } else {
+                // find and remove if not at top (defensive)
+                const idx = state.stack.indexOf(act.node);
+                if (idx >= 0) state.stack.splice(idx, 1);
+              }
+              break;
+          }
+          snapshots.push(deepCloneState(state));
+        }
+      }
+
+      function deepCloneState(s) {
+        return {
+          visited: new Set(Array.from(s.visited)),
+          order: Object.assign({}, s.order),
+          edgeStatus: Object.assign({}, s.edgeStatus),
+          stack: s.stack.slice()
+        };
+      }
+
+      function findEdgeIdByPair(a,b) {
+        // prefer exact directed match
+        for (const e of edges) {
+          if (e.from === a && e.to === b) return e.id;
+        }
+        // fallback for undirected
+        for (const e of edges) {
+          if (!e.directed && ((e.from === a && e.to === b) || (e.from === b && e.to === a))) return e.id;
+        }
+        return null;
+      }
+
+      /* ---------------------------
+         Apply snapshot (render a given step)
+         --------------------------- */
+
+      function applySnapshot(index) {
+        currentStep = Math.max(0, Math.min(snapshots.length - 1, index));
+        const snap = snapshots[currentStep];
+        // update nodes
+        for (const n of nodes) {
+          const g = document.getElementById(n.id);
+          if (!g) continue;
+          const circle = g.querySelector('.node-circle');
+          const orderLbl = g.querySelector('.node-order');
+          const id = n.id;
+          const visited = snap.visited.has(id);
+          const inStack = snap.stack.includes(id);
+          if (visited && inStack) {
+            circle.setAttribute('fill', styles.activeFill);
+            circle.setAttribute('stroke', styles.nodeStroke);
+          } else if (visited && !inStack) {
+            circle.setAttribute('fill', styles.backtrackedFill);
+            circle.setAttribute('stroke', styles.nodeStroke);
+          } else {
+            circle.setAttribute('fill', styles.nodeFill);
+            circle.setAttribute('stroke', styles.nodeStroke);
+          }
+          // discovery order
+          if (snap.order[id]) {
+            orderLbl.textContent = snap.order[id];
+          } else {
+            orderLbl.textContent = '';
+          }
+          // mark start node visually
+          if (id === startNodeId) {
+            circle.setAttribute('stroke-width', 3.5);
+          } else {
+            circle.setAttribute('stroke-width', 2.5);
+          }
+        }
+        // update edges
+        for (const e of edges) {
+          const line = document.getElementById(e.id);
+          if (!line) continue;
+          const status = snap.edgeStatus[e.id] || 'normal';
+          if (status === 'normal') {
+            line.setAttribute('stroke', styles.edgeNormal);
+            line.setAttribute('opacity', 0.95);
+          } else if (status === 'explored') {
+            line.setAttribute('stroke', styles.edgeExplored);
+            line.setAttribute('opacity', 0.95);
+          } else if (status === 'exploring') {
+            line.setAttribute('stroke', styles.edgeExploring);
+            line.setAttribute('opacity', 1);
+          }
+        }
+        // animate exploring edge if this step is triggered by an edge action
+        const actionAtThisStep = actions[currentStep - 1]; // because snapshots index is actions+1
+        if (actionAtThisStep && actionAtThisStep.type === 'edge') {
+          animateEdgeTraversal(actionAtThisStep.from, actionAtThisStep.to);
+        }
+        // update stack UI
+        renderStack(snap.stack);
+      }
+
+      function renderStack(arr) {
+        // clear and render each item (top at right)
+        while (stackList.firstChild) stackList.removeChild(stackList.firstChild);
+        for (const id of arr) {
+          const div = document.createElement('div');
+          div.className = 'stack-item';
+          div.textContent = id;
+          stackList.appendChild(div);
+        }
+      }
+
+      /* ---------------------------
+         Animation: moving dot along edge
+         --------------------------- */
+
+      function animateEdgeTraversal(fromId, toId) {
+        const lineEl = document.getElementById(findEdgeIdByPair(fromId, toId));
+        if (!lineEl) return;
+        const x1 = parseFloat(lineEl.getAttribute('x1'));
+        const y1 = parseFloat(lineEl.getAttribute('y1'));
+        const x2 = parseFloat(lineEl.getAttribute('x2'));
+        const y2 = parseFloat(lineEl.getAttribute('y2'));
+        const dot = createSVGElement('circle', {r:6, fill: styles.edgeExploring});
+        tempGroup.appendChild(dot);
+        let start = null;
+        const duration = Math.max(180, Math.min(1200, parseInt(speedRange.value || '700')));
+        function frame(t) {
+          if (!start) start = t;
+          const p = Math.min(1, (t - start) / duration);
+          const x = x1 + (x2 - x1) * p;
+          const y = y1 + (y2 - y1) * p;
+          dot.setAttribute('cx', x);
+          dot.setAttribute('cy', y);
+          if (p < 1) {
+            requestAnimationFrame(frame);
+          } else {
+            // cleanup after short fade
+            setTimeout(() => { if (dot && dot.parentElement) dot.parentElement.removeChild(dot); }, 120);
+          }
+        }
+        requestAnimationFrame(frame);
+      }
+
+      /* ---------------------------
+         Playback controls
+         --------------------------- */
+
+      function play() {
+        if (!actions.length) {
+          if (!startNodeId) {
+            alert('Set a start node and ensure the graph has nodes/edges.');
+            return;
+          }
+          generateActionsDFS(startNodeId);
+          buildSnapshots();
+        }
+        playing = true;
+        playBtn.textContent = 'Pause';
+        playBtn.setAttribute('aria-pressed', 'true');
+        const delay = Math.max(80, parseInt(speedRange.value || '700'));
+        playTimer = setInterval(() => {
+          if (currentStep < snapshots.length - 1) {
+            applySnapshot(currentStep + 1);
+          } else {
+            pause();
+          }
+        }, delay);
+      }
+
+      function pause() {
+        playing = false;
+        playBtn.textContent = 'Play';
+        playBtn.setAttribute('aria-pressed', 'false');
+        if (playTimer) clearInterval(playTimer);
+        playTimer = null;
+      }
+
+      function stepOnce() {
+        if (!actions.length) {
+          if (!startNodeId) {
+            alert('Choose a start node to begin DFS.');
+            return;
+          }
+          generateActionsDFS(startNodeId);
+          buildSnapshots();
+          applySnapshot(0);
+        }
+        if (currentStep < snapshots.length - 1) {
+          applySnapshot(currentStep + 1);
+        }
+      }
+
+      function resetTraversal() {
+        pause();
+        actions = [];
+        snapshots = [];
+        currentStep = 0;
+        // reset node visuals and edge visuals
+        for (const n of nodes) {
+          const g = document.getElementById(n.id);
+          if (!g) continue;
+          const circle = g.querySelector('.node-circle');
+          const orderLbl = g.querySelector('.node-order');
+          circle.setAttribute('fill', styles.nodeFill);
+          circle.setAttribute('stroke', styles.nodeStroke);
+          orderLbl.textContent = '';
+        }
+        for (const e of edges) {
+          const line = document.getElementById(e.id);
+          if (!line) continue;
+          line.setAttribute('stroke', styles.edgeNormal);
+        }
+        renderStack([]);
+      }
+
+      /* ---------------------------
+         UI Wiring
+         --------------------------- */
+
+      playBtn.addEventListener('click', () => {
+        if (playing) pause(); else play();
+      });
+
+      stepBtn.addEventListener('click', () => {
+        pause();
+        stepOnce();
+      });
+
+      resetBtn.addEventListener('click', () => {
+        resetTraversal();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        if (!confirm('Clear the entire graph?')) return;
+        nodes = [];
+        edges = [];
+        nodeIdCounter = 1;
+        edgeIdCounter = 1;
+        startNodeId = null;
+        rebuildAll();
+        resetTraversal();
+      });
+
+      toggleDirBtn.addEventListener('click', () => {
+        directed = !directed;
+        toggleDirBtn.textContent = directed ? 'Directed' : 'Undirected';
+        // existing edges keep their own 'directed' flag; new edges will follow the new default
+      });
+
+      startSelectBtn.addEventListener('click', () => {
+        setStartMode = !setStartMode;
+        setStartMode ? startSelectBtn.classList.add('active') : startSelectBtn.classList.remove('active');
+        updateModeUI();
+      });
+
+      delModeBtn.addEventListener('click', () => {
+        deleteMode = !deleteMode;
+        delModeBtn.classList.toggle('active');
+        delModeBtn.textContent = deleteMode ? 'Delete: ON' : 'Delete Mode';
+      });
+
+      function updateModeUI() {
+        startSelectBtn.setAttribute('aria-pressed', setStartMode.toString());
+        const label = startNodeId ? ('Start: ' + startNodeId) : (setStartMode ? 'Choose node' : 'Set Start Node');
+        startSelectBtn.title = label;
+        // update start label in controls
+        if (startNodeId) startSelectBtn.textContent = `Start: ${startNodeId}`;
+        else startSelectBtn.textContent = 'Set Start Node';
+      }
+
+      // update positions on window resize
+      window.addEventListener('resize', () => {
+        updatePositions();
+      });
+
+      // initialize small default graph for users
+      function seedExample() {
+        const a = addNode(160, 140).id;
+        const b = addNode(300, 200).id;
+        const c = addNode(200, 300).id;
+        const d = addNode(420, 100).id;
+        const e = addNode(420, 260).id;
+        addEdge(a,b);
+        addEdge(b,c);
+        addEdge(a,c);
+        addEdge(b,d);
+        addEdge(d,e);
+        startNodeId = a;
+        updateModeUI();
+      }
+
+      seedExample();
+
+      // initial render
+      rebuildAll();
+
+      // Expose some helpers to the console for debugging (optional)
+      window._dfsModule = {
+        nodes, edges, addNode, addEdge, removeNode, removeEdge, generateActionsDFS, actions, rebuildAll
+      };
+    })();
+  </script>
+</body>
+</html>

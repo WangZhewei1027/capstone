@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Binary Tree (BST) Explorer</title>
+  <style>
+    /* Safe area margins: 24px on all sides */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px; /* minimum spacing */
+      --node-radius: 22;
+      --node-diameter: calc(var(--node-radius) * 2);
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #06b6d4;
+      --muted: #94a3b8;
+      --success: #10b981;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg, #071025, var(--bg));
+      color: #e6eef8;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Outer safe area */
+    .app {
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height: 100%;
+      display: flex;
+      gap: var(--gap);
+    }
+
+    /* Two-column responsive layout */
+    .left {
+      width: 420px;
+      max-width: 42%;
+      min-width: 320px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    }
+
+    .right {
+      flex: 1;
+      min-width: 280px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius: 12px;
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      overflow: auto;
+    }
+
+    /* Responsive: stack columns on narrow screens */
+    @media (max-width: 880px) {
+      .app {
+        flex-direction: column;
+      }
+      .left {
+        width: auto;
+        max-width: none;
+        min-width: 0;
+      }
+    }
+
+    h1 {
+      margin: 0 0 4px 0;
+      font-size: 20px;
+      letter-spacing: -0.12px;
+      color: #eaf6fb;
+    }
+    p.small {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .section {
+      background: rgba(255,255,255,0.02);
+      padding: 12px;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Controls */
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--gap);
+      align-items: center;
+    }
+
+    input[type="number"], input[type="text"], select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+      color: #eaf6fb;
+      font-size: 15px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    input[type="number"]::placeholder { color: rgba(234,246,251,0.4); }
+
+    button {
+      background: linear-gradient(180deg, rgba(6,182,212,0.95), rgba(6,182,212,0.85));
+      border: none;
+      color: #062025;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, opacity .12s;
+      box-shadow: 0 6px 10px rgba(6,182,212,0.12);
+      min-width: 84px;
+    }
+    button.secondary {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.06);
+      color: #dbeef6;
+      box-shadow: none;
+    }
+    button:active { transform: translateY(1px) scale(.997); }
+    button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+    .row {
+      display: flex;
+      gap: var(--gap);
+      align-items: center;
+    }
+
+    .stats {
+      display: flex;
+      gap: var(--gap);
+      flex-wrap: wrap;
+    }
+    .stat {
+      padding: 10px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      min-width: 70px;
+      text-align: center;
+    }
+    .stat .value {
+      font-weight: 700;
+      font-size: 18px;
+      color: #eaf6fb;
+    }
+    .stat .label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Canvas area */
+    .canvas-wrap {
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      min-height: 320px;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+
+    .svg-container {
+      position: relative;
+      width: 100%;
+      overflow: auto;
+      background: transparent;
+      border-radius: 8px;
+      min-height: 280px;
+      padding: 8px;
+    }
+
+    svg.tree {
+      width: 100%;
+      height: 100%;
+      min-height: 260px;
+    }
+
+    /* Node visual */
+    .node {
+      cursor: pointer;
+      transform-origin: center;
+      transition: transform 240ms cubic-bezier(.2,.9,.2,1), r 180ms;
+    }
+
+    .node circle {
+      fill: linear-gradient(#fff,#fff);
+      stroke: rgba(255,255,255,0.06);
+      stroke-width: 2;
+      transition: fill 220ms, transform 180ms;
+      filter: drop-shadow(0 6px 16px rgba(2,6,23,0.6));
+    }
+    .node text {
+      font-weight: 700;
+      font-size: 13px;
+      fill: #071025;
+      pointer-events: none;
+    }
+
+    .node .label {
+      fill: #eaf6fb;
+      font-weight: 700;
+    }
+
+    /* Colors */
+    .node .bg {
+      fill: #e6eef8;
+    }
+    .node .bg.default {
+      fill: #1e293b;
+    }
+    .node .bg.leaf {
+      fill: #0ea5a3;
+    }
+    .node .bg.highlight {
+      fill: #f59e0b;
+    }
+
+    /* Hover and focus */
+    .node:hover circle { transform: scale(1.06); }
+    .node:active circle { transform: scale(.98); }
+
+    /* Traversal highlight animation */
+    .traverse {
+      animation: pulse 520ms ease-in-out;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      30% { transform: scale(1.18); }
+      100% { transform: scale(1); }
+    }
+
+    /* Edge lines */
+    .edge {
+      stroke: rgba(255,255,255,0.12);
+      stroke-width: 2;
+      transition: stroke 220ms, opacity 220ms;
+    }
+    .edge.highlight {
+      stroke: rgba(6,182,212,0.95);
+      stroke-width: 3.5;
+      opacity: 1;
+    }
+
+    /* Small helper text */
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* Footer controls */
+    .play-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--gap);
+      flex-wrap: wrap;
+    }
+
+    label.small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* Accessible focus */
+    button:focus, input:focus, select:focus {
+      outline: 3px solid rgba(6,182,212,0.12);
+      outline-offset: 3px;
+    }
+
+    /* Minimal visual hints */
+    .hint {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Binary Tree interactive module">
+    <div class="left" role="region" aria-labelledby="title">
+      <div>
+        <h1 id="title">Binary Tree Explorer (Binary Search Tree)</h1>
+        <p class="small">Interactive module: build, visualize, traverse, and manipulate a binary tree (BST).</p>
+      </div>
+
+      <div class="section" aria-live="polite">
+        <strong>Learning Objective</strong>
+        <p class="muted">
+          After using this module you will be able to:
+          - Build a binary search tree (BST) by inserting values,
+          - Observe structure (left/right children), depth and height,
+          - Animate and understand Preorder, Inorder, Postorder and Level-order traversals,
+          - Remove nodes and see tree reorganization.
+        </p>
+      </div>
+
+      <div class="section" id="controls" aria-label="Controls">
+        <div class="controls">
+          <input id="valueInput" type="number" placeholder="Enter integer value" aria-label="Value to insert" />
+          <button id="insertBtn" title="Insert value into BST">Insert</button>
+        </div>
+
+        <div class="row">
+          <button id="randomBtn" class="secondary" title="Generate a random tree">Random</button>
+          <button id="resetBtn" class="secondary" title="Clear tree">Reset</button>
+        </div>
+
+        <div class="row" style="align-items:center;">
+          <label for="traversalSelect" class="small" style="min-width:80px; margin-right:4px;">Traversal</label>
+          <select id="traversalSelect" aria-label="Choose traversal">
+            <option value="inorder">Inorder</option>
+            <option value="preorder">Preorder</option>
+            <option value="postorder">Postorder</option>
+            <option value="level">Level-order</option>
+          </select>
+          <button id="playBtn" title="Play traversal">Play</button>
+          <button id="stopBtn" class="secondary" title="Stop traversal">Stop</button>
+        </div>
+
+        <div class="row" style="align-items:center;">
+          <label class="small" for="speedRange">Speed</label>
+          <input id="speedRange" type="range" min="200" max="1400" value="700" step="50" aria-label="Traversal speed" />
+          <span id="speedValue" class="hint">700 ms</span>
+        </div>
+
+        <div style="margin-top:4px;" class="hint">
+          Click a node to remove it. Nodes are placed according to BST rules (left &lt; value, right &gt;= value).
+        </div>
+      </div>
+
+      <div class="section" aria-label="Tree statistics">
+        <strong>Properties</strong>
+        <div class="stats" role="list">
+          <div class="stat" role="listitem">
+            <div class="value" id="statCount">0</div>
+            <div class="label">Nodes</div>
+          </div>
+          <div class="stat" role="listitem">
+            <div class="value" id="statHeight">0</div>
+            <div class="label">Height</div>
+          </div>
+          <div class="stat" role="listitem">
+            <div class="value" id="statMin">—</div>
+            <div class="label">Min</div>
+          </div>
+          <div class="stat" role="listitem">
+            <div class="value" id="statMax">—</div>
+            <div class="label">Max</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" aria-label="Interaction design and layout description" style="font-size:13px; gap:8px;">
+        <strong>Interaction Design</strong>
+        <p class="muted">
+          - Insert: type an integer and press Insert (or Enter) to add a node via BST insertion. New nodes pop into place with a scale animation.
+          - Remove: click any node to remove it; the tree rebalances per BST deletion rules and nodes animate to new positions.
+          - Traversals: choose a traversal and press Play. Nodes highlight in order with a short pulse and connecting edges emphasize the path. Use Stop to cancel.
+          - Random: generate a set of random unique values to quickly explore shapes. Reset clears the tree.
+        </p>
+
+        <strong>Layout Description</strong>
+        <p class="muted">
+          Left column: controls, descriptions, and statistics (fixed). Right column: interactive canvas showing an SVG-rendered tree with edges and nodes. Safe margins are 24px and minimum spacing between interactive controls is 16px. The design is responsive: on narrow screens controls stack above the canvas.
+        </p>
+      </div>
+    </div>
+
+    <div class="right" role="main" aria-label="Tree visualization area">
+      <div class="canvas-wrap section" aria-hidden="false">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <div>
+            <strong>Tree Canvas</strong>
+            <div class="muted" style="font-size:13px;">SVG visualization, click nodes to remove, use controls to manipulate.</div>
+          </div>
+          <div class="hint" id="nodeInfo">Root: —</div>
+        </div>
+
+        <div class="svg-container" id="svgContainer" tabindex="0" aria-label="Binary tree drawing">
+          <!-- SVG will be injected here -->
+          <svg class="tree" id="treeSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Binary tree visualization"></svg>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; gap:var(--gap); align-items:center;">
+          <div class="muted" id="instructions">Use the controls to insert nodes and animate traversals.</div>
+          <div class="play-controls">
+            <button id="stepBtn" class="secondary" title="Step one node in traversal">Step</button>
+            <button id="centerBtn" class="secondary" title="Center view on tree">Center</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" aria-label="Additional notes">
+        <strong>Notes & Tips</strong>
+        <ul class="muted" style="margin:0 0 0 16px; padding:0;">
+          <li>Tree height is the longest path (number of nodes) from root to a leaf.</li>
+          <li>Inorder traversal returns sorted values for a BST.</li>
+          <li>Deletion follows typical BST rules: replace with in-order successor when needed.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* Binary Tree interactive module (BST)
+       - Self-contained, vanilla JS, SVG rendering
+       - Features: insert, delete (click), randomize, reset, traversals with animation
+    */
+
+    // Utility helpers
+    function $(id) { return document.getElementById(id); }
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+    // BST node
+    class Node {
+      constructor(value) {
+        this.value = value;
+        this.left = null;
+        this.right = null;
+        this.parent = null;
+        // layout properties
+        this.x = 0;
+        this.y = 0;
+      }
+    }
+
+    class BST {
+      constructor() {
+        this.root = null;
+        this.count = 0;
+      }
+
+      insert(value) {
+        const newNode = new Node(value);
+        if (!this.root) {
+          this.root = newNode;
+          this.count = 1;
+          return newNode;
+        }
+        let cur = this.root;
+        while (true) {
+          if (value < cur.value) {
+            if (!cur.left) {
+              cur.left = newNode;
+              newNode.parent = cur;
+              this.count++;
+              return newNode;
+            }
+            cur = cur.left;
+          } else {
+            if (!cur.right) {
+              cur.right = newNode;
+              newNode.parent = cur;
+              this.count++;
+              return newNode;
+            }
+            cur = cur.right;
+          }
+        }
+      }
+
+      find(value) {
+        let cur = this.root;
+        while (cur) {
+          if (value === cur.value) return cur;
+          cur = value < cur.value ? cur.left : cur.right;
+        }
+        return null;
+      }
+
+      min(node = this.root) {
+        if (!node) return null;
+        while (node.left) node = node.left;
+        return node;
+      }
+
+      max(node = this.root) {
+        if (!node) return null;
+        while (node.right) node = node.right;
+        return node;
+      }
+
+      // Delete a node by value -> returns true if removed
+      remove(value) {
+        const node = this.find(value);
+        if (!node) return false;
+        this._removeNode(node);
+        this.count--;
+        return true;
+      }
+
+      _transplant(u, v) {
+        // replace subtree rooted at u with v
+        if (!u.parent) {
+          this.root = v;
+        } else if (u === u.parent.left) {
+          u.parent.left = v;
+        } else {
+          u.parent.right = v;
+        }
+        if (v) v.parent = u.parent;
+      }
+
+      _removeNode(node) {
+        if (!node.left) {
+          this._transplant(node, node.right);
+        } else if (!node.right) {
+          this._transplant(node, node.left);
+        } else {
+          // node has two children: replace with its inorder successor
+          const successor = this.min(node.right);
+          if (successor.parent !== node) {
+            this._transplant(successor, successor.right);
+            successor.right = node.right;
+            if (successor.right) successor.right.parent = successor;
+          }
+          this._transplant(node, successor);
+          successor.left = node.left;
+          if (successor.left) successor.left.parent = successor;
+        }
+      }
+
+      height(node = this.root) {
+        if (!node) return 0;
+        return 1 + Math.max(this.height(node.left), this.height(node.right));
+      }
+
+      inorder(node = this.root, arr = []) {
+        if (!node) return arr;
+        this.inorder(node.left, arr);
+        arr.push(node);
+        this.inorder(node.right, arr);
+        return arr;
+      }
+
+      preorder(node = this.root, arr = []) {
+        if (!node) return arr;
+        arr.push(node);
+        this.preorder(node.left, arr);
+        this.preorder(node.right, arr);
+        return arr;
+      }
+
+      postorder(node = this.root, arr = []) {
+        if (!node) return arr;
+        this.postorder(node.left, arr);
+        this.postorder(node.right, arr);
+        arr.push(node);
+        return arr;
+      }
+
+      levelorder() {
+        const arr = [];
+        if (!this.root) return arr;
+        const q = [this.root];
+        while (q.length) {
+          const n = q.shift();
+          arr.push(n);
+          if (n.left) q.push(n.left);
+          if (n.right) q.push(n.right);
+        }
+        return arr;
+      }
+    }
+
+    // Drawing and UI
+    (function init() {
+      const tree = new BST();
+
+      // DOM references
+      const svg = $('treeSvg');
+      const container = $('svgContainer');
+      const valueInput = $('valueInput');
+      const insertBtn = $('insertBtn');
+      const resetBtn = $('resetBtn');
+      const randomBtn = $('randomBtn');
+      const traversalSelect = $('traversalSelect');
+      const playBtn = $('playBtn');
+      const stopBtn = $('stopBtn');
+      const stepBtn = $('stepBtn');
+      const centerBtn = $('centerBtn');
+      const speedRange = $('speedRange');
+      const speedValue = $('speedValue');
+      const statCount = $('statCount');
+      const statHeight = $('statHeight');
+      const statMin = $('statMin');
+      const statMax = $('statMax');
+      const nodeInfo = $('nodeInfo');
+
+      let animating = false;
+      let abortTraversal = false;
+
+      speedRange.addEventListener('input', () => {
+        speedValue.textContent = speedRange.value + ' ms';
+      });
+
+      insertBtn.addEventListener('click', () => {
+        const v = parseInt(valueInput.value, 10);
+        if (Number.isNaN(v)) {
+          valueInput.focus();
+          return;
+        }
+        const existing = tree.find(v);
+        if (existing) {
+          flashMessage('Value already exists in tree (duplicates not allowed).');
+          valueInput.value = '';
+          valueInput.focus();
+          return;
+        }
+        const newNode = tree.insert(v);
+        valueInput.value = '';
+        update();
+        // pulse newly inserted node
+        const nodeEl = document.querySelector(`[data-id="${newNode.value}"]`);
+        if (nodeEl) {
+          nodeEl.classList.add('traverse');
+          setTimeout(() => nodeEl.classList.remove('traverse'), 700);
+        }
+      });
+
+      // allow Enter to insert
+      valueInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          insertBtn.click();
+        }
+      });
+
+      resetBtn.addEventListener('click', () => {
+        if (animating) return;
+        tree.root = null;
+        tree.count = 0;
+        update();
+      });
+
+      randomBtn.addEventListener('click', () => {
+        if (animating) return;
+        tree.root = null;
+        tree.count = 0;
+        const n = 6 + Math.floor(Math.random() * 6);
+        const set = new Set();
+        while (set.size < n) {
+          set.add(Math.floor(Math.random() * 90) + 5);
+        }
+        const arr = Array.from(set);
+        for (const v of arr) tree.insert(v);
+        update();
+      });
+
+      playBtn.addEventListener('click', () => {
+        if (animating) return startTraversal();
+      });
+
+      stopBtn.addEventListener('click', () => {
+        abortTraversal = true;
+      });
+
+      stepBtn.addEventListener('click', async () => {
+        if (animating) return;
+        await stepTraversal();
+      });
+
+      centerBtn.addEventListener('click', () => {
+        centerView();
+      });
+
+      // clicking nodes to delete
+      // delegate from svg
+      svg.addEventListener('click', (e) => {
+        const nodeGroup = e.target.closest('.node');
+        if (!nodeGroup) return;
+        const id = nodeGroup.getAttribute('data-id');
+        if (!id) return;
+        const val = parseInt(id, 10);
+        const ok = confirm('Remove node ' + val + '?');
+        if (!ok) return;
+        const removed = tree.remove(val);
+        if (removed) {
+          update();
+        }
+      });
+
+      // Step traversal (play one step)
+      async function stepTraversal() {
+        const seq = getTraversalSequence();
+        if (!seq.length) return;
+        animating = true;
+        abortTraversal = false;
+        for (let i = 0; i < seq.length; i++) {
+          if (abortTraversal) break;
+          const node = seq[i];
+          highlightNode(node, 420);
+          await sleep(420);
+          unhighlightNode(node);
+          break; // only step one
+        }
+        animating = false;
+      }
+
+      // Start full traversal animation
+      async function startTraversal() {
+        const seq = getTraversalSequence();
+        if (!seq.length) return;
+        animating = true;
+        abortTraversal = false;
+        const delay = Math.max(80, parseInt(speedRange.value, 10) || 700);
+        // emphasize edges lightly during play
+        for (const n of seq) {
+          if (abortTraversal) break;
+          highlightNode(n, delay);
+          // highlight parent edge
+          if (n.parent) highlightEdge(n.parent, n, delay);
+          await sleep(delay);
+          unhighlightNode(n);
+        }
+        animating = false;
+        abortTraversal = false;
+      }
+
+      function getTraversalSequence() {
+        const t = traversalSelect.value;
+        if (t === 'preorder') return tree.preorder();
+        if (t === 'postorder') return tree.postorder();
+        if (t === 'level') return tree.levelorder();
+        // default inorder
+        return tree.inorder();
+      }
+
+      function highlightNode(node, ms) {
+        const el = document.querySelector(`[data-id="${node.value}"]`);
+        if (!el) return;
+        const circle = el.querySelector('circle');
+        circle.classList.add('highlight');
+        el.classList.add('traverse');
+        setTimeout(() => {
+          circle.classList.remove('highlight');
+          el.classList.remove('traverse');
+        }, ms + 50);
+      }
+
+      function unhighlightNode(node) {
+        const el = document.querySelector(`[data-id="${node.value}"]`);
+        if (!el) return;
+        const circle = el.querySelector('circle');
+        circle.classList.remove('highlight');
+        el.classList.remove('traverse');
+      }
+
+      function highlightEdge(parent, child, ms) {
+        const id = edgeId(parent, child);
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.add('highlight');
+        setTimeout(() => {
+          el.classList.remove('highlight');
+        }, ms + 30);
+      }
+
+      function edgeId(parent, child) {
+        return 'edge-' + parent.value + '-' + child.value;
+      }
+
+      // Layout: compute x positions using inorder index, y using depth
+      function computeLayout() {
+        const nodes = [];
+        function dfs(node, depth) {
+          if (!node) return;
+          dfs(node.left, depth + 1);
+          nodes.push({ node, depth });
+          dfs(node.right, depth + 1);
+        }
+        if (!tree.root) {
+          return [];
+        }
+        dfs(tree.root, 0);
+        // nodes array is inorder. assign x positions with spacing
+        const spacingX = 70; // horizontal spacing
+        const spacingY = 90; // vertical spacing
+        nodes.forEach((entry, idx) => {
+          entry.node.x = (idx + 1) * spacingX;
+          entry.node.y = (entry.depth + 1) * spacingY;
+        });
+        // However this simple approach may overlap nodes with same depth but far positions.
+        // We'll re-run a second pass to ensure relative horizontal order is kept by performing an inorder assign.
+        // Additionally ensure svg width is adequate
+        const maxX = nodes.length * spacingX + 60;
+        const maxDepth = Math.max(...nodes.map(n => n.depth));
+        const maxY = (maxDepth + 2) * spacingY + 60;
+        return { nodes: nodes.map(e => e.node), maxX, maxY };
+      }
+
+      // Re-render SVG based on current tree layout
+      function render() {
+        // Clear svg
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+        if (!tree.root) {
+          svg.setAttribute('viewBox', '0 0 600 260');
+          // draw placeholder text
+          const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          txt.setAttribute('x', 20);
+          txt.setAttribute('y', 40);
+          txt.setAttribute('fill', 'rgba(255,255,255,0.12)');
+          txt.setAttribute('font-size', '14');
+          txt.textContent = 'Tree is empty — insert values to build a BST.';
+          svg.appendChild(txt);
+          nodeInfo.textContent = 'Root: —';
+          return;
+        }
+
+        const layout = computeLayout();
+        const nodes = layout.nodes;
+        const width = Math.max(layout.maxX, container.clientWidth - 20);
+        const height = Math.max(layout.maxY, 320);
+
+        svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+        svg.setAttribute('preserveAspectRatio', 'xMidYMin meet');
+
+        // Draw edges first
+        nodes.forEach(node => {
+          if (node.left) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.classList.add('edge');
+            line.setAttribute('id', edgeId(node, node.left));
+            line.setAttribute('x1', node.x);
+            line.setAttribute('y1', node.y);
+            line.setAttribute('x2', node.left.x);
+            line.setAttribute('y2', node.left.y);
+            svg.appendChild(line);
+          }
+          if (node.right) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.classList.add('edge');
+            line.setAttribute('id', edgeId(node, node.right));
+            line.setAttribute('x1', node.x);
+            line.setAttribute('y1', node.y);
+            line.setAttribute('x2', node.right.x);
+            line.setAttribute('y2', node.right.y);
+            svg.appendChild(line);
+          }
+        });
+
+        // Draw nodes
+        nodes.forEach(node => {
+          const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          g.classList.add('node');
+          g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+          g.setAttribute('data-id', String(node.value));
+          g.setAttribute('role', 'button');
+          g.setAttribute('tabindex', '0');
+          g.setAttribute('aria-label', 'Node ' + node.value);
+
+          // animated entry: scale from small -> default
+          g.style.transition = 'transform .36s cubic-bezier(.2,.9,.2,1)';
+
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('r', String(getNodeRadius()));
+          // style leaf vs internal
+          if (!node.left && !node.right) {
+            circle.setAttribute('fill', '#059669'); // leaf green
+          } else {
+            circle.setAttribute('fill', '#1e293b'); // internal dark
+          }
+          circle.classList.add('bg');
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', '0');
+          text.setAttribute('y', '5');
+          text.setAttribute('text-anchor', 'middle');
+          text.setAttribute('class', 'label');
+          text.textContent = String(node.value);
+
+          g.appendChild(circle);
+          g.appendChild(text);
+          svg.appendChild(g);
+
+          // Accessibility: keyboard deletion (Enter or Delete)
+          g.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace') {
+              const ok = confirm('Remove node ' + node.value + '?');
+              if (ok) {
+                tree.remove(node.value);
+                update();
+              }
+            }
+          });
+        });
+
+        // small pop animation for newly added elements: scale from 0.6 to 1
+        const groups = svg.querySelectorAll('.node');
+        groups.forEach((g, i) => {
+          g.style.transform = 'scale(.6)';
+          setTimeout(() => {
+            g.style.transform = 'scale(1)';
+          }, 80 + i * 10);
+        });
+
+        // update node info (root)
+        nodeInfo.textContent = 'Root: ' + tree.root.value + ' (Height: ' + tree.height() + ')';
+      }
+
+      function getNodeRadius() {
+        const base = 18;
+        return base;
+      }
+
+      function updateStats() {
+        statCount.textContent = String(tree.count);
+        statHeight.textContent = String(tree.height());
+        const mn = tree.min();
+        const mx = tree.max();
+        statMin.textContent = mn ? mn.value : '—';
+        statMax.textContent = mx ? mx.value : '—';
+      }
+
+      function centerView() {
+        // attempt to center by scrolling container to middle of SVG content
+        // compute bounding box of nodes
+        const bbox = svg.getBBox();
+        const cx = bbox.x + bbox.width / 2;
+        const cy = bbox.y + bbox.height / 2;
+        const containerRect = container.getBoundingClientRect();
+        // scroll such that cx aligns horizontally center
+        const svgPointX = (cx / bbox.width) * svg.clientWidth;
+        const targetScrollLeft = Math.max(0, svgPointX - containerRect.width / 2);
+        container.scrollTo({ left: targetScrollLeft, top: Math.max(0, cy - containerRect.height / 2), behavior: 'smooth' });
+      }
+
+      function update() {
+        render();
+        updateStats();
+      }
+
+      function flashMessage(msg) {
+        // small in-page alert via instructions text
+        const instructions = $('instructions');
+        const prev = instructions.textContent;
+        instructions.textContent = msg;
+        setTimeout(() => {
+          instructions.textContent = prev;
+        }, 1600);
+      }
+
+      // Initial seed examples
+      const seed = [50, 25, 75, 12, 37, 60, 90];
+      seed.forEach(v => tree.insert(v));
+      update();
+
+      // helpful hint: center view on load
+      setTimeout(() => centerView(), 400);
+
+      // expose for debugging (not required)
+      window.__bst = tree;
+
+    })();
+  </script>
+</body>
+</html>
