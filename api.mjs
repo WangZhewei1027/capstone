@@ -200,6 +200,35 @@ app.get("/api/fsm-data/:workspace/:filename", async (req, res) => {
   }
 });
 
+// 新的API端点：从独立的FSM JSON文件获取FSM数据
+app.get("/api/fsm/:workspace/:fileId", async (req, res) => {
+  try {
+    const { workspace, fileId } = req.params;
+    // 支持带或不带 .json 扩展名
+    const cleanFileId = fileId.replace(/\.json$/, "");
+    const fsmPath = path.join(
+      "./workspace",
+      workspace,
+      "fsm",
+      `${cleanFileId}.json`
+    );
+
+    // 检查文件是否存在
+    try {
+      await fs.access(fsmPath);
+    } catch (error) {
+      return res.status(404).json({ error: "FSM file not found" });
+    }
+
+    const fsmContent = await fs.readFile(fsmPath, "utf-8");
+    const fsmData = JSON.parse(fsmContent);
+    res.json(fsmData);
+  } catch (error) {
+    console.error("获取FSM数据失败:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 获取截图列表
 app.get("/api/screenshots/:workspace/:filename", async (req, res) => {
   try {
@@ -378,10 +407,15 @@ app.listen(PORT, () => {
   console.log(`   GET /api/workspaces/:workspace/data - 获取工作空间数据`);
   console.log(`   GET /api/workspaces/:workspace/html - 获取HTML文件列表`);
   console.log(`   GET /api/workspaces/:workspace/stats - 获取工作空间统计`);
-  console.log(`   GET /api/fsm-data/:workspace/:filename - 获取FSM数据`);
+  console.log(
+    `   GET /api/fsm/:workspace/:fileId - 获取独立FSM JSON文件数据 (新)`
+  );
+  console.log(
+    `   GET /api/fsm-data/:workspace/:filename - 获取HTML嵌入的FSM数据 (旧)`
+  );
   console.log(`   GET /api/screenshots/:workspace/:filename - 获取截图列表`);
-  console.log(`   GET /api/evaluation/:workspace/:filename - 获取评估结果`);
-  console.log(`   POST /api/evaluation/:workspace/:filename - 执行新评估`);
+  console.log(`   GET /api/evaluation/:workspace/:filename - 获取评估数据`);
+  console.log(`   POST /api/evaluation/:workspace/:filename - 执行评估`);
   console.log(`   GET /api/health - 健康检查`);
   console.log(
     `💻 前端可以通过 http://localhost:${PORT}/workspace/ 访问静态文件`

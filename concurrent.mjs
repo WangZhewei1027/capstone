@@ -36,7 +36,7 @@ For this module, include the following sections:
 
 // 简单的测试配置
 const TEST_CONFIG = {
-  workspace: "10-28-0007",
+  workspace: "11-08-0002",
   concurrencyLimit: 15,
   defaultTopic: "bubble sort", // 默认主题
   enableFSM: true, // 启用 FSM 生成（Agent 2）
