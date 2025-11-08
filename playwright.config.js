@@ -19,6 +19,10 @@ export default defineConfig({
   // 并行运行的worker数量
   workers: process.env.CI ? 1 : undefined,
 
+  // 即使有测试失败也继续运行（关键配置）
+  fullyParallel: true, // 完全并行运行
+  maxFailures: 0, // 0 表示不限制失败数量，继续运行所有测试
+
   // 报告器配置
   reporter: [
     ["html"],
