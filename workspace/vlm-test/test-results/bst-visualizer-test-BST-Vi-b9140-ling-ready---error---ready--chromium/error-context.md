@@ -1,0 +1,42 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Binary Search Tree (BST) Visualizer" [level=1] [ref=e3]
+    - paragraph [ref=e4]: Insert, search, delete, and clear values. See a real-time visualization and traversals.
+  - generic [ref=e5]:
+    - region "Controls Panel" [ref=e6]:
+      - group "Value Entry" [ref=e7]:
+        - generic [ref=e8]: Value
+        - spinbutton "Value" [active] [ref=e9]: "3.14"
+      - group "Actions" [ref=e10]:
+        - button "Insert" [ref=e11] [cursor=pointer]
+        - button "Search" [ref=e12] [cursor=pointer]
+        - button "Delete" [ref=e13] [cursor=pointer]
+        - button "Clear" [ref=e14] [cursor=pointer]
+      - status [ref=e15]: Only integer values are supported.
+    - region "Visualization Panel" [ref=e16]:
+      - generic [ref=e17]:
+        - heading "Tree" [level=2] [ref=e18]
+        - generic [ref=e19]: "Root: null"
+      - generic [ref=e20]:
+        - generic [ref=e21]: Node
+        - generic [ref=e23]: Search Path
+        - generic [ref=e25]: Found
+      - img "Binary Search Tree Visualization" [ref=e28]
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - heading "In-order" [level=3] [ref=e31]
+          - generic "In-order Traversal" [ref=e32]: "[]"
+        - generic [ref=e33]:
+          - heading "Pre-order" [level=3] [ref=e34]
+          - generic "Pre-order Traversal" [ref=e35]: "[]"
+        - generic [ref=e36]:
+          - heading "Post-order" [level=3] [ref=e37]
+          - generic "Post-order Traversal" [ref=e38]: "[]"
+        - generic [ref=e39]:
+          - heading "Level-order" [level=3] [ref=e40]
+          - generic "Level-order Traversal" [ref=e41]: "[]"
+  - generic [ref=e42]: "Tip: BST maintains the invariant left < node < right. In-order traversal returns a sorted sequence."
+```
