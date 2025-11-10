@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Floyd–Warshall Interactive Explorer</title>
+  <style>
+    :root{
+      --safe-pad: 24px;
+      --gap: 16px;
+      --bg: #0f1720;
+      --card: #0b1220;
+      --muted: #9aa7b3;
+      --accent: #4fd1c5;
+      --danger: #ff6b6b;
+      --cell-updated: #2b6cb0;
+      --success: #2f855a;
+      --glass: rgba(255,255,255,0.04);
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071021 0%, #071827 60%);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #e6f0f3;
+      -webkit-font-smoothing:antialiased;
+    }
+    .app{
+      padding: var(--safe-pad);
+      box-sizing: border-box;
+      min-height:100%;
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+    }
+    /* Layout columns */
+    .panel {
+      width:360px;
+      min-width:260px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:18px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      flex-shrink:0;
+    }
+    .visual {
+      flex:1;
+      min-width:300px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    h1{
+      margin:0 0 8px 0;
+      font-size:20px;
+      letter-spacing:0.2px;
+    }
+    p.lead{
+      margin:0 0 var(--gap) 0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.4;
+    }
+    .controls{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .row{
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    button, .btn {
+      background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);
+      color:var(--accent);
+      padding:8px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:13px;
+      transition:transform 0.08s ease, box-shadow 0.12s ease;
+    }
+    button:active{ transform:translateY(1px) }
+    button.primary{
+      background: linear-gradient(90deg, rgba(79,209,197,0.12), rgba(79,209,197,0.06));
+      color: #072025;
+      border: none;
+    }
+    button.warn{
+      background: linear-gradient(90deg, rgba(255,107,107,0.12), rgba(255,107,107,0.06));
+      color: #ffeaea;
+      border:none;
+    }
+    label.switch{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .switch input{ margin-right:8px }
+    .chip{
+      padding:8px 10px;
+      background:var(--glass);
+      border-radius:8px;
+      font-size:13px;
+      color:var(--muted);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .canvas-card{
+      background: linear-gradient(180deg,#05111a 0%, rgba(255,255,255,0.02) 100%);
+      border-radius:12px;
+      padding:12px;
+      min-height:320px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .canvas-area{
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      border-radius:8px;
+      border: 1px dashed rgba(255,255,255,0.03);
+      flex:1;
+      position:relative;
+      overflow:hidden;
+    }
+    svg{
+      width:100%;
+      height:100%;
+      display:block;
+      touch-action:none;
+    }
+    .toolbar{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .matrices{
+      display:flex;
+      gap:16px;
+      align-items:flex-start;
+      flex-wrap:wrap;
+    }
+    .matrix-card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:8px;
+      padding:10px;
+      min-width:240px;
+      max-width:720px;
+      overflow:auto;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    table.matrix{
+      border-collapse:collapse;
+      font-family: monospace;
+      font-size:13px;
+      width:100%;
+    }
+    table.matrix th, table.matrix td{
+      padding:6px 8px;
+      border:1px solid rgba(255,255,255,0.03);
+      text-align:center;
+      min-width:60px;
+      max-width:120px;
+      white-space:nowrap;
+    }
+    table.matrix thead th{
+      background:rgba(255,255,255,0.02);
+      color:var(--muted);
+      font-weight:600;
+    }
+    td.updating{
+      animation: pulse 800ms ease;
+      background: linear-gradient(90deg, rgba(47,133,90,0.12), rgba(43,108,176,0.08));
+    }
+    @keyframes pulse {
+      0%{ box-shadow:0 0 0 0 rgba(79,209,197,0.15) }
+      70%{ box-shadow:0 0 0 8px rgba(79,209,197,0) }
+      100%{ box-shadow:0 0 0 0 rgba(79,209,197,0) }
+    }
+    .node {
+      cursor:grab;
+    }
+    .node:active{ cursor:grabbing }
+    .node circle{
+      fill: linear-gradient(#0b1f2a,#083343);
+      stroke: rgba(255,255,255,0.06);
+      stroke-width:1.2px;
+      transition: r 0.12s ease, filter 0.12s;
+    }
+    .node text{
+      fill: #e6f0f3;
+      font-size:12px;
+      pointer-events:none;
+    }
+    .node.highlight circle{
+      filter: drop-shadow(0 0 6px rgba(79,209,197,0.25));
+    }
+    .edge{
+      stroke: rgba(255,255,255,0.08);
+      stroke-width:2.2;
+      transition: stroke 0.12s;
+    }
+    .edge.highlight{
+      stroke: var(--accent);
+      stroke-width:3.6;
+      filter: drop-shadow(0 6px 12px rgba(79,209,197,0.12));
+    }
+    .edge-label{
+      fill: var(--muted);
+      font-size:12px;
+      cursor:pointer;
+    }
+    .path-highlight {
+      animation: pathPulse 1000ms infinite;
+      stroke: var(--accent) !important;
+      stroke-width:4px !important;
+    }
+    @keyframes pathPulse {
+      0% { stroke-opacity: 1 }
+      50% { stroke-opacity: 0.4 }
+      100% { stroke-opacity:1 }
+    }
+    .kbd {
+      background: rgba(255,255,255,0.02);
+      padding:8px 10px;
+      border-radius:8px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .footer-note{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:8px;
+    }
+    /* responsive */
+    @media (max-width:980px){
+      .app{ flex-direction:column; padding:16px }
+      .panel{ width:100%; max-width:100% }
+      .visual{ width:100% }
+      .matrices{ flex-direction:column }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Floyd-Warshall interactive explorer">
+    <div class="panel" aria-hidden="false">
+      <h1>Floyd–Warshall Explorer</h1>
+      <p class="lead">
+        Interactive visualization of the Floyd–Warshall all‑pairs shortest path algorithm.
+        Create a graph, set weights, then step through k = 1..n and watch matrix updates.
+      </p>
+
+      <div class="controls" role="region" aria-label="Controls">
+        <div class="chip">Safe area padding: 24px · Min spacing: 16px</div>
+
+        <div class="toolbar" style="margin-top:8px;">
+          <button id="btnReset" title="Reset graph to empty">Reset Graph</button>
+          <button id="btnRandom">Random Graph</button>
+          <label class="switch" title="Make edges undirected">
+            <input type="checkbox" id="toggleUndirected" />
+            Undirected
+          </label>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;">
+          <button id="btnCompute" class="primary">Compute Steps</button>
+          <div class="chip" id="stepInfo">k = 0 / 0</div>
+        </div>
+
+        <div class="row">
+          <button id="btnBack">Step ◀</button>
+          <button id="btnForward">Step ▶</button>
+          <button id="btnPlay" class="btn">Auto Play</button>
+          <label style="display:flex;align-items:center;gap:8px;color:var(--muted)">
+            Speed
+            <input id="speed" type="range" min="200" max="1600" step="100" value="800" />
+          </label>
+        </div>
+
+        <div class="row">
+          <button id="btnShowPath">Show Path</button>
+          <button id="btnClearSteps">Clear Steps</button>
+        </div>
+
+        <div style="margin-top:8px;">
+          <div style="font-weight:600;margin-bottom:6px">Quick Hints</div>
+          <div class="footer-note">
+            - Click canvas to add node. Drag nodes to reposition.<br>
+            - Click node A, then node B to add/edit an edge weight.<br>
+            - Click matrix cells to edit weights directly (use INF for unreachable).<br>
+            - After computing steps, step through k to see updates. Click "Show Path", then pick two nodes.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="visual">
+      <div class="canvas-card" role="region" aria-label="Graph canvas">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;gap:12px;align-items:center">
+            <div class="kbd">Click to add node</div>
+            <div class="kbd">Drag to move</div>
+            <div class="kbd">Click two nodes to add edge</div>
+          </div>
+          <div class="chip" id="nodeCount">Nodes: 0</div>
+        </div>
+
+        <div class="canvas-area" id="canvasArea" tabindex="0" aria-label="Graph drawing area">
+          <svg id="svgCanvas" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Graph visualization">
+            <defs>
+              <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+                <path d="M0,0 L10,4 L0,8 z" fill="#e6f0f3"/>
+              </marker>
+            </defs>
+            <g id="edgesLayer"></g>
+            <g id="labelsLayer"></g>
+            <g id="nodesLayer"></g>
+            <g id="overlays"></g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="matrices" role="region" aria-label="Matrices">
+        <div class="matrix-card" style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:700">Distance Matrix</div>
+            <div style="color:var(--muted)">INF shown as ∞</div>
+          </div>
+          <div id="distanceMatrix" aria-label="Distance matrix"></div>
+        </div>
+
+        <div class="matrix-card" style="width:320px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:700">Next Matrix</div>
+            <div style="color:var(--muted)">Next-node for path reconstruction</div>
+          </div>
+          <div id="nextMatrix" aria-label="Next matrix"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    /****************************************************************
+     * Floyd–Warshall Interactive Explorer
+     * Self-contained implementation using vanilla JS + SVG
+     * Features:
+     *  - Add / drag nodes
+     *  - Add / edit edges with weight
+     *  - Compute step-by-step Floyd–Warshall snapshots (distance & next)
+     *  - Step through k, autoplay, show path animation
+     ****************************************************************/
+
+    // Utilities
+    const INF = 1e9;
+    function isInf(x){ return x === INF; }
+    function displayVal(x){ return (x >= INF/2) ? '∞' : String(x); }
+    function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+    // App state
+    let nodes = []; // {id, x, y}
+    let edges = []; // {u,v,w,el,lineLabel,svgLine}
+    let undirected = false;
+    let selectedNodeForEdge = null;
+    let svg, nodesLayer, edgesLayer, labelsLayer, overlays;
+    let nodeCountEl = document.getElementById('nodeCount');
+    let distanceMatrixEl = document.getElementById('distanceMatrix');
+    let nextMatrixEl = document.getElementById('nextMatrix');
+    let stepInfoEl = document.getElementById('stepInfo');
+    let currentSnapshots = []; // {dist, next} arrays for each k (0..n)
+    let currentK = 0;
+    let playing = false;
+    let playTimer = null;
+
+    // DOM elements
+    const canvasArea = document.getElementById('canvasArea');
+    const svgEl = document.getElementById('svgCanvas');
+    svg = svgEl;
+    nodesLayer = document.getElementById('nodesLayer');
+    edgesLayer = document.getElementById('edgesLayer');
+    labelsLayer = document.getElementById('labelsLayer');
+    overlays = document.getElementById('overlays');
+
+    const btnReset = document.getElementById('btnReset');
+    const btnRandom = document.getElementById('btnRandom');
+    const toggleUndirected = document.getElementById('toggleUndirected');
+    const btnCompute = document.getElementById('btnCompute');
+    const btnBack = document.getElementById('btnBack');
+    const btnForward = document.getElementById('btnForward');
+    const btnPlay = document.getElementById('btnPlay');
+    const btnShowPath = document.getElementById('btnShowPath');
+    const btnClearSteps = document.getElementById('btnClearSteps');
+    const speedControl = document.getElementById('speed');
+
+    // Initialize
+    function init(){
+      svgEl.setAttribute('viewBox','0 0 1200 700');
+      canvasArea.addEventListener('click', canvasClick);
+      btnReset.addEventListener('click', resetGraph);
+      btnRandom.addEventListener('click', randomGraph);
+      toggleUndirected.addEventListener('change', ev=>{
+        undirected = ev.target.checked;
+      });
+      btnCompute.addEventListener('click', computeSnapshots);
+      btnBack.addEventListener('click', ()=>stepK(currentK-1));
+      btnForward.addEventListener('click', ()=>stepK(currentK+1));
+      btnPlay.addEventListener('click', togglePlay);
+      btnShowPath.addEventListener('click', activatePathSelection);
+      btnClearSteps.addEventListener('click', clearSnapshots);
+      speedControl.addEventListener('input', ()=>{ if(playing){ restartPlay(); }});
+
+      // Prevent double-click text selection
+      canvasArea.addEventListener('dblclick', e=>e.preventDefault());
+
+      // small initial graph
+      createSampleGraph();
+      renderAll();
+    }
+
+    // Graph operations
+    function addNode(x,y){
+      const id = nodes.length;
+      nodes.push({id, x, y});
+      renderAll();
+      updateNodeCount();
+    }
+    function removeNode(id){
+      // Not exposing via UI but keep for completeness
+      nodes = nodes.filter(n=>n.id!==id).map((n,idx)=>({ ...n, id: idx }));
+      edges = edges.filter(e=>e.u!==id && e.v!==id);
+      renderAll();
+      updateNodeCount();
+    }
+    function addOrUpdateEdge(u, v, w){
+      // search if edge exists
+      let e = edges.find(ed=>ed.u===u && ed.v===v);
+      if(e){
+        e.w = w;
+      } else {
+        e = {u,v,w};
+        edges.push(e);
+      }
+      if(undirected){
+        let e2 = edges.find(ed=>ed.u===v && ed.v===u);
+        if(!e2){
+          edges.push({u:v,v:u,w:w});
+        } else {
+          e2.w = w;
+        }
+      }
+      renderAll();
+    }
+
+    function updateNodeCount(){ nodeCountEl.textContent = 'Nodes: ' + nodes.length; }
+
+    // Rendering
+    function renderAll(){
+      renderEdges();
+      renderNodes();
+      renderMatricesPreview();
+    }
+
+    function renderNodes(){
+      // clear nodesLayer
+      while(nodesLayer.firstChild) nodesLayer.removeChild(nodesLayer.firstChild);
+
+      nodes.forEach(n=>{
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.classList.add('node');
+        g.setAttribute('data-id', n.id);
+        g.setAttribute('transform', `translate(${n.x},${n.y})`);
+        g.style.cursor = 'grab';
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circle.setAttribute('r', 22);
+        circle.setAttribute('cx',0);
+        circle.setAttribute('cy',0);
+        circle.setAttribute('fill', '#022731');
+        circle.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+        circle.setAttribute('stroke-width', '1.2');
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('x',0);
+        label.setAttribute('y',5);
+        label.setAttribute('text-anchor','middle');
+        label.setAttribute('font-size','12');
+        label.setAttribute('fill','#e6f0f3');
+        label.textContent = n.id;
+
+        g.appendChild(circle);
+        g.appendChild(label);
+
+        // Events
+        g.addEventListener('pointerdown', nodePointerDown);
+        g.addEventListener('click', nodeClicked);
+
+        nodesLayer.appendChild(g);
+      });
+    }
+
+    function renderEdges(){
+      // clear
+      while(edgesLayer.firstChild) edgesLayer.removeChild(edgesLayer.firstChild);
+      while(labelsLayer.firstChild) labelsLayer.removeChild(labelsLayer.firstChild);
+
+      edges.forEach((e, idx)=>{
+        const u = nodes[e.u];
+        const v = nodes[e.v];
+        if(!u || !v) return;
+
+        // compute line endpoints with offsets to sit at circle edges
+        const dx = v.x - u.x;
+        const dy = v.y - u.y;
+        const dist = Math.hypot(dx,dy) || 1;
+        const ux = dx/dist;
+        const uy = dy/dist;
+        const r = 22;
+        const sx = u.x + ux*r;
+        const sy = u.y + uy*r;
+        const ex = v.x - ux*r - (undirected ? 0 : ux*6); // shift for arrow
+        const ey = v.y - uy*r - (undirected ? 0 : uy*6);
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+        const d = `M ${sx} ${sy} L ${ex} ${ey}`;
+        line.setAttribute('d', d);
+        line.setAttribute('fill','none');
+        line.classList.add('edge');
+        if(!undirected) line.setAttribute('marker-end','url(#arrowhead)');
+
+        // label in middle
+        const midx = (sx+ex)/2 + (-uy)*14; // slightly offset
+        const midy = (sy+ey)/2 + (ux)*14;
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('x', midx);
+        label.setAttribute('y', midy);
+        label.setAttribute('text-anchor','middle');
+        label.setAttribute('font-size','12');
+        label.classList.add('edge-label');
+        label.style.cursor = 'pointer';
+        label.textContent = isInf(e.w) ? '∞' : e.w;
+
+        // click label to edit
+        label.addEventListener('click', (ev)=>{
+          ev.stopPropagation();
+          showEdgeWeightEditor(e, midx, midy, label);
+        });
+
+        edgesLayer.appendChild(line);
+        labelsLayer.appendChild(label);
+      });
+    }
+
+    // Matrix preview (without snapshots)
+    function renderMatricesPreview(){
+      const n = nodes.length;
+      const D = make2D(n,n,INF);
+      const nxt = make2D(n,n,null);
+
+      for(let i=0;i<n;i++){ D[i][i]=0; nxt[i][i]=i; }
+      edges.forEach(e=>{
+        if(nodes[e.u] && nodes[e.v]){
+          D[e.u][e.v] = Math.min(D[e.u][e.v], e.w);
+          nxt[e.u][e.v] = e.v;
+        }
+      });
+
+      renderMatrix(distanceMatrixEl, D, true);
+      renderMatrix(nextMatrixEl, nxt, false);
+    }
+
+    function renderMatrix(container, matrix, numeric){
+      // render a table of the matrix
+      container.innerHTML = '';
+      const n = nodes.length;
+      const table = document.createElement('table');
+      table.className = 'matrix';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      headRow.appendChild(document.createElement('th'));
+      for(let j=0;j<n;j++){
+        const th = document.createElement('th');
+        th.textContent = j;
+        headRow.appendChild(th);
+      }
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      for(let i=0;i<n;i++){
+        const tr = document.createElement('tr');
+        const th = document.createElement('th');
+        th.textContent = i;
+        tr.appendChild(th);
+        for(let j=0;j<n;j++){
+          const td = document.createElement('td');
+          td.setAttribute('data-i',i);
+          td.setAttribute('data-j',j);
+          if(numeric){
+            td.textContent = displayVal(matrix[i][j]);
+            td.title = (matrix[i][j] >= INF/2 ? '∞' : String(matrix[i][j]));
+            td.addEventListener('click', ()=>editMatrixCell(i,j,matrix,td));
+          } else {
+            td.textContent = (matrix[i][j] === null) ? '-' : String(matrix[i][j]);
+            td.addEventListener('click', ()=>alert('Next value indicates next node on path from i to j.'));
+          }
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      container.appendChild(table);
+    }
+
+    function editMatrixCell(i,j,currentMatrix,td){
+      const promptVal = prompt(`Edit weight from ${i} -> ${j} (enter number or INF):`, currentMatrix[i][j] >= INF/2 ? 'INF' : String(currentMatrix[i][j]));
+      if(promptVal === null) return;
+      let w;
+      if(promptVal.trim().toUpperCase() === 'INF'){ w = INF; }
+      else {
+        w = parseFloat(promptVal);
+        if(Number.isNaN(w)){ alert('Invalid number'); return; }
+      }
+      // apply to edges if present
+      const existing = edges.find(e=>e.u===i && e.v===j);
+      if(existing){ existing.w = w; }
+      else {
+        edges.push({u:i,v:j,w:w});
+      }
+      if(undirected){
+        const mirror = edges.find(e=>e.u===j && e.v===i);
+        if(mirror) mirror.w = w;
+        else edges.push({u:j,v:i,w:w});
+      }
+      renderAll();
+      clearSnapshots();
+    }
+
+    // Edge weight inline editor
+    function showEdgeWeightEditor(edge, x, y, labelEl){
+      // create input overlay
+      const foreign = document.createElementNS('http://www.w3.org/2000/svg','foreignObject');
+      const width = 80, height = 28;
+      foreign.setAttribute('x', x - width/2);
+      foreign.setAttribute('y', y - height/2);
+      foreign.setAttribute('width', width);
+      foreign.setAttribute('height', height);
+      const div = document.createElement('div');
+      div.setAttribute('xmlns','http://www.w3.org/1999/xhtml');
+      div.style.width = width+'px';
+      div.style.height = height+'px';
+      div.style.display = 'flex';
+      div.style.alignItems = 'center';
+      div.style.justifyContent = 'center';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = isInf(edge.w) ? 'INF' : String(edge.w);
+      input.style.width = '100%';
+      input.style.padding = '4px';
+      input.style.borderRadius = '6px';
+      input.style.border = '1px solid rgba(255,255,255,0.06)';
+      input.style.background = 'rgba(0,0,0,0.45)';
+      input.style.color = '#e6f0f3';
+      input.addEventListener('keydown', ev=>{
+        if(ev.key === 'Enter'){ apply(); }
+        else if(ev.key === 'Escape'){ cleanup(); }
+      });
+      div.appendChild(input);
+      foreign.appendChild(div);
+      overlays.appendChild(foreign);
+      input.focus();
+
+      function apply(){
+        const val = input.value.trim();
+        let w;
+        if(val.toUpperCase() === 'INF') w = INF;
+        else { w = parseFloat(val); if(Number.isNaN(w)){ alert('Invalid number'); return; } }
+        edge.w = w;
+        if(undirected){
+          // mirror
+          const mirror = edges.find(ed=>ed.u === edge.v && ed.v === edge.u);
+          if(mirror) mirror.w = w;
+        }
+        cleanup();
+        renderAll();
+        clearSnapshots();
+      }
+      function cleanup(){
+        if(foreign.parentNode) foreign.parentNode.removeChild(foreign);
+      }
+    }
+
+    // Node pointer events (drag)
+    let dragState = null;
+    function nodePointerDown(evt){
+      evt.preventDefault();
+      const g = evt.currentTarget;
+      const id = parseInt(g.getAttribute('data-id'));
+      const p = getPointerSvgPoint(evt);
+      const node = nodes[id];
+      dragState = {
+        id,
+        sx: p.x - node.x,
+        sy: p.y - node.y
+      };
+      window.addEventListener('pointermove', nodePointerMove);
+      window.addEventListener('pointerup', nodePointerUp);
+    }
+    function nodePointerMove(evt){
+      if(!dragState) return;
+      const p = getPointerSvgPoint(evt);
+      const node = nodes[dragState.id];
+      node.x = clamp(p.x - dragState.sx, 40, 1160);
+      node.y = clamp(p.y - dragState.sy, 40, 660);
+      renderAll(); // re-render for live movement
+    }
+    function nodePointerUp(evt){
+      window.removeEventListener('pointermove', nodePointerMove);
+      window.removeEventListener('pointerup', nodePointerUp);
+      dragState = null;
+    }
+
+    // Node click to add edge (select two nodes)
+    function nodeClicked(evt){
+      evt.stopPropagation();
+      const g = evt.currentTarget;
+      const id = parseInt(g.getAttribute('data-id'));
+      if(window.awaitingPathSelection){
+        // if waiting for path selection, record start or end
+        handlePathNodeSelection(id);
+        return;
+      }
+      if(selectedNodeForEdge === null){
+        selectedNodeForEdge = id;
+        highlightNode(id, true);
+      } else if(selectedNodeForEdge === id){
+        // deselect
+        highlightNode(id, false);
+        selectedNodeForEdge = null;
+      } else {
+        // second node clicked; create/edit edge
+        const u = selectedNodeForEdge;
+        const v = id;
+        highlightNode(u, false);
+        selectedNodeForEdge = null;
+        // prompt weight
+        const wstr = prompt(`Weight from ${u} -> ${v} (number or INF):`, '1');
+        if(wstr === null) return;
+        let w;
+        if(wstr.trim().toUpperCase() === 'INF') w = INF;
+        else { w = parseFloat(wstr); if(Number.isNaN(w)) { alert('Invalid number'); return; } }
+        addOrUpdateEdge(u,v,w);
+        clearSnapshots();
+      }
+    }
+
+    function highlightNode(id, on){
+      const g = nodesLayer.querySelector(`g.node[data-id="${id}"]`);
+      if(!g) return;
+      if(on) g.classList.add('highlight');
+      else g.classList.remove('highlight');
+    }
+
+    function canvasClick(evt){
+      // add node at clicked position
+      // ensure not clicking on existing node or label: only if target is canvas area
+      if(evt.target !== canvasArea && evt.target.tagName !== 'svg') return;
+      const p = getPointerSvgPoint(evt);
+      addNode(p.x, p.y);
+      clearSnapshots();
+    }
+
+    function getPointerSvgPoint(evt){
+      const pt = svg.createSVGPoint();
+      pt.x = evt.clientX;
+      pt.y = evt.clientY;
+      const ctm = svg.getScreenCTM();
+      if(!ctm) return {x: evt.offsetX, y: evt.offsetY};
+      const inverse = ctm.inverse();
+      const p = pt.matrixTransform(inverse);
+      return {x: p.x, y: p.y};
+    }
+
+    // Snapshots computation
+    function computeSnapshots(){
+      const n = nodes.length;
+      const D = make2D(n,n,INF);
+      const nxt = make2D(n,n,null);
+      for(let i=0;i<n;i++){ D[i][i]=0; nxt[i][i]=i; }
+      edges.forEach(e=>{
+        if(e.u < n && e.v < n){
+          D[e.u][e.v] = Math.min(D[e.u][e.v], e.w);
+          nxt[e.u][e.v] = e.v;
+        }
+      });
+      // Save k=0 snapshot (before using any intermediate)
+      currentSnapshots = [];
+      currentSnapshots.push({dist: clone2D(D), next: clone2D(nxt)});
+      // Floyd-Warshall iterations
+      for(let k=0;k<n;k++){
+        for(let i=0;i<n;i++){
+          for(let j=0;j<n;j++){
+            const dij = D[i][j];
+            const dik = D[i][k];
+            const dkj = D[k][j];
+            if(dik + dkj < dij){
+              D[i][j] = dik + dkj;
+              nxt[i][j] = nxt[i][k];
+            }
+          }
+        }
+        currentSnapshots.push({dist: clone2D(D), next: clone2D(nxt)});
+      }
+      currentK = 0;
+      renderSnapshot(currentK);
+      updateStepInfo();
+      alert('Computed snapshots for k = 0 .. ' + n);
+    }
+
+    function clearSnapshots(){
+      currentSnapshots = [];
+      currentK = 0;
+      updateStepInfo();
+      renderMatricesPreview();
+    }
+
+    function stepK(k){
+      if(!currentSnapshots || currentSnapshots.length === 0) return;
+      k = Math.max(0, Math.min(currentSnapshots.length - 1, k));
+      if(k === currentK) return;
+      currentK = k;
+      renderSnapshot(currentK);
+      updateStepInfo();
+      if(playing && currentK === currentSnapshots.length - 1) togglePlay(false);
+    }
+
+    function renderSnapshot(k){
+      const snap = currentSnapshots[k];
+      if(!snap) return;
+      // highlight node k (1..n), note snapshot index corresponds to k-used count
+      const n = nodes.length;
+      // clear existing highlights
+      nodesLayer.querySelectorAll('g.node').forEach(g=>g.classList.remove('highlight'));
+      if(k > 0 && k <= n){
+        const knode = k-1; // snapshot[1] used k=0-th node? We stored k from 0..n where snapshot index equals k-used so highlight k-1?
+        // convention: snapshot index s uses nodes 0..s-1 as intermediates. So when s>0, new intermediate is s-1
+        const g = nodesLayer.querySelector(`g.node[data-id="${knode}"]`);
+        if(g) g.classList.add('highlight');
+      }
+
+      // Render matrices and animate changed cells compared to previous snapshot
+      const prev = (k>0) ? currentSnapshots[k-1].dist : null;
+      renderMatrixWithUpdates(distanceMatrixEl, snap.dist, true, prev);
+      renderMatrix(nextMatrixEl, snap.next, false);
+
+      // optionally animate edges used by any shortest pairs (not all), keep simple: no edge animation here
+    }
+
+    function updateStepInfo(){
+      if(!currentSnapshots || currentSnapshots.length === 0){
+        stepInfoEl.textContent = 'k = 0 / 0';
+      } else {
+        stepInfoEl.textContent = `snapshot ${currentK} / ${currentSnapshots.length - 1}`;
+      }
+    }
+
+    function renderMatrixWithUpdates(container, matrix, numeric, prev){
+      // Similar to renderMatrix but mark updated cells
+      container.innerHTML = '';
+      const n = nodes.length;
+      const table = document.createElement('table');
+      table.className = 'matrix';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      headRow.appendChild(document.createElement('th'));
+      for(let j=0;j<n;j++){
+        const th = document.createElement('th');
+        th.textContent = j;
+        headRow.appendChild(th);
+      }
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      for(let i=0;i<n;i++){
+        const tr = document.createElement('tr');
+        const th = document.createElement('th');
+        th.textContent = i;
+        tr.appendChild(th);
+        for(let j=0;j<n;j++){
+          const td = document.createElement('td');
+          td.setAttribute('data-i',i);
+          td.setAttribute('data-j',j);
+          if(numeric){
+            td.textContent = displayVal(matrix[i][j]);
+            td.title = (matrix[i][j] >= INF/2 ? '∞' : String(matrix[i][j]));
+            td.addEventListener('click', ()=>editMatrixCell(i,j,matrix,td));
+            if(prev && matrix[i][j] !== prev[i][j]){
+              td.classList.add('updating');
+              setTimeout(()=> td.classList.remove('updating'), 900);
+            }
+          } else {
+            td.textContent = (matrix[i][j] === null) ? '-' : String(matrix[i][j]);
+          }
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      container.appendChild(table);
+    }
+
+    // Playback
+    function togglePlay(){
+      if(playing){ togglePlay(false); return; }
+      if(!currentSnapshots || currentSnapshots.length === 0) return;
+      playing = true;
+      btnPlay.textContent = 'Pause';
+      startPlayTimer();
+    }
+    function togglePlay(state){
+      if(state === false){
+        playing = false;
+        btnPlay.textContent = 'Auto Play';
+        if(playTimer) { clearInterval(playTimer); playTimer = null; }
+      } else {
+        playing = true;
+        btnPlay.textContent = 'Pause';
+        startPlayTimer();
+      }
+    }
+    function startPlayTimer(){
+      if(playTimer) clearInterval(playTimer);
+      const interval = parseInt(speedControl.value,10);
+      playTimer = setInterval(()=>{
+        if(currentK < currentSnapshots.length - 1){
+          stepK(currentK + 1);
+        } else {
+          togglePlay(false);
+        }
+      }, interval);
+    }
+    function restartPlay(){
+      if(playing){ startPlayTimer(); }
+    }
+
+    // Path reconstruction & animation
+    let awaitingStartNode = null;
+    window.awaitingPathSelection = false;
+    function activatePathSelection(){
+      if(!currentSnapshots || currentSnapshots.length === 0){
+        alert('Compute snapshots first.');
+        return;
+      }
+      alert('Click source node, then destination node to show the shortest path using current snapshot.');
+      window.awaitingPathSelection = true;
+      awaitingStartNode = null;
+    }
+    function handlePathNodeSelection(id){
+      if(awaitingStartNode === null){
+        awaitingStartNode = id;
+        highlightNode(id, true);
+      } else {
+        const src = awaitingStartNode;
+        const dst = id;
+        highlightNode(src, false);
+        awaitingStartNode = null;
+        window.awaitingPathSelection = false;
+        showPath(src, dst);
+      }
+    }
+
+    function showPath(src, dst){
+      const snap = currentSnapshots[currentK];
+      if(!snap){
+        alert('No snapshot selected.');
+        return;
+      }
+      const nxt = snap.next;
+      if(!nxt[src] || nxt[src][dst] === null){
+        alert(`No path from ${src} to ${dst}`);
+        return;
+      }
+      // reconstruct path
+      const path = [src];
+      let cur = src;
+      const maxSteps = nodes.length + 5;
+      let steps = 0;
+      while(cur !== dst && steps < maxSteps){
+        cur = nxt[cur][dst];
+        if(cur === null || cur === undefined) break;
+        path.push(cur);
+        steps++;
+      }
+      if(path[path.length-1] !== dst){ alert('Path reconstruction failed'); return; }
+
+      // animate path on SVG: highlight edges along path sequentially
+      animatePathEdges(path);
+    }
+
+    function animatePathEdges(path){
+      // clear any previous highlights
+      edgesLayer.querySelectorAll('path').forEach(p=>p.classList.remove('path-highlight'));
+      // create sequence
+      let i = 0;
+      function highlightNext(){
+        if(i >= path.length - 1) {
+          // final: keep highlights for a moment then fade
+          setTimeout(()=> edgesLayer.querySelectorAll('path').forEach(p=>p.classList.remove('path-highlight')), 1200);
+          return;
+        }
+        const u = path[i], v = path[i+1];
+        // find edge
+        const eIndex = edges.findIndex(ed=>ed.u===u && ed.v===v);
+        if(eIndex >= 0){
+          // find corresponding path element by index (assumes same order)
+          const pathEls = Array.from(edgesLayer.querySelectorAll('path'));
+          if(pathEls[eIndex]) pathEls[eIndex].classList.add('path-highlight');
+        } else {
+          // maybe undirected mirrored
+          const eIndex2 = edges.findIndex(ed=>ed.u===v && ed.v===u);
+          if(eIndex2 >= 0){
+            const pathEls = Array.from(edgesLayer.querySelectorAll('path'));
+            if(pathEls[eIndex2]) pathEls[eIndex2].classList.add('path-highlight');
+          }
+        }
+        // also highlight node
+        const g = nodesLayer.querySelector(`g.node[data-id="${v}"]`);
+        if(g) {
+          g.classList.add('highlight');
+          setTimeout(()=> g.classList.remove('highlight'), 600);
+        }
+        i++;
+        setTimeout(highlightNext, 500);
+      }
+      highlightNext();
+    }
+
+    // Helpers for arrays
+    function make2D(r,c,fill){
+      const arr = new Array(r);
+      for(let i=0;i<r;i++){
+        arr[i] = new Array(c);
+        for(let j=0;j<c;j++) arr[i][j] = (typeof fill === 'function') ? fill(i,j) : (fill === undefined ? null : fill);
+      }
+      return arr;
+    }
+    function clone2D(a){
+      return a.map(row=>row.slice());
+    }
+
+    // Small sample graph
+    function createSampleGraph(){
+      nodes = [
+        {id:0,x:140,y:120},
+        {id:1,x:360,y:90},
+        {id:2,x:540,y:160},
+        {id:3,x:300,y:280},
+        {id:4,x:520,y:340}
+      ];
+      edges = [
+        {u:0,v:1,w:3},
+        {u:0,v:2,w:8},
+        {u:1,v:2,w:2},
+        {u:1,v:3,w:5},
+        {u:2,v:4,w:1},
+        {u:3,v:4,w:2},
+        {u:4,v:3,w:1}
+      ];
+      updateNodeCount();
+    }
+
+    function resetGraph(){
+      if(!confirm('Reset graph?')) return;
+      nodes = [];
+      edges = [];
+      selectedNodeForEdge = null;
+      clearSnapshots();
+      renderAll();
+      updateNodeCount();
+    }
+
+    function randomGraph(){
+      if(!confirm('Generate random graph (5-8 nodes)?')) return;
+      const n = 5 + Math.floor(Math.random()*4);
+      nodes = [];
+      edges = [];
+      for(let i=0;i<n;i++){
+        nodes.push({id:i, x:120 + Math.random()*960, y:80 + Math.random()*540});
+      }
+      // random edges
+      for(let i=0;i<n;i++){
+        for(let j=0;j<n;j++){
+          if(i===j) continue;
+          if(Math.random() < 0.35){
+            const w = Math.floor(1 + Math.random()*10);
+            edges.push({u:i,v:j,w:w});
+          }
+        }
+      }
+      updateNodeCount();
+      clearSnapshots();
+      renderAll();
+    }
+
+    // Helpers: find element index or mapping between edges and DOM nodes
+    // Note: edges are rendered in array order; mapping based on index is used for some animations
+
+    // Initialize
+    init();
+
+  </script>
+</body>
+</html>

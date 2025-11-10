@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Module — Weighted Graph</title>
+  <style>
+    /* Safe-area margin (24px) around the viewport */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --muted: #9aa7bf;
+      --accent: #5ad1ff;
+      --success: #6ee7b7;
+      --danger: #ff7a7a;
+      --max-width: 1200px;
+      --radius: 10px;
+      --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: var(--font-sans);
+      background: linear-gradient(180deg, #071028 0%, #041022 60%);
+      color: #e6eef8;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      max-width: var(--max-width);
+      margin: var(--safe-margin) auto;
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: var(--gap);
+    }
+
+    /* Responsive: stack on narrow screens */
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+      min-height: 220px;
+    }
+
+    .info-title {
+      font-size: 20px;
+      margin: 0 0 8px 0;
+      color: var(--accent);
+    }
+
+    .section {
+      margin-bottom: 14px;
+    }
+
+    .section h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: .6px;
+      text-transform: uppercase;
+    }
+
+    .section p {
+      margin: 0;
+      line-height: 1.4;
+      color: #cfe6ff;
+      font-size: 14px;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .btn {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.04);
+      color: #d8f6ff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform .08s ease, background .15s ease;
+    }
+
+    .btn:active { transform: translateY(1px); }
+    .btn.primary {
+      background: linear-gradient(90deg,#0ea5a5, #5ad1ff);
+      color: #021018;
+      border: none;
+      font-weight: 600;
+    }
+
+    .btn.ghost {
+      background: transparent;
+      border: 1px dashed rgba(255,255,255,0.05);
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      min-height: 36px;
+    }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .control-row {
+      margin-top: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* Canvas panel */
+    .canvas-panel {
+      position: relative;
+      min-height: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .canvas-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .svg-area {
+      flex: 1;
+      background: radial-gradient( circle at 10% 10%, rgba(255,255,255,0.02), transparent 20%),
+                  linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.03);
+      position: relative;
+      overflow: hidden;
+      min-height: 380px;
+    }
+
+    /* SVG fills available space */
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      user-select: none;
+      touch-action: none;
+    }
+
+    /* Node style */
+    .node {
+      cursor: grab;
+      transition: transform .12s ease;
+    }
+
+    .node:active { cursor: grabbing; transform: scale(0.98); }
+
+    text.node-label {
+      fill: #021018;
+      font-weight: 700;
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    .node-circle {
+      fill: linear-gradient(#ffffff, #ddddff);
+      stroke: #d8f6ff;
+      stroke-width: 1.5;
+    }
+
+    .node-selected circle {
+      stroke: #ffd86b;
+      stroke-width: 3;
+      filter: drop-shadow(0 6px 18px rgba(255,200,100,0.08));
+    }
+
+    /* Edge styles */
+    .edge-line {
+      stroke-linecap: round;
+      transition: stroke .12s ease, stroke-width .12s ease, opacity .12s ease;
+    }
+
+    .edge-label {
+      fill: #e6eef8;
+      font-size: 12px;
+      text-anchor: middle;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .edge-edit {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(2,8,16,0.85);
+      border: 1px solid rgba(255,255,255,0.05);
+      padding: 6px 8px;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .mini-input {
+      width: 64px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+      color: #dff7ff;
+    }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    /* animation for final path */
+    .path-highlight {
+      stroke-dasharray: 8 6;
+      animation: dash 1.2s linear infinite;
+    }
+
+    @keyframes dash {
+      to { stroke-dashoffset: -14; }
+    }
+
+    /* Footer notes */
+    .note {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    /* Accessibility focus rings */
+    .btn:focus, button:focus, input:focus {
+      outline: 2px dashed rgba(90, 209, 255, 0.35);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="main" aria-label="Weighted Graph interactive module">
+    <!-- Left info / plan panel -->
+    <aside class="panel" aria-labelledby="conceptTitle">
+      <h1 id="conceptTitle" class="info-title">Weighted Graph — Interactive Exploration</h1>
+
+      <section class="section" aria-labelledby="objectiveTitle">
+        <h3 id="objectiveTitle">Learning Objective</h3>
+        <p>
+          Understand what a weighted graph is and how edge weights represent costs or distances.
+          Interactively build a graph, assign weights, and see visually how weights change which path
+          between two nodes is "cheaper".
+        </p>
+      </section>
+
+      <section class="section" aria-labelledby="interactionTitle">
+        <h3 id="interactionTitle">Interaction Design</h3>
+        <p>
+          Modes: Add, Connect, Move, Delete, and Select Source/Target. Click on the canvas in Add mode
+          to create nodes. In Connect mode click a source node and then a target to create an edge —
+          you'll be prompted to set its weight. Drag nodes to reposition; edges update in real time.
+          Double-click an edge to edit its weight with a slider. Choose source and target nodes then
+          press "Find cheapest path" to animate exploration and highlight the final lowest-cost route.
+        </p>
+      </section>
+
+      <section class="section" aria-labelledby="layoutTitle">
+        <h3 id="layoutTitle">Layout Description</h3>
+        <p>
+          The left panel (this one) holds explanatory text and controls (stacked with at least 16px gaps).
+          The right panel is the interactive canvas (SVG) with a top bar for status and buttons beneath.
+          Safe area margins of 24px are preserved; interactive elements have a minimum spacing of 16px.
+          The layout is responsive: on narrow screens the explanation stacks above the canvas.
+        </p>
+      </section>
+
+      <div class="control-row" role="region" aria-label="Main controls">
+        <button id="modeAdd" class="btn small primary" title="Add nodes">Add Node</button>
+        <button id="modeConnect" class="btn small" title="Connect nodes">Connect</button>
+        <button id="modeMove" class="btn small" title="Move nodes">Move</button>
+        <button id="modeDelete" class="btn small" title="Delete nodes/edges">Delete</button>
+      </div>
+
+      <div class="control-row">
+        <button id="setSourceBtn" class="btn small">Set Source</button>
+        <button id="setTargetBtn" class="btn small">Set Target</button>
+        <button id="findPathBtn" class="btn small primary">Find cheapest path</button>
+      </div>
+
+      <div class="control-row" style="margin-top:12px">
+        <label><input id="showWeights" type="checkbox" checked> Show weights</label>
+        <label><input id="directed" type="checkbox"> Directed edges</label>
+      </div>
+
+      <div class="note" aria-live="polite" id="infoNote">
+        Tip: Double-click an edge to edit its weight. Drag nodes to explore geometric changes.
+      </div>
+    </aside>
+
+    <!-- Right interactive canvas -->
+    <section class="panel canvas-panel" aria-label="Interactive graph canvas">
+      <div class="canvas-topbar">
+        <div class="status" id="statusText">Mode: Add — Click on empty canvas to create a node.</div>
+        <div class="legend" aria-hidden="true">
+          <span class="dot" style="background: linear-gradient(90deg,#bfeffd,#58b7ff);width:12px;height:12px;border-radius:3px"></span>
+          <div style="color:var(--muted);font-size:13px">Nodes</div>
+        </div>
+      </div>
+
+      <div class="svg-area" id="svgArea" aria-label="Graph drawing area">
+        <svg id="svgRoot" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet" tabindex="0" role="img" aria-describedby="infoNote">
+          <!-- edges and nodes will be appended here -->
+        </svg>
+        <!-- weight editor placeholder -->
+        <div id="edgeEditor" class="edge-edit" style="display:none" role="dialog" aria-modal="false">
+          <label style="color:#dff7ff">Weight
+            <input id="edgeWeightInput" class="mini-input" type="number" min="1" max="999" step="1" value="1" />
+          </label>
+          <button id="edgeWeightSave" class="btn small primary">Save</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="note" id="nodeCount">Nodes: 0</div>
+          <div class="note" id="edgeCount">Edges: 0</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <button id="clearBtn" class="btn ghost small">Clear</button>
+          <button id="presetBtn" class="btn small">Load preset example</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Interactive Weighted Graph Module (vanilla JS)
+    // Data models
+    const svg = document.getElementById('svgRoot');
+    const svgArea = document.getElementById('svgArea');
+    const statusText = document.getElementById('statusText');
+    const nodeCountEl = document.getElementById('nodeCount');
+    const edgeCountEl = document.getElementById('edgeCount');
+    const edgeEditor = document.getElementById('edgeEditor');
+    const edgeWeightInput = document.getElementById('edgeWeightInput');
+    const edgeWeightSave = document.getElementById('edgeWeightSave');
+    const showWeightsCheckbox = document.getElementById('showWeights');
+    const directedCheckbox = document.getElementById('directed');
+
+    // Mode buttons
+    const modeAdd = document.getElementById('modeAdd');
+    const modeConnect = document.getElementById('modeConnect');
+    const modeMove = document.getElementById('modeMove');
+    const modeDelete = document.getElementById('modeDelete');
+    const setSourceBtn = document.getElementById('setSourceBtn');
+    const setTargetBtn = document.getElementById('setTargetBtn');
+    const findPathBtn = document.getElementById('findPathBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const presetBtn = document.getElementById('presetBtn');
+
+    // Variables
+    let mode = 'add'; // add, connect, move, delete
+    let nodes = []; // {id, x, y, g, circle, label}
+    let edges = []; // {id, a, b, weight, line, label, directed}
+    let nodeIdSeq = 0;
+    let edgeIdSeq = 0;
+    let connectSource = null;
+    let selectedNode = null;
+    let dragOffset = {x:0,y:0};
+    let edgeBeingEdited = null;
+    let sourceNode = null;
+    let targetNode = null;
+    let animTimer = null;
+
+    // Utility: map weight to color and width
+    function weightToColor(w) {
+      // map 1..30 to bluish -> orange -> red
+      const t = Math.min(w, 30) / 30;
+      const r = Math.round(30 + 225 * t);
+      const g = Math.round(200 - 150 * t);
+      const b = Math.round(255 - 200 * t);
+      return `rgb(${r},${g},${b})`;
+    }
+    function weightToWidth(w) {
+      return 1 + Math.min(w, 40) * 0.25;
+    }
+
+    // Create node at coordinates (in SVG viewBox coords)
+    function createNode(x, y, labelText) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('class','node');
+      g.setAttribute('tabindex','0');
+      g.setAttribute('role','button');
+      g.setAttribute('aria-label','Node');
+      const id = 'n' + (++nodeIdSeq);
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      const r = 20;
+      circle.setAttribute('cx', x);
+      circle.setAttribute('cy', y);
+      circle.setAttribute('r', r);
+      circle.setAttribute('class','node-circle');
+      circle.setAttribute('fill','#dff7ff');
+      circle.setAttribute('stroke','#2aaed6');
+      circle.setAttribute('stroke-width', 1.5);
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+      text.setAttribute('x', x);
+      text.setAttribute('y', y + 4);
+      text.setAttribute('class','node-label');
+      text.textContent = labelText || id;
+
+      g.appendChild(circle);
+      g.appendChild(text);
+      svg.appendChild(g);
+
+      const node = { id, x, y, g, circle, label: text };
+      nodes.push(node);
+      updateCounts();
+      bindNodeEvents(node);
+      return node;
+    }
+
+    function bindNodeEvents(node) {
+      const g = node.g;
+      g.addEventListener('mousedown', e => {
+        e.stopPropagation();
+        if (mode === 'move') {
+          selectedNode = node;
+          const pt = clientToSvg(e.clientX, e.clientY);
+          dragOffset.x = node.x - pt.x;
+          dragOffset.y = node.y - pt.y;
+        } else if (mode === 'delete') {
+          // delete node and its edges
+          removeNode(node);
+        } else if (mode === 'connect') {
+          if (!connectSource) {
+            connectSource = node;
+            highlightNode(node, true);
+            updateStatus('Connect: select target node');
+          } else if (connectSource === node) {
+            // clicked same node — cancel
+            highlightNode(connectSource, false);
+            connectSource = null;
+            updateStatus('Connect canceled');
+          } else {
+            // create edge
+            const w = prompt('Enter weight for the new edge (positive integer):', '1');
+            const weight = Math.max(1, parseInt(w) || 1);
+            const dir = directedCheckbox.checked;
+            createEdge(connectSource, node, weight, dir);
+            highlightNode(connectSource, false);
+            connectSource = null;
+            updateStatus('Edge created');
+          }
+        } else if (mode === 'add') {
+          // clicking a node while in add mode toggles selection
+          highlightNode(node, !node.selected);
+        }
+      });
+
+      g.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        // In select mode: set source/target if buttons active will manage separately
+      });
+
+      // keyboard accessibility: Enter triggers click
+      g.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          g.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));
+        }
+      });
+
+      // dragging
+      window.addEventListener('mousemove', e => {
+        if (selectedNode && mode === 'move') {
+          const pt = clientToSvg(e.clientX, e.clientY);
+          selectedNode.x = pt.x + dragOffset.x;
+          selectedNode.y = pt.y + dragOffset.y;
+          updateNodeVisual(selectedNode);
+          updateEdgesForNode(selectedNode);
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (selectedNode) selectedNode = null;
+      });
+    }
+
+    function highlightNode(node, yes) {
+      node.g.classList.toggle('node-selected', yes);
+      node.selected = yes;
+    }
+
+    function updateNodeVisual(node) {
+      const circle = node.circle;
+      circle.setAttribute('cx', node.x);
+      circle.setAttribute('cy', node.y);
+      node.label.setAttribute('x', node.x);
+      node.label.setAttribute('y', node.y + 4);
+    }
+
+    function removeNode(node) {
+      // remove edges incident
+      const incident = edges.filter(e => e.a === node || e.b === node);
+      incident.forEach(e => removeEdge(e));
+      // remove node element
+      svg.removeChild(node.g);
+      nodes = nodes.filter(n => n !== node);
+      updateCounts();
+    }
+
+    // Edge creation
+    function createEdge(a, b, weight = 1, directed = false) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+      line.setAttribute('fill','none');
+      line.setAttribute('class','edge-line');
+      line.setAttribute('stroke-linecap','round');
+      line.setAttribute('stroke','#88d7f9');
+      line.setAttribute('stroke-width', weightToWidth(weight));
+      line.style.opacity = 0.95;
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+      label.setAttribute('class','edge-label');
+      label.textContent = weight;
+
+      svg.insertBefore(line, svg.firstChild);
+      svg.insertBefore(label, svg.firstChild);
+
+      const id = 'e' + (++edgeIdSeq);
+      const edge = { id, a, b, weight, line, label, directed };
+      edges.push(edge);
+      updateEdgeVisual(edge);
+      bindEdgeEvents(edge);
+      updateCounts();
+      return edge;
+    }
+
+    function bindEdgeEvents(edge) {
+      edge.line.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        openEdgeEditor(edge, e);
+      });
+      edge.label.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        openEdgeEditor(edge, e);
+      });
+      if (mode === 'delete') {
+        edge.line.addEventListener('click', e => {
+          e.stopPropagation();
+          removeEdge(edge);
+        });
+      }
+    }
+
+    function updateEdgeVisual(edge) {
+      // Use quadratic curve for nicer visuals if nodes are not overlapping
+      const {a, b} = edge;
+      const x1 = a.x, y1 = a.y, x2 = b.x, y2 = b.y;
+      const dx = x2 - x1, dy = y2 - y1;
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      const nx = -dy * 0.12, ny = dx * 0.12;
+      const cx = mx + nx, cy = my + ny;
+      const d = `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+      edge.line.setAttribute('d', d);
+
+      // label midpoint of curve (approximate by midpoint of control)
+      edge.label.setAttribute('x', cx);
+      edge.label.setAttribute('y', cy - 6);
+      edge.label.textContent = showWeightsCheckbox.checked ? edge.weight : '';
+
+      // styling based on weight
+      const color = weightToColor(edge.weight);
+      edge.line.setAttribute('stroke', color);
+      edge.line.setAttribute('stroke-width', weightToWidth(edge.weight));
+      edge.line.style.opacity = 0.96;
+    }
+
+    function updateEdgesForNode(node) {
+      edges.forEach(e => {
+        if (e.a === node || e.b === node) updateEdgeVisual(e);
+      });
+    }
+
+    function removeEdge(edge) {
+      if (edge.line.parentNode === svg) svg.removeChild(edge.line);
+      if (edge.label.parentNode === svg) svg.removeChild(edge.label);
+      edges = edges.filter(en => en !== edge);
+      updateCounts();
+    }
+
+    function updateCounts() {
+      nodeCountEl.textContent = `Nodes: ${nodes.length}`;
+      edgeCountEl.textContent = `Edges: ${edges.length}`;
+    }
+
+    // Edge editor UI
+    function openEdgeEditor(edge, mouseEvent) {
+      edgeBeingEdited = edge;
+      const pt = clientToSvg(mouseEvent.clientX, mouseEvent.clientY);
+      // Position editor near event (use screen coords)
+      const rect = svgArea.getBoundingClientRect();
+      edgeEditor.style.left = Math.max(8, mouseEvent.clientX - rect.left - 40) + 'px';
+      edgeEditor.style.top = Math.max(8, mouseEvent.clientY - rect.top - 24) + 'px';
+      edgeEditor.style.display = 'inline-flex';
+      edgeWeightInput.value = edge.weight;
+      edgeWeightInput.focus();
+    }
+
+    edgeWeightSave.addEventListener('click', () => {
+      if (!edgeBeingEdited) return;
+      const w = Math.max(1, parseInt(edgeWeightInput.value) || 1);
+      edgeBeingEdited.weight = w;
+      updateEdgeVisual(edgeBeingEdited);
+      edgeEditor.style.display = 'none';
+      edgeBeingEdited = null;
+    });
+
+    // Canvas click handling
+    svg.addEventListener('mousedown', e => {
+      const pt = clientToSvg(e.clientX, e.clientY);
+      if (mode === 'add') {
+        createNode(pt.x, pt.y);
+        updateStatus('Node added. Drag in Move mode to reposition.');
+      } else if (mode === 'delete') {
+        // clicking empty canvas does nothing
+      }
+    });
+
+    // Mode UI handlers
+    function setMode(m) {
+      mode = m;
+      // update button styles
+      [modeAdd, modeConnect, modeMove, modeDelete].forEach(btn => btn.classList.remove('primary'));
+      if (m === 'add') modeAdd.classList.add('primary');
+      if (m === 'connect') modeConnect.classList.add('primary');
+      if (m === 'move') modeMove.classList.add('primary');
+      if (m === 'delete') modeDelete.classList.add('primary');
+      connectSource = null;
+      updateStatusForMode();
+    }
+
+    function updateStatusForMode() {
+      if (mode === 'add') updateStatus('Mode: Add — Click on empty canvas to create a node.');
+      if (mode === 'connect') updateStatus('Mode: Connect — Click a node to start then click target to finish edge.');
+      if (mode === 'move') updateStatus('Mode: Move — Drag nodes to reposition them.');
+      if (mode === 'delete') updateStatus('Mode: Delete — Click a node or edge to remove it.');
+    }
+
+    modeAdd.addEventListener('click', () => setMode('add'));
+    modeConnect.addEventListener('click', () => setMode('connect'));
+    modeMove.addEventListener('click', () => setMode('move'));
+    modeDelete.addEventListener('click', () => setMode('delete'));
+
+    // status updates
+    function updateStatus(text) {
+      statusText.textContent = text;
+    }
+
+    // convert client coords to svg viewBox coords
+    function clientToSvg(clientX, clientY) {
+      const rect = svg.getBoundingClientRect();
+      const vb = svg.viewBox.baseVal;
+      const sx = (clientX - rect.left) / rect.width;
+      const sy = (clientY - rect.top) / rect.height;
+      return { x: vb.x + sx * vb.width, y: vb.y + sy * vb.height };
+    }
+
+    // Source/target selection
+    setSourceBtn.addEventListener('click', () => {
+      updateStatus('Click a node to set as source.');
+      setTemporaryNodeSelection('source');
+    });
+    setTargetBtn.addEventListener('click', () => {
+      updateStatus('Click a node to set as target.');
+      setTemporaryNodeSelection('target');
+    });
+
+    function setTemporaryNodeSelection(which) {
+      const handler = e => {
+        e.stopPropagation();
+        const g = e.currentTarget;
+        const node = nodes.find(n => n.g === g);
+        if (!node) return;
+        if (which === 'source') {
+          if (sourceNode) highlightNode(sourceNode, false);
+          sourceNode = node;
+          highlightNode(node, true);
+          updateStatus('Source set: ' + node.id);
+        } else {
+          if (targetNode) highlightNode(targetNode, false);
+          targetNode = node;
+          highlightNode(node, true);
+          updateStatus('Target set: ' + node.id);
+        }
+        // remove these temporary listeners
+        nodes.forEach(n => n.g.removeEventListener('click', handler));
+      };
+      nodes.forEach(n => n.g.addEventListener('click', handler));
+    }
+
+    // Find cheapest path (Dijkstra)
+    findPathBtn.addEventListener('click', () => {
+      if (!sourceNode || !targetNode) {
+        updateStatus('Please set both source and target nodes.');
+        return;
+      }
+      stopAnimation();
+      const result = dijkstra(sourceNode, targetNode, edges, nodes, directedCheckbox.checked);
+      if (!result) {
+        updateStatus('No path found.');
+        return;
+      }
+      animateSearch(result);
+    });
+
+    function dijkstra(src, tgt, edgesList, nodesList, directed = false) {
+      // Build adjacency
+      const adj = new Map();
+      nodesList.forEach(n => adj.set(n.id, []));
+      edgesList.forEach(e => {
+        adj.get(e.a.id).push({to: e.b.id, w: e.weight, edge: e});
+        if (!e.directed && !directed) {
+          adj.get(e.b.id).push({to: e.a.id, w: e.weight, edge: e});
+        }
+        // If user checked 'directed', treat edges as directed only in that mode (we store directed flag at creation)
+        if (e.directed && directed) {
+          // if edge is directed and directed mode active, we already added a->b only
+        } else if (e.directed && !directed) {
+          // if user created directed edges but search is undirected, treat as undirected
+          adj.get(e.b.id).push({to: e.a.id, w: e.weight, edge: e});
+        }
+      });
+
+      // Dijkstra
+      const dist = {};
+      const prev = {};
+      const edgeUsed = {};
+      nodesList.forEach(n => dist[n.id] = Infinity);
+      dist[src.id] = 0;
+      const pq = new Set(nodesList.map(n => n.id));
+      const visitedOrder = [];
+
+      while (pq.size) {
+        // extract min
+        let u = null;
+        let best = Infinity;
+        for (const id of pq) {
+          if (dist[id] < best) { best = dist[id]; u = id; }
+        }
+        if (u === null || best === Infinity) break;
+        pq.delete(u);
+        visitedOrder.push(u);
+        if (u === tgt.id) break;
+        for (const nei of adj.get(u) || []) {
+          const alt = dist[u] + nei.w;
+          if (alt < dist[nei.to]) {
+            dist[nei.to] = alt;
+            prev[nei.to] = u;
+            edgeUsed[nei.to] = nei.edge;
+          }
+        }
+      }
+
+      if (dist[tgt.id] === Infinity) return null;
+      // reconstruct path
+      const path = [];
+      let cur = tgt.id;
+      while (cur !== src.id) {
+        path.unshift(edgeUsed[cur]);
+        cur = prev[cur];
+      }
+      return { dist: dist[tgt.id], path, visitedOrder };
+    }
+
+    // animate exploration then highlight path
+    function animateSearch(result) {
+      // reset styles
+      edges.forEach(e => {
+        e.line.style.opacity = 0.95;
+        e.line.classList.remove('path-highlight');
+      });
+      nodes.forEach(n => {
+        n.g.classList.remove('node-selected');
+        n.g.style.filter = '';
+      });
+
+      const order = result.visitedOrder;
+      let idx = 0;
+      updateStatus('Searching... total cost (found): ' + result.dist.toFixed(2));
+
+      function step() {
+        if (idx < order.length) {
+          const nid = order[idx];
+          const node = nodes.find(n => n.id === nid);
+          if (node) {
+            // mark as explored
+            node.g.style.filter = `drop-shadow(0 8px 20px rgba(90,209,255,0.06))`;
+            node.label.setAttribute('style','fill:#e7fffb');
+            node.circle.setAttribute('stroke','#6ce1ff');
+            setTimeout(()=> {
+              node.label.setAttribute('style','fill:#021018');
+            }, 600);
+          }
+          idx++;
+          animTimer = setTimeout(step, 220);
+        } else {
+          // highlight path
+          result.path.forEach(e => {
+            e.line.style.opacity = 1.0;
+            e.line.classList.add('path-highlight');
+            e.line.setAttribute('stroke-width', Math.max(weightToWidth(e.weight), 2.5));
+          });
+          updateStatus('Path found — total weight: ' + result.dist);
+        }
+      }
+      step();
+    }
+
+    function stopAnimation() {
+      if (animTimer) { clearTimeout(animTimer); animTimer = null; }
+    }
+
+    // Preset graph data
+    presetBtn.addEventListener('click', () => {
+      clearGraph();
+      // create sample nodes
+      const A = createNode(200, 160, 'A');
+      const B = createNode(420, 100, 'B');
+      const C = createNode(540, 220, 'C');
+      const D = createNode(340, 320, 'D');
+      const E = createNode(640, 350, 'E');
+      const F = createNode(880, 200, 'F');
+
+      createEdge(A,B,4,false);
+      createEdge(A,D,2,false);
+      createEdge(B,C,3,false);
+      createEdge(B,D,5,false);
+      createEdge(D,C,1,false);
+      createEdge(C,E,7,false);
+      createEdge(D,E,3,false);
+      createEdge(E,F,2,false);
+
+      updateStatus('Preset loaded. Set source (A) and target (F) and press Find cheapest path.');
+    });
+
+    clearBtn.addEventListener('click', () => {
+      clearGraph();
+      updateStatus('Graph cleared.');
+    });
+
+    function clearGraph() {
+      stopAnimation();
+      // remove all nodes and edges from svg
+      edges.forEach(e => { if (e.line.parentNode === svg) svg.removeChild(e.line); if (e.label.parentNode === svg) svg.removeChild(e.label); });
+      nodes.forEach(n => { if (n.g.parentNode === svg) svg.removeChild(n.g); });
+      edges = [];
+      nodes = [];
+      nodeIdSeq = 0;
+      edgeIdSeq = 0;
+      connectSource = null;
+      sourceNode = null;
+      targetNode = null;
+      updateCounts();
+    }
+
+    // Toggle weight visibility and update edges
+    showWeightsCheckbox.addEventListener('change', () => {
+      edges.forEach(e => updateEdgeVisual(e));
+    });
+
+    // Click empty area hides editor
+    svgArea.addEventListener('mousedown', e => {
+      if (edgeEditor.style.display === 'inline-flex') {
+        edgeEditor.style.display = 'none';
+        edgeBeingEdited = null;
+      }
+    });
+
+    // Small helper for when an edge is created/modified to bind events again
+    function updateAllEdgeBindings() {
+      edges.forEach(e => {
+        e.line.style.cursor = 'pointer';
+        e.line.addEventListener('dblclick', ev => openEdgeEditor(e, ev));
+      });
+    }
+
+    // Initialize default mode
+    setMode('add');
+
+    // Accessibility: keyboard shortcuts
+    window.addEventListener('keydown', e => {
+      if (e.key === '1') setMode('add');
+      if (e.key === '2') setMode('connect');
+      if (e.key === '3') setMode('move');
+      if (e.key === '4') setMode('delete');
+      if (e.key === 'Escape') {
+        connectSource = null;
+        updateStatusForMode();
+      }
+    });
+
+    // Small demonstration on load: show minimal example for immediate feel
+    (function preload() {
+      // do nothing; user can click preset
+    })();
+  </script>
+</body>
+</html>

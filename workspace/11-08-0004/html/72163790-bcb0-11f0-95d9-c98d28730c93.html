@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Adjacency List — Interactive Module</title>
+  <style>
+    :root{
+      --safe-pad: 24px;
+      --gap: 16px;
+      --bg:#0f1724;
+      --card:#0b1220;
+      --accent:#60a5fa;
+      --muted:#94a3b8;
+      --good:#10b981;
+      --danger:#ef4444;
+      --glass: rgba(255,255,255,0.03);
+      --node-size:56px;
+      --node-radius:14px;
+    }
+    /* Safe area margin */
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071022, #071022 40%, #07102a 100%);
+      color:#e6eef8;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    .app{
+      padding: var(--safe-pad);
+      box-sizing:border-box;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    header{
+      display:flex;
+      gap:var(--gap);
+      align-items:baseline;
+      flex-wrap:wrap;
+    }
+    h1{
+      margin:0;
+      font-size:20px;
+      letter-spacing:0.2px;
+      color:var(--accent);
+    }
+    .sub{
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    /* Layout: main module area */
+    .module{
+      display:flex;
+      gap:var(--gap);
+      align-items:stretch;
+      flex:1 1 auto;
+      min-height:420px;
+    }
+
+    /* Left: interactive canvas */
+    .canvas-card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:var(--gap);
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      flex: 1 1 60%;
+      display:flex;
+      flex-direction:column;
+      min-width:300px;
+      gap:var(--gap);
+    }
+    .canvas-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:var(--gap);
+    }
+    .controls{
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    label, button, select, input{
+      font-size:13px;
+    }
+    .btn{
+      background:linear-gradient(180deg,var(--accent),#328ce6);
+      border:none;
+      color:white;
+      padding:8px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      box-shadow:0 4px 10px rgba(12,48,90,0.25);
+    }
+    .btn.secondary{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      color:var(--muted);
+    }
+    .controls > * { margin:0; }
+    .tiny{
+      padding:6px 10px;
+      border-radius:8px;
+      background:var(--glass);
+      color:var(--muted);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .canvas{
+      position:relative;
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius:10px;
+      border:1px dashed rgba(255,255,255,0.03);
+      flex:1 1 auto;
+      overflow:hidden;
+      min-height:300px;
+    }
+
+    /* SVG edges */
+    svg.edges{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      overflow:visible;
+    }
+    line.edge {
+      stroke:#9fbefc;
+      stroke-width:2.2;
+      stroke-linecap:round;
+      opacity:0.8;
+      transition: stroke 150ms, opacity 150ms;
+    }
+    line.edge.directed{
+      marker-end:url(#arrow);
+    }
+    line.edge.new{
+      stroke-dasharray: 100;
+      stroke-dashoffset: 100;
+      animation: drawEdge 420ms ease forwards;
+    }
+    @keyframes drawEdge{
+      to { stroke-dashoffset:0; }
+    }
+    line.edge:hover{
+      stroke:#fff;
+      opacity:1;
+      cursor:pointer;
+      pointer-events:auto;
+    }
+
+    /* Nodes */
+    .node{
+      position:absolute;
+      width:var(--node-size);
+      height:var(--node-size);
+      background:linear-gradient(180deg,#173e6b 0%, #0f2b51 100%);
+      border-radius:var(--node-radius);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-weight:600;
+      cursor:grab;
+      user-select:none;
+      transform:translate(-50%,-50%);
+      transition: box-shadow 160ms, transform 120ms;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      border:1px solid rgba(255,255,255,0.04);
+    }
+    .node:active { cursor:grabbing; }
+    .node:focus{
+      outline:none;
+      box-shadow:0 0 0 4px rgba(96,165,250,0.14);
+      transform: translate(-50%,-50%) scale(1.05);
+    }
+    .node.small { font-size:13px; width:44px; height:44px; border-radius:12px; }
+
+    /* Right: adjacency list card */
+    .panel{
+      width:340px;
+      min-width:260px;
+      max-width:40%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.015));
+      border-radius:12px;
+      padding:var(--gap);
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    .panel h2{ margin:0; font-size:15px; color:var(--accent); }
+    .adj-list{
+      background:rgba(255,255,255,0.02);
+      padding:12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.03);
+      max-height:420px;
+      overflow:auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      font-size:13px;
+      color:#dbeafe;
+    }
+    .adj-row{
+      display:flex;
+      gap:8px;
+      padding:8px;
+      border-radius:8px;
+      align-items:center;
+      justify-content:space-between;
+      transition: background 120ms;
+    }
+    .adj-row:hover{ background:rgba(255,255,255,0.01); }
+    .adj-key{ color:var(--accent); font-weight:700; }
+    .adj-array{ color:#bfe0ff; font-size:13px; }
+    .empty{
+      color:var(--muted);
+      padding:12px;
+      text-align:center;
+    }
+
+    /* small help & legend */
+    .legend{
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .legend .item{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .dot{
+      width:12px;
+      height:12px;
+      border-radius:3px;
+      background:linear-gradient(180deg,#9fbefc,#6ea8ff);
+      box-shadow:0 2px 8px rgba(16,24,40,0.6);
+      border:1px solid rgba(255,255,255,0.04);
+    }
+
+    /* Responsive */
+    @media (max-width:980px){
+      .module{ flex-direction:column; }
+      .panel{ width:100%; max-width:100%; }
+    }
+
+    /* Spacing helper enforcement: ensure at least 16px between interactive elements */
+    .controls > * { margin-right: calc(var(--gap) / 1.2); }
+
+    /* footer / aria-live */
+    .status{
+      font-size:13px;
+      color:var(--muted);
+    }
+    .sr-only{
+      position:absolute !important;
+      width:1px;height:1px;
+      padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-labelledby="title">
+    <header>
+      <div>
+        <h1 id="title">Adjacency List — Interactive Module</h1>
+        <div class="sub">Visualize and manipulate a graph while watching its adjacency list update in real time.</div>
+      </div>
+      <div style="margin-left:auto; text-align:right;">
+        <div class="sub">Safe margin: 24px · Min control gap: 16px · Vanilla HTML/CSS/JS</div>
+      </div>
+    </header>
+
+    <!-- Design Plan / Learning Objectives -->
+    <section style="display:flex;gap:var(--gap);flex-direction:column;">
+      <div style="background:rgba(255,255,255,0.01);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.02);">
+        <strong>Concept Title:</strong> Adjacency List (graph representation)
+        <br><strong>Learning Objective:</strong> After interacting, users will be able to
+        recognize how an adjacency list captures a graph's connections, how updates
+        (add/remove nodes or edges) affect the adjacency lists, and how directed vs.
+        undirected edges differ in representation.
+        <br>
+        <details style="margin-top:8px;color:var(--muted);">
+          <summary style="cursor:pointer">Interaction Design (click to expand)</summary>
+          <div style="margin-top:8px;">
+            - Add nodes by clicking "Add Node" or click on the canvas to place a node.<br>
+            - Drag nodes to rearrange them; node positions update edges in real time.<br>
+            - Add an edge using the source/target selectors; toggle directed/undirected.<br>
+            - Click an edge to remove it; click a node to highlight and see its adjacency list.<br>
+            - Visual feedback: edge-draw animation when created; nodes glow on select; adjacency list updates instantly with a readable array/object format. Keyboard: nodes are focusable and can be selected via Tab/Enter; arrow keys nudge selected node for accessibility.
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Interactive Module -->
+    <section class="module" aria-label="Adjacency list interactive module">
+      <!-- LEFT: Canvas -->
+      <div class="canvas-card" aria-label="Graph canvas and controls">
+        <div class="canvas-header">
+          <div>
+            <strong style="color:var(--accent);">Graph Canvas</strong>
+            <div class="sub">Create nodes and edges; drag to reposition.</div>
+          </div>
+
+          <div class="controls" role="toolbar" aria-label="Graph controls">
+            <button class="btn" id="addNodeBtn" aria-haspopup="dialog">Add Node</button>
+            <button class="btn secondary" id="randomBtn" title="Make a small random graph">Random</button>
+            <button class="btn secondary" id="clearBtn" title="Remove all nodes and edges">Clear</button>
+          </div>
+        </div>
+
+        <div class="controls" style="justify-content:space-between;">
+          <div style="display:flex;gap:var(--gap);align-items:center;">
+            <label for="sourceSelect" class="sr-only">Source</label>
+            <select id="sourceSelect" class="tiny" aria-label="Source node"><option value="">Source</option></select>
+
+            <label for="targetSelect" class="sr-only">Target</label>
+            <select id="targetSelect" class="tiny" aria-label="Target node"><option value="">Target</option></select>
+
+            <label style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="directedToggle" aria-label="Directed edge" />
+              <span style="color:var(--muted);font-size:13px;">Directed</span>
+            </label>
+
+            <button class="btn" id="addEdgeBtn">Add Edge</button>
+          </div>
+
+          <div class="legend" aria-hidden="true">
+            <div class="item"><div class="dot"></div><div>Edge</div></div>
+            <div class="item" style="opacity:0.8;color:var(--muted)">Click edge to remove · Tab to focus nodes</div>
+          </div>
+        </div>
+
+        <div class="canvas" id="canvas" tabindex="0" aria-label="Graph drawing area">
+          <!-- SVG for edges -->
+          <svg class="edges" id="edgesSvg" aria-hidden="true">
+            <defs>
+              <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#9fbefc" />
+              </marker>
+            </defs>
+          </svg>
+
+          <!-- Nodes will be appended here -->
+        </div>
+
+      </div>
+
+      <!-- RIGHT: Adjacency List Panel -->
+      <aside class="panel" aria-label="Adjacency list panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2>Adjacency List</h2>
+          <div class="status" id="status" aria-live="polite">0 nodes · 0 edges</div>
+        </div>
+
+        <div class="adj-list" id="adjList" aria-live="polite">
+          <div class="empty">No nodes yet. Add a node to begin.</div>
+        </div>
+
+        <div style="display:flex;gap:var(--gap);align-items:center;justify-content:space-between;">
+          <div style="color:var(--muted);font-size:13px;">
+            Click a node to highlight its adjacency. Nodes are labelled A, B, C...
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn secondary" id="exportBtn" title="Show adjacency as JSON">Export</button>
+            <button class="btn secondary" id="explainBtn" title="Show quick explanation">Help</button>
+          </div>
+        </div>
+
+        <div id="explainBox" style="display:none;padding:10px;border-radius:8px;background:rgba(255,255,255,0.01);font-size:13px;color:var(--muted);">
+          Adjacency list: for each node key, store the list of neighbors. For directed graphs, store outgoing neighbors.
+        </div>
+      </aside>
+    </section>
+
+    <div class="sr-only" id="liveRegion" aria-live="polite"></div>
+
+  </div>
+
+  <script>
+    // Self-contained module for adjacency list visualization
+    (function(){
+      const canvas = document.getElementById('canvas');
+      const edgesSvg = document.getElementById('edgesSvg');
+      const addNodeBtn = document.getElementById('addNodeBtn');
+      const addEdgeBtn = document.getElementById('addEdgeBtn');
+      const sourceSelect = document.getElementById('sourceSelect');
+      const targetSelect = document.getElementById('targetSelect');
+      const directedToggle = document.getElementById('directedToggle');
+      const adjList = document.getElementById('adjList');
+      const status = document.getElementById('status');
+      const randomBtn = document.getElementById('randomBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const exportBtn = document.getElementById('exportBtn');
+      const explainBtn = document.getElementById('explainBtn');
+      const explainBox = document.getElementById('explainBox');
+      const liveRegion = document.getElementById('liveRegion');
+
+      // Data model
+      let nodes = []; // {id,label,x,y,el}
+      let edges = []; // {id,from,to,directed,el}
+      let idCounter = 0;
+      const NODE_SIZE = 56;
+      const LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
+      let selectedNodeId = null;
+
+      // Utility functions
+      function makeId(prefix='n'){ return prefix + (++idCounter); }
+      function getLabelForIndex(i){ return LABELS[i % LABELS.length] + (Math.floor(i / LABELS.length) || ''); }
+
+      // Update status and adjacency list view
+      function updateStatus(){
+        status.textContent = `${nodes.length} nodes · ${edges.length} edges`;
+      }
+
+      function buildAdjacency(){
+        const map = {};
+        nodes.forEach(n => map[n.id] = []);
+        edges.forEach(e => {
+          if (!map[e.from]) map[e.from] = [];
+          map[e.from].push(e.to);
+          if (!e.directed) {
+            if (!map[e.to]) map[e.to] = [];
+            map[e.to].push(e.from);
+          }
+        });
+        return map;
+      }
+
+      function renderAdjList(highlightId=null){
+        const map = buildAdjacency();
+        adjList.innerHTML = '';
+        if (nodes.length === 0){
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'No nodes yet. Add a node to begin.';
+          adjList.appendChild(empty);
+          return;
+        }
+        nodes.forEach(n => {
+          const row = document.createElement('div');
+          row.className = 'adj-row';
+          if (n.id === highlightId) row.style.background = 'linear-gradient(90deg, rgba(96,165,250,0.06), rgba(96,165,250,0.02))';
+          // key
+          const key = document.createElement('div');
+          key.className = 'adj-key';
+          key.textContent = n.label;
+          // value
+          const val = document.createElement('div');
+          val.className = 'adj-array';
+          const arr = (map[n.id] || []).map(id => nodes.find(x=>x.id===id)?.label || id);
+          val.textContent = '[' + arr.join(', ') + ']';
+          row.appendChild(key);
+          row.appendChild(val);
+          // clicking the row highlights node
+          row.addEventListener('click', ()=> selectNode(n.id));
+          adjList.appendChild(row);
+        });
+
+        // Accessible summary
+        liveRegion.textContent = `Adjacency list updated: ${nodes.length} nodes, ${edges.length} edges.`;
+      }
+
+      // Node creation and DOM
+      function createNodeAt(x, y){
+        const id = makeId('n');
+        const label = getLabelForIndex(nodes.length);
+        const el = document.createElement('button');
+        el.className = 'node';
+        el.setAttribute('aria-label', 'Node ' + label);
+        el.setAttribute('role','button');
+        el.setAttribute('tabindex','0');
+        el.textContent = label;
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+        el.dataset.id = id;
+        canvas.appendChild(el);
+
+        const node = { id, label, x, y, el };
+        nodes.push(node);
+        makeDraggable(node);
+        el.addEventListener('click', (ev)=>{
+          ev.stopPropagation();
+          selectNode(id);
+        });
+        el.addEventListener('keydown', (ev)=>{
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); selectNode(id); }
+          if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(ev.key)){
+            ev.preventDefault();
+            const step = ev.shiftKey ? 20 : 8;
+            let nx = node.x, ny = node.y;
+            if (ev.key==='ArrowUp') ny -= step;
+            if (ev.key==='ArrowDown') ny += step;
+            if (ev.key==='ArrowLeft') nx -= step;
+            if (ev.key==='ArrowRight') nx += step;
+            setNodePosition(node, nx, ny);
+            updateEdgesVisual();
+            renderAdjList(selectedNodeId);
+          }
+        });
+
+        refreshSelects();
+        updateEdgesVisual();
+        updateStatus();
+        renderAdjList(selectedNodeId);
+        liveRegion.textContent = `Node ${label} added.`;
+      }
+
+      // Set node position with bounds checking
+      function setNodePosition(node, x, y){
+        const rect = canvas.getBoundingClientRect();
+        const minX = NODE_SIZE/2, minY = NODE_SIZE/2;
+        const maxX = rect.width - NODE_SIZE/2;
+        const maxY = rect.height - NODE_SIZE/2;
+        node.x = Math.max(minX, Math.min(maxX, x));
+        node.y = Math.max(minY, Math.min(maxY, y));
+        node.el.style.left = node.x + 'px';
+        node.el.style.top = node.y + 'px';
+      }
+
+      // Draggable behavior (pointer events)
+      function makeDraggable(node){
+        let dragging = false;
+        let offset = {x:0,y:0};
+        const el = node.el;
+
+        el.addEventListener('pointerdown', (ev)=>{
+          el.setPointerCapture(ev.pointerId);
+          dragging = true;
+          offset.x = ev.clientX;
+          offset.y = ev.clientY;
+          el.style.transition = 'none';
+          // bring to front
+          el.style.zIndex = 1000;
+        });
+        window.addEventListener('pointermove', (ev)=>{
+          if (!dragging) return;
+          const rect = canvas.getBoundingClientRect();
+          const dx = ev.clientX - offset.x;
+          const dy = ev.clientY - offset.y;
+          offset.x = ev.clientX;
+          offset.y = ev.clientY;
+          setNodePosition(node, node.x + dx, node.y + dy);
+          updateEdgesVisual();
+        });
+        window.addEventListener('pointerup', (ev)=>{
+          if (!dragging) return;
+          dragging = false;
+          el.style.transition = '';
+          el.style.zIndex = '';
+        });
+
+        // click & focus styling
+        el.addEventListener('focus', ()=> el.classList.add('focused'));
+        el.addEventListener('blur', ()=> el.classList.remove('focused'));
+      }
+
+      // Edge management
+      function addEdge(fromId, toId, directed=false, animate=true){
+        if (!fromId || !toId) return;
+        if (!nodes.find(n=>n.id===fromId) || !nodes.find(n=>n.id===toId)) return;
+        // prevent duplicate identical directed edges (for simplicity)
+        if (edges.some(e => e.from===fromId && e.to===toId && e.directed===directed)) {
+          liveRegion.textContent = 'Edge already exists.';
+          return;
+        }
+        const id = makeId('e');
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.classList.add('edge');
+        if (directed) line.classList.add('directed');
+        if (animate) line.classList.add('new');
+        line.dataset.id = id;
+        // pointer events only enabled for lines (we'll allow click)
+        line.style.pointerEvents = 'auto';
+        edgesSvg.appendChild(line);
+        const edge = { id, from:fromId, to:toId, directed, el:line };
+        edges.push(edge);
+        updateEdgeElement(edge);
+        // click to remove
+        line.addEventListener('click', (ev)=>{
+          ev.stopPropagation();
+          removeEdge(edge.id);
+        });
+        updateStatus();
+        renderAdjList(selectedNodeId);
+        liveRegion.textContent = `Edge ${getNodeLabel(fromId)} → ${getNodeLabel(toId)} added.`;
+      }
+
+      function removeEdge(edgeId){
+        const idx = edges.findIndex(e => e.id === edgeId);
+        if (idx===-1) return;
+        const [edge] = edges.splice(idx,1);
+        if (edge.el && edge.el.parentNode) edge.el.parentNode.removeChild(edge.el);
+        updateStatus();
+        renderAdjList(selectedNodeId);
+        liveRegion.textContent = `Edge removed.`;
+      }
+
+      function getNodeLabel(id){
+        return nodes.find(n=>n.id===id)?.label || id;
+      }
+
+      // Update visual positions of edges
+      function updateEdgesVisual(){
+        edges.forEach(e => updateEdgeElement(e));
+      }
+
+      function updateEdgeElement(edge){
+        const from = nodes.find(n=>n.id===edge.from);
+        const to = nodes.find(n=>n.id===edge.to);
+        if (!from || !to || !edge.el) return;
+        const x1 = from.x;
+        const y1 = from.y;
+        const x2 = to.x;
+        const y2 = to.y;
+        // compute offset so line stops at node border (approximate)
+        const dx = x2 - x1, dy = y2 - y1;
+        const len = Math.hypot(dx,dy) || 1;
+        const offset = (NODE_SIZE/2) - 6;
+        const nx1 = x1 + (dx/len) * offset;
+        const ny1 = y1 + (dy/len) * offset;
+        const nx2 = x2 - (dx/len) * offset;
+        const ny2 = y2 - (dy/len) * offset;
+        edge.el.setAttribute('x1', nx1);
+        edge.el.setAttribute('y1', ny1);
+        edge.el.setAttribute('x2', nx2);
+        edge.el.setAttribute('y2', ny2);
+        // if directed, ensure marker visibility
+        if (edge.directed) edge.el.setAttribute('marker-end','url(#arrow)');
+        else edge.el.removeAttribute('marker-end');
+      }
+
+      // UI helpers
+      function refreshSelects(){
+        [sourceSelect, targetSelect].forEach(select=>{
+          const old = select.value;
+          select.innerHTML = '<option value="">'+(select===sourceSelect? 'Source' : 'Target')+'</option>';
+          nodes.forEach(n => {
+            const opt = document.createElement('option');
+            opt.value = n.id;
+            opt.textContent = n.label;
+            select.appendChild(opt);
+          });
+          if (nodes.some(n=>n.id === old)) select.value = old;
+        });
+      }
+
+      function selectNode(id){
+        selectedNodeId = id;
+        // visual highlight
+        nodes.forEach(n => {
+          if (n.id === id) {
+            n.el.style.boxShadow = '0 8px 24px rgba(96,165,250,0.14)';
+            n.el.style.transform = 'translate(-50%,-50%) scale(1.06)';
+          } else {
+            n.el.style.boxShadow = '';
+            n.el.style.transform = '';
+          }
+        });
+        // show adjacency for selected node
+        renderAdjList(id);
+      }
+
+      function clearSelection(){
+        selectedNodeId = null;
+        nodes.forEach(n => { n.el.style.boxShadow=''; n.el.style.transform=''; });
+        renderAdjList(null);
+      }
+
+      // Remove all
+      function clearAll(){
+        nodes.forEach(n => n.el && n.el.remove());
+        edges.forEach(e => e.el && e.el.remove());
+        nodes = [];
+        edges = [];
+        idCounter = 0;
+        selectedNodeId = null;
+        updateStatus();
+        renderAdjList();
+        refreshSelects();
+        liveRegion.textContent = 'Graph cleared.';
+      }
+
+      // Random graph generator (small)
+      function randomGraph(){
+        clearAll();
+        const n = Math.min(8, Math.max(3, Math.floor(Math.random()*6)+3));
+        const rect = canvas.getBoundingClientRect();
+        for (let i=0;i<n;i++){
+          const x = Math.random()*(rect.width - NODE_SIZE) + NODE_SIZE/2;
+          const y = Math.random()*(rect.height - NODE_SIZE) + NODE_SIZE/2;
+          createNodeAt(x,y);
+        }
+        // random edges
+        const directed = Math.random() > 0.5;
+        for (let i=0;i<n+Math.floor(Math.random()*n);i++){
+          const a = nodes[Math.floor(Math.random()*nodes.length)];
+          let b = nodes[Math.floor(Math.random()*nodes.length)];
+          if (!a || !b || a.id === b.id) continue;
+          addEdge(a.id,b.id,directed, true);
+        }
+        liveRegion.textContent = 'Random graph created.';
+      }
+
+      // Export adjacency as JSON
+      function exportAdjacency(){
+        const map = buildAdjacency();
+        // translate ids to labels
+        const out = {};
+        Object.keys(map).forEach(id=>{
+          out[getNodeLabel(id)] = map[id].map(m => getNodeLabel(m));
+        });
+        alert(JSON.stringify(out, null, 2));
+      }
+
+      // Remove edge on click near line already handled by click event on line elements
+
+      // Canvas click to create node at click position
+      canvas.addEventListener('dblclick', (ev)=>{
+        const rect = canvas.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const y = ev.clientY - rect.top;
+        createNodeAt(x, y);
+      });
+      // Single click clears selection
+      canvas.addEventListener('click', (ev)=>{
+        clearSelection();
+      });
+
+      // Buttons
+      addNodeBtn.addEventListener('click', ()=>{
+        // add node in center-ish
+        const rect = canvas.getBoundingClientRect();
+        createNodeAt(rect.width/2 + (Math.random()*80-40), rect.height/2 + (Math.random()*80-40));
+      });
+      addEdgeBtn.addEventListener('click', ()=>{
+        const from = sourceSelect.value;
+        const to = targetSelect.value;
+        const d = directedToggle.checked;
+        if (!from || !to){ liveRegion.textContent = 'Please choose source and target.'; return; }
+        addEdge(from,to,d,true);
+      });
+      randomBtn.addEventListener('click', randomGraph);
+      clearBtn.addEventListener('click', ()=>{
+        if (!confirm('Clear all nodes and edges?')) return;
+        clearAll();
+      });
+      exportBtn.addEventListener('click', exportAdjacency);
+      explainBtn.addEventListener('click', ()=>{
+        explainBox.style.display = explainBox.style.display === 'none' ? 'block' : 'none';
+      });
+
+      // Initialize with a tiny example
+      function init(){
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width || 600;
+        const h = rect.height || 360;
+        createNodeAt(120, 120);
+        createNodeAt(240, 120);
+        createNodeAt(180, 220);
+        // edge examples
+        addEdge(nodes[0].id, nodes[1].id, false, true);
+        addEdge(nodes[1].id, nodes[2].id, false, true);
+        updateStatus();
+        renderAdjList();
+      }
+
+      // Ensure canvas has size when page loads
+      window.addEventListener('load', ()=> {
+        // small timeout to ensure layout
+        setTimeout(()=> init(), 80);
+      });
+
+      // Resize observer to update edges when container changes
+      const ro = new ResizeObserver(()=> updateEdgesVisual());
+      ro.observe(canvas);
+
+      // Expose some functions for debugging (console)
+      window._graph = {
+        nodes, edges, createNodeAt, addEdge, removeEdge, clearAll, selectNode
+      };
+    })();
+  </script>
+</body>
+</html>

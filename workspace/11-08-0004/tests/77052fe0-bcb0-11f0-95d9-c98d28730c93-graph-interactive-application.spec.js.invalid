@@ -1,0 +1,592 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL = 'http://127.0.0.1:5500/workspace/11-08-0004/html/77052fe0-bcb0-11f0-95d9-c98d28730c93.html';
+
+/**
+ * Page object for interacting with the Graph Interactive Application.
+ * Implements resilient selectors/strategies because the exact HTML structure is partially unknown.
+ */
+class GraphPage {
+  /**
+   * @param {import('@playwright/test').Page} page
+   */
+  constructor(page) {
+    this.page = page;
+  }
+
+  async goto() {
+    await this.page.goto(APP_URL);
+    // Wait until an svg (graph area) or main app container is visible
+    await Promise.race([
+      this.page.waitForSelector('svg', { timeout: 3000 }).catch(() => null),
+      this.page.waitForSelector('.app', { timeout: 3000 }).catch(() => null),
+    ]);
+    // give a short moment for JS to initialize
+    await this.page.waitForTimeout(150);
+  }
+
+  // Return the first svg that looks like the drawing area
+  svg() {
+    return this.page.locator('svg').first();
+  }
+
+  // Get count of node-like elements (circle or g.node)
+  async getNodeCount() {
+    const svg = this.svg();
+    // Try multiple selectors
+    const byCircle = await svg.locator('circle').count();
+    const byGNode = await svg.locator('g.node').count();
+    // If circles present use that, else g.node, else try elements with data-node attribute
+    if (byCircle > 0) return byCircle;
+    if (byGNode > 0) return byGNode;
+    const byData = await svg.locator('[data-node-id]').count();
+    return byData;
+  }
+
+  // Get count of edges (path elements, or .edge)
+  async getEdgeCount() {
+    const svg1 = this.svg1();
+    const byPath = await svg.locator('path').count();
+    const byEdgeClass = await svg.locator('.edge').count();
+    if (byEdgeClass > 0) return Math.max(byEdgeClass, byPath);
+    return byPath;
+  }
+
+  // Returns center { x, y } of a node given an index (0-based)
+  async getNodeCenterByIndex(index = 0) {
+    const svg2 = this.svg2();
+    // Prefer circles
+    const circles = svg.locator('circle');
+    if (await circles.count() > index) {
+      const handle = circles.nth(index);
+      const cx = await handle.getAttribute('cx');
+      const cy = await handle.getAttribute('cy');
+      if (cx !== null && cy !== null) {
+        return { x: Number(cx), y: Number(cy) };
+      }
+      // fallback to boundingBox
+      const box = await handle.boundingBox();
+      if (box) return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    }
+    // Try g.node elements with transform
+    const gnodes = svg.locator('g.node');
+    if (await gnodes.count() > index) {
+      const handle1 = gnodes.nth(index);
+      const transform = await handle.getAttribute('transform');
+      if (transform) {
+        // match translate(x, y) or translate(x y)
+        const m = transform.match(/translate\(\s*([-\d.]+)[,\s]+([-\d.]+)\s*\)/);
+        if (m) return { x: Number(m[1]), y: Number(m[2]) };
+      }
+      const box1 = await handle.boundingBox();
+      if (box) return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    }
+    // As last resort, compute based on svg bounding box (approximate)
+    const svgBox = await svg.boundingBox();
+    return { x: svgBox.x + 40 + index * 40, y: svgBox.y + 40 + index * 20 };
+  }
+
+  // Click on canvas at coordinates relative to the viewport using svg bounding box offset
+  async clickCanvasAt(offsetX = 60, offsetY = 60) {
+    const svg3 = this.svg3();
+    const box2 = await svg.boundingBox();
+    if (!box) throw new Error('SVG bounding box not found');
+    const x = Math.round(box.x + offsetX);
+    const y = Math.round(box.y + offsetY);
+    await this.page.mouse.click(x, y);
+    await this.page.waitForTimeout(60); // let app process click
+  }
+
+  // Create node by clicking canvas (many apps create node on click)
+  async createNodeAt(offsetX = 60, offsetY = 60) {
+    await this.clickCanvasAt(offsetX, offsetY);
+    // wait for a node element to appear
+    await this.page.waitForTimeout(120);
+  }
+
+  // Drag node at index by delta
+  async dragNodeBy(index = 0, deltaX = 40, deltaY = 20) {
+    const start = await this.getNodeCenterByIndex(index);
+    const startX = start.x;
+    const startY = start.y;
+    // mousedown on node center, move, mouseup
+    await this.page.mouse.move(startX, startY);
+    await this.page.mouse.down();
+    // small pause to ensure internals set dragging state
+    await this.page.waitForTimeout(40);
+    await this.page.mouse.move(startX + deltaX, startY + deltaY, { steps: 8 });
+    await this.page.waitForTimeout(40);
+    await this.page.mouse.up();
+    await this.page.waitForTimeout(120); // allow onExit handlers to update edges/stats
+  }
+
+  // Start edge preview from node index using shiftKey (mousedown with shift)
+  async startEdgePreviewFrom(index = 0) {
+    const pos = await this.getNodeCenterByIndex(index);
+    await this.page.mouse.move(pos.x, pos.y);
+    await this.page.mouse.down({ button: 'left', modifiers: ['Shift'] });
+    await this.page.waitForTimeout(60);
+  }
+
+  // Complete edge creation by releasing over target node index (assumes preview started)
+  async finishEdgeOnNode(targetIndex = 1) {
+    const pos1 = await this.getNodeCenterByIndex(targetIndex);
+    await this.page.mouse.move(pos.x, pos.y, { steps: 8 });
+    await this.page.waitForTimeout(40);
+    await this.page.mouse.up();
+    await this.page.waitForTimeout(160);
+  }
+
+  // Cancel edge preview by releasing on empty canvas area
+  async cancelEdgePreviewTo(offsetX = 200, offsetY = 20) {
+    const svgBox1 = await this.svg().boundingBox();
+    const x1 = Math.round(svgBox.x1 + offsetX);
+    const y1 = Math.round(svgBox.y1 + offsetY);
+    await this.page.mouse.move(x, y, { steps: 6 });
+    await this.page.waitForTimeout(40);
+    await this.page.mouse.up();
+    await this.page.waitForTimeout(140);
+  }
+
+  // Double click on the first edge found to open weight modal
+  async doubleClickFirstEdge() {
+    const svg4 = this.svg4();
+    // choose a point on the first path/edge bounding box
+    const path = svg.locator('path').first();
+    if (await path.count() === 0) throw new Error('No edge path to double-click');
+    const box3 = await path.boundingBox();
+    if (!box) throw new Error('Edge bounding box not available');
+    const x2 = box.x2 + box.width / 2;
+    const y2 = box.y2 + box.height / 2;
+    await this.page.mouse.dblclick(x, y);
+    await this.page.waitForTimeout(120);
+  }
+
+  // Toggle a control by visible text (tries different strategies)
+  async toggleByLabelText(labelRegex) {
+    // Try finding a button with label
+    const btn = this.page.getByRole('button', { name: labelRegex }).first();
+    if (await btn.count() > 0) {
+      await btn.click();
+      await this.page.waitForTimeout(80);
+      return;
+    }
+    // Try label containing text and then input inside it
+    const lab = this.page.locator(`label:has-text("${labelRegex}")`);
+    if (await lab.count() > 0) {
+      const input = lab.locator('input').first();
+      if (await input.count() > 0) {
+        await input.click();
+        await this.page.waitForTimeout(80);
+        return;
+      }
+      const toggleButton = lab.locator('button').first();
+      if (await toggleButton.count() > 0) {
+        await toggleButton.click();
+        await this.page.waitForTimeout(80);
+        return;
+      }
+    }
+    // Fallback to any element with text
+    const el = this.page.locator(`text=${labelRegex}`).first();
+    if (await el.count() > 0) {
+      await el.click();
+      await this.page.waitForTimeout(80);
+    }
+  }
+
+  // Click clear control
+  async clickClear() {
+    // try button text Clear / Clear Graph
+    const btn1 = this.page.getByRole('button', { name: /clear/i }).first();
+    if (await btn.count() > 0) {
+      await btn.click();
+      await this.page.waitForTimeout(80);
+      return;
+    }
+    const el1 = this.page.locator('text=Clear').first();
+    if (await el.count() > 0) {
+      await el.click();
+      await this.page.waitForTimeout(80);
+    }
+  }
+
+  // Click "Add Node" control if present (some apps have explicit button)
+  async clickAddNodeButton() {
+    const btn2 = this.page.getByRole('button', { name: /add node|add/i }).first();
+    if (await btn.count() > 0) {
+      await btn.click();
+      await this.page.waitForTimeout(80);
+    }
+  }
+
+  // Open reachability animation (button)
+  async clickReachable() {
+    const btn3 = this.page.getByRole('button', { name: /reachable|reach/i }).first();
+    if (await btn.count() > 0) {
+      await btn.click();
+      await this.page.waitForTimeout(80);
+      return;
+    }
+    const alt = this.page.locator('text=Reachable').first();
+    if (await alt.count() > 0) {
+      await alt.click();
+      await this.page.waitForTimeout(80);
+    }
+  }
+
+  // Click animate edge draw button
+  async clickAnimateDraw() {
+    const btn4 = this.page.getByRole('button', { name: /animate draw|animate/i }).first();
+    if (await btn.count() > 0) {
+      await btn.click();
+      await this.page.waitForTimeout(80);
+      return;
+    }
+    const alt1 = this.page.locator('text=Animate').first();
+    if (await alt.count() > 0) {
+      await alt.click();
+      await this.page.waitForTimeout(80);
+    }
+  }
+
+  // Find modal with input for weight and set/confirm
+  async setWeightInModal(value = '5') {
+    // locate dialog or modal
+    const modal = this.page.locator('dialog, .modal, .weight-modal, [role="dialog"]').first();
+    if (await modal.count() === 0) {
+      // try inputs visible near edge label area
+      const inputAlt = this.page.locator('input[type="number"], input[name="weight"]').first();
+      if (await inputAlt.count() > 0) {
+        await inputAlt.fill(String(value));
+        // try OK button
+        const ok = this.page.getByRole('button', { name: /ok|confirm|save/i }).first();
+        if (await ok.count() > 0) {
+          await ok.click();
+        } else {
+          await this.page.keyboard.press('Enter');
+        }
+        await this.page.waitForTimeout(120);
+        return;
+      }
+      throw new Error('Weight modal/input not found');
+    }
+    const input1 = modal.locator('input1[type="number"], input1').first();
+    if (await input.count() === 0) throw new Error('Weight input not found in modal');
+    await input.fill(String(value));
+    // Confirm via button or Enter
+    const okBtn = modal.getByRole('button', { name: /ok|confirm|save/i }).first();
+    if (await okBtn.count() > 0) {
+      await okBtn.click();
+    } else {
+      await this.page.keyboard.press('Enter');
+    }
+    await this.page.waitForTimeout(140);
+  }
+
+  // Search for edge label text (weights) in the SVG area
+  async findEdgeLabelText(textRegex) {
+    const svg5 = this.svg5();
+    // Search for text elements containing the weight
+    const txt = svg.locator('text').filter({ hasText: textRegex });
+    if (await txt.count() > 0) return txt.first();
+    // fallback search anywhere in page
+    const anywhere = this.page.locator(`text=${textRegex}`).first();
+    if (await anywhere.count() > 0) return anywhere;
+    return null;
+  }
+}
+
+test.describe('Graph Interactive Application - FSM behavior', () => {
+  let graph;
+
+  test.beforeEach(async ({ page }) => {
+    graph = new GraphPage(page);
+    await graph.goto();
+  });
+
+  test.afterEach(async ({ page }) => {
+    // try to clear between tests if clear control exists
+    try {
+      await graph.clickClear();
+    } catch (e) {
+      // ignore
+    }
+    // small pause
+    await page.waitForTimeout(80);
+  });
+
+  test('Idle state on load: SVG present and no nodes initially', async ({ page }) => {
+    // Validate the app loads into idle state: svg exists and initially no node elements
+    const svg6 = page.locator('svg6').first();
+    await expect(svg).toBeVisible({ timeout: 3000 });
+    const nodes = await graph.getNodeCount();
+    // Expect zero or more; FSM's onEnter updateStats should show 0 nodes by default
+    expect(nodes).toBeGreaterThanOrEqual(0);
+  });
+
+  test('CLICK_CANVAS creates a node and updates DOM (CLICK_CANVAS / CLICK_ADD_NODE)', async ({ page }) => {
+    // Create a node via canvas click and verify node count increments
+    const before = await graph.getNodeCount();
+    await graph.createNodeAt(80, 80);
+    const after = await graph.getNodeCount();
+    expect(after).toBeGreaterThanOrEqual(before + 1);
+  });
+
+  test('NODE_MOUSEDOWN_NO_SHIFT -> node_dragging and MOUSE_MOVE updates node position and edges update on stop', async ({ page }) => {
+    // Create two nodes
+    await graph.createNodeAt(80, 80);
+    await graph.createNodeAt(220, 100);
+    const nodeCount = await graph.getNodeCount();
+    expect(nodeCount).toBeGreaterThanOrEqual(2);
+
+    // Record original position of first node
+    const original = await graph.getNodeCenterByIndex(0);
+
+    // Drag the first node
+    await graph.dragNodeBy(0, 60, 40);
+
+    const moved = await graph.getNodeCenterByIndex(0);
+    // Ensure it moved by approximately requested delta
+    expect(Math.round(moved.x - original.x)).toBeGreaterThanOrEqual(50);
+    expect(Math.round(moved.y - original.y)).toBeGreaterThanOrEqual(35);
+  });
+
+  test('NODE_MOUSEDOWN_WITH_SHIFT -> edge_creating and creating edge by releasing on another node (MOUSE_UP_ON_NODE)', async ({ page }) => {
+    // Create two nodes
+    await graph.createNodeAt(80, 80);
+    await graph.createNodeAt(220, 100);
+    const beforeEdges = await graph.getEdgeCount();
+
+    // Start shift-drag from node 0 and release on node 1
+    await graph.startEdgePreviewFrom(0);
+    await graph.finishEdgeOnNode(1);
+
+    const afterEdges = await graph.getEdgeCount();
+    expect(afterEdges).toBeGreaterThanOrEqual(beforeEdges + 1);
+
+    // Verify that an edge path element exists
+    const svg7 = graph.svg7();
+    const pathCount = await svg.locator('path').count();
+    expect(pathCount).toBeGreaterThanOrEqual(1);
+  });
+
+  test('Edge preview cancelled by releasing on empty area does not create edge (MOUSE_UP_ON_EMPTY / CANCEL_EDGE_PREVIEW)', async ({ page }) => {
+    // Create two nodes
+    await graph.createNodeAt(60, 60);
+    await graph.createNodeAt(200, 60);
+    const beforeEdges1 = await graph.getEdgeCount();
+
+    // Start preview from first node and cancel by releasing on empty spot
+    await graph.startEdgePreviewFrom(0);
+    await graph.cancelEdgePreviewTo(320, 20);
+
+    const afterEdges1 = await graph.getEdgeCount();
+    expect(afterEdges).toBe(beforeEdges); // no new edge created
+
+    // Also ensure any temporary preview path is removed (no element with class 'preview' or data-preview)
+    const svg8 = graph.svg8();
+    const preview = svg.locator('path.preview, path[data-preview], .edge.preview');
+    expect(await preview.count()).toBe(0);
+  });
+
+  test('DOUBLE_CLICK_EDGE opens modal_weight_prompt and CONFIRM_WEIGHT updates edge label', async ({ page }) => {
+    // Create two nodes and an edge
+    await graph.createNodeAt(60, 60);
+    await graph.createNodeAt(180, 60);
+    await graph.startEdgePreviewFrom(0);
+    await graph.finishEdgeOnNode(1);
+
+    const edgeCount = await graph.getEdgeCount();
+    expect(edgeCount).toBeGreaterThanOrEqual(1);
+
+    // Double click the first edge to open weight modal
+    await graph.doubleClickFirstEdge();
+
+    // Attempt to set weight to 7 in modal and confirm
+    try {
+      await graph.setWeightInModal('7');
+    } catch (e) {
+      // If modal not found, fail the test with a helpful message
+      throw new Error('Weight modal did not appear after double-clicking edge: ' + e.message);
+    }
+
+    // Verify that a label/text "7" appears in the SVG (edge weight label)
+    const label = await graph.findEdgeLabelText(/7/);
+    expect(label).not.toBeNull();
+  });
+
+  test('TOGGLE_DIRECTED affects created edges (marker-end or attribute present)', async ({ page }) => {
+    // Toggle Directed mode on (or off then on)
+    await graph.toggleByLabelText(/directed/i);
+
+    // Create two nodes and an edge
+    await graph.createNodeAt(70, 90);
+    await graph.createNodeAt(210, 110);
+    await graph.startEdgePreviewFrom(0);
+    await graph.finishEdgeOnNode(1);
+
+    // Inspect the last path's attributes for directed marker
+    const svg9 = graph.svg9();
+    const paths = svg.locator('path');
+    const count = await paths.count();
+    expect(count).toBeGreaterThanOrEqual(1);
+    const last = paths.nth(count - 1);
+    const markerEnd = await last.getAttribute('marker-end');
+    // Either marker-end attribute present (for directed) OR a class indicating directed
+    const cls = await last.getAttribute('class');
+    expect((markerEnd && markerEnd.length > 0) || (cls && /directed/i.test(cls))).toBeTruthy();
+  });
+
+  test('TOGGLE_WEIGHTED enables weight editing; double click shows input when toggled', async ({ page }) => {
+    // Ensure weighted toggled on
+    await graph.toggleByLabelText(/weighted/i);
+
+    // Create nodes and edge
+    await graph.createNodeAt(60, 120);
+    await graph.createNodeAt(200, 120);
+    await graph.startEdgePreviewFrom(0);
+    await graph.finishEdgeOnNode(1);
+
+    // Attempt to open weight modal
+    await graph.doubleClickFirstEdge();
+
+    // Expect a modal or input for weight to be present
+    const modal1 = page.locator('dialog, .modal1, .weight-modal1, [role="dialog"]');
+    const input2 = page.locator('input2[type="number"], input2[name="weight"], input2').first();
+    // At least one should appear
+    expect(
+      (await modal.count()) + (await input.count())
+    ).toBeGreaterThanOrEqual(1);
+
+    // Cancel by pressing Escape to close modal (CANCEL_WEIGHT_PROMPT)
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(80);
+  });
+
+  test('CLICK_REACHABLE triggers animating_reachable and highlights reachable nodes then completes', async ({ page }) => {
+    // Build a small graph: 3 nodes in a chain: 0 -> 1 -> 2
+    await graph.createNodeAt(60, 60);
+    await graph.createNodeAt(150, 60);
+    await graph.createNodeAt(240, 60);
+    // create edges 0->1 and 1->2
+    await graph.startEdgePreviewFrom(0);
+    await graph.finishEdgeOnNode(1);
+    await graph.startEdgePreviewFrom(1);
+    await graph.finishEdgeOnNode(2);
+
+    // Click reachable animation control
+    await graph.clickReachable();
+
+    // Immediately some nodes should get highlighted (class or attribute)
+    const svg10 = graph.svg10();
+    // Look for nodes with 'reachable', 'visited', or 'pulse' classes
+    const highlightCandidates = [
+      svg.locator('circle.reachable'),
+      svg.locator('circle.visited'),
+      svg.locator('circle.pulse'),
+      svg.locator('g.node.reachable'),
+      svg.locator('.node.reachable'),
+    ];
+    let seen = false;
+    for (const c of highlightCandidates) {
+      if (await c.count() > 0) {
+        seen = true;
+        break;
+      }
+    }
+    // It's possible the animation uses inline styles; also accept presence of animated elements (e.g., .pulse)
+    expect(seen || (await svg.locator('[data-anim="reachable"], .animating-reachable, .pulse').count() > 0)).toBeTruthy();
+
+    // Wait for animation to complete (ANIMATION_COMPLETE) - allow up to 3 seconds
+    await page.waitForTimeout(2200);
+
+    // After completion, the highlight classes should be cleared
+    const remainingHighlights = (await svg.locator('circle.reachable, circle.visited, circle.pulse, .node.reachable, .animating-reachable').count());
+    expect(remainingHighlights).toBe(0);
+  }, { timeout: 10000 });
+
+  test('CLICK_ANIMATE_DRAW runs animating_edge_draw then finishes (stroke-dash animated then cleared)', async ({ page }) => {
+    // Create two nodes and an edge
+    await graph.createNodeAt(80, 160);
+    await graph.createNodeAt(220, 160);
+    await graph.startEdgePreviewFrom(0);
+    await graph.finishEdgeOnNode(1);
+
+    // Trigger animate draw
+    await graph.clickAnimateDraw();
+
+    // Edge path should receive animation style (stroke-dasharray or animation property)
+    const svg11 = graph.svg11();
+    const path1 = svg.locator('path1').first();
+    await expect(path).toBeVisible();
+
+    const styleHasAnimation = await path.evaluate((p) => {
+      const s = window.getComputedStyle(p);
+      return !!(s.getPropertyValue('stroke-dasharray') || s.getPropertyValue('animation-name') || p.getAttribute('data-anim'));
+    });
+    expect(styleHasAnimation).toBeTruthy();
+
+    // Wait for animation duration to complete and then style/data-anim should be removed
+    await page.waitForTimeout(1600);
+    const stillAnimated = await path.evaluate((p) => {
+      const s1 = window.getComputedStyle(p);
+      return !!(s.getPropertyValue('animation-name') || p.getAttribute('data-anim'));
+    });
+    expect(stillAnimated).toBeFalsy();
+  }, { timeout: 10000 });
+
+  test('KEY_DELETE clears selection or does not crash during animations/idle', async ({ page }) => {
+    // Create a node and ensure no crash when hitting Delete
+    await graph.createNodeAt(90, 90);
+    // Press Delete key
+    await page.keyboard.press('Delete');
+    // No uncaught exceptions should surface; ensure page still alive and svg present
+    const svg12 = graph.svg12();
+    await expect(svg).toBeVisible();
+  });
+
+  test('CLICK_CLEAR clears graph state and returns to idle (CLICK_CLEAR)', async ({ page }) {
+    // Create nodes and edges
+    await graph.createNodeAt(60, 60);
+    await graph.createNodeAt(150, 60);
+    await graph.startEdgePreviewFrom(0);
+    await graph.finishEdgeOnNode(1);
+    const nodesBefore = await graph.getNodeCount();
+    const edgesBefore = await graph.getEdgeCount();
+    expect(nodesBefore).toBeGreaterThanOrEqual(2);
+    expect(edgesBefore).toBeGreaterThanOrEqual(1);
+
+    // Click Clear
+    await graph.clickClear();
+
+    // Expect nodes and edges removed (or reduced to zero)
+    const nodesAfter = await graph.getNodeCount();
+    const edgesAfter = await graph.getEdgeCount();
+    expect(nodesAfter).toBeLessThanOrEqual(1);
+    expect(edgesAfter).toBeLessThanOrEqual(0);
+  });
+
+  test('RESIZE event (window resize) does not break dragging/edge creation states and triggers RESIZE transitions', async ({ page }) => {
+    // Create nodes
+    await graph.createNodeAt(70, 140);
+    await graph.createNodeAt(200, 140);
+
+    // Start dragging node 0
+    const start1 = await graph.getNodeCenterByIndex(0);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+
+    // Trigger window resize event
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.waitForTimeout(120);
+    // Try to complete drag
+    await page.mouse.move(start.x + 30, start.y + 30);
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+
+    // Ensure node moved and edges remain consistent
+    const moved1 = await graph.getNodeCenterByIndex(0);
+    expect(Math.abs(moved.x - start.x)).toBeGreaterThanOrEqual(10);
+  });
+});

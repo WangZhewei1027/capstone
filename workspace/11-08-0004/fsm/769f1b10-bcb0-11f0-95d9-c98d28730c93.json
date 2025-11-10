@@ -1,0 +1,120 @@
+{
+  "topic": "Quick Sort Interactive Module",
+  "description": "Models the interactive states and transitions of a Quick Sort visualization app: pre-start editing, playback (animations of comparisons, swaps, pivot selection/placement), stepping, pausing, and completion. Includes user control events (play/pause/step/reset/randomize/reverse/set array/size/pivot/speed) and transient animation actions (compare, swap, pivot chosen/placed, sorted).",
+  "states": [
+    {
+      "name": "ready",
+      "onEnter": "RENDER_ARRAY",
+      "onExit": null,
+      "on": {
+        "PLAY": "playing",
+        "STEP": "stepping",
+        "RESET": "ready",
+        "RANDOMIZE": "ready",
+        "REVERSE": "ready",
+        "SIZE_CHANGE": "ready",
+        "SET_ARRAY": "ready",
+        "PIVOT_CHANGE": "ready",
+        "SPEED_CHANGE": "ready",
+        "DRAG_START": "ready",
+        "DRAG_DROP": "ready",
+        "WINDOW_RESIZE": "ready"
+      }
+    },
+    {
+      "name": "playing",
+      "onEnter": "START_PLAYBACK_AND_RECORD_IF_NEEDED",
+      "onExit": "PAUSE_OR_STOP_PLAYBACK_CLEANUP",
+      "on": {
+        "PAUSE": "paused",
+        "ACTION_APPLIED": "animatingAction",
+        "FINISH": "completed",
+        "RESET": "ready",
+        "RANDOMIZE": "ready",
+        "REVERSE": "ready",
+        "SIZE_CHANGE": "ready",
+        "SET_ARRAY": "ready",
+        "PIVOT_CHANGE": "playing",
+        "SPEED_CHANGE": "playing",
+        "WINDOW_RESIZE": "playing"
+      }
+    },
+    {
+      "name": "paused",
+      "onEnter": "PAUSE_PLAYBACK",
+      "onExit": null,
+      "on": {
+        "PLAY": "playing",
+        "STEP": "stepping",
+        "RESET": "ready",
+        "RANDOMIZE": "ready",
+        "REVERSE": "ready",
+        "SIZE_CHANGE": "ready",
+        "SET_ARRAY": "ready",
+        "PIVOT_CHANGE": "paused",
+        "SPEED_CHANGE": "paused",
+        "WINDOW_RESIZE": "paused"
+      }
+    },
+    {
+      "name": "animatingAction",
+      "onEnter": "APPLY_CURRENT_ACTION_VISUALS",
+      "onExit": "CLEAR_TRANSIENT_VISUALS",
+      "on": {
+        "ACTION_COMPLETE": "playing",
+        "FINISH": "completed",
+        "RESET": "ready"
+      }
+    },
+    {
+      "name": "stepping",
+      "onEnter": "RECORD_IF_NEEDED_AND_APPLY_SINGLE_ACTION",
+      "onExit": "CLEAR_TRANSIENT_VISUALS",
+      "on": {
+        "ACTION_COMPLETE": "paused_or_ready",
+        "FINISH": "completed",
+        "RESET": "ready"
+      }
+    },
+    {
+      "name": "completed",
+      "onEnter": "FINISH_PLAYBACK_AND_MARK_COMPLETED",
+      "onExit": null,
+      "on": {
+        "RESET": "ready",
+        "RANDOMIZE": "ready",
+        "REVERSE": "ready",
+        "SET_ARRAY": "ready",
+        "SIZE_CHANGE": "ready",
+        "PIVOT_CHANGE": "completed",
+        "SPEED_CHANGE": "completed",
+        "WINDOW_RESIZE": "completed"
+      }
+    }
+  ],
+  "events": [
+    "PLAY",
+    "PAUSE",
+    "STEP",
+    "RESET",
+    "RANDOMIZE",
+    "REVERSE",
+    "SIZE_CHANGE",
+    "SET_ARRAY",
+    "PIVOT_CHANGE",
+    "SPEED_CHANGE",
+    "DRAG_START",
+    "DRAG_DROP",
+    "WINDOW_RESIZE",
+    "ACTION_APPLIED",
+    "ACTION_COMPLETE",
+    "FINISH",
+    "ACTION_COMPARE",
+    "ACTION_SWAP",
+    "ACTION_CHOOSE_PIVOT",
+    "ACTION_PIVOT_PLACED",
+    "ACTION_SORTED",
+    "RECORD_ANIMATIONS"
+  ],
+  "notes": "State semantics and important implementation notes:\n\n- ready: initial pre-start state where the user can drag tiles, change size, set an array, choose pivot strategy, randomize/reverse, and adjust speed. Dragging (reordering) and pre-start controls are enabled in this state. onEnter runs RENDER_ARRAY.\n\n- When PLAY is triggered from ready/paused, the playing state's onEnter performs RECORD_IF_NEEDED_AND_START_PLAYBACK: it records animations by running the quickSortRecord function if no animations are present, disables pre-start controls, sets allowDrag=false, sets UI button disabled states (play disabled, pause enabled), sets status 'Playing', and starts the playback loop (schedules ACTION_APPLIED events).\n\n- playing: the playback loop issues ACTION_APPLIED events for each recorded action. Each ACTION_APPLIED transitions to animatingAction which applies the visual change (onEnter APPLY_CURRENT_ACTION_VISUALS). After the visual is shown, an ACTION_COMPLETE transitions back to playing which schedules the next action. If the action was the last, the playback code emits FINISH which transitions to completed.\n\n- animatingAction: onEnter applies visuals appropriate to the action type (choosePivot => add pivot styling, compare => add comparing styling, swap => update data and nodes array and re-layout with swapping styling, pivotPlaced/sorted => add sorted styling). onExit clears transient classes (comparing/swapping/pivot etc.). Timing (clearing) is implemented with setTimeout in the UI code; the FSM models these as ACTION_COMPLETE events.\n\n- stepping: triggered by STEP when not playing (or when paused). onEnter records actions if needed and immediately applies a single action (APPLY_SINGLE_ACTION). After the action finishes, an ACTION_COMPLETE event occurs. If that was the last recorded action, transition to completed; otherwise remain paused/ready. The FSM uses a placeholder transition 'paused_or_ready' because the concrete target depends on whether the step originated from paused or from ready; actual UI code leaves playing=false and does not re-enable prestart controls until reset/randomize.\n\n- paused: PAUSE halts the playback loop (clears timers) and enables UI states: play enabled, pause disabled, playback halted. STEP from paused will apply a single action (stepping) and return to paused or completed.\n\n- completed: reached when all recorded actions have been applied. Buttons at completion: play and pause disabled, pre-start controls remain disabled in the current implementation (allowing user to explicitly Reset/Randomize/Reverse/Set array to get back to ready). onEnter FINISH_PLAYBACK_AND_MARK_COMPLETED sets status 'Completed' and updates step info.\n\n- Events for specific action types (ACTION_COMPARE, ACTION_SWAP, ACTION_CHOOSE_PIVOT, ACTION_PIVOT_PLACED, ACTION_SORTED) are implemented by the UI as action objects recorded in animations. The playback loop emits ACTION_APPLIED with those action payloads; the FSM models their visual effect inside animatingAction's onEnter action APPLY_CURRENT_ACTION_VISUALS.\n\n- Controls disabling: disablePrestartControls(true/false) is called when entering playing/completed and re-enabled on reset/randomize. Dragging is only allowed in ready and after reset/randomize; it is explicitly disabled once playback starts and remains disabled at completion until reset/randomize/set array.\n\n- Keyboard shortcuts: space toggles play/pause, ArrowRight triggers STEP, and 'r' triggers RANDOMIZE; these are external event sources that map to the same events listed above.\n\n- Timing and animation durations are implemented by timers in the UI; the FSM expresses only the conceptual transitions: APPLY_CURRENT_ACTION_VISUALS -> (after visual duration) ACTION_COMPLETE -> playing/finished.\n\n- 'paused_or_ready' in the stepping state's ACTION_COMPLETE transition is a shorthand: if the step was initiated while paused the UI returns to paused; if initiated from ready (user used Step before any playback) the UI remains in ready. The code determines which one to choose at runtime."
+}

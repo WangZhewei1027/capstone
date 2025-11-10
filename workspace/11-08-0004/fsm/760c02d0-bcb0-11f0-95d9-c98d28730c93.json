@@ -1,0 +1,112 @@
+{
+  "topic": "Interactive Linear Regression Module",
+  "description": "Finite state machine modeling the interactive behaviors of the SVG-based linear regression demo: adding/removing/dragging points, toggling visual layers, and running/pausing gradient descent (GD).",
+  "states": [
+    {
+      "name": "init",
+      "onEnter": "INIT_MODULE (drawGrid, seed example points, compute initial OLS, renderPoints)",
+      "onExit": "NONE",
+      "on": {
+        "INITIALIZED": "idle",
+        "NO_POINTS": "no_points"
+      }
+    },
+    {
+      "name": "idle",
+      "onEnter": "UPDATE_UI (updateFitsAndDraw - redraw lines/residuals, update labels)",
+      "onExit": "NONE",
+      "on": {
+        "POINTER_DOWN_ON_SVG": "idle",
+        "POINTER_DOWN_ON_POINT": "dragging",
+        "DOUBLE_CLICK_POINT": "idle",
+        "CLICK_CLEAR": "no_points",
+        "CLICK_UNDO": "idle",
+        "CLICK_OLS": "idle",
+        "CLICK_GD_TOGGLE": "gd_running",
+        "CLICK_STEP": "idle",
+        "CLICK_RESET_PARAMS": "idle",
+        "TOGGLE_RESIDUALS": "idle",
+        "TOGGLE_SHOW_OLS": "idle",
+        "TOGGLE_SHOW_GD": "idle",
+        "LR_CHANGE": "idle",
+        "KEY_G": "gd_running",
+        "KEY_O": "idle",
+        "KEY_C": "no_points",
+        "WINDOW_RESIZE": "idle",
+        "POINTS_EMPTY": "no_points"
+      }
+    },
+    {
+      "name": "dragging",
+      "onEnter": "START_DRAG (attach pointer capture, set dragging flag)",
+      "onExit": "END_DRAG (release pointer capture, clear dragging flag, updateFitsAndDraw)",
+      "on": {
+        "POINTER_MOVE": "dragging",
+        "POINTER_UP": "idle",
+        "DOUBLE_CLICK_POINT": "idle",
+        "KEY_ARROW_MOVE": "dragging",
+        "KEY_DELETE": "idle",
+        "WINDOW_RESIZE": "dragging",
+        "POINTS_EMPTY": "no_points"
+      }
+    },
+    {
+      "name": "gd_running",
+      "onEnter": "START_GD_LOOP (set gdRunning=true, update button state, requestAnimationFrame loop via animateGD)",
+      "onExit": "PAUSE_GD_LOOP (set gdRunning=false, cancelAnimationFrame, update button state)",
+      "on": {
+        "CLICK_GD_TOGGLE": "idle",
+        "KEY_G": "idle",
+        "POINTS_EMPTY": "no_points",
+        "CLICK_CLEAR": "no_points",
+        "CLICK_STEP": "gd_running",
+        "LR_CHANGE": "gd_running",
+        "TOGGLE_RESIDUALS": "gd_running",
+        "TOGGLE_SHOW_OLS": "gd_running",
+        "TOGGLE_SHOW_GD": "gd_running",
+        "WINDOW_RESIZE": "gd_running"
+      }
+    },
+    {
+      "name": "no_points",
+      "onEnter": "CLEAR_ACTION (points = [], params reset to {b0:0,b1:0}, olsParams = null, renderPoints)",
+      "onExit": "NONE",
+      "on": {
+        "POINTER_DOWN_ON_SVG": "idle",
+        "CLICK_CLEAR": "no_points",
+        "CLICK_UNDO": "no_points",
+        "CLICK_GD_TOGGLE": "no_points",
+        "KEY_C": "no_points",
+        "KEY_G": "no_points",
+        "KEY_O": "no_points",
+        "WINDOW_RESIZE": "no_points"
+      }
+    }
+  ],
+  "events": [
+    "INITIALIZED",
+    "POINTER_DOWN_ON_SVG",
+    "POINTER_DOWN_ON_POINT",
+    "POINTER_MOVE",
+    "POINTER_UP",
+    "DOUBLE_CLICK_POINT",
+    "KEY_ARROW_MOVE",
+    "KEY_DELETE",
+    "CLICK_CLEAR",
+    "CLICK_UNDO",
+    "CLICK_OLS",
+    "CLICK_GD_TOGGLE",
+    "CLICK_STEP",
+    "CLICK_RESET_PARAMS",
+    "TOGGLE_RESIDUALS",
+    "TOGGLE_SHOW_OLS",
+    "TOGGLE_SHOW_GD",
+    "LR_CHANGE",
+    "KEY_G",
+    "KEY_O",
+    "KEY_C",
+    "WINDOW_RESIZE",
+    "POINTS_EMPTY"
+  ],
+  "notes": "High-level notes and mapping to implementation details:\n- Major interactive modes are: idle (normal, GD paused), dragging (user moving a point), gd_running (animation loop for gradient descent active), and no_points (points array empty). An initial 'init' state seeds example points and transitions to idle or no_points.\n- onEnter/onExit actions map to functions in the code: INIT_MODULE -> init(), UPDATE_UI -> updateFitsAndDraw(), START_DRAG -> pointerdown handler (elem.setPointerCapture), MOVE_POINT -> handled by pointermove which updates point coords and calls renderPoints(), END_DRAG -> pointerup handler which releases pointer and calls updateFitsAndDraw().\n- GD control: START_GD_LOOP -> startGD() which sets gdRunning and calls animateGD(); PAUSE_GD_LOOP -> pauseGD() which cancels RAF. While gd_running the RAF loop repeatedly performs gdStep() and updateFitsAndDraw(). The RAF loop auto-pauses when POINTS_EMPTY is encountered.\n- Adding a point is triggered by POINTER_DOWN_ON_SVG when the pointer event target is not within the #points group; action -> addPointAtSvg(). This transitions from no_points -> idle if a point is added.\n- Removing a point occurs on DOUBLE_CLICK_POINT (on circle) or keyboard Delete/Backspace for a focused point; action -> remove point and renderPoints(); if count becomes 0 then POINTS_EMPTY transition to no_points and GD auto-pauses.\n- CLICK_STEP triggers a single GD update via gdStep() and updateFitsAndDraw() but does not start the animation loop.\n- CLICK_OLS and CLICK_RESET_PARAMS both compute OLS (computeOLS()) and set params to olsParams; these do not change GD running state.\n- Toggles (residuals, show OLS, show GD) and LR_CHANGE update UI via updateFitsAndDraw() or direct UI updates and do not change the FSM mode except that LR_CHANGE changes learning rate used by gdStep/animateGD.\n- WINDOW_RESIZE triggers a redraw (drawGrid + renderPoints) but does not change user interaction mode.\n- Keyboard shortcuts implemented in code: 'g' toggles GD, 'o' computes OLS and sets params, 'c' clears points.\n- Many UI events are handled without a state change (remain in same state) but are included in transitions mapping to the same state. Conditional transitions exist: startGD is ignored in no_points (or will auto-pause immediately), animateGD checks points length and causes automatic pause (POINTS_EMPTY).\n- The FSM models user-facing interaction states; low-level internal helpers (computeMSE, predictY, drawLines, drawResiduals, renderPoints, attachDragHandlers) are considered actions invoked by onEnter/onExit or by event handlers."
+}

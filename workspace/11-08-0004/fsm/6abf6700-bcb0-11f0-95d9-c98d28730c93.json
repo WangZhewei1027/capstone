@@ -1,0 +1,150 @@
+{
+  "topic": "K-Means Interactive Module",
+  "description": "Finite state machine modeling the interactive behaviors of the K-Means visualization: adding/removing points, initializing centroids, stepping/updating, running auto-steps, dragging points/centroids, and auxiliary UI interactions/animations.",
+  "states": [
+    {
+      "name": "empty",
+      "onEnter": "renderAll (clear UI) / setRun(false)",
+      "on": {
+        "ADD_POINT": "idle",
+        "ADD_RANDOM": "idle",
+        "INIT_CENTROIDS": "ready",
+        "K_CHANGE": "empty",
+        "CLEAR": "empty"
+      }
+    },
+    {
+      "name": "idle",
+      "description": "Points exist but no centroids initialized",
+      "onEnter": "renderAll",
+      "onExit": "renderAll",
+      "on": {
+        "ADD_POINT": "idle",
+        "ADD_RANDOM": "idle",
+        "REMOVE_POINT": "idle",
+        "INIT_CENTROIDS": "ready",
+        "RESET": "idle",
+        "CLEAR": "empty",
+        "K_CHANGE": "idle",
+        "RUN_PRESS": "idle",
+        "DRAG_POINT_START": "dragging_point",
+        "KEY_MOVE_CENTROID": "idle"
+      }
+    },
+    {
+      "name": "ready",
+      "description": "Centroids are initialized and system is idle (not currently animating a step); normal interactive state",
+      "onEnter": "renderAll / updateMetrics",
+      "onExit": "renderAll",
+      "on": {
+        "STEP": "assigning",
+        "RUN_PRESS": "running",
+        "ADD_POINT": "ready",
+        "ADD_RANDOM": "ready",
+        "REMOVE_POINT": "ready",
+        "INIT_CENTROIDS": "ready",
+        "RESET": "idle",
+        "CLEAR": "empty",
+        "DRAG_POINT_START": "dragging_point",
+        "DRAG_CENTROID_START": "dragging_centroid",
+        "K_CHANGE": "ready",
+        "SPEED_CHANGE": "ready",
+        "LEGEND_CLICK": "ready",
+        "KEY_MOVE_CENTROID": "ready"
+      }
+    },
+    {
+      "name": "assigning",
+      "description": "Assignment phase of a K-Means iteration: compute nearest-centroid for all points and show assignment lines",
+      "onEnter": "assignAll (assignPointToNearest on all points) / renderAssignments(showLines=true) / updateMetrics",
+      "onExit": "renderAssignments(showLines=false) (lines will fade/clear)",
+      "on": {
+        "ASSIGN_TIMEOUT": "updating",
+        "CLEAR": "empty",
+        "RESET": "idle",
+        "DRAG_POINT_START": "dragging_point",
+        "DRAG_CENTROID_START": "dragging_centroid"
+      }
+    },
+    {
+      "name": "updating",
+      "description": "Update phase: animate centroids to the mean of assigned points",
+      "onEnter": "updateCentroidsAnimated (compute means, set centroid positions, kick off CSS transition using speedInput)",
+      "onExit": "renderAssignments(false) / updateMetrics",
+      "on": {
+        "UPDATE_TIMEOUT": "ready",
+        "CLEAR": "empty",
+        "RESET": "idle",
+        "DRAG_CENTROID_START": "dragging_centroid",
+        "DRAG_POINT_START": "dragging_point"
+      }
+    },
+    {
+      "name": "running",
+      "description": "Auto-run mode: periodically triggers full iterations (assign → update). Substate of ready but represented as separate state which still performs iterations.",
+      "onEnter": "setRun(true) (start autoTimer calling stepIteration periodically)",
+      "onExit": "setRun(false) (clear autoTimer)",
+      "on": {
+        "AUTO_STEP": "assigning",
+        "RUN_PRESS": "ready",
+        "CLEAR": "empty",
+        "RESET": "idle",
+        "DRAG_CENTROID_START": "dragging_centroid",
+        "DRAG_POINT_START": "dragging_point",
+        "K_CHANGE": "running",
+        "SPEED_CHANGE": "running"
+      }
+    },
+    {
+      "name": "dragging_point",
+      "description": "User is pointer-dragging a point. Live reassignments occur while dragging.",
+      "onEnter": "capture pointer on point / disable global svg pointer handling for that gesture",
+      "onExit": "release pointer capture / renderAll",
+      "on": {
+        "DRAG_POINT_MOVE": "dragging_point",
+        "DRAG_POINT_END": "ready",
+        "REMOVE_POINT": "idle",
+        "CLEAR": "empty",
+        "RESET": "idle"
+      }
+    },
+    {
+      "name": "dragging_centroid",
+      "description": "User is pointer-dragging a centroid. While dragging centroids, points are reassigned live (immediate feedback). Transition back to ready when released.",
+      "onEnter": "capture pointer on centroid / g.style.transition = 'none' (disable animation smoothing during drag)",
+      "onExit": "restore g.style.transition = `transform ${speedInput.value}ms ...` / renderAll",
+      "on": {
+        "DRAG_CENTROID_MOVE": "dragging_centroid",
+        "DRAG_CENTROID_END": "ready",
+        "CLEAR": "empty",
+        "RESET": "idle"
+      }
+    }
+  ],
+  "events": [
+    "ADD_POINT",
+    "ADD_RANDOM",
+    "REMOVE_POINT",
+    "INIT_CENTROIDS",
+    "STEP",
+    "RUN_PRESS",
+    "AUTO_STEP",
+    "ASSIGN_TIMEOUT",
+    "UPDATE_TIMEOUT",
+    "DRAG_POINT_START",
+    "DRAG_POINT_MOVE",
+    "DRAG_POINT_END",
+    "DRAG_CENTROID_START",
+    "DRAG_CENTROID_MOVE",
+    "DRAG_CENTROID_END",
+    "RESET",
+    "CLEAR",
+    "K_CHANGE",
+    "SPEED_CHANGE",
+    "LEGEND_CLICK",
+    "KEY_MOVE_CENTROID",
+    "SHELL_NOOP",
+    "WINDOW_RESIZE"
+  ],
+  "notes": "Mappings and action names use functions/behaviors implemented in the module's script. Timing-driven transitions: ASSIGN_TIMEOUT is fired ~300ms after entering assigning; UPDATE_TIMEOUT is fired after centroid animation completes (~speedInput.value + 40 ms). AUTO_STEP is triggered by the running state's interval (setInterval) at intervals computed as Math.max(400, parseInt(speedInput.value) + 200). Drag states issue continuous MOVE events for live updates (assignPointToNearest or reassign all points) and end with END events. CLEAR and RESET forcibly stop running (setRun(false)) and clear or reset centroids as implemented. Many UI events (K_CHANGE, SPEED_CHANGE, LEGEND_CLICK, WINDOW_RESIZE) do not change high-level state but update config or produce ephemeral UI behavior."
+}

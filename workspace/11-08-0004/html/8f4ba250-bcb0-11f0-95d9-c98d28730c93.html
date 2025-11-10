@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Topological Sort — Interactive Kahn's Algorithm</title>
+  <style>
+    :root{
+      --safe-padding: 24px;
+      --gap: 16px;
+      --bg: #f7fafc;
+      --panel: #ffffff;
+      --accent: #1f7a8c;
+      --accent-2: #ff7f50;
+      --muted: #6b7280;
+      --danger: #e53e3e;
+      --node-size: 56px;
+      --queue-height: 64px;
+      --transition: 260ms;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,var(--bg),#eef2f7);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#0f172a;
+    }
+    .app {
+      box-sizing:border-box;
+      padding:var(--safe-padding);
+      display:flex;
+      gap:var(--gap);
+      height:100vh;
+    }
+    .left-column{
+      flex:1 1 66%;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    .header {
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:var(--gap);
+    }
+    .title {
+      font-size:20px;
+      font-weight:600;
+      line-height:1.1;
+    }
+    .subtitle {
+      margin-top:6px;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .controls {
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .controls button{
+      background:var(--panel);
+      border:1px solid #e2e8f0;
+      padding:10px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      min-width:110px;
+      transition:all var(--transition);
+      box-shadow:0 1px 0 rgba(15,23,42,0.03);
+      font-weight:600;
+      color:#0f172a;
+    }
+    .controls button.primary{
+      background:linear-gradient(180deg,var(--accent),#12606f);
+      color:white;
+      border: none;
+    }
+    .controls button.warn{
+      background:linear-gradient(180deg,#ff9a7a,var(--accent-2));
+      color:white;
+      border:none;
+    }
+    .controls button:active{ transform:translateY(1px); }
+    .controls .small{
+      min-width:44px;
+      padding:8px;
+    }
+    .main-panel{
+      display:flex;
+      gap:var(--gap);
+      align-items:stretch;
+      flex:1;
+      min-height:0;
+    }
+    .canvas-panel{
+      background:var(--panel);
+      border-radius:12px;
+      padding:var(--gap);
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+      box-shadow:0 4px 18px rgba(2,6,23,0.06);
+      position:relative;
+      overflow:hidden;
+    }
+    .canvas-topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:var(--gap);
+      margin-bottom:var(--gap);
+    }
+    .hint {
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* Graph area */
+    .graph-wrap{
+      position:relative;
+      flex:1;
+      border-radius:8px;
+      background:linear-gradient(180deg,#ffffff,#fbfdff);
+      border:1px dashed #e6eef3;
+      min-height:320px;
+      overflow:hidden;
+      touch-action:none;
+    }
+    svg.edges {
+      position:absolute;
+      left:0; top:0;
+      width:100%; height:100%;
+      pointer-events:none;
+    }
+    .node-layer {
+      position:absolute;
+      left:0; top:0;
+      width:100%; height:100%;
+    }
+    .node {
+      position:absolute;
+      width:var(--node-size);
+      height:var(--node-size);
+      border-radius:50%;
+      background:linear-gradient(180deg,#ffffff,#eaf7fb);
+      box-shadow:0 6px 18px rgba(17,24,39,0.06);
+      border:2px solid rgba(31,122,140,0.12);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      cursor:grab;
+      user-select:none;
+      transition:transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 200ms;
+    }
+    .node:active{ cursor:grabbing; }
+    .node:focus{ outline:3px solid rgba(31,122,140,0.16); }
+    .node .label { font-size:16px; color:#0f172a; }
+    .node .badge {
+      position:absolute;
+      right:-8px;
+      top:-8px;
+      width:28px; height:28px;
+      border-radius:50%;
+      background:var(--accent);
+      color:white;
+      font-weight:700;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:13px;
+      border:2px solid white;
+      box-shadow:0 4px 10px rgba(31,122,140,0.12);
+      transition:transform 200ms, opacity 200ms;
+    }
+    .node.locked { opacity:0.6; cursor:not-allowed; }
+    .node.highlight { box-shadow:0 12px 30px rgba(31,122,140,0.16); transform:translateY(-6px) scale(1.02); }
+
+    /* Right column */
+    .right-column{
+      width:320px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      min-width:260px;
+    }
+    .panel {
+      background:var(--panel);
+      border-radius:12px;
+      padding:var(--gap);
+      box-shadow:0 6px 20px rgba(2,6,23,0.04);
+    }
+    .queue {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      height:var(--queue-height);
+      overflow:auto;
+    }
+    .queue .item {
+      width:52px; height:52px;
+      border-radius:50%;
+      background:#f1f5f9;
+      display:flex; align-items:center; justify-content:center;
+      font-weight:700;
+      color:#0f172a;
+      border:1px dashed #e2e8f0;
+      transition:transform var(--transition), background var(--transition);
+    }
+    .queue .item.current {
+      background:linear-gradient(180deg,#fff7ed,#fffbf2);
+      box-shadow:0 8px 28px rgba(255,127,80,0.12);
+      transform:scale(1.06);
+      border:1px solid rgba(255,127,80,0.20);
+    }
+    .output {
+      min-height:calc(var(--node-size) + 28px);
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+      padding-top:6px;
+    }
+    .output .out-node {
+      width:46px; height:46px; border-radius:8px;
+      background:linear-gradient(180deg,#ffffff,#e6f7f9);
+      display:flex; align-items:center; justify-content:center;
+      font-weight:700; box-shadow:0 6px 18px rgba(17,24,39,0.06);
+      transition:transform 360ms cubic-bezier(.2,.9,.2,1);
+    }
+    .pseudocode {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      background:#0f172a;
+      color:white;
+      padding:10px;
+      border-radius:8px;
+      font-size:12px;
+      line-height:1.45;
+    }
+    .pseudocode .active {
+      background:rgba(255,255,255,0.06);
+      display:block;
+      padding:3px 6px;
+      border-radius:4px;
+    }
+
+    /* status bar */
+    .status {
+      margin-top:8px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .banner {
+      margin-top:8px;
+      padding:10px;
+      background:linear-gradient(180deg,#fff5f5,#fff6f6);
+      border:1px solid rgba(229,62,62,0.14);
+      color:var(--danger);
+      border-radius:8px;
+      display:none;
+    }
+    .banner.show { display:block; }
+
+    /* small screens */
+    @media (max-width:1000px){
+      .app{ flex-direction:column; padding:16px; }
+      .left-column{ width:100%; }
+      .main-panel{ flex-direction:column; }
+      .right-column{ width:100%; flex-direction:row; gap:12px; overflow:auto; }
+      .right-column .panel{ min-width:220px; flex:1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Topological Sort Interactive Module">
+    <div class="left-column">
+      <div class="header">
+        <div>
+          <div class="title">Topological Sort — Kahn's Algorithm (Interactive)</div>
+          <div class="subtitle">Build a directed graph, then step through Kahn's algorithm to watch nodes with indegree zero get removed and placed into a topological order. Detect cycles visually.</div>
+        </div>
+        <div class="controls" role="toolbar" aria-label="Controls">
+          <button id="addNodeBtn" title="Add a new node">Add Node</button>
+          <button id="addEdgeBtn" title="Add directed edge">Add Edge</button>
+          <button id="stepBtn" class="primary" title="Advance one step">Step</button>
+          <button id="autoBtn" class="small" title="Autoplay">Autoplay ▶</button>
+          <button id="resetAlgoBtn" title="Reset algorithm state">Reset Algo</button>
+          <button id="clearBtn" class="warn" title="Clear graph">Clear</button>
+        </div>
+      </div>
+
+      <div class="main-panel">
+        <div class="canvas-panel" aria-label="Graph canvas">
+          <div class="canvas-topbar">
+            <div class="hint">Double-click the canvas to add a node. Drag nodes to reposition. Use Add Edge to connect nodes.</div>
+            <div class="status" id="statusText">Nodes: 0 • Edges: 0</div>
+          </div>
+
+          <div class="graph-wrap" id="graphWrap" tabindex="0" aria-label="Graph area">
+            <svg class="edges" id="edgeSvg" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f7a8c" />
+                </marker>
+                <marker id="arrow-danger" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#e53e3e" />
+                </marker>
+              </defs>
+              <!-- lines go here -->
+            </svg>
+
+            <div class="node-layer" id="nodeLayer" aria-hidden="false"></div>
+          </div>
+        </div>
+
+        <div class="right-column" aria-hidden="false">
+          <div class="panel" aria-label="Kahn queue">
+            <div style="font-weight:700; margin-bottom:8px;">Queue (indegree = 0)</div>
+            <div class="queue" id="queuePanel" aria-live="polite"></div>
+            <div class="banner" id="cycleBanner" role="alert">Cycle detected: No nodes with indegree zero remain.</div>
+          </div>
+
+          <div class="panel" aria-label="Output order">
+            <div style="font-weight:700; margin-bottom:8px;">Output Order</div>
+            <div class="output" id="outputPanel" aria-live="polite"></div>
+            <div style="margin-top:10px; color:var(--muted); font-size:13px;">Nodes will move here when removed by the algorithm.</div>
+          </div>
+
+          <div class="panel" aria-label="Pseudocode">
+            <div style="font-weight:700; margin-bottom:8px;">Kahn's Algorithm (pseudocode)</div>
+            <div class="pseudocode" id="pseudocode">
+              <div id="line1">1. Compute indegree[v] for each v</div>
+              <div id="line2">2. Initialize queue with all v where indegree[v] == 0</div>
+              <div id="line3">3. while queue not empty:</div>
+              <div id="line4" class=""> &nbsp;&nbsp;a) v = pop(queue)</div>
+              <div id="line5" class=""> &nbsp;&nbsp;b) output.append(v)</div>
+              <div id="line6" class=""> &nbsp;&nbsp;c) for each w in outNeighbors(v):</div>
+              <div id="line7" class=""> &nbsp;&nbsp;&nbsp;&nbsp; indegree[w]-- ; if indegree[w]==0 push queue</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Topological Sort Interactive — Vanilla JS
+    (function(){
+      // DOM refs
+      const addNodeBtn = document.getElementById('addNodeBtn');
+      const addEdgeBtn = document.getElementById('addEdgeBtn');
+      const stepBtn = document.getElementById('stepBtn');
+      const autoBtn = document.getElementById('autoBtn');
+      const resetAlgoBtn = document.getElementById('resetAlgoBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const graphWrap = document.getElementById('graphWrap');
+      const nodeLayer = document.getElementById('nodeLayer');
+      const edgeSvg = document.getElementById('edgeSvg');
+      const queuePanel = document.getElementById('queuePanel');
+      const outputPanel = document.getElementById('outputPanel');
+      const statusText = document.getElementById('statusText');
+      const cycleBanner = document.getElementById('cycleBanner');
+      const pseudoLines = {
+        1: document.getElementById('line1'),
+        2: document.getElementById('line2'),
+        3: document.getElementById('line3'),
+        4: document.getElementById('line4'),
+        5: document.getElementById('line5'),
+        6: document.getElementById('line6'),
+        7: document.getElementById('line7'),
+      };
+
+      // State
+      let nodes = []; // {id, x, y, el}
+      let edges = []; // {id, from, to, el}
+      let nextNodeId = 1;
+      let addingEdge = false;
+      let edgeFromNode = null;
+      let dragging = null;
+      let offset = {x:0,y:0};
+      let algoState = null; // {indegree, queue[], removedSet, autoplayTimer}
+      let autoplay = false;
+
+      // Layout info
+      const nodeSize = 56;
+
+      function placeNodeElement(n){
+        const el = document.createElement('div');
+        el.className = 'node';
+        el.setAttribute('role','button');
+        el.setAttribute('tabindex','0');
+        el.setAttribute('aria-label','Node ' + n.label);
+        el.dataset.id = n.id;
+        el.style.transform = `translate(${n.x - nodeSize/2}px, ${n.y - nodeSize/2}px)`;
+        el.style.transition = 'transform 260ms cubic-bezier(.2,.9,.2,1)';
+        el.innerHTML = '<div class="label">'+n.label+'</div><div class="badge">0</div>';
+        nodeLayer.appendChild(el);
+        n.el = el;
+
+        // drag handlers
+        el.addEventListener('pointerdown', (ev)=>{
+          ev.preventDefault();
+          if (addingEdge) {
+            onEdgeNodeClick(n);
+            return;
+          }
+          dragging = n;
+          el.setPointerCapture(ev.pointerId);
+          const rect = el.getBoundingClientRect();
+          offset.x = ev.clientX - rect.left;
+          offset.y = ev.clientY - rect.top;
+          el.classList.add('highlight');
+        });
+        el.addEventListener('pointerup', (ev)=>{
+          if (dragging === n){
+            el.releasePointerCapture(ev.pointerId);
+            dragging = null;
+            el.classList.remove('highlight');
+          }
+        });
+        el.addEventListener('pointermove', (ev)=>{
+          if (!dragging || dragging !== n) return;
+          const wrapRect = graphWrap.getBoundingClientRect();
+          let nx = ev.clientX - wrapRect.left - offset.x + nodeSize/2;
+          let ny = ev.clientY - wrapRect.top - offset.y + nodeSize/2;
+          nx = Math.max(nodeSize/2, Math.min(wrapRect.width - nodeSize/2, nx));
+          ny = Math.max(nodeSize/2, Math.min(wrapRect.height - nodeSize/2, ny));
+          n.x = nx; n.y = ny;
+          el.style.transform = `translate(${n.x - nodeSize/2}px, ${n.y - nodeSize/2}px)`;
+          updateEdgesForNode(n);
+        });
+
+        // keyboard: enter initiates edge creation if AddEdge active
+        el.addEventListener('click', (ev)=>{
+          if (addingEdge) onEdgeNodeClick(n);
+        });
+
+        // delete on key
+        el.addEventListener('keydown', (ev)=>{
+          if (ev.key === 'Delete' || ev.key === 'Backspace'){
+            removeNode(n.id);
+          } else if (ev.key === 'Enter'){
+            if (addingEdge) onEdgeNodeClick(n);
+          }
+        });
+
+        return el;
+      }
+
+      function addNodeAt(x,y){
+        const id = nextNodeId++;
+        const label = String.fromCharCode(64 + id); // A B C ...
+        const n = {id, label, x, y, el:null};
+        nodes.push(n);
+        placeNodeElement(n);
+        updateStatus();
+        recomputeAlgo();
+      }
+
+      function removeNode(id){
+        // remove node, remove edges referencing it
+        const idx = nodes.findIndex(n=>n.id===id);
+        if (idx === -1) return;
+        const n = nodes[idx];
+        // remove edges
+        const toRemove = edges.filter(e => e.from === id || e.to === id).map(e=>e.id);
+        toRemove.forEach(removeEdgeById);
+        // remove DOM
+        if (n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el);
+        nodes.splice(idx,1);
+        updateStatus();
+        recomputeAlgo();
+      }
+
+      function createEdgeElement(e){
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('stroke','#1f7a8c');
+        line.setAttribute('stroke-width','3');
+        line.setAttribute('marker-end','url(#arrow)');
+        line.dataset.id = e.id;
+        edgeSvg.appendChild(line);
+        e.el = line;
+        updateEdgePosition(e);
+      }
+
+      function addEdge(fromId, toId){
+        if (fromId === toId) return null;
+        if (edges.some(en => en.from===fromId && en.to===toId)) return null;
+        const id = 'e' + Date.now() + Math.random().toString(36).slice(2,6);
+        const e = {id, from: fromId, to: toId, el:null};
+        edges.push(e);
+        createEdgeElement(e);
+        updateStatus();
+        recomputeAlgo();
+        return e;
+      }
+
+      function removeEdgeById(id){
+        const i = edges.findIndex(e=>e.id===id);
+        if (i===-1) return;
+        const e = edges[i];
+        if (e.el && e.el.parentNode) e.el.parentNode.removeChild(e.el);
+        edges.splice(i,1);
+        updateStatus();
+        recomputeAlgo();
+      }
+
+      function updateEdgePosition(e){
+        const from = nodes.find(n=>n.id===e.from);
+        const to = nodes.find(n=>n.id===e.to);
+        if (!from || !to || !e.el) return;
+        // compute edge endpoints at node boundaries
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const dist = Math.hypot(dx,dy) || 1;
+        const ux = dx / dist; const uy = dy / dist;
+        const startX = from.x + ux * (nodeSize/2);
+        const startY = from.y + uy * (nodeSize/2);
+        const endX = to.x - ux * (nodeSize/2 + 6); // leave room for arrow
+        const endY = to.y - uy * (nodeSize/2 + 6);
+        e.el.setAttribute('x1', startX);
+        e.el.setAttribute('y1', startY);
+        e.el.setAttribute('x2', endX);
+        e.el.setAttribute('y2', endY);
+      }
+
+      function updateEdgesForNode(n){
+        edges.filter(e=>e.from===n.id || e.to===n.id).forEach(updateEdgePosition);
+      }
+
+      function updateAllEdges(){
+        edges.forEach(updateEdgePosition);
+      }
+
+      function domId(id){ return 'n' + id; }
+
+      // UI helpers
+      function updateStatus(){
+        statusText.textContent = `Nodes: ${nodes.length} • Edges: ${edges.length}`;
+      }
+
+      function clearGraph(){
+        // clear nodes and edges
+        nodes.slice().forEach(n => {
+          if (n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el);
+        });
+        edges.slice().forEach(e => {
+          if (e.el && e.el.parentNode) e.el.parentNode.removeChild(e.el);
+        });
+        nodes = [];
+        edges = [];
+        nextNodeId = 1;
+        updateStatus();
+        resetAlgoState();
+      }
+
+      // Edge creation flow
+      function toggleAddEdgeMode(on){
+        addingEdge = !!on;
+        addEdgeBtn.classList.toggle('active', addingEdge);
+        addEdgeBtn.textContent = addingEdge ? 'Adding Edge...' : 'Add Edge';
+        if (!addingEdge){
+          edgeFromNode = null;
+          nodeLayer.querySelectorAll('.node').forEach(el => el.classList.remove('highlight'));
+        }
+      }
+
+      function onEdgeNodeClick(n){
+        if (!addingEdge) return;
+        if (!edgeFromNode){
+          edgeFromNode = n;
+          if (n.el) n.el.classList.add('highlight');
+        } else {
+          // create edge from edgeFromNode -> n
+          if (edgeFromNode.id === n.id){
+            // no self-loops
+            edgeFromNode.el.classList.remove('highlight');
+            edgeFromNode = null;
+            toggleAddEdgeMode(false);
+            return;
+          }
+          addEdge(edgeFromNode.id, n.id);
+          if (edgeFromNode.el) edgeFromNode.el.classList.remove('highlight');
+          edgeFromNode = null;
+          toggleAddEdgeMode(false);
+        }
+      }
+
+      // Double click to add node
+      graphWrap.addEventListener('dblclick', (ev)=>{
+        const rect = graphWrap.getBoundingClientRect();
+        addNodeAt(ev.clientX - rect.left, ev.clientY - rect.top);
+      });
+
+      // Buttons
+      addNodeBtn.addEventListener('click', ()=>{
+        const rect = graphWrap.getBoundingClientRect();
+        addNodeAt(rect.width/2, rect.height/2);
+      });
+      addEdgeBtn.addEventListener('click', ()=>{
+        toggleAddEdgeMode(!addingEdge);
+      });
+      clearBtn.addEventListener('click', ()=>{
+        if (confirm('Clear the whole graph?')) clearGraph();
+      });
+
+      // clicking outside nodes cancels addEdge
+      graphWrap.addEventListener('click', (ev)=>{
+        if (ev.target === graphWrap && addingEdge){
+          toggleAddEdgeMode(false);
+        }
+      });
+
+      // Edge click removal
+      edgeSvg.addEventListener('click', (ev)=>{
+        if (ev.target && ev.target.tagName === 'line'){
+          const id = ev.target.dataset.id;
+          if (id) removeEdgeById(id);
+        }
+      });
+
+      // update loop for dragging
+      document.addEventListener('pointerup', (ev)=>{
+        if (dragging){
+          dragging = null;
+          document.querySelectorAll('.node.highlight').forEach(el => el.classList.remove('highlight'));
+        }
+      });
+
+      // compute indegrees and neighbors
+      function computeIndegree(){
+        const indeg = new Map();
+        nodes.forEach(n=>indeg.set(n.id,0));
+        edges.forEach(e=>{
+          if (!indeg.has(e.to)) indeg.set(e.to,0);
+          indeg.set(e.to, indeg.get(e.to)+1);
+        });
+        return indeg;
+      }
+
+      // Algorithm: Kahn's state
+      function resetAlgoState(){
+        if (algoState && algoState.autoplayTimer) {
+          clearInterval(algoState.autoplayTimer);
+          algoState.autoplayTimer = null;
+        }
+        algoState = null;
+        autoBtn.textContent = 'Autoplay ▶';
+        autoplay = false;
+        queuePanel.innerHTML = '';
+        outputPanel.innerHTML = '';
+        updateIndegreeBadges();
+        cycleBanner.classList.remove('show');
+        highlightPseudo(null);
+      }
+
+      function recomputeAlgo(){
+        resetAlgoState();
+        // nothing else, waiting for user to Step or Autoplay
+      }
+
+      function updateIndegreeBadges(indegMap){
+        const indeg = indegMap || computeIndegree();
+        nodes.forEach(n=>{
+          const badge = n.el && n.el.querySelector('.badge');
+          if (badge){
+            const newVal = indeg.has(n.id) ? indeg.get(n.id) : 0;
+            // animate numeric change
+            badge.style.transform = 'scale(1.06)';
+            setTimeout(()=> badge.style.transform = '', 120);
+            badge.textContent = newVal;
+          }
+        });
+      }
+
+      function initAlgoState(){
+        const indeg = computeIndegree();
+        const q = [];
+        nodes.forEach(n=>{
+          if (indeg.get(n.id) === 0) q.push(n.id);
+        });
+        algoState = {
+          indeg,
+          queue: q.slice(),
+          removed: new Set(),
+          order: [],
+          autoplayTimer: null,
+        };
+        renderQueue();
+        updateIndegreeBadges(indeg);
+        highlightPseudo(1);
+        if (algoState.queue.length === 0 && nodes.length > 0){
+          // possible cycle — algorithm start has no zero indegree nodes
+          cycleBanner.classList.add('show');
+        } else {
+          cycleBanner.classList.remove('show');
+        }
+      }
+
+      function renderQueue(){
+        queuePanel.innerHTML = '';
+        if (!algoState) return;
+        algoState.queue.forEach((nid, idx) => {
+          const n = nodes.find(x=>x.id===nid);
+          const item = document.createElement('div');
+          item.className = 'item' + (idx===0 ? ' current' : '');
+          item.textContent = n ? n.label : '?';
+          queuePanel.appendChild(item);
+        });
+      }
+
+      function highlightPseudo(line){
+        Object.values(pseudoLines).forEach(el => el.classList.remove('active'));
+        if (!line) return;
+        pseudoLines[line].classList.add('active');
+      }
+
+      // Single step of Kahn
+      async function stepAlgo(){
+        if (!algoState){
+          initAlgoState();
+        }
+        if (!algoState) return;
+        if (algoState.queue.length === 0){
+          // no zero indegree nodes; either finished or cycle
+          if (algoState.removed.size < nodes.length){
+            cycleBanner.classList.add('show');
+            highlightPseudo(null);
+          } else {
+            highlightPseudo(null);
+            // finished
+          }
+          return;
+        }
+        highlightPseudo(3);
+        await sleep(200);
+        // pop
+        highlightPseudo(4);
+        const vid = algoState.queue.shift();
+        renderQueue();
+        const node = nodes.find(n=>n.id===vid);
+        // pulse current node
+        if (node && node.el){
+          node.el.classList.add('highlight');
+          await sleep(300);
+        }
+        highlightPseudo(5);
+        // animate node moving to output
+        if (node){
+          await animateMoveToOutput(node);
+          algoState.removed.add(vid);
+          algoState.order.push(vid);
+        }
+        // remove outgoing edges from this node visually and update indegree
+        highlightPseudo(6);
+        const outgoing = edges.filter(e => e.from === vid);
+        for (const e of outgoing){
+          // fade edge
+          if (e.el) {
+            e.el.style.transition = 'opacity 260ms';
+            e.el.style.opacity = '0';
+          }
+          // decrement indeg of e.to
+          const to = e.to;
+          algoState.indeg.set(to, algoState.indeg.get(to)-1);
+          // visual badge update
+          const nodeTo = nodes.find(n=>n.id===to);
+          if (nodeTo && nodeTo.el){
+            const badge = nodeTo.el.querySelector('.badge');
+            badge.textContent = algoState.indeg.get(to);
+            badge.style.transform = 'scale(1.12)';
+            setTimeout(()=>badge.style.transform='', 220);
+            // highlight edge target briefly
+            nodeTo.el.style.boxShadow = '0 8px 20px rgba(31,122,140,0.12)';
+            setTimeout(()=>nodeTo.el.style.boxShadow='', 300);
+          }
+          // physically remove edge after animation
+          setTimeout(()=> {
+            removeEdgeById(e.id);
+          }, 260);
+        }
+        highlightPseudo(7);
+        // check newly zero indegree nodes
+        await sleep(200);
+        nodes.forEach(n=>{
+          if (!algoState.removed.has(n.id) && algoState.indeg.get(n.id) === 0 && !algoState.queue.includes(n.id)){
+            algoState.queue.push(n.id);
+          }
+        });
+        renderQueue();
+        if (node && node.el){
+          node.el.classList.remove('highlight');
+          // visually mark removed node as faded before moving
+        }
+        // finished?
+        if (algoState.removed.size === nodes.length){
+          highlightPseudo(null);
+          cycleBanner.classList.remove('show');
+        } else if (algoState.queue.length === 0){
+          cycleBanner.classList.add('show');
+        } else {
+          cycleBanner.classList.remove('show');
+        }
+      }
+
+      function animateMoveToOutput(node){
+        return new Promise((resolve)=>{
+          const el = node.el;
+          const rect = el.getBoundingClientRect();
+          const wrapRect = graphWrap.getBoundingClientRect();
+          const outRect = outputPanel.getBoundingClientRect();
+          // create a clone to animate
+          const clone = el.cloneNode(true);
+          clone.style.position = 'fixed';
+          clone.style.left = rect.left + 'px';
+          clone.style.top = rect.top + 'px';
+          clone.style.width = rect.width + 'px';
+          clone.style.height = rect.height + 'px';
+          clone.style.margin = '0';
+          clone.style.zIndex = 9999;
+          clone.style.transition = 'transform 520ms cubic-bezier(.22,.9,.3,1), opacity 320ms';
+          document.body.appendChild(clone);
+          // target position: append a placeholder to output panel to know dest
+          const outNode = document.createElement('div');
+          outNode.className = 'out-node';
+          outNode.textContent = node.label;
+          outputPanel.appendChild(outNode);
+          // compute destination center
+          const dest = outNode.getBoundingClientRect();
+          // compute translation
+          const dx = dest.left - rect.left;
+          const dy = dest.top - rect.top;
+          requestAnimationFrame(()=>{
+            clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.86)`;
+            clone.style.opacity = '0.98';
+          });
+          setTimeout(()=>{
+            document.body.removeChild(clone);
+            // visually ensure output node present
+            outNode.style.transform = 'scale(1.06)';
+            setTimeout(()=> outNode.style.transform = '', 200);
+            // remove original node element
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+            resolve();
+          }, 560);
+        });
+      }
+
+      function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+      stepBtn.addEventListener('click', async ()=>{
+        try {
+          await stepAlgo();
+        } catch (e){
+          console.error(e);
+        }
+      });
+
+      resetAlgoBtn.addEventListener('click', ()=>{
+        resetAlgoState();
+        recomputeAlgo();
+      });
+
+      autoBtn.addEventListener('click', ()=>{
+        if (!algoState){
+          initAlgoState();
+        }
+        if (!autoplay){
+          autoplay = true;
+          autoBtn.textContent = 'Pause ⏸';
+          algoState.autoplayTimer = setInterval(async () => {
+            if (!algoState) return;
+            if (algoState.queue.length === 0){
+              clearInterval(algoState.autoplayTimer);
+              algoState.autoplayTimer = null;
+              autoplay = false;
+              autoBtn.textContent = 'Autoplay ▶';
+              // finish condition
+              if (algoState.removed.size < nodes.length){
+                cycleBanner.classList.add('show');
+              }
+              return;
+            }
+            await stepAlgo();
+          }, 850);
+        } else {
+          autoplay = false;
+          autoBtn.textContent = 'Autoplay ▶';
+          if (algoState && algoState.autoplayTimer){
+            clearInterval(algoState.autoplayTimer);
+            algoState.autoplayTimer = null;
+          }
+        }
+      });
+
+      // window resize: update edges
+      window.addEventListener('resize', ()=>{
+        updateAllEdges();
+      });
+
+      // helper: populate a sample DAG on first load
+      function sampleGraph(){
+        clearGraph();
+        const rect = graphWrap.getBoundingClientRect();
+        const midX = rect.width/2 || 320;
+        const midY = rect.height/2 || 180;
+        addNodeAt(midX-160, midY-60); // A
+        addNodeAt(midX-60, midY-130); // B
+        addNodeAt(midX+40, midY-60); // C
+        addNodeAt(midX+140, midY+20); // D
+        addNodeAt(midX-60, midY+80); // E
+        // add some edges: A->C, A->E, B->C, C->D, E->D
+        setTimeout(()=>{
+          addEdge(1,3);
+          addEdge(1,5);
+          addEdge(2,3);
+          addEdge(3,4);
+          addEdge(5,4);
+        }, 120);
+      }
+
+      // initial load
+      sampleGraph();
+      // initial edge positions may need update after nodes add
+      setTimeout(()=> updateAllEdges(), 240);
+
+      // keyboard: delete selected node if focused
+      document.addEventListener('keydown', (ev)=>{
+        const active = document.activeElement;
+        if (active && active.classList && active.classList.contains('node')){
+          if (ev.key === 'Delete' || ev.key === 'Backspace'){
+            const id = parseInt(active.dataset.id,10);
+            removeNode(id);
+          } else if (ev.key === 'e' || ev.key === 'E'){
+            toggleAddEdgeMode(true);
+          }
+        }
+      });
+
+      // small instruction for user agents without pointer: enable touch
+      graphWrap.addEventListener('touchstart', ()=>{}, {passive:true});
+    })();
+  </script>
+</body>
+</html>

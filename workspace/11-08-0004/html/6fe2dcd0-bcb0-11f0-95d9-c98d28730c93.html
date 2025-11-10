@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Set Explorer — Interactive Module</title>
+  <style>
+    :root{
+      --safe:24px;
+      --gap:16px;
+      --card-w:120px;
+      --card-h:170px;
+      --bg:#f7fafc;
+      --panel:#ffffff;
+      --muted:#6b7280;
+      --accent:#0ea5a4;
+      --success:#16a34a;
+      --danger:#ef4444;
+      --focus: 3px solid rgba(14,165,164,0.18);
+      --radius:12px;
+      --shadow: 0 6px 18px rgba(15,23,42,0.08);
+      --min-touch:44px;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background:linear-gradient(180deg,#f8fafc 0%, #eef2f7 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#0f172a;
+    }
+    /* Safe area margins */
+    .app{
+      padding:var(--safe);
+      box-sizing:border-box;
+      min-height:100vh;
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+    }
+    /* Layout: left column instructions, center board, right sidebar */
+    .col{
+      background:var(--panel);
+      border-radius:var(--radius);
+      padding:16px;
+      box-shadow:var(--shadow);
+      box-sizing:border-box;
+    }
+    .left{
+      width:320px;
+      min-width:220px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .center{
+      flex:1 1 680px;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+    .right{
+      width:300px;
+      min-width:220px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    h1{
+      margin:0;
+      font-size:20px;
+      letter-spacing:-0.2px;
+    }
+    p.lead{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* Controls */
+    .controls{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-top:8px;
+    }
+    button.control{
+      background:#fff;
+      border:1px solid #e6e9ef;
+      padding:8px 12px;
+      border-radius:10px;
+      font-size:13px;
+      cursor:pointer;
+      min-height:var(--min-touch);
+    }
+    button.control:focus{outline:none; box-shadow:var(--focus);}
+    .primary{
+      background:linear-gradient(180deg,#06b6d4,#0891b2);
+      color:white;
+      border:none;
+    }
+    .muted{
+      background:#fff;
+      color:var(--muted);
+    }
+    .danger{
+      background:linear-gradient(180deg,#fb7185,#ef4444);
+      color:white;
+      border:none;
+    }
+
+    /* Board grid */
+    .board{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(var(--card-w),1fr));
+      gap:var(--gap);
+      justify-items:center;
+      align-items:start;
+      padding:8px;
+    }
+    /* Card styling */
+    .card{
+      width:var(--card-w);
+      height:var(--card-h);
+      border-radius:12px;
+      background:linear-gradient(180deg,#ffffff,#fbfdff);
+      border:1px solid #e6eef5;
+      box-shadow:0 4px 12px rgba(2,6,23,0.06);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      cursor:pointer;
+      transition:transform 240ms ease, box-shadow 240ms ease, border-color 180ms;
+      user-select:none;
+    }
+    .card:focus{outline:none; box-shadow:var(--focus);}
+    .card[aria-pressed="true"]{
+      transform:translateY(-6px) scale(1.02);
+      border-color:var(--accent);
+      box-shadow: 0 10px 28px rgba(14,165,164,0.12);
+    }
+    .card.empty{
+      background:linear-gradient(180deg,#fbfdff,#f5fbff);
+      border:1px dashed #e6eef5;
+      color:var(--muted);
+      font-size:13px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    /* Selection/pulse/feedback */
+    .feedback{
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .info{
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    /* score/found sets area */
+    .found{
+      min-height:60px;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      padding:8px;
+      flex-wrap:wrap;
+    }
+    .mini{
+      width:48px;
+      height:64px;
+      border-radius:8px;
+      background:#fff;
+      border:1px solid #e6eef5;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:11px;
+      color:var(--muted);
+    }
+
+    /* animations */
+    @keyframes shake {
+      0%{ transform:translateX(0) }
+      25%{ transform:translateX(-8px) }
+      50%{ transform:translateX(8px) }
+      75%{ transform:translateX(-6px) }
+      100%{ transform:translateX(0) }
+    }
+    .shake{
+      animation:shake 420ms cubic-bezier(.36,.07,.19,.97);
+    }
+    @keyframes pop {
+      0%{ transform:scale(.98) }
+      50%{ transform:scale(1.06) }
+      100%{ transform:scale(1) }
+    }
+    .pop{ animation:pop 320ms ease; }
+
+    /* accessibility: card focus indicator for keyboard nav */
+    .card:focus-visible{
+      outline:none;
+      box-shadow:var(--focus);
+    }
+
+    /* small screens: stack */
+    @media (max-width:1000px){
+      .app{ flex-direction:column; }
+      .left, .right { width:100%; order:2; }
+      .center{ order:1; width:100%;}
+    }
+
+    /* Right panel info list */
+    dl{ margin:0; }
+    dt{ font-weight:600; font-size:13px; color:#111827; }
+    dd{ margin:0 0 12px 0; color:var(--muted); font-size:13px; }
+    .tag { display:inline-block; padding:6px 8px; border-radius:8px; background:#f1f5f9; color:#0f172a; font-size:12px; margin-right:8px; }
+
+    /* Selection analysis rows */
+    .analysis { display:flex; flex-direction:column; gap:8px; }
+    .row { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+    .row .status { font-weight:600; padding:4px 8px; border-radius:8px; font-size:12px; }
+    .ok{ background:#ecfdf5; color:var(--success); border:1px solid rgba(16,185,129,0.08); }
+    .bad{ background:#fff1f2; color:var(--danger); border:1px solid rgba(239,68,68,0.08); }
+
+    /* overlay attribute badges on cards */
+    .attr-overlay{
+      position:absolute;
+      left:8px;
+      top:8px;
+      display:flex;
+      gap:6px;
+    }
+    .badge{
+      background:rgba(15,23,42,0.06);
+      padding:4px 6px;
+      border-radius:6px;
+      font-size:11px;
+      color:#0f172a;
+    }
+
+    /* subtle transitions */
+    svg.shape { transition: transform 200ms ease; }
+    .card[aria-pressed="true"] svg.shape { transform:translateY(-4px); }
+
+    /* Hint highlight */
+    .hint-highlight { box-shadow: 0 0 0 4px rgba(99,102,241,0.12); border-color: #6366f1; transform:translateY(-6px) scale(1.02); }
+
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Set interactive module">
+    <!-- Left column: Title & Instructions -->
+    <aside class="col left" aria-labelledby="title">
+      <div>
+        <h1 id="title">Set Explorer</h1>
+        <p class="lead">Discover and practice the Set rule by selecting three cards that form a valid Set.</p>
+      </div>
+
+      <div>
+        <strong>Concept Title</strong>
+        <p class="info">What makes a Set: for each attribute (number, shape, color, shading), the three cards must be all the same or all different.</p>
+      </div>
+
+      <div>
+        <strong>Learning Objective</strong>
+        <p class="info">After using this module, you'll be able to recognize valid Sets quickly and understand attribute-wise why a group of three cards is or isn't a Set.</p>
+      </div>
+
+      <div>
+        <strong>Interaction Design</strong>
+        <p class="info">
+          Click or use keyboard (arrow keys + Enter/Space) to select cards. When three cards are selected the module checks them:
+        </p>
+        <ul style="margin:8px 0 0 16px; color:var(--muted); font-size:13px;">
+          <li>Correct Set: cards animate away to the found area and your score increases.</li>
+          <li>Incorrect: cards briefly shake and analysis shows which attributes fail.</li>
+          <li>Hint: reveals one card of a Set or shows a full Set.</li>
+        </ul>
+      </div>
+
+      <div class="controls" style="margin-top:8px;">
+        <button id="new" class="control primary" title="New deal (reshuffle deck)">New Game</button>
+        <button id="shuffle" class="control muted" title="Shuffle visible cards">Shuffle</button>
+        <button id="hint" class="control muted" title="Reveal hint">Hint</button>
+        <button id="show" class="control muted" title="Show one full Set">Show Set</button>
+        <button id="more" class="control muted" title="Deal 3 more cards when available">Deal 3</button>
+      </div>
+
+      <div style="margin-top:10px;">
+        <strong>Layout Description</strong>
+        <p class="info">Left: instructions and controls. Center: the card board (default 12 cards). Right: selection analysis, score, found Sets. The layout respects 24px safe margins and 16px gaps. It's responsive: columns stack on small screens. Keyboard focus and semantic HTML improve accessibility.</p>
+      </div>
+    </aside>
+
+    <!-- Center: Board -->
+    <main class="col center" role="main" aria-live="polite">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div style="display:flex; flex-direction:column;">
+          <strong>Board</strong>
+          <span class="info">Select three cards to test for a Set.</span>
+        </div>
+        <div class="feedback" aria-hidden="true">
+          <div class="info">Selected: <span id="sel-count">0</span>/3</div>
+          <div id="status-msg" class="info" style="min-width:160px;"></div>
+        </div>
+      </div>
+
+      <section id="board" class="board" role="grid" aria-label="Set cards grid">
+        <!-- Cards inserted here -->
+      </section>
+
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; gap:12px; align-items:center;">
+          <div class="info">Score</div>
+          <div id="score" style="font-weight:700; font-size:18px;">0</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="info">Deck:</div>
+          <div id="deck-count" class="info">81</div>
+        </div>
+      </div>
+
+      <div style="margin-top:8px;">
+        <strong>Found Sets</strong>
+        <div id="found" class="found" aria-live="polite" aria-label="Found sets">
+          <!-- mini cards representing found sets -->
+        </div>
+      </div>
+    </main>
+
+    <!-- Right: Analysis -->
+    <aside class="col right" aria-label="Analysis and controls">
+      <div>
+        <strong>Selection Analysis</strong>
+        <p class="info">When three cards are chosen you'll see whether each attribute passes the Set rule.</p>
+      </div>
+
+      <div aria-live="polite">
+        <dl>
+          <dt>Selected Cards</dt>
+          <dd id="selected-list" class="info">—</dd>
+
+          <dt>Attribute Checks</dt>
+          <dd>
+            <div class="analysis" id="analysis">
+              <div class="row"><div>Number</div><div id="chk-number" class="status">—</div></div>
+              <div class="row"><div>Shape</div><div id="chk-shape" class="status">—</div></div>
+              <div class="row"><div>Color</div><div id="chk-color" class="status">—</div></div>
+              <div class="row"><div>Shading</div><div id="chk-fill" class="status">—</div></div>
+            </div>
+          </dd>
+
+          <dt>Tips</dt>
+          <dd class="info">Try to scan attributes one row at a time. If two cards share an attribute, the third must match them to be "all same". If two differ, the third must differ from both to be "all different".</dd>
+        </dl>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    /* Set Explorer — self-contained vanilla JS */
+    (function(){
+      // Utility
+      const qs=(s)=>document.querySelector(s);
+      const qsa=(s)=>Array.from(document.querySelectorAll(s));
+
+      // Attribute sets
+      const NUMS=[1,2,3];
+      const SHAPES=['diamond','oval','squiggle'];
+      const COLORS=['#ef4444','#16a34a','#7c3aed']; // red, green, purple
+      const FILLS=['solid','striped','open'];
+
+      // State
+      let deck=[]; // array of cards
+      let board=[]; // visible cards (max 12, sometimes 15)
+      let foundSets=[];
+      let selected=[]; // indexes into board
+      let score=0;
+
+      // Elements
+      const boardEl=qs('#board');
+      const foundEl=qs('#found');
+      const selCountEl=qs('#sel-count');
+      const statusMsg=qs('#status-msg');
+      const scoreEl=qs('#score');
+      const deckCountEl=qs('#deck-count');
+      const selectedListEl=qs('#selected-list');
+      const chkNumber=qs('#chk-number');
+      const chkShape=qs('#chk-shape');
+      const chkColor=qs('#chk-color');
+      const chkFill=qs('#chk-fill');
+
+      // Buttons
+      const btnNew=qs('#new');
+      const btnShuffle=qs('#shuffle');
+      const btnHint=qs('#hint');
+      const btnShow=qs('#show');
+      const btnMore=qs('#more');
+
+      // Build full deck of 81 cards
+      function makeDeck(){
+        const d=[];
+        for (let n of NUMS){
+          for (let s of SHAPES){
+            for (let c of COLORS){
+              for (let f of FILLS){
+                d.push({number:n,shape:s,color:c,fill:f});
+              }
+            }
+          }
+        }
+        return d;
+      }
+
+      // Shuffle
+      function shuffleArray(a){
+        for (let i=a.length-1;i>0;i--){
+          const j=Math.floor(Math.random()*(i+1));
+          [a[i],a[j]]=[a[j],a[i]];
+        }
+      }
+
+      // Deal initial board (12)
+      function dealInitial(){
+        deck=makeDeck();
+        shuffleArray(deck);
+        board=deck.splice(0,12);
+        foundSets=[];
+        selected=[];
+        score=0;
+        renderAll();
+      }
+
+      // Render all UI
+      function renderAll(){
+        renderBoard();
+        renderFound();
+        renderScore();
+        renderDeckCount();
+        clearAnalysis();
+      }
+
+      function renderBoard(){
+        boardEl.innerHTML='';
+        board.forEach((card, idx) => {
+          const btn=document.createElement('button');
+          btn.className='card';
+          btn.type='button';
+          btn.setAttribute('role','gridcell');
+          btn.setAttribute('aria-pressed','false');
+          btn.setAttribute('tabindex','0');
+          btn.dataset.index=idx;
+          btn.innerHTML = cardSVG(card);
+          // overlay badges
+          const overlay=document.createElement('div');
+          overlay.className='attr-overlay';
+          overlay.innerHTML=`<span class="badge">${card.number}</span><span class="badge">${card.shape[0].toUpperCase()}</span>`;
+          btn.appendChild(overlay);
+
+          // event handlers
+          btn.addEventListener('click', ()=>toggleSelect(idx, btn));
+          btn.addEventListener('keydown',(e)=>handleCardKey(e, idx, btn));
+
+          boardEl.appendChild(btn);
+        });
+      }
+
+      // SVG drawing function builds shapes using inline SVG.
+      function cardSVG(card){
+        // create stripe pattern and shape group
+        const color=card.color;
+        const fill=card.fill;
+        const n=card.number;
+        const shape=card.shape;
+        const shapes=[];
+        // vertical positions
+        const positions = n===1 ? [0] : (n===2 ? [-28,28] : [-40,0,40]);
+        positions.forEach((y, i)=>{
+          shapes.push(drawShape(shape, color, fill, y));
+        });
+        const svg = `
+          <svg viewBox="-70 -90 140 180" width="100%" height="100%" class="shape" aria-hidden="true">
+            <defs>
+              <pattern id="stripes" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+                <rect width="3" height="6" fill="rgba(255,255,255,0.6)"></rect>
+              </pattern>
+            </defs>
+            <g>${shapes.join('')}</g>
+          </svg>`;
+        return svg;
+      }
+
+      function drawShape(type, color, fill, y){
+        const strokeWidth = 3;
+        const common = `stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"`;
+        if (type==='diamond'){
+          const path='M0 -20 L22 0 L0 20 L-22 0 Z';
+          if (fill==='solid') return `<g transform="translate(0 ${y})"><path d="${path}" fill="${color}" ${common}></path></g>`;
+          if (fill==='open') return `<g transform="translate(0 ${y})"><path d="${path}" fill="none" ${common}></path></g>`;
+          // striped
+          return `<g transform="translate(0 ${y})"><path d="${path}" fill="${color}" ${common}></path><path d="${path}" fill="url(#stripes)" opacity="0.6"></path></g>`;
+        }
+        if (type==='oval'){
+          if (fill==='solid') return `<g transform="translate(0 ${y})"><ellipse cx="0" cy="0" rx="24" ry="14" fill="${color}" ${common}></ellipse></g>`;
+          if (fill==='open') return `<g transform="translate(0 ${y})"><ellipse cx="0" cy="0" rx="24" ry="14" fill="none" ${common}></ellipse></g>`;
+          return `<g transform="translate(0 ${y})"><ellipse cx="0" cy="0" rx="24" ry="14" fill="${color}" ${common}></ellipse><ellipse cx="0" cy="0" rx="24" ry="14" fill="url(#stripes)" opacity="0.55"></ellipse></g>`;
+        }
+        // squiggle (approx path)
+        if (type==='squiggle'){
+          const path='M-30 -6 C -10 -22, 10 -22, 30 -6 C 10 6, -10 6, -30 22';
+          if (fill==='solid') return `<g transform="translate(0 ${y}) scale(0.9)"><path d="${path}" fill="${color}" ${common}></path></g>`;
+          if (fill==='open') return `<g transform="translate(0 ${y}) scale(0.9)"><path d="${path}" fill="none" ${common}></path></g>`;
+          return `<g transform="translate(0 ${y}) scale(0.9)"><path d="${path}" fill="${color}" ${common}></path><path d="${path}" fill="url(#stripes)" opacity="0.55"></path></g>`;
+        }
+        return '';
+      }
+
+      // Selection handling
+      function toggleSelect(idx, btnNode){
+        const i = selected.indexOf(idx);
+        if (i>-1){
+          selected.splice(i,1);
+          btnNode.setAttribute('aria-pressed','false');
+          btnNode.classList.remove('pop');
+        } else {
+          if (selected.length===3){
+            // If 3 already selected, reset to start new selection
+            clearSelections();
+          }
+          selected.push(idx);
+          btnNode.setAttribute('aria-pressed','true');
+          btnNode.classList.add('pop');
+        }
+        updateSelectionUI();
+        if (selected.length===3){
+          // slight delay for visual feedback
+          setTimeout(checkSelected, 220);
+        }
+      }
+
+      // keyboard navigation on card
+      function handleCardKey(e, idx, btn){
+        const key = e.key;
+        const focusables=Array.from(boardEl.querySelectorAll('.card'));
+        const pos = focusables.indexOf(btn);
+        if (key==='Enter' || key===' '){
+          e.preventDefault();
+          btn.click();
+        } else if (key==='ArrowRight' || key==='ArrowLeft' || key==='ArrowUp' || key==='ArrowDown'){
+          e.preventDefault();
+          // move focus in grid: simple calc using computed columns
+          const style = window.getComputedStyle(boardEl);
+          const colCount = getComputedColumns();
+          let newPos = pos;
+          if (key==='ArrowRight') newPos = Math.min(pos+1, focusables.length-1);
+          if (key==='ArrowLeft') newPos = Math.max(pos-1, 0);
+          if (key==='ArrowDown') newPos = Math.min(pos+colCount, focusables.length-1);
+          if (key==='ArrowUp') newPos = Math.max(pos-colCount, 0);
+          focusables[newPos].focus();
+        }
+      }
+
+      function getComputedColumns(){
+        // approximate number of columns by measuring first row
+        const width = boardEl.clientWidth;
+        const cardW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) + 16;
+        return Math.max(1, Math.floor(width / cardW));
+      }
+
+      function updateSelectionUI(){
+        selCountEl.textContent = selected.length;
+        // update selected list text
+        if (selected.length===0){
+          selectedListEl.textContent='—';
+          statusMsg.textContent='';
+        } else {
+          selectedListEl.textContent = selected.map(i=>formatCardShort(board[i])).join(' ∘ ');
+        }
+      }
+
+      function formatCardShort(c){
+        return `${c.number} ${c.shape} ${colorName(c.color)} ${c.fill}`;
+      }
+      function colorName(hex){
+        if (hex===COLORS[0]) return 'red';
+        if (hex===COLORS[1]) return 'green';
+        return 'purple';
+      }
+
+      // Clear selection visuals
+      function clearSelections(){
+        selected.forEach(i=>{
+          const el = boardEl.querySelector(`.card[data-index="${i}"]`);
+          if (el) {
+            el.setAttribute('aria-pressed','false');
+            el.classList.remove('pop','hint-highlight');
+          }
+        });
+        selected=[];
+        updateSelectionUI();
+        clearAnalysis();
+      }
+
+      // Check if selected three form a Set
+      function checkSelected(){
+        if (selected.length!==3) return;
+        const cards = selected.map(i=>board[i]);
+        const results = {
+          number: checkAttr(cards.map(c=>c.number)),
+          shape: checkAttr(cards.map(c=>c.shape)),
+          color: checkAttr(cards.map(c=>c.color)),
+          fill: checkAttr(cards.map(c=>c.fill))
+        };
+        // update analysis panel
+        renderAnalysis(results);
+        const pass = Object.values(results).every(v=>v==='allSame'||v==='allDifferent');
+        if (pass){
+          statusMsg.textContent='Correct! +1';
+          statusMsg.style.color='var(--success)';
+          // animate correct
+          animateCorrect(selected.slice());
+        } else {
+          statusMsg.textContent='Not a Set';
+          statusMsg.style.color='var(--danger)';
+          animateIncorrect(selected.slice(), results);
+        }
+      }
+
+      function checkAttr(values){
+        const uniq = Array.from(new Set(values.map(String)));
+        if (uniq.length===1) return 'allSame';
+        if (uniq.length===3) return 'allDifferent';
+        return 'fail';
+      }
+
+      function renderAnalysis(results){
+        const mapStatus = (v)=>{
+          if (v==='allSame') return {text:'All same', cls:'ok'};
+          if (v==='allDifferent') return {text:'All different', cls:'ok'};
+          return {text:'Mix', cls:'bad'};
+        };
+        const n=mapStatus(results.number); chkNumber.textContent=n.text; chkNumber.className=`status ${n.cls}`;
+        const s=mapStatus(results.shape); chkShape.textContent=s.text; chkShape.className=`status ${s.cls}`;
+        const c=mapStatus(results.color); chkColor.textContent=c.text; chkColor.className=`status ${c.cls}`;
+        const f=mapStatus(results.fill); chkFill.textContent=f.text; chkFill.className=`status ${f.cls}`;
+      }
+
+      function clearAnalysis(){
+        chkNumber.textContent='—'; chkNumber.className='status';
+        chkShape.textContent='—'; chkShape.className='status';
+        chkColor.textContent='—'; chkColor.className='status';
+        chkFill.textContent='—'; chkFill.className='status';
+        statusMsg.textContent='';
+        statusMsg.style.color='';
+      }
+
+      // Correct: animate cards to found area and replace them
+      function animateCorrect(indices){
+        // Mark UI
+        indices.forEach(i=>{
+          const el = boardEl.querySelector(`.card[data-index="${i}"]`);
+          if (el) el.classList.add('correct');
+        });
+        // create mini preview to add to found area
+        const minis = indices.map(i=>miniCard(board[i]));
+        // remove cards by index descending so splice doesn't shift earlier indices
+        const removed = [];
+        indices.sort((a,b)=>b-a).forEach(idx=>{
+          removed.push(board.splice(idx,1)[0]);
+        });
+        foundSets.push(removed);
+        score++;
+        renderScore();
+        // replace from deck if possible to keep 12 cards
+        const toAdd = Math.min(indices.length, deck.length);
+        for (let k=0;k<toAdd;k++){
+          board.push(deck.shift());
+        }
+        // Render quickly then animate adding mini cards
+        renderBoard();
+        // animate mini items into found area
+        minis.forEach(m=>{
+          foundEl.appendChild(m);
+          m.classList.add('pop');
+        });
+        renderDeckCount();
+        clearSelections();
+      }
+
+      function miniCard(card){
+        const el=document.createElement('div');
+        el.className='mini';
+        el.innerHTML = `<svg viewBox="-40 -54 80 108" width="36" height="48">${singleSmall(card)}</svg>`;
+        return el;
+      }
+
+      // small SVG for mini
+      function singleSmall(card){
+        const color=card.color;
+        const fill=card.fill;
+        const n=card.number;
+        const shape=card.shape;
+        const positions = n===1 ? [0] : (n===2 ? [-18,18] : [-28,0,28]);
+        const parts = positions.map(y=>{
+          return drawShape(shape,color,fill,y);
+        }).join('');
+        return `<defs><pattern id="ms" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)"><rect width="2" height="4" fill="rgba(255,255,255,0.6)"/></pattern></defs><g>${parts}</g>`;
+      }
+
+      // Incorrect: shake selected cards and show which attributes failed
+      function animateIncorrect(indices, results){
+        indices.forEach(i=>{
+          const el = boardEl.querySelector(`.card[data-index="${i}"]`);
+          if (el){
+            el.classList.add('shake');
+            el.classList.add('hint-highlight');
+            // remove classes after animation
+            setTimeout(()=>{ el.classList.remove('shake'); el.classList.remove('hint-highlight'); }, 600);
+          }
+        });
+        // leave selection so user can inspect analysis; clear after short delay
+        setTimeout(()=>{ clearSelections(); }, 800);
+      }
+
+      // Buttons
+      btnNew.addEventListener('click', ()=>dealInitial());
+      btnShuffle.addEventListener('click', ()=>{
+        shuffleArray(board);
+        renderBoard();
+        clearSelections();
+      });
+      btnMore.addEventListener('click', ()=>{
+        if (deck.length===0) return;
+        const add = Math.min(3, deck.length);
+        for (let i=0;i<add;i++) board.push(deck.shift());
+        renderBoard();
+        renderDeckCount();
+      });
+      btnHint.addEventListener('click', ()=>giveHint(false));
+      btnShow.addEventListener('click', ()=>giveHint(true));
+
+      // Hint function: if showFull true, reveal a complete Set on board
+      function giveHint(showFull){
+        // Find any set on current board
+        const indices = findAnySet(board);
+        if (!indices){
+          statusMsg.textContent='No Set on board (try dealing more)';
+          statusMsg.style.color='var(--muted)';
+          return;
+        }
+        if (showFull){
+          // highlight all three briefly
+          indices.forEach(i=>{
+            const el = boardEl.querySelector(`.card[data-index="${i}"]`);
+            if (el){
+              el.classList.add('hint-highlight');
+              setTimeout(()=>el.classList.remove('hint-highlight'),1200);
+            }
+          });
+        } else {
+          // reveal just one of the cards (first)
+          const first = indices[0];
+          const el = boardEl.querySelector(`.card[data-index="${first}"]`);
+          if (el){
+            el.classList.add('hint-highlight');
+            setTimeout(()=>el.classList.remove('hint-highlight'),1200);
+            statusMsg.textContent='A card highlighted is part of a Set';
+            statusMsg.style.color='var(--accent)';
+          }
+        }
+      }
+
+      function findAnySet(arr){
+        // return indices of any set or null
+        for (let i=0;i<arr.length;i++){
+          for (let j=i+1;j<arr.length;j++){
+            for (let k=j+1;k<arr.length;k++){
+              const trio=[arr[i],arr[j],arr[k]];
+              const ok = ['number','shape','color','fill'].every(attr=>{
+                const vals = new Set([trio[0][attr], trio[1][attr], trio[2][attr]]);
+                return vals.size===1 || vals.size===3;
+              });
+              if (ok) return [i,j,k];
+            }
+          }
+        }
+        return null;
+      }
+
+      // score and deck counters
+      function renderScore(){ scoreEl.textContent = score; }
+      function renderFound(){ foundEl.innerHTML = ''; foundSets.forEach((set, idx)=>{ foundEl.appendChild(miniCard(set[0])); }); }
+      function renderDeckCount(){ deckCountEl.textContent = deck.length; }
+
+      // Initialize
+      dealInitial();
+
+      // Accessibility: global keyboard to clear selection on Escape
+      window.addEventListener('keydown', (e)=>{
+        if (e.key==='Escape') {
+          clearSelections();
+        }
+      });
+
+      // Expose for testing in console (optional)
+      window.setExplorer = {deck,board,selected,findAnySet};
+
+    })();
+  </script>
+</body>
+</html>

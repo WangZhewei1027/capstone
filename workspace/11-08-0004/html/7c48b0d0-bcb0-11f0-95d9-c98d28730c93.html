@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Recursion — Interactive Call Stack Explorer</title>
+  <style>
+    :root{
+      --bg: #0f1720;
+      --panel: #0b1220;
+      --muted: #9aa4b2;
+      --accent: #7dd3fc;
+      --accent-2: #60a5fa;
+      --glass: rgba(255,255,255,0.03);
+      --success: #86efac;
+      --danger: #fb7185;
+      --gap: 16px; /* minimum spacing between interactive elements */
+      --safe-margin: 24px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    /* Safe area margins */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: var(--safe-margin);
+      background: linear-gradient(180deg,#071021 0%, #081424 60%);
+      color: #e6eef6;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      box-sizing: border-box;
+    }
+    *,*::before,*::after{box-sizing:inherit}
+
+    .container{
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    header.module-intro{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      gap: var(--gap);
+      flex-direction: column;
+    }
+
+    header h1{
+      margin: 0;
+      font-size: 1.35rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+    .meta{
+      display:flex;
+      gap: 24px;
+      flex-wrap:wrap;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .pill{
+      background: rgba(255,255,255,0.02);
+      padding: 8px 12px;
+      border-radius: 999px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-weight:600;
+      font-size:0.88rem;
+    }
+
+    /* Layout: left column (text/code) and right column (visual) on wide screens */
+    main.module{
+      display: grid;
+      gap: 24px;
+      grid-template-columns: 1fr;
+    }
+
+    @media(min-width: 920px){
+      main.module{
+        grid-template-columns: 420px 1fr;
+      }
+    }
+
+    /* Left column: description + code */
+    .left{
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+    }
+    .card{
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 20px rgba(2,6,23,0.6);
+      min-width: 0;
+    }
+    .card h2{
+      margin:0 0 8px 0;
+      font-size:1.05rem;
+      color:var(--accent-2);
+    }
+    .card p{ margin:0; color:var(--muted); line-height:1.5; font-size:0.95rem; }
+
+    /* Code block */
+    pre.code {
+      margin: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
+      border-radius: 8px;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+      color: #dbeafe;
+      font-size: 0.95rem;
+      overflow:auto;
+      white-space:pre;
+      line-height:1.45;
+    }
+    .code .line { display:block; padding: 2px 6px; border-radius:4px; }
+    .code .hl { background: linear-gradient(90deg, rgba(125,211,252,0.08), rgba(96,165,250,0.06)); color: #e6f9ff; box-shadow: inset 0 0 0 1px rgba(125,211,252,0.03); }
+
+    /* Right column: visualization area */
+    .visual{
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+    }
+
+    .controls{
+      display:flex;
+      gap: var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .controls .left-controls{ display:flex; gap: var(--gap); align-items:center; }
+    input[type=number]{
+      width:86px;
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.04);
+      background:transparent;
+      color:var(--muted);
+      font-weight:600;
+      font-size:0.95rem;
+    }
+    button{
+      padding:10px 12px;
+      border-radius:8px;
+      border:0;
+      cursor:pointer;
+      background:linear-gradient(180deg,var(--accent-2),var(--accent));
+      color:#021226;
+      font-weight:700;
+      letter-spacing:0.01em;
+      box-shadow: 0 6px 18px rgba(62,153,255,0.08);
+    }
+    button.ghost{
+      background: rgba(255,255,255,0.03);
+      color:var(--muted);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .small{
+      padding:8px 10px;
+      font-size:0.9rem;
+    }
+
+    .speed{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      color:var(--muted);
+      font-size:0.9rem;
+    }
+    input[type=range]{
+      -webkit-appearance:none;
+      appearance:none;
+      height:4px;
+      background:rgba(255,255,255,0.04);
+      border-radius:999px;
+      width:160px;
+    }
+    input[type=range]::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:16px; height:16px;
+      background:var(--accent);
+      border-radius:50%;
+      box-shadow:0 3px 10px rgba(125,211,252,0.25);
+    }
+
+    /* Visualization panel */
+    .viz-panel{
+      display:flex;
+      gap: var(--gap);
+      align-items:flex-start;
+      min-height: 320px;
+    }
+    .stack{
+      flex: 0 0 260px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
+      border-radius: 12px;
+      padding: 16px;
+      display:flex;
+      flex-direction:column-reverse; /* bottom is base of stack visually; we want top at top - we'll show top on top of column */
+      gap: 12px;
+      min-height: 240px;
+      position:relative;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+    }
+    .stack .label{
+      font-size:0.85rem;
+      color:var(--muted);
+      margin-bottom:6px;
+      position:absolute;
+      top:10px;
+      left:14px;
+    }
+
+    .frame{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 10px;
+      padding: 8px 10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      color: #e8f6ff;
+      border: 1px solid rgba(255,255,255,0.03);
+      transform-origin: top center;
+      transition: transform 320ms cubic-bezier(.2,.9,.2,1), opacity 240ms ease;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.5);
+      font-weight:700;
+      font-size:0.95rem;
+    }
+    .frame .left{
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    .frame .n{
+      min-width:36px;
+      height:36px;
+      background: rgba(255,255,255,0.03);
+      border-radius:8px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--accent);
+      font-weight:800;
+      font-size:1rem;
+    }
+    .frame .info{
+      color:var(--muted);
+      font-size:0.86rem;
+      line-height:1;
+      display:flex;
+      flex-direction:column;
+    }
+    .frame.highlight{
+      box-shadow: 0 8px 30px rgba(96,165,250,0.14), inset 0 0 0 1px rgba(96,165,250,0.04);
+      transform: scale(1.02);
+    }
+
+    .ret-badge{
+      background: linear-gradient(90deg,#60a5fa,#7dd3fc);
+      color:#021226;
+      padding:6px 10px;
+      border-radius:999px;
+      font-weight:800;
+      font-size:0.95rem;
+      min-width:48px;
+      text-align:center;
+      box-shadow: 0 6px 18px rgba(96,165,250,0.08);
+    }
+
+    /* Floating return animation: a temporary element that flies from popped frame to parent */
+    .floating{
+      position:absolute;
+      pointer-events:none;
+      background: linear-gradient(90deg,#7dd3fc,#60a5fa);
+      color:#021226;
+      padding:6px 10px;
+      border-radius:999px;
+      font-weight:800;
+      transform: translateY(0);
+      opacity:0;
+      transition: transform 700ms cubic-bezier(.2,.9,.2,1), opacity 400ms ease;
+      z-index: 30;
+      box-shadow: 0 10px 30px rgba(96,165,250,0.12);
+    }
+    .floating.show{
+      opacity:1;
+    }
+
+    /* Trace log / timeline */
+    .trace{
+      flex:1;
+      min-height:240px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
+      border-radius:12px;
+      padding:12px;
+      overflow:auto;
+      color:var(--muted);
+      font-size:0.95rem;
+    }
+    .trace .entry{
+      padding:8px 10px;
+      border-radius:8px;
+      margin-bottom:8px;
+      background: rgba(255,255,255,0.01);
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .trace .entry strong{ color: #e6f9ff; font-weight:800; min-width:56px; }
+
+    /* Footnote / accessibility hints */
+    .hint{ color:var(--muted); font-size:0.9rem; }
+
+    /* small helpers */
+    .muted{ color:var(--muted); font-size:0.92rem; }
+
+    /* Animate pulse on highlighted code */
+    .pulse {
+      animation: pulse 760ms ease;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(125,211,252,0.12); }
+      70% { box-shadow: 0 0 0 8px rgba(125,211,252,0); }
+      100% { box-shadow: 0 0 0 0 rgba(125,211,252,0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <header class="module-intro" aria-labelledby="title">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+        <div>
+          <h1 id="title">Recursion — Call Stack Explorer (Factorial)</h1>
+          <div class="meta">
+            <div class="pill" aria-hidden="true">Concept: Recursion & Call Stack</div>
+            <div class="pill" aria-hidden="true">Language: JavaScript (simulation)</div>
+            <div class="pill" aria-hidden="true">Interactive: Step through & animate</div>
+          </div>
+        </div>
+        <div style="min-width:180px;text-align:right;">
+          <div class="muted" style="font-size:0.9rem;">Safe margins: 24px · Spacing: ≥16px</div>
+        </div>
+      </div>
+
+      <!-- Required descriptive sections -->
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="min-width:240px; flex:1 1 300px;">
+          <h2 style="margin:12px 0 6px 0;">Learning Objective</h2>
+          <p>After exploring this module you will: (1) Visually understand how recursive calls create frames on the call stack; (2) Observe how base cases stop recursion and how return values propagate back up; (3) Use step controls and animation to build an intuition for the order of operations in recursion.</p>
+        </div>
+
+        <div style="min-width:240px; flex:1 1 300px;">
+          <h2 style="margin:12px 0 6px 0;">Interaction Design</h2>
+          <p>This module focuses on a single concrete example — computing factorial(n). Controls let you enter n (0–12), then Run, Step forward/back, or Play the animation. Each step updates:
+            <ul style="margin:6px 0 0 18px;padding:0;color:var(--muted)">
+              <li>Call-stack visualization: frames are pushed/popped with smooth transitions and the active frame is highlighted.</li>
+              <li>Code panel: the related line of code is highlighted to connect visual state with source code.</li>
+              <li>Trace log: textual entries slide in describing calls/returns.</li>
+              <li>Floating return badge: when a frame returns, its computed value animates toward the parent frame (visual feedback for return propagation).</li>
+            </ul>
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <main class="module" aria-label="Recursion Module">
+
+      <!-- LEFT: Explanation + Code -->
+      <section class="left" aria-labelledby="explain">
+        <div class="card" id="explain">
+          <h2>Concept Focus</h2>
+          <p>We demonstrate recursion by computing factorial(n). Recursion uses two key ideas: a base case (stops recursion) and a recursive case (calls the function itself). Each active function call is represented as a frame on the call stack. Frames are pushed when a function starts and popped when it returns.</p>
+        </div>
+
+        <div class="card" aria-labelledby="code-title">
+          <h2 id="code-title">Function (illustrative)</h2>
+          <pre class="code" aria-hidden="false" id="code-block">
+<span class="line" data-line="1">function factorial(n) {</span>
+<span class="line" data-line="2">  if (n &lt;= 1) return 1;           // base case</span>
+<span class="line" data-line="3">  return n * factorial(n - 1);    // recursive case</span>
+<span class="line" data-line="4">}</span>
+          </pre>
+          <p class="muted" style="margin-top:10px;">The code is simplified to focus on call/return. Watch how calls map to frames and which line executes at each step.</p>
+        </div>
+
+        <div class="card">
+          <h2>Layout Description</h2>
+          <p>The page uses a two-column responsive layout (stacked on narrow screens). Left column contains explanations and code. Right column contains interactive controls, a vertical call-stack visualization (frames), and a trace/timeline. Visual spacing follows the constraints: 24px safe margins and at least 16px between interactive elements. All interactive controls provide labels and keyboard focus — the design is responsive and readable on both mobile and desktops.</p>
+        </div>
+      </section>
+
+      <!-- RIGHT: Interactive Visualizer -->
+      <section class="visual" aria-label="Interactive Visualizer">
+        <div class="card controls" role="region" aria-label="Controls">
+          <div class="left-controls" aria-hidden="false">
+            <label for="input-n" class="muted" style="font-weight:700;">n</label>
+            <input id="input-n" type="number" min="0" max="12" value="5" aria-label="Enter n for factorial" />
+            <button id="btn-run" class="small" title="Generate trace and go to first step">Run</button>
+            <button id="btn-back" class="ghost small" title="Step backward">◀ Step</button>
+            <button id="btn-step" class="ghost small" title="Step forward">Step ▶</button>
+            <button id="btn-play" class="small" title="Play/Pause automatic stepping">Play ▶</button>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:12px;align-items:center">
+            <div class="speed" aria-hidden="false">
+              <label for="speed" class="muted" style="font-weight:700;">Speed</label>
+              <input id="speed" type="range" min="200" max="1600" step="100" value="800" aria-label="Animation speed" />
+            </div>
+            <div class="muted" id="status">Step 0 / 0</div>
+          </div>
+        </div>
+
+        <div class="viz-panel" role="region" aria-label="Visualization and trace">
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:260px;">
+            <div class="stack card" id="stack" aria-live="polite" aria-label="Call stack visualization">
+              <div class="label">Call Stack (top → bottom)</div>
+              <!-- frames will be injected here -->
+              <!-- floating return badges inserted absolutely within this stack container -->
+            </div>
+            <div class="hint card">Use keyboard: Tab to focus controls. Step and Play animate frames and show returns.</div>
+          </div>
+
+          <div class="trace card" id="trace" aria-live="polite" aria-label="Trace log">
+            <!-- trace entries injected here -->
+            <div style="color:var(--muted);font-size:0.95rem;padding:6px 2px;">Trace timeline: messages appear as recursion progresses.</div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (function(){
+      // Safe DOM references
+      const inputN = document.getElementById('input-n');
+      const btnRun = document.getElementById('btn-run');
+      const btnStep = document.getElementById('btn-step');
+      const btnBack = document.getElementById('btn-back');
+      const btnPlay = document.getElementById('btn-play');
+      const speedSlider = document.getElementById('speed');
+      const stackEl = document.getElementById('stack');
+      const traceEl = document.getElementById('trace');
+      const statusEl = document.getElementById('status');
+      const codeBlock = document.getElementById('code-block');
+
+      // Keep the snapshots of states
+      let snapshots = [];
+      let stepIndex = 0;
+      let playTimer = null;
+
+      // Utility: deep copy
+      function copyStack(s){ return s.map(f => ({ n: f.n, ret: f.ret })); }
+
+      // Build snapshots for factorial recursion up to n (reasonable n max 12)
+      function buildSnapshots(n){
+        const snaps = [];
+        const stack = [];
+
+        function snapshot(action, meta){
+          snaps.push({
+            stack: copyStack(stack),
+            action: action,
+            meta: meta || {}
+          });
+        }
+
+        function recurse(k){
+          // push frame
+          stack.push({ n: k, ret: undefined });
+          snapshot('push', { n: k });
+
+          if (k <= 1){
+            snapshot('base', { n: k, value: 1 });
+            // set return value on top
+            stack[stack.length-1].ret = 1;
+            snapshot('setRet', { n: k, value: 1 });
+            // pop
+            const popped = stack.pop();
+            snapshot('pop', { n: popped.n, value: popped.ret });
+            return 1;
+          } else {
+            const child = recurse(k - 1);
+            // Now set current top frame's return value
+            const top = stack[stack.length-1];
+            top.ret = k * child;
+            snapshot('combine', { n: k, child: child, value: top.ret });
+            const popped = stack.pop();
+            snapshot('pop', { n: popped.n, value: popped.ret });
+            return top.ret;
+          }
+        }
+
+        recurse(n);
+        return snaps;
+      }
+
+      // Render helpers
+      function clearChildren(el){ while(el.firstChild) el.removeChild(el.firstChild); }
+
+      function renderCodeHighlight(line){
+        // remove previous highlights
+        const lines = codeBlock.querySelectorAll('.line');
+        lines.forEach(l => l.classList.remove('hl','pulse'));
+        if (!line) return;
+        const el = codeBlock.querySelector('.line[data-line="'+line+'"]');
+        if (el){
+          el.classList.add('hl','pulse');
+          // remove pulse after animation to allow re-pulse later
+          setTimeout(()=> el.classList.remove('pulse'), 700);
+        }
+      }
+
+      // Main UI update for a given snapshot index
+      function updateUI(index, animateReturn){
+        if (!snapshots.length) return;
+        stepIndex = Math.max(0, Math.min(index, snapshots.length - 1));
+        const snap = snapshots[stepIndex];
+        // Update stack visual
+        renderStack(snap.stack, snap.action, snap.meta, animateReturn);
+        // Update trace
+        renderTraceEntry(snap);
+        // Update code highlight mapping:
+        // action -> code line mapping for illustrative purposes:
+        // push -> line 3 (recursion/enter), base -> line 2, combine -> line 3, setRet/pop -> line 3/2
+        let line = 1;
+        if (snap.action === 'push') line = 3;
+        if (snap.action === 'base' || snap.action === 'setRet') line = 2;
+        if (snap.action === 'combine') line = 3;
+        if (snap.action === 'pop') line = 3;
+        renderCodeHighlight(line);
+        // Update status
+        statusEl.textContent = 'Step ' + (stepIndex + 1) + ' / ' + snapshots.length;
+      }
+
+      function renderStack(frames, action, meta, animateReturn){
+        // We'll re-render the frames, with top at the top visual position
+        clearChildren(stackEl);
+
+        // Label is already part of DOM in markup; recreate to be safe
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = 'Call Stack (top → bottom)';
+        stackEl.appendChild(label);
+
+        // Create a floating container for possible animation
+        const floatingContainer = document.createElement('div');
+        floatingContainer.style.position = 'relative';
+        floatingContainer.style.minHeight = '8px';
+        stackEl.appendChild(floatingContainer);
+
+        // Add frames: frames array has top as first element or last?
+        // Our snapshots.stack copied in order of push/pop: earlier pushed first, so top is last element.
+        // To visually show top at top, iterate from last to first.
+        for (let i = frames.length - 1; i >= 0; i--){
+          const f = frames[i];
+          const frame = document.createElement('div');
+          frame.className = 'frame';
+          frame.setAttribute('role','group');
+          frame.setAttribute('aria-label','Frame n = ' + f.n + (f.ret !== undefined ? ', ret = ' + f.ret : ''));
+          // highlight the active (top) frame if it exists
+          if (i === frames.length - 1){
+            frame.classList.add('highlight');
+          }
+
+          const left = document.createElement('div');
+          left.className = 'left';
+          const nBadge = document.createElement('div');
+          nBadge.className = 'n';
+          nBadge.textContent = String(f.n);
+          const info = document.createElement('div');
+          info.className = 'info';
+          const line1 = document.createElement('div');
+          line1.textContent = 'n = ' + f.n;
+          const line2 = document.createElement('div');
+          line2.style.color = 'var(--muted)';
+          line2.style.fontSize = '0.85rem';
+          line2.textContent = f.ret !== undefined ? 'ret = ' + f.ret : 'waiting...';
+          info.appendChild(line1);
+          info.appendChild(line2);
+
+          left.appendChild(nBadge);
+          left.appendChild(info);
+
+          const retBadge = document.createElement('div');
+          retBadge.className = 'ret-badge';
+          retBadge.textContent = f.ret !== undefined ? String(f.ret) : '…';
+
+          frame.appendChild(left);
+          frame.appendChild(retBadge);
+
+          stackEl.appendChild(frame);
+        }
+
+        // If action was pop and a value exists, create a floating badge to animate toward the parent
+        if (action === 'pop' && meta && typeof meta.value !== 'undefined'){
+          // Create a floating bubble that appears near top-right of stack and moves slightly
+          const floatEl = document.createElement('div');
+          floatEl.className = 'floating';
+          floatEl.textContent = meta.value;
+          // position at bottom area then animate up slightly to center to suggest moving to parent
+          floatEl.style.left = 'calc(100% - 80px)';
+          floatEl.style.top = stackEl.offsetTop + 'px';
+          // Append to body so it can be absolutely positioned relative to viewport
+          document.body.appendChild(floatEl);
+          // Position it near where popped frame would be. We'll approximate with stackEl bounds.
+          const rect = stackEl.getBoundingClientRect();
+          // Start at slightly below the stack height (pop origin)
+          floatEl.style.left = (rect.left + rect.width - 88) + 'px';
+          floatEl.style.top = (rect.top + rect.height - 52) + 'px';
+          // Force a layout to enable transition
+          requestAnimationFrame(()=>{
+            floatEl.classList.add('show');
+            // Move toward slightly up-left (to parent)
+            floatEl.style.transform = 'translate(-40px, -82px)';
+            floatEl.style.transition = 'transform 700ms cubic-bezier(.2,.9,.2,1), opacity 500ms ease';
+          });
+          // Remove after animation
+          setTimeout(()=> {
+            floatEl.style.opacity = '0';
+            setTimeout(()=> { if (floatEl && floatEl.parentNode) floatEl.parentNode.removeChild(floatEl); }, 420);
+          }, 900);
+        }
+      }
+
+      function renderTraceEntry(snap){
+        // Create a human-readable message for the trace
+        const div = document.createElement('div');
+        div.className = 'entry';
+        let left = document.createElement('strong');
+        let msg = document.createElement('div');
+        msg.style.color = 'var(--muted)';
+        // Deduce message:
+        if (snap.action === 'push'){
+          left.textContent = 'CALL';
+          msg.textContent = 'factorial(' + snap.meta.n + ') called — frame pushed';
+        } else if (snap.action === 'base'){
+          left.textContent = 'BASE';
+          msg.textContent = 'Base case reached for n = ' + snap.meta.n + ' — will return 1';
+        } else if (snap.action === 'setRet'){
+          left.textContent = 'RETURN';
+          msg.textContent = 'Return value set to ' + snap.meta.value + ' for n = ' + snap.meta.n;
+        } else if (snap.action === 'combine'){
+          left.textContent = 'COMBINE';
+          msg.textContent = 'Computed ' + snap.meta.n + ' * ' + snap.meta.child + ' = ' + snap.meta.value;
+        } else if (snap.action === 'pop'){
+          left.textContent = 'POP';
+          msg.textContent = 'Frame for n = ' + snap.meta.n + ' popped, returned ' + snap.meta.value;
+        } else {
+          left.textContent = 'STEP';
+          msg.textContent = JSON.stringify(snap);
+        }
+        div.appendChild(left);
+        div.appendChild(msg);
+
+        // Insert at top so latest shows first
+        traceEl.insertBefore(div, traceEl.children[0] || null);
+        // Trim trace to a reasonable length
+        while (traceEl.childElementCount > 60) traceEl.removeChild(traceEl.lastChild);
+
+        // Add a small animation
+        div.style.transform = 'translateX(-8px)';
+        div.style.opacity = '0';
+        div.style.transition = 'transform 420ms ease, opacity 420ms ease';
+        requestAnimationFrame(()=> {
+          div.style.transform = 'translateX(0)';
+          div.style.opacity = '1';
+        });
+      }
+
+      // Controls behavior
+      btnRun.addEventListener('click', ()=> {
+        const n = Math.max(0, Math.min(12, parseInt(inputN.value || '0', 10)));
+        inputN.value = n;
+        snapshots = buildSnapshots(n);
+        stepIndex = 0;
+        // clear trace
+        traceEl.innerHTML = '';
+        // Add a starting message
+        const intro = document.createElement('div');
+        intro.className = 'entry';
+        intro.style.background = 'transparent';
+        intro.style.border = '0';
+        intro.style.padding = '6px 0';
+        intro.textContent = 'Trace for factorial(' + n + ') generated — ' + snapshots.length + ' snapshots.';
+        traceEl.appendChild(intro);
+        updateUI(0);
+      });
+
+      btnStep.addEventListener('click', ()=> {
+        if (!snapshots.length) return;
+        if (stepIndex < snapshots.length - 1){
+          updateUI(stepIndex + 1, true);
+        }
+      });
+
+      btnBack.addEventListener('click', ()=> {
+        if (!snapshots.length) return;
+        if (stepIndex > 0){
+          // For simplicity, we rebuild UI at previous snapshot without fancy return animation
+          updateUI(stepIndex - 1, false);
+        }
+      });
+
+      btnPlay.addEventListener('click', ()=> {
+        if (!snapshots.length) return;
+        if (playTimer){
+          // pause
+          clearInterval(playTimer);
+          playTimer = null;
+          btnPlay.textContent = 'Play ▶';
+        } else {
+          const delay = Math.max(100, parseInt(speedSlider.value,10) || 800);
+          btnPlay.textContent = 'Pause ■';
+          playTimer = setInterval(()=> {
+            if (stepIndex < snapshots.length - 1){
+              updateUI(stepIndex + 1, true);
+            } else {
+              clearInterval(playTimer);
+              playTimer = null;
+              btnPlay.textContent = 'Play ▶';
+            }
+          }, delay);
+        }
+      });
+
+      // Keyboard friendly: Enter on input triggers Run
+      inputN.addEventListener('keyup', (e)=> {
+        if (e.key === 'Enter') btnRun.click();
+      });
+
+      // Speed slider updates timer if playing
+      speedSlider.addEventListener('input', ()=> {
+        if (playTimer){
+          // restart with new speed
+          clearInterval(playTimer);
+          playTimer = null;
+          btnPlay.click(); // toggles play which will start again with new speed
+        }
+      });
+
+      // Initialize with default n
+      btnRun.click();
+
+      // Accessibility: ensure focus outline visible
+      document.addEventListener('keydown', function(e){
+        if (e.key === 'Tab') document.body.style.outline = 'none';
+      });
+    })();
+  </script>
+</body>
+</html>

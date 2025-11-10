@@ -1,0 +1,102 @@
+# Page snapshot
+
+```yaml
+- application "Depth First Search interactive module" [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Depth‑First Search (DFS) — Explorer
+      - generic [ref=e6]: Interactively step through DFS, watch the stack/call‑stack and edge traversal animations.
+    - generic [ref=e7]:
+      - generic [ref=e8]: "Tip: Click canvas to add nodes. Drag nodes to reposition. Toggle Connect to link nodes."
+      - button "↻ Reset Traversal" [ref=e9] [cursor=pointer]
+  - main [ref=e10]:
+    - complementary "Controls and instructions" [ref=e11]:
+      - heading "Learning Objective" [level=3] [ref=e12]
+      - paragraph [ref=e13]: Explore how DFS explores nodes deeply then backtracks. Compare recursive vs iterative stack behavior and control traversal order.
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - button "Play or pause traversal" [ref=e16] [cursor=pointer]: Play
+          - button "Step forward one micro-step" [ref=e17] [cursor=pointer]: Step
+          - button "Reset traversal and clear visited" [ref=e18] [cursor=pointer]: Reset
+        - generic [ref=e20]:
+          - generic [ref=e21]: Speed
+          - slider "Speed" [ref=e22]: "600"
+          - generic [ref=e23]: Delay between steps (ms)
+        - generic [ref=e24]:
+          - generic [ref=e25]: Algorithm Mode
+          - generic [ref=e26]:
+            - button "Iterative" [ref=e27] [cursor=pointer]
+            - button "Recursive" [ref=e28] [cursor=pointer]
+        - generic [ref=e29]:
+          - generic [ref=e30]: Neighbor Order
+          - generic [ref=e31]:
+            - button "By ID" [ref=e32] [cursor=pointer]
+            - button "By Angle" [ref=e33] [cursor=pointer]
+          - generic [ref=e34]: Angle order uses clockwise angle around node (visual exploration order).
+        - generic [ref=e35]:
+          - generic [ref=e36]: Editing
+          - generic [ref=e37]:
+            - button "Add Nodes" [ref=e38] [cursor=pointer]
+            - button "Connect" [ref=e39] [cursor=pointer]
+          - generic [ref=e40]: "Add: click empty canvas. Connect: click two nodes to create an undirected edge."
+        - generic [ref=e41]:
+          - generic [ref=e42]: Start Node
+          - combobox "Select starting node" [ref=e43]:
+            - option "Node 1" [selected]
+            - option "Node 2"
+            - option "Node 3"
+            - option "Node 4"
+            - option "Node 5"
+            - option "Node 6"
+            - option "Node 7"
+    - region "Graph canvas and editor" [ref=e44]:
+      - generic [ref=e45]:
+        - generic [ref=e46]: "Canvas: click to add nodes (Add mode). Drag nodes to move. Use Connect mode to link nodes."
+        - generic [ref=e47]:
+          - button "Clear Graph" [ref=e48] [cursor=pointer]
+          - button "Load Sample" [ref=e49] [cursor=pointer]
+      - img "Graph canvas" [ref=e50]:
+        - generic [ref=e59]:
+          - generic [ref=e60] [cursor=pointer]:
+            - generic: "1"
+          - generic [ref=e62] [cursor=pointer]:
+            - generic: "2"
+          - generic [ref=e64] [cursor=pointer]:
+            - generic: "3"
+          - generic [ref=e66] [cursor=pointer]:
+            - generic: "4"
+          - generic [ref=e68] [cursor=pointer]:
+            - generic: "5"
+          - generic [ref=e70] [cursor=pointer]:
+            - generic: "6"
+          - generic [ref=e72] [cursor=pointer]:
+            - generic: "7"
+      - generic [ref=e74]:
+        - generic [ref=e75]: "State: Idle"
+        - generic [ref=e76]: "Shortcuts: Space=Play/Pause · → = Step · Esc = Reset"
+    - complementary "State visualization" [ref=e77]:
+      - generic [ref=e78]:
+        - heading "Stack / Call Stack" [level=3] [ref=e79]
+        - generic [ref=e80]:
+          - text: "Mode:"
+          - strong [ref=e81]: Iterative
+      - heading "Visited Order" [level=4] [ref=e84]
+      - generic [ref=e86]:
+        - heading "Pseudocode" [level=4] [ref=e87]
+        - generic [ref=e88]:
+          - generic [ref=e89]: "1. DFS(node):"
+          - generic [ref=e90]: 2. mark node as visited
+          - generic [ref=e91]: "3. for each neighbor in neighbors(node):"
+          - generic [ref=e92]: "4. if neighbor not visited:"
+          - generic [ref=e93]: 5. DFS(neighbor)
+          - generic [ref=e95]: Iterative uses a stack to push neighbors and pop to visit. Lines mapped approximately.
+      - generic [ref=e96]:
+        - generic [ref=e97]:
+          - generic [ref=e98]: Start
+          - generic [ref=e100]: Active/On Stack
+          - generic [ref=e102]: Visited
+        - generic [ref=e104]: DFS Explorer · Vanilla JS
+  - contentinfo [ref=e105]:
+    - generic [ref=e106]: "Interactions: Add/Connect nodes, choose start node, step/play DFS."
+    - generic [ref=e107]: Accessible and responsive. No external libraries.
+```

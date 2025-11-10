@@ -1,0 +1,130 @@
+{
+  "topic": "Merge Sort Visualizer Interaction",
+  "description": "Finite state machine modeling the interactive behaviour of the Merge Sort visualizer: array initialization, step recording, playback, manual stepping, dragging/editing of bars, and visual animation cues (compare/take/done).",
+  "states": [
+    {
+      "name": "initializing",
+      "onEnter": "initialize array and UI (initArrayFromValues / renderBars) ; record steps (recordSteps) ; snapshot originalElementsSnapshot",
+      "onExit": "updateStatus()",
+      "on": {
+        "INIT_COMPLETE": "ready",
+        "ERROR": "ready"
+      }
+    },
+    {
+      "name": "recording",
+      "onEnter": "recordSteps() ; store originalElementsSnapshot ; reset currentStep to -1",
+      "onExit": "updateStatus()",
+      "on": {
+        "RECORD_END": "ready",
+        "RECORD_ERROR": "ready"
+      }
+    },
+    {
+      "name": "ready",
+      "onEnter": "renderBars() ; updateStatus() ; ensure playing=false ; set play button text 'Play ▶' ; highlightCodeFor({type:'enter'})",
+      "onExit": "clear transient visual cues (remove compare/take classes)",
+      "on": {
+        "CLICK_PLAY": "playing",
+        "TOGGLE_PLAY": "playing",
+        "STEP_FORWARD": "stepping",
+        "STEP_BACK": "stepping",
+        "CLICK_RANDOM": "recording",
+        "CHANGE_SIZE": "recording",
+        "LOAD_ARRAY": "recording",
+        "EDIT_BAR": "recording",
+        "DRAG_START": "dragging",
+        "CLICK_RESET": "ready",
+        "RESIZE": "ready"
+      }
+    },
+    {
+      "name": "playing",
+      "onEnter": "play() — start auto-tick timer using speedRange ; set play button text 'Pause ❚❚' ; playing=true",
+      "onExit": "stopPlaying() — clear timer ; set play button text 'Play ▶' ; playing=false",
+      "on": {
+        "AUTO_TICK": "stepping",
+        "CLICK_PLAY": "ready",
+        "TOGGLE_PLAY": "ready",
+        "STOP_PLAY": "ready",
+        "STEPS_EXHAUSTED": "completed",
+        "ERROR": "ready"
+      }
+    },
+    {
+      "name": "stepping",
+      "onEnter": "apply a single step (applyStep) ; highlight relevant pseudocode (highlightCodeFor) ; updateStack ; apply visual classes (compare/take/done) ; animateToPositions() if structural change",
+      "onExit": "clear transient 'compare'/'take' classes except 'done' markers ; update statusLine",
+      "on": {
+        "STEP_APPLIED": "ready",
+        "STEP_APPLIED_AND_FINISHED": "completed",
+        "ANIMATION_END": "ready",
+        "ERROR": "ready"
+      }
+    },
+    {
+      "name": "dragging",
+      "onEnter": "begin bar drag (pointerdown): set dragging=true, capture pointer, set pointer handlers",
+      "onExit": "end drag (pointerup): release capture, compute new order, renderBars(), resetVisualizer(true) -> recordSteps()",
+      "on": {
+        "DRAG_MOVE": "dragging",
+        "DRAG_END": "recording",
+        "DRAG_CANCEL": "ready"
+      }
+    },
+    {
+      "name": "resetting",
+      "onEnter": "rebuildToInitial() ; currentStep = -1 ; stopPlaying() ; updateStack(-1) ; highlightCodeFor({type:'enter'}) ; statusLine 'Reset to initial array'",
+      "onExit": "renderBars()",
+      "on": {
+        "RESET_DONE": "ready",
+        "RESET_ERROR": "ready"
+      }
+    },
+    {
+      "name": "completed",
+      "onEnter": "stopPlaying() ; set statusLine to indicate completion ; optionally keep final 'done' bar classes ; set play button to 'Play ▶'",
+      "onExit": "clear final annotations if reinitialized",
+      "on": {
+        "CLICK_RESET": "resetting",
+        "CLICK_PLAY": "ready",
+        "TOGGLE_PLAY": "ready",
+        "CHANGE_SIZE": "recording",
+        "CLICK_RANDOM": "recording",
+        "LOAD_ARRAY": "recording",
+        "EDIT_BAR": "recording"
+      }
+    }
+  ],
+  "events": [
+    "INIT",
+    "INIT_COMPLETE",
+    "RECORD_START",
+    "RECORD_END",
+    "RECORD_ERROR",
+    "CLICK_PLAY",
+    "CLICK_PAUSE",
+    "TOGGLE_PLAY",
+    "AUTO_TICK",
+    "STOP_PLAY",
+    "STEP_FORWARD",
+    "STEP_BACK",
+    "STEP_APPLIED",
+    "STEP_APPLIED_AND_FINISHED",
+    "STEPS_EXHAUSTED",
+    "ANIMATION_END",
+    "CLICK_RANDOM",
+    "CHANGE_SIZE",
+    "LOAD_ARRAY",
+    "EDIT_BAR",
+    "DRAG_START",
+    "DRAG_MOVE",
+    "DRAG_END",
+    "DRAG_CANCEL",
+    "CLICK_RESET",
+    "RESET_DONE",
+    "RESIZE",
+    "ERROR"
+  ],
+  "notes": "Modeling notes and simplifications:\n- recordSteps() and resetVisualizer() are modeled as a synchronous 'recording' state though in UI they execute synchronously. OnEnter 'recording' will populate the steps array and snapshot original elements.\n- Stepping (forward/back) is modeled in one 'stepping' state. The implementation differentiates forward/back by the event that triggered the transition (STEP_FORWARD vs STEP_BACK) and the applyStep() call parameters (reverse flag). After the step is applied the FSM receives STEP_APPLIED.\n- Playing uses an AUTO_TICK event driven by a timer (speedRange) — playing onEnter starts the timer, onExit clears it.\n- Animations (CSS transitions) are treated as part of the 'stepping' behavior. The code does not expose explicit animation-end callbacks, but a generic ANIMATION_END event is provided to model completion of visual transitions if needed.\n- Dragging and editing are local interactions that cause the array to be reinitialized and steps re-recorded. Drag end and edit-confirm result in entering the 'recording' state.\n- Resetting (Reset button) rebuilds the initial state without re-recording in the exact code but the FSM models it as a 'resetting' state that brings the app back to 'ready'.\n- 'completed' is reached when currentStep >= steps.length - 1; the app stops playing and shows final 'done' markings. From 'completed' most input that mutates the array triggers re-recording.\n- The FSM omits low-level DOM events (pointermove/pointerup handlers) in favor of higher-level semantic events (DRAG_MOVE/DRAG_END)."
+}

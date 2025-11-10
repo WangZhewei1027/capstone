@@ -1,0 +1,157 @@
+{
+  "topic": "Set Explorer Interaction",
+  "description": "Finite state machine modeling the interactive behaviors of the Set Explorer module: card selection, checking for a Set, correct/incorrect feedback, hints, dealing/shuffling/new game and related UI updates/animations.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "renderAll",
+      "onExit": "clearAnalysis",
+      "on": {
+        "CARD_SELECT": "one_selected",
+        "NEW_GAME": "idle",
+        "SHUFFLE_BOARD": "idle",
+        "DEAL_3": "idle",
+        "HINT": "hint_one",
+        "SHOW_SET": "hint_set",
+        "ESCAPE": "idle",
+        "CLEAR_SELECTIONS": "idle",
+        "NO_SET_FOUND": "no_set_message"
+      }
+    },
+    {
+      "name": "one_selected",
+      "onEnter": "updateSelectionUI",
+      "onExit": "renderBoard",
+      "on": {
+        "CARD_SELECT": "two_selected",
+        "CARD_DESELECT": "idle",
+        "NEW_GAME": "idle",
+        "SHUFFLE_BOARD": "idle",
+        "DEAL_3": "idle",
+        "HINT": "hint_one",
+        "SHOW_SET": "hint_set",
+        "ESCAPE": "idle",
+        "CLEAR_SELECTIONS": "idle"
+      }
+    },
+    {
+      "name": "two_selected",
+      "onEnter": "updateSelectionUI",
+      "onExit": "renderBoard",
+      "on": {
+        "CARD_SELECT": "three_selected_pending",
+        "CARD_DESELECT": "one_selected",
+        "NEW_GAME": "idle",
+        "SHUFFLE_BOARD": "idle",
+        "DEAL_3": "idle",
+        "HINT": "hint_one",
+        "SHOW_SET": "hint_set",
+        "ESCAPE": "idle",
+        "CLEAR_SELECTIONS": "idle"
+      }
+    },
+    {
+      "name": "three_selected_pending",
+      "onEnter": "startCheckTimer",
+      "onExit": "cancelCheckTimer",
+      "on": {
+        "TIMER_CHECK": "checking",
+        "CARD_DESELECT": "two_selected",
+        "NEW_GAME": "idle",
+        "SHUFFLE_BOARD": "idle",
+        "DEAL_3": "idle",
+        "HINT": "hint_one",
+        "SHOW_SET": "hint_set",
+        "ESCAPE": "idle",
+        "CLEAR_SELECTIONS": "idle"
+      }
+    },
+    {
+      "name": "checking",
+      "onEnter": "checkSelected_and_renderAnalysis",
+      "onExit": "clearAnalysisTimers",
+      "on": {
+        "CHECK_PASS": "correct_animating",
+        "CHECK_FAIL": "incorrect_animating",
+        "NEW_GAME": "idle",
+        "SHUFFLE_BOARD": "idle",
+        "DEAL_3": "idle",
+        "ESCAPE": "idle",
+        "CLEAR_SELECTIONS": "idle"
+      }
+    },
+    {
+      "name": "correct_animating",
+      "onEnter": "animateCorrect_replaceCards_updateScore_renderBoard_clearSelections",
+      "onExit": "finalizeCorrect",
+      "on": {
+        "ANIMATION_COMPLETE": "idle",
+        "NEW_GAME": "idle",
+        "SHUFFLE_BOARD": "idle",
+        "DEAL_3": "idle"
+      }
+    },
+    {
+      "name": "incorrect_animating",
+      "onEnter": "animateIncorrect_showShake_highlight_renderAnalysis_scheduleClearSelections",
+      "onExit": "removeIncorrectHighlights_clearSelections",
+      "on": {
+        "ANIMATION_COMPLETE": "idle",
+        "NEW_GAME": "idle",
+        "SHUFFLE_BOARD": "idle",
+        "DEAL_3": "idle"
+      }
+    },
+    {
+      "name": "hint_one",
+      "onEnter": "highlightSingleCard_timed(1200ms)",
+      "onExit": "removeHighlight",
+      "on": {
+        "HINT_TIMEOUT": "idle",
+        "NEW_GAME": "idle",
+        "SHUFFLE_BOARD": "idle",
+        "DEAL_3": "idle"
+      }
+    },
+    {
+      "name": "hint_set",
+      "onEnter": "highlightFullSet_timed(1200ms)",
+      "onExit": "removeHighlight",
+      "on": {
+        "HINT_TIMEOUT": "idle",
+        "NEW_GAME": "idle",
+        "SHUFFLE_BOARD": "idle",
+        "DEAL_3": "idle"
+      }
+    },
+    {
+      "name": "no_set_message",
+      "onEnter": "showNoSetMessage",
+      "onExit": "clearStatusMsg",
+      "on": {
+        "TIMEOUT": "idle",
+        "DEAL_3": "idle",
+        "NEW_GAME": "idle"
+      }
+    }
+  ],
+  "events": [
+    "CARD_SELECT",
+    "CARD_DESELECT",
+    "TIMER_CHECK",
+    "CHECK_PASS",
+    "CHECK_FAIL",
+    "ANIMATION_COMPLETE",
+    "NEW_GAME",
+    "SHUFFLE_BOARD",
+    "DEAL_3",
+    "HINT",
+    "SHOW_SET",
+    "HINT_TIMEOUT",
+    "NO_SET_FOUND",
+    "TIMEOUT",
+    "ESCAPE",
+    "CLEAR_SELECTIONS"
+  ],
+  "notes": "Mapping of FSM actions to implementation details and timings:\n- renderAll: dealInitial() or full UI render sequence (board, found, score, deck counters).\n- updateSelectionUI: update sel-count and selected-list text.\n- startCheckTimer: toggleSelect() starts a 220ms timeout before invoking checkSelected -> triggers TIMER_CHECK.\n- checkSelected_and_renderAnalysis: check attributes via checkAttr, render analysis rows and set status message. From here the code decides CHECK_PASS (all attributes allSame/allDifferent) or CHECK_FAIL.\n- animateCorrect_replaceCards_updateScore_renderBoard_clearSelections: animateCorrect marks cards, splices them from board, pushes mini-preview into found area, increments score, draws replacements from deck (synchronous in code), renderBoard and clearSelections are called. In code this executes immediately and leaves UI ready; an optional visual 'pop' animation runs on mini cards.\n- animateIncorrect_showShake_highlight_renderAnalysis_scheduleClearSelections: animateIncorrect adds 'shake' and 'hint-highlight' classes, removes highlight after ~600ms and clears selections after ~800ms. The analysis remains visible until selections are cleared.\n- hint_one and hint_set: giveHint(false/true) finds a set on board (findAnySet). If none, code sets statusMsg to 'No Set on board...' (event NO_SET_FOUND -> no_set_message). If a hint is shown, the highlighted classes are applied and removed after 1200ms (HINT_TIMEOUT). Hints do not change or clear current selection in the implementation; in this FSM hint states return to idle for simplicity — in the live app the hint returns the UI to the prior selection state (note: this FSM models that as returning to idle but implementers should treat hints as overlay actions that do not clear selection).\n- NEW_GAME: calls dealInitial() and resets deck/board/score/selected and renders UI immediately from any state.\n- SHUFFLE_BOARD: shuffles board array, re-renders and clears selections.\n- DEAL_3: deals up to 3 cards from the deck onto the board when available and updates deck counter.\n- ESCAPE / CLEAR_SELECTIONS: clearSelections() is bound to Escape and also applied by some flows and returns to idle.\n- Timings used by the implementation: check delay 220ms, incorrect highlight removal ~600ms, incorrect clear selection ~800ms, hint highlight 1200ms.\n- The FSM abstracts animations as states (correct_animating, incorrect_animating) and uses ANIMATION_COMPLETE/HINT_TIMEOUT/TIMEOUT events to signal timer-driven returns to idle. The real code triggers these via setTimeouts inline rather than custom events."
+}

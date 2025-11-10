@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Linear Regression Module</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --panel-bg: #ffffff;
+      --accent: #0b84ff;
+      --muted: #6b7280;
+      --success: #10b981;
+      --danger: #ef4444;
+      --shadow: 0 6px 18px rgba(11,132,255,0.08);
+      --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    /* Safe area + base */
+    html,body{
+      height:100%;
+      margin:0;
+      padding:0;
+      background: linear-gradient(180deg,#f6f8fb 0%, #ffffff 100%);
+      font-family: var(--font-sans);
+      color:#0f172a;
+    }
+
+    main{
+      box-sizing: border-box;
+      padding: var(--safe-margin);
+      min-height:100vh;
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+    }
+
+    /* Container: left column explanatory + right interactive */
+    .module{
+      width: min(1200px, 100%);
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap: var(--gap);
+      align-items:start;
+    }
+
+    /* Responsive: stack on narrow screens */
+    @media (max-width: 880px){
+      .module{
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Panels */
+    .panel{
+      background: var(--panel-bg);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      box-sizing: border-box;
+    }
+
+    .info{
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+      line-height:1.4;
+    }
+
+    h1{
+      margin:0;
+      font-size:18px;
+      letter-spacing: -0.2px;
+    }
+
+    .sub{
+      font-size:13px;
+      color:var(--muted);
+      margin:0;
+    }
+
+    .section-title{
+      font-weight:600;
+      margin:8px 0 4px 0;
+      font-size:13px;
+    }
+
+    /* Controls area */
+    .controls{
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+      margin-top:6px;
+    }
+
+    /* Small rows */
+    .row{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    label{
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    .btn{
+      background:var(--accent);
+      color:white;
+      border: none;
+      padding:8px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:13px;
+      box-shadow: 0 4px 12px rgba(11,132,255,0.12);
+      transition: transform .08s ease;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn.secondary{
+      background: transparent;
+      border: 1px solid #e6eefc;
+      color: #0b2340;
+      box-shadow:none;
+    }
+    .btn.ghost{
+      background:transparent;
+      color:var(--accent);
+      border:1px dashed #dbeeff;
+    }
+
+    .controls .group{
+      display:flex;
+      gap: var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    input[type="range"]{
+      width:180px;
+    }
+
+    .small{
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    .stat{
+      font-weight:700;
+      font-size:15px;
+      color:#0b2340;
+    }
+
+    /* Plot panel */
+    .plot-panel{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      min-height:420px;
+    }
+
+    .plot-area{
+      background: linear-gradient(180deg,#ffffff,#fbfdff);
+      border-radius:10px;
+      padding:12px;
+      box-sizing:border-box;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      overflow:hidden;
+      min-height:360px;
+    }
+
+    /* SVG styles */
+    svg{
+      width:100%;
+      height:100%;
+      touch-action: none;
+    }
+
+    .axis line{ stroke:#e6eefc; stroke-width:1; }
+    .axis text{ fill:var(--muted); font-size:12px; }
+    .grid line{ stroke:#f1f5f9; stroke-width:1; }
+    .point{ fill: var(--accent); stroke: white; stroke-width:1.5; cursor:grab; }
+    .point:active{ cursor:grabbing; }
+    .residual{ stroke: rgba(239,68,68,0.9); stroke-width:2; stroke-linecap:round; }
+    .pred-line{ stroke: #0b84ff; stroke-width:2.6; stroke-linecap:round; }
+    .ols-line{ stroke: #10b981; stroke-width:2.6; stroke-linecap:round; stroke-dasharray:6 6; }
+    .point-label{ font-size:11px; fill:#0f172a; }
+    .hint{
+      position:absolute;
+      right:12px;
+      top:12px;
+      background:rgba(255,255,255,0.75);
+      border-radius:8px;
+      padding:8px;
+      font-size:12px;
+      color:var(--muted);
+      box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+      pointer-events:none;
+    }
+
+    /* Footer stats */
+    .stats{
+      display:flex;
+      gap: 18px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top:6px;
+    }
+
+    .badge{
+      background:#f8fafc;
+      border-radius:8px;
+      padding:6px 10px;
+      font-size:13px;
+      color:var(--muted);
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    .controls .hint-keys{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    /* Accessibility focus */
+    button:focus, input:focus{
+      outline: 3px solid rgba(11,132,255,0.15);
+      outline-offset:2px;
+      border-radius:8px;
+    }
+
+    /* Minimum spacing rule: ensure children have margin-bottom if stacked */
+    .controls > * { margin-bottom: 0; }
+    .controls > :not(:last-child) { margin-bottom: var(--gap); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="module" role="main" aria-label="Interactive Linear Regression Module">
+    <!-- Left: Design plan and controls -->
+    <section class="panel" aria-labelledby="title">
+      <div class="info">
+        <h1 id="title">Linear Regression — Fit a Line to Data</h1>
+        <p class="sub">Interactive, hands-on exploration of simple linear regression (one input, one output).</p>
+
+        <div>
+          <div class="section-title">Learning Objective</div>
+          <p class="small">
+            After interacting with this module you will understand how a straight line can be fitted to data by:
+            1) computing the closed-form Ordinary Least Squares (OLS) solution, and
+            2) approaching the same solution iteratively via Gradient Descent (GD). You'll see residuals and the loss change as points move.
+          </p>
+        </div>
+
+        <div>
+          <div class="section-title">Interaction Design</div>
+          <p class="small">
+            - Click on the plot to add points. Drag points to reposition them. Double-click a point to remove it.
+            <br>- Toggle the OLS (closed-form) line and the GD line. Start/pause GD to watch parameter updates animated.
+            <br>- Adjust the learning rate slider to change the speed of gradient descent. Press "Step" to perform a single GD update.
+            <br>- Visual cues: The predicted line(s), vertical residuals (red), and numeric loss update in real-time.
+            These interactions reveal how data determines slope/intercept and how GD iteratively reduces mean squared error.
+          </p>
+        </div>
+
+        <div>
+          <div class="section-title">Layout Description</div>
+          <p class="small">
+            - Safe margins: 24px around the viewport; min spacing 16px between controls.
+            <br>- Left column: explanation and controls (buttons, sliders, toggles) sized for keyboard access.
+            <br>- Right column: large interactive plot (SVG) with axes, draggable points, animated lines, and a small floating hint.
+            <br>- Responsive: on narrow screens the left column stacks above the plot. Contrast and focus styles support accessibility.
+          </p>
+        </div>
+
+        <div class="section-title">Controls & Tips</div>
+        <div class="controls" role="region" aria-label="Controls">
+          <div class="group" style="align-items:center;">
+            <button id="btnClear" class="btn secondary" title="Clear all points">Clear</button>
+            <button id="btnUndo" class="btn ghost" title="Undo last point">Undo</button>
+            <button id="btnOLS" class="btn" title="Compute OLS line">Show OLS</button>
+          </div>
+
+          <div>
+            <div class="row">
+              <label for="lr">Learning rate</label>
+              <input id="lr" type="range" min="0.001" max="1" step="0.001" value="0.08" aria-label="Learning rate">
+              <div class="small" id="lrVal">0.080</div>
+            </div>
+            <div class="row">
+              <button id="btnGD" class="btn" aria-pressed="false">Start GD</button>
+              <button id="btnStep" class="btn secondary">Step</button>
+              <button id="btnResetParams" class="btn ghost">Reset to OLS</button>
+            </div>
+            <div class="row" style="align-items:center;">
+              <label><input id="chkResiduals" type="checkbox" checked> Show residuals</label>
+              <label><input id="chkShowOLS" type="checkbox" checked> Overlay OLS (green)</label>
+              <label><input id="chkShowGD" type="checkbox" checked> Show GD line (blue)</label>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-title">Current Fit</div>
+            <div class="stats" aria-live="polite">
+              <div class="badge">Slope (b1): <span id="slope" class="stat">—</span></div>
+              <div class="badge">Intercept (b0): <span id="intercept" class="stat">—</span></div>
+              <div class="badge">MSE: <span id="mse" class="stat">—</span></div>
+            </div>
+            <div class="row" style="margin-top:8px;">
+              <div class="small">Hints: Click plot to add. Drag to change. Double-click to remove.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Right: Interactive plot -->
+    <section class="panel plot-panel" aria-label="Plot area">
+      <div class="plot-area" id="plotArea">
+        <div class="hint" id="floatingHint">Click to add points • Drag to move • Double-click to remove</div>
+        <svg id="plotSVG" viewBox="0 0 600 600" role="img" aria-label="Scatter plot for linear regression">
+          <!-- Background grid & axes (drawn by script) -->
+          <g id="grid"></g>
+          <g id="axes"></g>
+          <g id="lines"></g>
+          <g id="residuals"></g>
+          <g id="points"></g>
+        </svg>
+      </div>
+
+      <div class="stats" style="justify-content:flex-start;">
+        <div class="badge">Points: <span id="ptCount">0</span></div>
+        <div class="badge">GD running: <span id="gdState">Paused</span></div>
+        <div class="badge">Learning rate: <span id="lrState">0.080</span></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+/*
+  Interactive Linear Regression Module
+  - Add/drag/double-click to remove points
+  - Show OLS (closed form) and GD (animated) lines
+  - Visual residuals and numeric MSE
+  - No external libraries; vanilla JS + SVG
+*/
+
+/* ====== Configuration & State ====== */
+const svg = document.getElementById('plotSVG');
+const gridG = document.getElementById('grid');
+const axesG = document.getElementById('axes');
+const linesG = document.getElementById('lines');
+const residualsG = document.getElementById('residuals');
+const pointsG = document.getElementById('points');
+
+const ptCountEl = document.getElementById('ptCount');
+const slopeEl = document.getElementById('slope');
+const interceptEl = document.getElementById('intercept');
+const mseEl = document.getElementById('mse');
+const gdStateEl = document.getElementById('gdState');
+const lrStateEl = document.getElementById('lrState');
+
+const btnClear = document.getElementById('btnClear');
+const btnUndo = document.getElementById('btnUndo');
+const btnOLS = document.getElementById('btnOLS');
+const btnGD = document.getElementById('btnGD');
+const btnStep = document.getElementById('btnStep');
+const btnResetParams = document.getElementById('btnResetParams');
+const chkResiduals = document.getElementById('chkResiduals');
+const chkShowOLS = document.getElementById('chkShowOLS');
+const chkShowGD = document.getElementById('chkShowGD');
+const lrInput = document.getElementById('lr');
+const lrVal = document.getElementById('lrVal');
+const lrState = document.getElementById('lrState');
+
+let points = []; // array of {x:0..1, y:0..1, id}
+let nextId = 1;
+
+/* Fit parameters for GD (b0 intercept, b1 slope) */
+let params = { b0: 0, b1: 0 };
+
+/* OLS closed-form params */
+let olsParams = null;
+
+/* GD control */
+let gdRunning = false;
+let rafId = null;
+
+/* SVG drawing area size */
+const viewSize = 600; // viewBox 0..600
+
+/* Minimum spacing and safe margins already handled via CSS */
+
+/* ====== Coordinate helpers ====== */
+/* Data coordinates: x and y both in [0,1] mapped to svg coordinates:
+   svgX = margin + x*(viewSize - 2*margin)
+   For simplicity we use full viewbox (0..600) and leave small internal padding */
+const pad = 40;
+function dataToSvgX(x){ return pad + x*(viewSize - 2*pad); }
+function dataToSvgY(y){ return viewSize - (pad + y*(viewSize - 2*pad)); } // invert y
+function svgToDataX(sx){ return Math.min(1, Math.max(0, (sx - pad) / (viewSize - 2*pad))); }
+function svgToDataY(sy){ return Math.min(1, Math.max(0, (viewSize - sy - pad) / (viewSize - 2*pad))); }
+
+/* ====== Drawing grid and axes ====== */
+function drawGrid(){
+  gridG.innerHTML = '';
+  axesG.innerHTML = '';
+
+  // 5x5 grid lines
+  for(let i=0;i<=5;i++){
+    const t = i/5;
+    // vertical
+    const x = dataToSvgX(t);
+    const vLine = document.createElementNS('http://www.w3.org/2000/svg','line');
+    vLine.setAttribute('x1', x); vLine.setAttribute('y1', pad);
+    vLine.setAttribute('x2', x); vLine.setAttribute('y2', viewSize-pad);
+    vLine.setAttribute('stroke', '#f1f5f9');
+    vLine.setAttribute('stroke-width', '1');
+    gridG.appendChild(vLine);
+    // horizontal
+    const y = dataToSvgY(t);
+    const hLine = document.createElementNS('http://www.w3.org/2000/svg','line');
+    hLine.setAttribute('x1', pad); hLine.setAttribute('y1', y);
+    hLine.setAttribute('x2', viewSize-pad); hLine.setAttribute('y2', y);
+    hLine.setAttribute('stroke', '#f1f5f9');
+    hLine.setAttribute('stroke-width', '1');
+    gridG.appendChild(hLine);
+
+    // axis labels bottom and left
+    const lblX = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lblX.setAttribute('x', x); lblX.setAttribute('y', viewSize - pad + 16);
+    lblX.setAttribute('text-anchor','middle');
+    lblX.setAttribute('fill','#6b7280');
+    lblX.setAttribute('font-size','11');
+    lblX.textContent = (t).toFixed(1);
+    axesG.appendChild(lblX);
+
+    const lblY = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lblY.setAttribute('x', pad - 12); lblY.setAttribute('y', y+4);
+    lblY.setAttribute('text-anchor','end');
+    lblY.setAttribute('fill','#6b7280');
+    lblY.setAttribute('font-size','11');
+    lblY.textContent = (t).toFixed(1);
+    axesG.appendChild(lblY);
+  }
+
+  // axis lines
+  const ax = document.createElementNS('http://www.w3.org/2000/svg','line');
+  ax.setAttribute('x1', pad); ax.setAttribute('y1', pad);
+  ax.setAttribute('x2', pad); ax.setAttribute('y2', viewSize-pad);
+  ax.setAttribute('stroke','#e6eefc'); ax.setAttribute('stroke-width','1');
+  axesG.appendChild(ax);
+
+  const ay = document.createElementNS('http://www.w3.org/2000/svg','line');
+  ay.setAttribute('x1', pad); ay.setAttribute('y1', viewSize-pad);
+  ay.setAttribute('x2', viewSize-pad); ay.setAttribute('y2', viewSize-pad);
+  ay.setAttribute('stroke','#e6eefc'); ay.setAttribute('stroke-width','1');
+  axesG.appendChild(ay);
+}
+
+/* ====== Points Handling & Interaction ====== */
+function renderPoints(){
+  pointsG.innerHTML = '';
+  for(const p of points){
+    const cx = dataToSvgX(p.x);
+    const cy = dataToSvgY(p.y);
+
+    // circle
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx', cx);
+    c.setAttribute('cy', cy);
+    c.setAttribute('r', 8);
+    c.setAttribute('class','point');
+    c.dataset.id = p.id;
+    c.setAttribute('tabindex','0');
+    c.setAttribute('role','button');
+    c.setAttribute('aria-label', `Point x ${p.x.toFixed(2)} y ${p.y.toFixed(2)}`);
+    pointsG.appendChild(c);
+
+    // small label with id
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x', cx + 12);
+    lbl.setAttribute('y', cy - 8);
+    lbl.setAttribute('class','point-label');
+    lbl.textContent = `#${p.id}`;
+    pointsG.appendChild(lbl);
+
+    // attach pointer events
+    attachDragHandlers(c, p);
+  }
+
+  ptCountEl.textContent = points.length;
+  updateFitsAndDraw();
+}
+
+function attachDragHandlers(elem, p){
+  let dragging = false;
+  let offset = {dx:0, dy:0};
+
+  function onPointerDown(e){
+    e.preventDefault();
+    dragging = true;
+    elem.setPointerCapture(e.pointerId);
+    elem.style.cursor = 'grabbing';
+    // compute offset
+    const rect = svg.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const curX = dataToSvgX(p.x), curY = dataToSvgY(p.y);
+    offset.dx = curX - sx;
+    offset.dy = curY - sy;
+  }
+
+  function onPointerMove(e){
+    if(!dragging) return;
+    const rect = svg.getBoundingClientRect();
+    const sx = e.clientX - rect.left + offset.dx;
+    const sy = e.clientY - rect.top + offset.dy;
+    const nx = svgToDataX(sx);
+    const ny = svgToDataY(sy);
+    p.x = nx; p.y = ny;
+    renderPoints(); // re-render; keeps dragging responsive
+  }
+
+  function onPointerUp(e){
+    if(!dragging) return;
+    dragging = false;
+    try{ elem.releasePointerCapture(e.pointerId); }catch(err){}
+    elem.style.cursor = 'grab';
+    updateFitsAndDraw();
+  }
+
+  function onDblClick(e){
+    // remove this point
+    points = points.filter(q => q.id !== p.id);
+    renderPoints();
+  }
+
+  elem.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  elem.addEventListener('dblclick', onDblClick);
+
+  // keyboard support: arrow move
+  elem.addEventListener('keydown', (ev) => {
+    let changed=false;
+    const step=0.01;
+    if(ev.key === 'ArrowLeft'){ p.x = Math.max(0, p.x - step); changed=true; }
+    if(ev.key === 'ArrowRight'){ p.x = Math.min(1, p.x + step); changed=true; }
+    if(ev.key === 'ArrowUp'){ p.y = Math.min(1, p.y + step); changed=true; }
+    if(ev.key === 'ArrowDown'){ p.y = Math.max(0, p.y - step); changed=true; }
+    if(changed){ ev.preventDefault(); renderPoints(); }
+    if(ev.key === 'Delete' || ev.key === 'Backspace'){ points = points.filter(q => q.id !== p.id); renderPoints(); }
+  });
+}
+
+/* Add point at svg coordinates */
+function addPointAtSvg(sx, sy){
+  const rect = svg.getBoundingClientRect();
+  const x = svgToDataX(sx);
+  const y = svgToDataY(sy);
+  points.push({ x, y, id: nextId++ });
+  renderPoints();
+}
+
+/* ====== Fit Calculations ====== */
+function computeOLS(){
+  if(points.length < 2) return null;
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  const n = xs.length;
+  const xm = xs.reduce((a,b)=>a+b,0)/n;
+  const ym = ys.reduce((a,b)=>a+b,0)/n;
+  let num = 0, den = 0;
+  for(let i=0;i<n;i++){
+    num += (xs[i]-xm)*(ys[i]-ym);
+    den += (xs[i]-xm)*(xs[i]-xm);
+  }
+  const b1 = den === 0 ? 0 : num/den;
+  const b0 = ym - b1*xm;
+  return { b0, b1 };
+}
+
+function predictY(b0,b1,x){ return b0 + b1*x; }
+
+function computeMSE(b0,b1){
+  if(points.length === 0) return 0;
+  const n = points.length;
+  let s = 0;
+  for(const p of points){
+    const e = predictY(b0,b1,p.x) - p.y;
+    s += e*e;
+  }
+  return s / n;
+}
+
+/* Gradient descent single update (batch) */
+function gdStep(b0,b1, lr){
+  const n = points.length;
+  if(n === 0) return { b0,b1 };
+  let db0 = 0, db1 = 0;
+  for(const p of points){
+    const pred = predictY(b0,b1,p.x);
+    const err = pred - p.y;
+    db0 += err;
+    db1 += err * p.x;
+  }
+  db0 = (2/n) * db0;
+  db1 = (2/n) * db1;
+  return { b0: b0 - lr*db0, b1: b1 - lr*db1, grad: {db0, db1} };
+}
+
+/* ====== Drawing fitted lines and residuals ====== */
+function updateFitsAndDraw(){
+  // compute OLS
+  olsParams = computeOLS();
+  // update UI numeric display with current params (prefer OLS if visible else GD)
+  slopeEl.textContent = params.b1.toFixed(3);
+  interceptEl.textContent = params.b0.toFixed(3);
+  mseEl.textContent = computeMSE(params.b0, params.b1).toFixed(5);
+  lrState.textContent = parseFloat(lrInput.value).toFixed(3);
+  // redraw predictive lines
+  drawLines();
+  drawResiduals();
+}
+
+function drawLines(){
+  linesG.innerHTML = '';
+  // GD line (params)
+  if(chkShowGD.checked){
+    const p1x = dataToSvgX(0), p1y = dataToSvgY(params.b0);
+    const p2x = dataToSvgX(1), p2y = dataToSvgY(params.b0 + params.b1*1);
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1', p1x); l.setAttribute('y1', p1y);
+    l.setAttribute('x2', p2x); l.setAttribute('y2', p2y);
+    l.setAttribute('class','pred-line');
+    l.setAttribute('opacity', '1');
+    linesG.appendChild(l);
+  }
+
+  // OLS line
+  if(olsParams && chkShowOLS.checked){
+    const p1x = dataToSvgX(0), p1y = dataToSvgY(olsParams.b0);
+    const p2x = dataToSvgX(1), p2y = dataToSvgY(olsParams.b0 + olsParams.b1*1);
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1', p1x); l.setAttribute('y1', p1y);
+    l.setAttribute('x2', p2x); l.setAttribute('y2', p2y);
+    l.setAttribute('class','ols-line');
+    linesG.appendChild(l);
+  }
+}
+
+function drawResiduals(){
+  residualsG.innerHTML = '';
+  if(!chkResiduals.checked) return;
+  if(points.length === 0) return;
+  for(const p of points){
+    const px = dataToSvgX(p.x);
+    const py = dataToSvgY(p.y);
+    const predY = dataToSvgY(predictY(params.b0, params.b1, p.x));
+    const r = document.createElementNS('http://www.w3.org/2000/svg','line');
+    r.setAttribute('x1', px); r.setAttribute('y1', py);
+    r.setAttribute('x2', px); r.setAttribute('y2', predY);
+    r.setAttribute('class','residual');
+    residualsG.appendChild(r);
+  }
+}
+
+/* ====== Animation loop for GD ====== */
+function startGD(){
+  if(gdRunning) return;
+  gdRunning = true;
+  btnGD.textContent = 'Pause GD';
+  btnGD.setAttribute('aria-pressed','true');
+  gdStateEl.textContent = 'Running';
+  animateGD();
+}
+function pauseGD(){
+  if(!gdRunning) return;
+  gdRunning = false;
+  btnGD.textContent = 'Start GD';
+  btnGD.setAttribute('aria-pressed','false');
+  gdStateEl.textContent = 'Paused';
+  if(rafId) cancelAnimationFrame(rafId);
+  rafId = null;
+}
+function animateGD(){
+  // do several micro-steps per frame for smoother changes
+  function stepFrame(){
+    if(!gdRunning) return;
+    if(points.length === 0) { pauseGD(); return; }
+    const lr = parseFloat(lrInput.value);
+    // do 3 steps per frame for faster convergence
+    for(let i=0;i<3;i++){
+      const res = gdStep(params.b0, params.b1, lr);
+      params.b0 = res.b0; params.b1 = res.b1;
+    }
+    // ease update by smoothing display of params (not necessary but nicer)
+    updateFitsAndDraw();
+    rafId = requestAnimationFrame(stepFrame);
+  }
+  rafId = requestAnimationFrame(stepFrame);
+}
+
+/* ====== Controls event wiring ====== */
+svg.addEventListener('pointerdown', (ev) => {
+  // only add a point if click not on an existing point (we rely on pointer events on circles)
+  const rect = svg.getBoundingClientRect();
+  const sx = ev.clientX - rect.left;
+  const sy = ev.clientY - rect.top;
+  // check hit testing using elementFromPoint
+  const topElem = document.elementFromPoint(ev.clientX, ev.clientY);
+  if(topElem && topElem.closest && topElem.closest('#points')) {
+    // clicking on a point; let its handler manage dragging
+    return;
+  }
+  // otherwise add a point
+  addPointAtSvg(sx, sy);
+});
+
+btnClear.addEventListener('click', () => {
+  points = [];
+  params = { b0: 0, b1: 0 };
+  olsParams = null;
+  renderPoints();
+});
+
+btnUndo.addEventListener('click', () => {
+  points.pop();
+  renderPoints();
+});
+
+btnOLS.addEventListener('click', () => {
+  // compute OLS and set params to it temporarily
+  if(!olsParams) {
+    olsParams = computeOLS();
+  }
+  if(olsParams) {
+    params.b0 = olsParams.b0;
+    params.b1 = olsParams.b1;
+    updateFitsAndDraw();
+  }
+});
+
+btnResetParams.addEventListener('click', () => {
+  olsParams = computeOLS();
+  if(olsParams){
+    params.b0 = olsParams.b0;
+    params.b1 = olsParams.b1;
+    updateFitsAndDraw();
+  }
+});
+
+btnGD.addEventListener('click', () => {
+  if(gdRunning) pauseGD(); else startGD();
+});
+btnStep.addEventListener('click', () => {
+  if(points.length === 0) return;
+  const lr = parseFloat(lrInput.value);
+  const r = gdStep(params.b0, params.b1, lr);
+  params.b0 = r.b0; params.b1 = r.b1;
+  updateFitsAndDraw();
+});
+
+lrInput.addEventListener('input', () => {
+  lrVal.textContent = parseFloat(lrInput.value).toFixed(3);
+  lrState.textContent = parseFloat(lrInput.value).toFixed(3);
+});
+
+/* toggles update */
+chkResiduals.addEventListener('change', updateFitsAndDraw);
+chkShowOLS.addEventListener('change', updateFitsAndDraw);
+chkShowGD.addEventListener('change', updateFitsAndDraw);
+
+/* keyboard shortcuts */
+window.addEventListener('keydown', (ev) => {
+  if(ev.key === 'g') { // toggle GD run/pause
+    if(gdRunning) pauseGD(); else startGD();
+  }
+  if(ev.key === 'o') { // compute OLS
+    olsParams = computeOLS();
+    if(olsParams){
+      params.b0 = olsParams.b0; params.b1 = olsParams.b1;
+      updateFitsAndDraw();
+    }
+  }
+  if(ev.key === 'c') { // clear
+    points = []; renderPoints();
+  }
+});
+
+/* Prevent accidental text selection while dragging on mobiles */
+svg.addEventListener('dragstart', (e) => e.preventDefault());
+
+/* ====== Initialization ====== */
+function init(){
+  drawGrid();
+  // initial example points
+  points = [
+    {x:0.12, y:0.25, id: nextId++},
+    {x:0.25, y:0.35, id: nextId++},
+    {x:0.45, y:0.54, id: nextId++},
+    {x:0.78, y:0.82, id: nextId++},
+  ];
+  // set params initially to OLS
+  olsParams = computeOLS();
+  if(olsParams){
+    params.b0 = olsParams.b0;
+    params.b1 = olsParams.b1;
+  }
+  renderPoints();
+
+  // Accessibility: announce initial lr
+  lrVal.textContent = parseFloat(lrInput.value).toFixed(3);
+  lrState.textContent = parseFloat(lrInput.value).toFixed(3);
+  gdStateEl.textContent = 'Paused';
+}
+init();
+
+/* Make module responsive to viewBox resizing */
+window.addEventListener('resize', () => {
+  drawGrid();
+  renderPoints();
+});
+
+</script>
+</body>
+</html>

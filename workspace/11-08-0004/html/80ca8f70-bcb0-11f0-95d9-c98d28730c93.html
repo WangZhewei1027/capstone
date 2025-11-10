@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Graph: Directed vs Undirected — Interactive Module</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #06b6d4;
+      --muted: #94a3b8;
+      --card: #0b1220;
+      --success: #10b981;
+      --danger: #ef4444;
+      --text: #e6eef6;
+      --glass: rgba(255,255,255,0.03);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      padding:0;
+      background:linear-gradient(180deg,#071227 0%, #071827 100%);
+      color:var(--text);
+    }
+
+    /* Safe area margins: 24px all sides */
+    .app{
+      padding: var(--safe-margin);
+      box-sizing:border-box;
+      min-height:100%;
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+    }
+
+    /* Layout: left pane info+controls, right pane canvas */
+    .left, .right{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:16px;
+      box-sizing:border-box;
+      min-width:0;
+    }
+
+    .left{
+      width:360px;
+      max-width:38%;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    .right{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    h1{
+      margin:0;
+      font-size:18px;
+      letter-spacing:0.2px;
+    }
+    p.small{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.4;
+    }
+
+    .card{
+      background:var(--glass);
+      border-radius:8px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    .controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:var(--gap);
+      align-items:center;
+    }
+
+    button, .toggle, select, input[type="number"]{
+      background:transparent;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,0.06);
+      padding:8px 10px;
+      border-radius:8px;
+      cursor:pointer;
+      min-height:40px;
+    }
+
+    button:focus, select:focus, input:focus{
+      outline:3px solid rgba(6,182,212,0.12);
+    }
+
+    .toggle{
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      padding:6px 10px;
+    }
+
+    .small-muted{
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* Canvas area */
+    .canvas-wrap{
+      position:relative;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .canvas{
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius:10px;
+      height:520px;
+      min-height:320px;
+      overflow:hidden;
+      border:1px dashed rgba(255,255,255,0.03);
+      position:relative;
+    }
+
+    svg{
+      width:100%;
+      height:100%;
+      display:block;
+      cursor:crosshair;
+      touch-action:none;
+    }
+
+    .toolbar{
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .legend{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* Node style */
+    .node{
+      fill: #07203a;
+      stroke: var(--accent);
+      stroke-width:2;
+      transition: transform 0.12s ease, filter 0.12s ease;
+      filter: drop-shadow(0 6px 18px rgba(0,0,0,0.5));
+    }
+
+    .node-label{
+      fill:var(--text);
+      font-size:12px;
+      pointer-events:none;
+      user-select:none;
+    }
+
+    .node.pulse{
+      animation:pop 280ms ease;
+    }
+
+    @keyframes pop {
+      from{ transform:scale(0.8); filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35)); }
+      to{ transform:scale(1); }
+    }
+
+    /* Edge style */
+    .edge{
+      stroke: rgba(255,255,255,0.14);
+      stroke-width:2.5;
+      transition: stroke 120ms ease, stroke-width 120ms ease;
+      cursor:pointer;
+    }
+
+    .edge.directed{
+      marker-end: url(#arrowhead);
+    }
+
+    .edge.highlight{
+      stroke:var(--accent);
+      stroke-width:4;
+    }
+
+    .edge.visited{
+      stroke:var(--success);
+      stroke-width:4;
+    }
+
+    .node.highlight{
+      transform:scale(1.06);
+      stroke-width:3;
+      stroke:var(--accent);
+    }
+
+    /* Edge weight label */
+    .weight-label{
+      fill:var(--muted);
+      font-size:11px;
+      pointer-events:none;
+      user-select:none;
+      background:transparent;
+    }
+
+    /* Info boxes */
+    .meta{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .status{
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .controls-right{
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    /* adjacency containers */
+    .adj{
+      display:flex;
+      gap:var(--gap);
+      flex-wrap:wrap;
+    }
+    .adj .card{
+      flex:1;
+      min-width:180px;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      color:var(--muted);
+      font-size:13px;
+    }
+    table th, table td{
+      padding:6px 8px;
+      border-bottom:1px dashed rgba(255,255,255,0.02);
+      text-align:center;
+    }
+    table th{
+      color:var(--text);
+      font-weight:600;
+    }
+
+    /* small helper */
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* responsive: stack panes */
+    @media (max-width:980px){
+      .app{
+        flex-direction:column;
+      }
+      .left{ width:100%; max-width:none; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="app" role="main" aria-label="Interactive Graph Module">
+    <!-- LEFT: Explanations + Controls -->
+    <aside class="left" aria-labelledby="module-title">
+      <div>
+        <h1 id="module-title">Graph: Directed vs Undirected</h1>
+        <p class="small">Explore how edges behave with and without direction. Create nodes, connect them, and visualize reachability and traversal respecting edge directions.</p>
+      </div>
+
+      <div class="card" aria-live="polite">
+        <strong>Learning Objective</strong>
+        <p class="small">
+          By interacting with this module you will:
+        </p>
+        <ul class="small-muted">
+          <li>See the visual difference between directed and undirected edges.</li>
+          <li>Observe how direction affects possible paths and traversal order.</li>
+          <li>Practice building small graphs and checking adjacency representations.</li>
+        </ul>
+      </div>
+
+      <div class="card" id="interaction-plan">
+        <strong>Interaction Design</strong>
+        <p class="small">
+          Actions you can try:
+        </p>
+        <ul class="small-muted">
+          <li>Click an empty spot in the canvas to create a node (A, B, C...)</li>
+          <li>Drag nodes to reposition them — edges update live.</li>
+          <li>Click one node then another to create an edge. Use the Graph Type control to choose Directed or Undirected for new edges.</li>
+          <li>Select an edge to edit weight or toggle/reverse direction.</li>
+          <li>Use "Find Path" to select start + end nodes and animate a BFS/DFS that respects direction — highlighted nodes/edges show the traversal.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <strong>Layout Description</strong>
+        <p class="small">
+          The interface is split: left column for explanations and controls, right column is an interactive SVG canvas. Spacing and margins follow accessibility guidelines — 24px safe margins and at least 16px between interactive elements. The design is responsive and keyboard-focusable.
+        </p>
+      </div>
+
+      <div class="card">
+        <strong>Controls</strong>
+        <div class="controls" role="region" aria-label="Graph controls">
+          <div style="min-width:150px;">
+            <label for="graph-type" class="small-muted">Graph Type</label><br />
+            <select id="graph-type" aria-label="Graph Type">
+              <option value="directed">Directed</option>
+              <option value="undirected">Undirected</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="small-muted">Traversal</label><br />
+            <select id="traversal-type" aria-label="Traversal Type">
+              <option value="bfs">BFS</option>
+              <option value="dfs">DFS</option>
+            </select>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button id="clear-btn" title="Remove all nodes and edges">Clear</button>
+            <button id="reset-layout" title="Reset node positions">Reset</button>
+          </div>
+        </div>
+
+        <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+          <div style="flex:1;">
+            <button id="pick-start" title="Click to pick a start node">Pick Start</button>
+          </div>
+          <div style="flex:1;">
+            <button id="pick-end" title="Click to pick an end node">Pick End</button>
+          </div>
+          <div style="flex:1;">
+            <button id="run-traversal" title="Animate traversal" aria-live="polite">Animate Path</button>
+          </div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <div class="small-muted">Edge editor (select an edge):</div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <input id="weight-input" type="number" step="1" min="0" placeholder="weight" aria-label="Edge weight" style="width:88px;" />
+            <button id="reverse-edge">Reverse</button>
+            <button id="toggle-directed">Toggle Dir</button>
+            <button id="delete-edge" style="background:transparent;color:var(--danger);">Delete</button>
+          </div>
+          <div id="edge-info" class="muted" style="margin-top:8px;">No edge selected</div>
+        </div>
+      </div>
+
+      <div class="card" aria-live="polite">
+        <strong>Tips</strong>
+        <ul class="small-muted">
+          <li>Creating an edge: click node A (it highlights), then click node B.</li>
+          <li>Directed edges show an arrowhead; undirected edges look like plain lines.</li>
+          <li>Traversal respects edge direction — directed edges only allow travel in their arrow direction.</li>
+        </ul>
+      </div>
+
+    </aside>
+
+    <!-- RIGHT: Canvas + adjacency -->
+    <main class="right" aria-label="Graph canvas and views">
+      <div class="toolbar">
+        <div class="legend">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="6" fill="#07203a" stroke="#06b6d4" stroke-width="2"></circle>
+            </svg>
+            <div class="small-muted">Nodes</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <svg width="40" height="16" viewBox="0 0 40 16" aria-hidden="true">
+              <line x1="2" y1="8" x2="38" y2="8" stroke="rgba(255,255,255,0.14)" stroke-width="2.5"></line>
+            </svg>
+            <div class="small-muted">Edges</div>
+          </div>
+        </div>
+
+        <div class="controls-right">
+          <div class="status" id="status">Click canvas to add nodes. Click node→node to connect.</div>
+        </div>
+      </div>
+
+      <div class="canvas-wrap">
+        <div class="canvas" id="canvas" role="application" aria-label="Graph drawing area" tabindex="0">
+          <!-- SVG will be inserted here -->
+          <svg id="svgroot" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#e6eef6" />
+              </marker>
+            </defs>
+            <!-- edges and nodes group -->
+            <g id="edges-layer" aria-hidden="false"></g>
+            <g id="weights-layer" aria-hidden="false"></g>
+            <g id="nodes-layer" aria-hidden="false"></g>
+          </svg>
+        </div>
+
+        <div style="display:flex; gap:var(--gap);">
+          <div class="card" style="flex:1;">
+            <strong>Adjacency List</strong>
+            <div id="adj-list" class="small-muted" style="margin-top:8px; font-family:monospace; white-space:pre-wrap; max-height:180px; overflow:auto;"></div>
+          </div>
+          <div class="card" style="width:280px;">
+            <strong>Adjacency Matrix</strong>
+            <div style="margin-top:8px; max-height:180px; overflow:auto;">
+              <table id="adj-matrix" role="table" aria-label="Adjacency matrix"></table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:var(--gap);">
+        <div class="card" style="flex:1;">
+          <strong>Current Selection</strong>
+          <div id="selection-info" class="muted" style="margin-top:8px;">No node selected.</div>
+        </div>
+
+        <div class="card" style="width:220px;">
+          <strong>Traversal Controls</strong>
+          <div style="margin-top:8px;">
+            <div class="small-muted">Start: <span id="start-label">—</span></div>
+            <div class="small-muted">End: &nbsp;&nbsp;&nbsp; <span id="end-label">—</span></div>
+            <div style="margin-top:8px;">
+              <button id="clear-selection">Clear Start/End</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    /*****************************************************************************
+     * Interactive Graph Module (vanilla JS)
+     *
+     * Features:
+     * - Click canvas to create nodes (A, B, C, ...).
+     * - Click node then another to create edge (Directed or Undirected based on Graph Type control).
+     * - Drag nodes to reposition; edges update live.
+     * - Select edges to edit weight/reverse/toggle/delete.
+     * - Pick start/end nodes and animate BFS/DFS traversal respecting direction.
+     * - Adjacency list and matrix update live.
+     *
+     * Accessibility:
+     * - Buttons and controls are focusable.
+     * - SVG has role and tabIndex to receive focus.
+     *
+     * Notes:
+     * - No external libraries or assets.
+     *****************************************************************************/
+
+    (function(){
+      // DOM references
+      const svg = document.getElementById('svgroot');
+      const nodesLayer = document.getElementById('nodes-layer');
+      const edgesLayer = document.getElementById('edges-layer');
+      const weightsLayer = document.getElementById('weights-layer');
+
+      const canvasWrap = document.getElementById('canvas');
+      const graphTypeSelect = document.getElementById('graph-type');
+      const traversalSelect = document.getElementById('traversal-type');
+      const status = document.getElementById('status');
+      const adjListEl = document.getElementById('adj-list');
+      const adjMatrixEl = document.getElementById('adj-matrix');
+      const selectionInfo = document.getElementById('selection-info');
+      const startLabel = document.getElementById('start-label');
+      const endLabel = document.getElementById('end-label');
+
+      const pickStartBtn = document.getElementById('pick-start');
+      const pickEndBtn = document.getElementById('pick-end');
+      const runTraversalBtn = document.getElementById('run-traversal');
+      const clearSelectionBtn = document.getElementById('clear-selection');
+
+      const weightInput = document.getElementById('weight-input');
+      const reverseEdgeBtn = document.getElementById('reverse-edge');
+      const toggleDirectedBtn = document.getElementById('toggle-directed');
+      const deleteEdgeBtn = document.getElementById('delete-edge');
+      const edgeInfo = document.getElementById('edge-info');
+
+      const clearBtn = document.getElementById('clear-btn');
+      const resetLayoutBtn = document.getElementById('reset-layout');
+
+      // Model
+      let nodes = []; // {id,label,x,y,elem,...}
+      let edges = []; // {id,from,to,directed,weight,elem,lineElem,weightElem}
+      let nodeCounter = 0;
+      let edgeCounter = 0;
+
+      // Interaction state
+      let creatingEdgeFrom = null;
+      let draggingNode = null;
+      let dragOffset = {x:0,y:0};
+      let selectedEdge = null;
+      let selectedNode = null;
+
+      let pickMode = null; // 'start' or 'end' or null
+      let startNode = null;
+      let endNode = null;
+
+      // Rendering helpers
+      function createSVGElement(tag, attrs){
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for(const k in attrs){
+          el.setAttribute(k, attrs[k]);
+        }
+        return el;
+      }
+
+      // Convert client coords to SVG coords
+      function clientToSvgCoords(clientX, clientY){
+        const rect = svg.getBoundingClientRect();
+        const x = (clientX - rect.left) * (svg.viewBox.baseVal.width || rect.width) / rect.width;
+        const y = (clientY - rect.top)  * (svg.viewBox.baseVal.height || rect.height) / rect.height;
+        return {x, y};
+      }
+
+      // For simplicity, use SVG's natural pixel coordinate matching client area
+      function getSVGPointFromEvent(evt){
+        const rect = svg.getBoundingClientRect();
+        return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+      }
+
+      // Node creation
+      function createNode(x, y){
+        const id = 'n' + (++nodeCounter);
+        const label = String.fromCharCode(64 + nodeCounter) || ('N' + nodeCounter);
+
+        const g = createSVGElement('g', { class: 'node-group', 'data-id': id, tabindex: -1 });
+        const circle = createSVGElement('circle', { class: 'node', cx: x, cy: y, r: 22, 'data-id': id });
+        const text = createSVGElement('text', { class: 'node-label', x: x, y: y + 4, 'text-anchor': 'middle', 'data-id': id });
+        text.textContent = label;
+
+        g.appendChild(circle);
+        g.appendChild(text);
+        nodesLayer.appendChild(g);
+
+        // store
+        const node = { id, label, x, y, elem: g, circle, text };
+        nodes.push(node);
+
+        // Interaction handlers
+        circle.addEventListener('mousedown', (e) => onNodeMouseDown(e, node));
+        circle.addEventListener('touchstart', (e) => onNodeTouchStart(e, node), {passive:false});
+        circle.addEventListener('click', (e) => onNodeClick(e, node));
+        g.addEventListener('keydown', (e) => {
+          if(e.key === 'Enter'){
+            onNodeClick(e, node);
+          }
+        });
+
+        // small animation feedback
+        circle.classList.add('pulse');
+        setTimeout(()=> circle.classList.remove('pulse'), 320);
+
+        updateAdjViews();
+        return node;
+      }
+
+      // Edge creation
+      function createEdge(fromNode, toNode, directed=false, weight=1){
+        // Prevent duplicate same-direction edges
+        const exists = edges.find(ed => ed.from === fromNode.id && ed.to === toNode.id && ed.directed === directed);
+        if(exists) return null;
+
+        const id = 'e' + (++edgeCounter);
+        const line = createSVGElement('line', { class: 'edge', x1: fromNode.x, y1: fromNode.y, x2: toNode.x, y2: toNode.y, 'data-id': id });
+        if(directed) line.setAttribute('marker-end','url(#arrowhead)');
+
+        // weight label
+        const midx = (fromNode.x + toNode.x)/2;
+        const midy = (fromNode.y + toNode.y)/2;
+        const wLabel = createSVGElement('text', { class: 'weight-label', x: midx, y: midy - 8, 'text-anchor': 'middle', 'data-id': id });
+        wLabel.textContent = weight;
+
+        edgesLayer.appendChild(line);
+        weightsLayer.appendChild(wLabel);
+
+        // store
+        const edge = { id, from: fromNode.id, to: toNode.id, directed, weight, elem: null, lineElem: line, weightElem: wLabel };
+        edges.push(edge);
+
+        // click handler for edge
+        line.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectEdge(edge);
+        });
+
+        // Double click to reverse quickly
+        line.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          reverseEdge(edge);
+        });
+
+        updateAdjViews();
+        return edge;
+      }
+
+      function updateEdgePosition(edge){
+        const from = nodes.find(n=>n.id === edge.from);
+        const to = nodes.find(n=>n.id === edge.to);
+        if(!from || !to) return;
+        edge.lineElem.setAttribute('x1', from.x);
+        edge.lineElem.setAttribute('y1', from.y);
+        edge.lineElem.setAttribute('x2', to.x);
+        edge.lineElem.setAttribute('y2', to.y);
+        const mx = (from.x + to.x)/2;
+        const my = (from.y + to.y)/2;
+        edge.weightElem.setAttribute('x', mx);
+        edge.weightElem.setAttribute('y', my - 8);
+      }
+
+      function updateNodePosition(node){
+        node.circle.setAttribute('cx', node.x);
+        node.circle.setAttribute('cy', node.y);
+        node.text.setAttribute('x', node.x);
+        node.text.setAttribute('y', node.y + 4);
+      }
+
+      // Event handlers
+      function onCanvasClick(e){
+        // If user is picking start/end
+        if(pickMode){
+          // clicking canvas when in pick mode cancels it
+          status.textContent = 'Pick canceled';
+          pickMode = null;
+          return;
+        }
+
+        // Create node at click
+        const rect = svg.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        createNode(x,y);
+        status.textContent = 'Node created';
+      }
+
+      function onNodeClick(e, node){
+        e.stopPropagation();
+        // handle pick mode
+        if(pickMode){
+          if(pickMode === 'start'){
+            startNode = node;
+            startLabel.textContent = node.label;
+            status.textContent = 'Start node set to ' + node.label;
+          } else if(pickMode === 'end'){
+            endNode = node;
+            endLabel.textContent = node.label;
+            status.textContent = 'End node set to ' + node.label;
+          }
+          pickMode = null;
+          return;
+        }
+
+        if(creatingEdgeFrom && creatingEdgeFrom !== node){
+          // create edge from creatingEdgeFrom -> node
+          const gtype = graphTypeSelect.value;
+          const directed = gtype === 'directed';
+          createEdge(creatingEdgeFrom, node, directed, 1);
+          status.textContent = 'Edge created ' + creatingEdgeFrom.label + (directed ? ' → ' : ' — ') + node.label;
+          unhighlightNode(creatingEdgeFrom);
+          creatingEdgeFrom = null;
+          updateAdjViews();
+          return;
+        }
+
+        // If clicking same node twice, start creating edge
+        if(creatingEdgeFrom === node){
+          // cancel
+          unhighlightNode(node);
+          creatingEdgeFrom = null;
+          status.textContent = 'Edge creation canceled';
+          return;
+        }
+
+        // Start edge creation mode
+        creatingEdgeFrom = node;
+        highlightNode(node);
+        status.textContent = 'Select target node to connect from ' + node.label;
+      }
+
+      function onNodeMouseDown(e, node){
+        e.preventDefault();
+        e.stopPropagation();
+        // Begin dragging
+        draggingNode = node;
+        const rect = svg.getBoundingClientRect();
+        dragOffset.x = e.clientX - rect.left - node.x;
+        dragOffset.y = e.clientY - rect.top - node.y;
+        // attach listeners to window to follow outside svg
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      }
+
+      function onNodeTouchStart(e, node){
+        e.preventDefault();
+        e.stopPropagation();
+        const touch = e.touches[0];
+        draggingNode = node;
+        const rect = svg.getBoundingClientRect();
+        dragOffset.x = touch.clientX - rect.left - node.x;
+        dragOffset.y = touch.clientY - rect.top - node.y;
+        window.addEventListener('touchmove', onTouchMove, {passive:false});
+        window.addEventListener('touchend', onTouchEnd);
+      }
+
+      function onMouseMove(e){
+        if(!draggingNode) return;
+        const rect = svg.getBoundingClientRect();
+        const x = e.clientX - rect.left - dragOffset.x;
+        const y = e.clientY - rect.top - dragOffset.y;
+        draggingNode.x = clamp(x, 30, rect.width-30);
+        draggingNode.y = clamp(y, 30, rect.height-30);
+        updateNodePosition(draggingNode);
+        // update connected edges
+        edges.forEach(updateEdgePosition);
+      }
+
+      function onTouchMove(e){
+        if(!draggingNode) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = svg.getBoundingClientRect();
+        const x = touch.clientX - rect.left - dragOffset.x;
+        const y = touch.clientY - rect.top - dragOffset.y;
+        draggingNode.x = clamp(x, 30, rect.width-30);
+        draggingNode.y = clamp(y, 30, rect.height-30);
+        updateNodePosition(draggingNode);
+        edges.forEach(updateEdgePosition);
+      }
+
+      function onMouseUp(e){
+        draggingNode = null;
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      }
+      function onTouchEnd(e){
+        draggingNode = null;
+        window.removeEventListener('touchmove', onTouchMove);
+        window.removeEventListener('touchend', onTouchEnd);
+      }
+
+      function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+      // Node highlight helpers
+      function highlightNode(node){
+        node.circle.classList.add('highlight');
+        node.text.classList.add('highlight');
+      }
+      function unhighlightNode(node){
+        node.circle.classList.remove('highlight');
+        node.text.classList.remove('highlight');
+      }
+
+      // Edge selection
+      function selectEdge(edge){
+        if(selectedEdge){
+          deselectEdge();
+        }
+        selectedEdge = edge;
+        edge.lineElem.classList.add('highlight');
+        edgeInfo.textContent = `Edge ${edge.id}: ${getNodeLabel(edge.from)} ${edge.directed ? '→' : '—'} ${getNodeLabel(edge.to)} (w=${edge.weight})`;
+        weightInput.value = edge.weight;
+        selectionInfo.textContent = 'Edge selected: ' + edge.id;
+      }
+
+      function deselectEdge(){
+        if(!selectedEdge) return;
+        selectedEdge.lineElem.classList.remove('highlight');
+        selectedEdge = null;
+        edgeInfo.textContent = 'No edge selected';
+        weightInput.value = '';
+        selectionInfo.textContent = 'No node selected.';
+      }
+
+      // Edge editing
+      function setEdgeWeight(edge, w){
+        edge.weight = w;
+        edge.weightElem.textContent = w;
+        edgeInfo.textContent = `Edge ${edge.id}: ${getNodeLabel(edge.from)} ${edge.directed ? '→' : '—'} ${getNodeLabel(edge.to)} (w=${edge.weight})`;
+        updateAdjViews();
+      }
+
+      function reverseEdge(edge){
+        const tmp = edge.from;
+        edge.from = edge.to;
+        edge.to = tmp;
+        // update directed flag stays same
+        updateEdgePosition(edge);
+        edgeInfo.textContent = `Edge ${edge.id} reversed`;
+        updateAdjViews();
+      }
+
+      function toggleDirected(edge){
+        edge.directed = !edge.directed;
+        if(edge.directed){
+          edge.lineElem.setAttribute('marker-end','url(#arrowhead)');
+        } else {
+          edge.lineElem.removeAttribute('marker-end');
+        }
+        edgeInfo.textContent = `Edge ${edge.id} now ${edge.directed ? 'directed' : 'undirected'}`;
+        updateAdjViews();
+      }
+
+      function deleteEdge(edge){
+        // remove elements
+        edge.lineElem.remove();
+        edge.weightElem.remove();
+        edges = edges.filter(e=>e.id !== edge.id);
+        deselectEdge();
+        updateAdjViews();
+      }
+
+      // Helpers
+      function getNodeById(id){ return nodes.find(n => n.id === id); }
+      function getNodeLabel(id){ const n = getNodeById(id); return n ? n.label : id; }
+
+      // Adjacency views
+      function updateAdjViews(){
+        // adjacency list (respecting directedness: list outgoing)
+        const lines = nodes.map(n => {
+          const outs = edges
+            .filter(e => e.from === n.id)
+            .map(e => `${getNodeLabel(e.to)}${e.directed ? '→' : ''}${e.weight !== undefined ? `(${e.weight})` : ''}`);
+          return `${n.label}: ${outs.join(', ')}`;
+        });
+        adjListEl.textContent = lines.join('\n');
+
+        // matrix
+        const headers = nodes.map(n=>n.label);
+        const body = nodes.map(r => {
+          return nodes.map(c => {
+            const e = edges.find(ed => ed.from === r.id && ed.to === c.id);
+            return e ? (e.weight !== undefined ? e.weight : 1) : 0;
+          });
+        });
+
+        // render table
+        adjMatrixEl.innerHTML = '';
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        headRow.appendChild(createCell('', 'th'));
+        headers.forEach(h => headRow.appendChild(createCell(h, 'th')));
+        thead.appendChild(headRow);
+        adjMatrixEl.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        body.forEach((rowVals, i) => {
+          const r = document.createElement('tr');
+          r.appendChild(createCell(headers[i], 'th'));
+          rowVals.forEach(v => r.appendChild(createCell(String(v), 'td')));
+          tbody.appendChild(r);
+        });
+        adjMatrixEl.appendChild(tbody);
+
+        // update edge markers (directed class)
+        edges.forEach(e => {
+          if(e.directed) e.lineElem.classList.add('directed'); else e.lineElem.classList.remove('directed');
+        });
+      }
+
+      function createCell(text, tag='td'){
+        const el = document.createElement(tag);
+        el.textContent = text;
+        return el;
+      }
+
+      // Traversal (BFS/DFS) respecting directed edges
+      function findPathBFS(startId, targetId){
+        const q = [startId];
+        const prev = {};
+        const visited = new Set([startId]);
+        const order = [];
+        while(q.length){
+          const cur = q.shift();
+          order.push(cur);
+          if(cur === targetId) break;
+          const neighbors = edges.filter(e => e.from === cur).map(e => e.to);
+          for(const nb of neighbors){
+            if(!visited.has(nb)){
+              visited.add(nb);
+              prev[nb] = cur;
+              q.push(nb);
+            }
+          }
+        }
+        // reconstruct path
+        if(!visited.has(targetId)) return {order, path: null};
+        const path = [];
+        let cur = targetId;
+        while(cur){
+          path.unshift(cur);
+          if(cur === startId) break;
+          cur = prev[cur];
+        }
+        return {order, path};
+      }
+
+      function findPathDFS(startId, targetId){
+        const visited = new Set();
+        const prev = {};
+        const order = [];
+        let found = false;
+        function dfs(u){
+          if(found) return;
+          visited.add(u);
+          order.push(u);
+          if(u === targetId){ found = true; return; }
+          const neighbors = edges.filter(e => e.from === u).map(e => e.to);
+          for(const nb of neighbors){
+            if(!visited.has(nb)){
+              prev[nb] = u;
+              dfs(nb);
+              if(found) return;
+            }
+          }
+        }
+        dfs(startId);
+        if(!found) return {order, path:null};
+        const path = [];
+        let cur = targetId;
+        while(cur){
+          path.unshift(cur);
+          if(cur === startId) break;
+          cur = prev[cur];
+        }
+        return {order, path};
+      }
+
+      // Animation of traversal: highlight nodes/edges in order
+      function animateTraversal(){
+        if(!startNode || !endNode){
+          status.textContent = 'Please set both start and end nodes.';
+          return;
+        }
+        const startId = startNode.id;
+        const endId = endNode.id;
+        const type = traversalSelect.value;
+
+        const result = (type === 'bfs') ? findPathBFS(startId, endId) : findPathDFS(startId, endId);
+        const order = result.order;
+        const path = result.path;
+
+        // clear previous highlights
+        edges.forEach(e => e.lineElem.classList.remove('visited','highlight'));
+        nodes.forEach(n => n.circle.classList.remove('highlight','visited'));
+
+        if(!path){
+          status.textContent = 'No path found respecting edge directions.';
+        } else {
+          status.textContent = `Path found (${path.map(getNodeLabel).join(' → ')}). Animating...`;
+        }
+
+        // animate visited order first
+        const visitDelay = 400;
+        order.forEach((nid, idx) => {
+          setTimeout(()=> {
+            const node = getNodeById(nid);
+            if(node) node.circle.classList.add('visited');
+          }, idx * visitDelay);
+        });
+
+        // After visiting, animate the final path (if exists)
+        const afterVisit = order.length * visitDelay + 200;
+        if(path){
+          // highlight edges in path
+          for(let i=0;i<path.length-1;i++){
+            const from = path[i], to = path[i+1];
+            const e = edges.find(ed => ed.from === from && ed.to === to);
+            setTimeout(()=> {
+              if(e) e.lineElem.classList.add('visited');
+              const node = getNodeById(to);
+              if(node) node.circle.classList.add('highlight');
+            }, afterVisit + i * 450);
+          }
+          // final status after animation
+          setTimeout(()=> {
+            status.textContent = 'Traversal animation complete.';
+          }, afterVisit + (path.length-1) * 450 + 100);
+        } else {
+          setTimeout(()=> {
+            status.textContent = 'Traversal ended; path not found.';
+          }, afterVisit + 180);
+        }
+      }
+
+      // Button listeners
+      svg.addEventListener('click', onCanvasClick);
+      canvasWrap.addEventListener('click', (e)=> {
+        // clicking background cancels edge creation and deselects edge
+        if(e.target === svg || e.target === canvasWrap) {
+          if(creatingEdgeFrom){
+            unhighlightNode(creatingEdgeFrom);
+            creatingEdgeFrom = null;
+          }
+          deselectEdge();
+        }
+      });
+
+      // pick start/end
+      pickStartBtn.addEventListener('click', ()=>{
+        pickMode = 'start';
+        status.textContent = 'Click a node to set Start.';
+      });
+      pickEndBtn.addEventListener('click', ()=>{
+        pickMode = 'end';
+        status.textContent = 'Click a node to set End.';
+      });
+
+      runTraversalBtn.addEventListener('click', animateTraversal);
+
+      clearSelectionBtn.addEventListener('click', ()=>{
+        startNode = null; endNode = null;
+        startLabel.textContent = '—'; endLabel.textContent = '—';
+        status.textContent = 'Start/End cleared';
+      });
+
+      // edge editor
+      weightInput.addEventListener('change', ()=>{
+        if(!selectedEdge) return;
+        const v = Number(weightInput.value) || 0;
+        setEdgeWeight(selectedEdge, v);
+      });
+      reverseEdgeBtn.addEventListener('click', ()=>{
+        if(selectedEdge) reverseEdge(selectedEdge);
+      });
+      toggleDirectedBtn.addEventListener('click', ()=>{
+        if(selectedEdge) toggleDirected(selectedEdge);
+      });
+      deleteEdgeBtn.addEventListener('click', ()=>{
+        if(selectedEdge) deleteEdge(selectedEdge);
+      });
+
+      // clear/reset
+      clearBtn.addEventListener('click', ()=>{
+        // remove SVG elements
+        nodes.forEach(n => n.elem.remove());
+        edges.forEach(e => {
+          if(e.lineElem) e.lineElem.remove();
+          if(e.weightElem) e.weightElem.remove();
+        });
+        nodes = [];
+        edges = [];
+        nodeCounter = 0;
+        edgeCounter = 0;
+        creatingEdgeFrom = null;
+        startNode = null; endNode = null;
+        startLabel.textContent = '—'; endLabel.textContent = '—';
+        status.textContent = 'Graph cleared';
+        updateAdjViews();
+        deselectEdge();
+      });
+
+      resetLayoutBtn.addEventListener('click', ()=>{
+        // compact nodes in a circle
+        const rect = svg.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        const r = Math.min(rect.width, rect.height) / 3;
+        nodes.forEach((n,i) => {
+          const angle = (i / nodes.length) * Math.PI*2;
+          n.x = cx + r * Math.cos(angle);
+          n.y = cy + r * Math.sin(angle);
+          updateNodePosition(n);
+        });
+        edges.forEach(updateEdgePosition);
+        status.textContent = 'Layout reset';
+      });
+
+      // Utility: allow deleting last node via Backspace when focus is svg
+      svg.addEventListener('keydown', (e)=>{
+        if(e.key === 'Delete' || e.key === 'Backspace'){
+          if(nodes.length){
+            const n = nodes.pop();
+            n.elem.remove();
+            // remove edges connected
+            const removedEdges = edges.filter(ed => ed.from === n.id || ed.to === n.id);
+            removedEdges.forEach(ed => {
+              ed.lineElem.remove();
+              ed.weightElem.remove();
+            });
+            edges = edges.filter(ed => ed.from !== n.id && ed.to !== n.id);
+            updateAdjViews();
+            status.textContent = 'Last node removed';
+          }
+        }
+      });
+
+      // Helper: clicking outside deselect edge
+      document.addEventListener('click', (e)=>{
+        if(!svg.contains(e.target) && !edgesLayer.contains(e.target)){
+          // click outside
+        }
+      });
+
+      // Make sure edges are redrawn when window resizes (SVG scaled)
+      window.addEventListener('resize', ()=>{
+        // nothing to do since coordinates are absolute to element; keep positions as-is
+      });
+
+      // Initialize with an example
+      function initExample(){
+        const w = svg.getBoundingClientRect().width || 800;
+        const h = svg.getBoundingClientRect().height || 480;
+        const a = createNode(w*0.25, h*0.35);
+        const b = createNode(w*0.6, h*0.2);
+        const c = createNode(w*0.7, h*0.6);
+        const d = createNode(w*0.35, h*0.72);
+        createEdge(a,b,true,1);
+        createEdge(b,c,true,1);
+        createEdge(a,d,false,1);
+        createEdge(d,c,false,1);
+      }
+
+      // small keyboard instructions for accessibility
+      svg.addEventListener('focus', () => {
+        status.textContent = 'Canvas focused. Click to add nodes; press Backspace/Delete to remove last node.';
+      });
+
+      // start
+      initExample();
+      updateAdjViews();
+
+      // expose some helpers for debugging (not necessary)
+      window.__graph = { nodes, edges, createNode, createEdge };
+
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>K-Nearest Neighbors — Interactive Module</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel-bg: #0b1220;
+      --muted: #9aa4b2;
+      --accent-a: #3bd3a3;
+      --accent-b: #ff7b7b;
+      --accent-query: #7aa2ff;
+      --control-bg: rgba(255,255,255,0.03);
+      --glass: rgba(255,255,255,0.02);
+      --radius: 10px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071025 0%, #081226 100%);
+      color: #e6eef6;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Safe area margins */
+    .wrap{
+      box-sizing: border-box;
+      padding: var(--safe-margin);
+      min-height:100vh;
+      display:flex;
+      gap: var(--gap);
+      align-items:flex-start;
+    }
+
+    /* Layout */
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 380px;
+      gap: var(--gap);
+      width:100%;
+      align-items:start;
+    }
+
+    /* Responsive: stack on small screens */
+    @media (max-width:900px){
+      .grid{
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left interactive pane */
+    .canvas-card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: var(--radius);
+      padding: 16px;
+      min-height: 520px;
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+      box-shadow: 0 6px 20px rgba(2,6,23,0.6);
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .title-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: var(--gap);
+    }
+
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+
+    .title h1{
+      margin:0;
+      font-size:18px;
+      letter-spacing: -0.2px;
+    }
+
+    .subtitle{
+      margin:0;
+      color: var(--muted);
+      font-size:13px;
+    }
+
+    .canvas-area{
+      position:relative;
+      flex:1;
+      min-height:420px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border: 1px solid rgba(255,255,255,0.02);
+      display:flex;
+      align-items:stretch;
+    }
+
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+      cursor:crosshair;
+    }
+
+    .legend{
+      display:flex;
+      gap: 12px;
+      align-items:center;
+      padding: 6px;
+      background: var(--control-bg);
+      border-radius: 8px;
+      font-size:13px;
+      color:var(--muted);
+      width:max-content;
+    }
+
+    .dot{
+      width:14px;
+      height:14px;
+      border-radius:50%;
+      display:inline-block;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+
+    .controls{
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius: var(--radius);
+      padding: 16px;
+      color: var(--muted);
+      display:flex;
+      flex-direction:column;
+      gap: 16px;
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+
+    label{
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    .control-row{
+      display:flex;
+      gap: var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .btn{
+      background: var(--glass);
+      border: 1px solid rgba(255,255,255,0.04);
+      color: #e6eef6;
+      padding:8px 10px;
+      border-radius:8px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .btn.primary{
+      background: linear-gradient(90deg,var(--accent-a), #67d3ff);
+      color: #082028;
+      font-weight:600;
+    }
+    .btn.danger{
+      background: linear-gradient(90deg,#ff6670, #ff9b9b);
+      color: #25080a;
+      font-weight:600;
+    }
+
+    input[type="range"]{
+      width:100%;
+    }
+
+    select, input[type="number"]{
+      background: var(--control-bg);
+      color: #e6eef6;
+      border: 1px solid rgba(255,255,255,0.03);
+      padding:8px;
+      border-radius:8px;
+    }
+
+    .small{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .stat{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      font-size:13px;
+    }
+
+    .prob-bar{
+      height:10px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      overflow:hidden;
+      width:100%;
+    }
+    .prob-fill{
+      height:100%;
+      width:0%;
+      transition: width 300ms ease, background 300ms ease;
+    }
+
+    /* Accessible focus style */
+    button:focus, input:focus, select:focus{
+      outline: 3px solid rgba(122,162,255,0.14);
+      outline-offset:2px;
+    }
+
+    /* Tiny help footer */
+    .help {
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    /* Plan sections card */
+    .plan{
+      background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+      border-radius: var(--radius);
+      padding: 16px;
+      color: var(--muted);
+      font-size:13px;
+      line-height:1.45;
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+
+    .plan h3{
+      margin:0 0 8px 0;
+      color:#dff2ff;
+      font-size:15px;
+    }
+
+    .plan p{
+      margin:0 0 12px 0;
+    }
+
+    /* small tag */
+    .kbd{
+      font-family: var(--mono);
+      font-size:12px;
+      background: rgba(255,255,255,0.03);
+      padding:4px 6px;
+      border-radius:6px;
+      border:1px solid rgba(255,255,255,0.02);
+      color:var(--muted);
+    }
+
+    /* mobile spacing */
+    @media (max-width:900px){
+      .controls{ order:2 }
+      .plan{ order:3 }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="wrap" role="main">
+    <div class="grid" style="width:100%;">
+      <div class="canvas-card" aria-label="K-Nearest Neighbors interactive area">
+        <div class="title-row">
+          <div class="title">
+            <h1>K-Nearest Neighbors (KNN) — Interactive Classifier</h1>
+            <p class="subtitle">Drag the query point, add labeled points, change K and metric, and watch classification update.</p>
+          </div>
+          <div class="legend" aria-hidden="true">
+            <span class="dot" style="background:var(--accent-a)"></span><span class="small">Class A</span>
+            <span style="width:8px"></span>
+            <span class="dot" style="background:var(--accent-b)"></span><span class="small">Class B</span>
+            <span style="width:8px"></span>
+            <span class="dot" style="background:var(--accent-query); border: 2px solid rgba(255,255,255,0.06);"></span><span class="small">Query</span>
+          </div>
+        </div>
+
+        <div class="canvas-area" id="canvas-area">
+          <canvas id="stage" width="800" height="520" role="img" aria-label="KNN scatter plot"></canvas>
+        </div>
+
+        <div style="display:flex; gap: var(--gap); align-items:center; justify-content:space-between;">
+          <div class="stat">
+            <div class="small">K:</div>
+            <div id="k-value" style="font-weight:600; width:36px; text-align:center;">3</div>
+            <div style="width:220px;">
+              <input id="k-range" type="range" min="1" max="15" value="3" />
+            </div>
+            <div class="small">Metric:</div>
+            <select id="metric" aria-label="Distance metric">
+              <option value="euclidean">Euclidean</option>
+              <option value="manhattan">Manhattan</option>
+              <option value="chebyshev">Chebyshev</option>
+            </select>
+          </div>
+
+          <div style="display:flex; gap:12px; align-items:center;">
+            <button id="tool-add-a" class="btn" aria-pressed="false">Add Class A</button>
+            <button id="tool-add-b" class="btn" aria-pressed="false">Add Class B</button>
+            <button id="tool-delete" class="btn" aria-pressed="false">Delete</button>
+            <button id="randomize" class="btn">Randomize</button>
+            <button id="clear" class="btn danger">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:var(--gap);">
+        <div class="controls" aria-label="Controls">
+          <div style="display:flex; justify-content:space-between; gap: var(--gap); align-items:center;">
+            <div>
+              <label for="weight">Inverse-distance weighting</label>
+              <div class="small">If enabled, closer neighbors count more.</div>
+            </div>
+            <div>
+              <input id="weight" type="checkbox" aria-label="Toggle inverse distance weighting" />
+            </div>
+          </div>
+
+          <div>
+            <label>Prediction details</label>
+            <div style="display:flex; gap:12px; margin-top:8px; align-items:center;">
+              <div style="width:64px; text-align:center;">
+                <div class="small">Predicted</div>
+                <div id="predicted" style="font-weight:700; margin-top:6px;">—</div>
+              </div>
+              <div style="flex:1;">
+                <div class="prob-bar" aria-hidden="true">
+                  <div id="prob-fill" class="prob-fill"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:6px;">
+                  <div class="small">Confidence</div>
+                  <div id="confidence" class="small">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label>Query point controls</label>
+            <div style="display:flex; gap:12px; margin-top:8px; align-items:center;">
+              <div>
+                <button id="center-query" class="btn">Center Query</button>
+              </div>
+              <div class="small">Use arrow keys when canvas focused to nudge</div>
+            </div>
+          </div>
+
+          <div>
+            <label>Interaction tips</label>
+            <div class="small" style="margin-top:6px;">
+              • Click "Add Class A/B" then click canvas to place points.<br>
+              • Drag any point (including the query) to move it.<br>
+              • Toggle "Delete" then click a point to remove it.<br>
+              • Hold focus on the canvas and use ↑↓←→ to nudge the query point.
+            </div>
+          </div>
+        </div>
+
+        <div class="plan" aria-label="Learning plan">
+          <h3>Concept Title</h3>
+          <p><strong>K-Nearest Neighbors (KNN) — classification via local neighborhood</strong></p>
+
+          <h3>Learning Objective</h3>
+          <p>After interacting with this module, you will understand how a KNN classifier uses the K closest labeled examples to predict the class of a query point, how changing K and distance metrics affects predictions, and how inverse-distance weighting changes neighbor influence.</p>
+
+          <h3>Interaction Design</h3>
+          <p>
+            Interactions:
+            <ul style="margin:6px 0 6px 18px; padding:0;">
+              <li>Click "Add Class A/B", then click the canvas to place labeled points for that class.</li>
+              <li>Drag points to reposition them; drag the blue query point to see live prediction updates.</li>
+              <li>Toggle "Delete" to remove points by clicking them.</li>
+              <li>Adjust K with the slider and change the metric (Euclidean / Manhattan / Chebyshev). Toggle inverse-distance weighting to see nearest points contribute more.</li>
+            </ul>
+            Visual feedback:
+            <ul style="margin:6px 0 6px 18px; padding:0;">
+              <li>Animated pulsing rings highlight the K nearest neighbors.</li>
+              <li>Lines connect the query to neighbors; their thickness indicates weighting.</li>
+              <li>A low-resolution colored decision-field is drawn as the background and smoothly updates when parameters or points change.</li>
+              <li>The query point fills with the predicted class color and a confidence bar shows relative support.</li>
+            </ul>
+          </p>
+
+          <h3>Layout Description</h3>
+          <p>
+            The layout follows a two-column responsive design with a 24 px safe margin and 16 px gaps. Left column: interactive canvas card (title, legend, canvas, quick controls). Right column: stacked control panel (metric, weighting, prediction details, tips) and a plan card describing the module. Controls are grouped with at least 16 px spacing and use clear labels. The canvas is large and centered to maintain focus; controls are on the right for quick adjustments. All interactive controls are keyboard-focusable and labeled for accessibility.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // KNN interactive module (vanilla JS)
+    (() => {
+      // Layout and spacing assumptions satisfied by CSS.
+      const canvas = document.getElementById('stage');
+      const area = document.getElementById('canvas-area');
+      const ctx = canvas.getContext('2d', { alpha: true });
+
+      // Controls
+      const kRange = document.getElementById('k-range');
+      const kValue = document.getElementById('k-value');
+      const metricSel = document.getElementById('metric');
+      const weightChk = document.getElementById('weight');
+      const toolA = document.getElementById('tool-add-a');
+      const toolB = document.getElementById('tool-add-b');
+      const toolDelete = document.getElementById('tool-delete');
+      const randomBtn = document.getElementById('randomize');
+      const clearBtn = document.getElementById('clear');
+      const centerQuery = document.getElementById('center-query');
+      const predictedEl = document.getElementById('predicted');
+      const probFill = document.getElementById('prob-fill');
+      const confidenceEl = document.getElementById('confidence');
+
+      // State
+      let points = []; // {x,y,label,id}
+      let nextId = 1;
+      const classes = ['A','B'];
+      const colors = { A: getComputedStyle(document.documentElement).getPropertyValue('--accent-a').trim(), B: getComputedStyle(document.documentElement).getPropertyValue('--accent-b').trim() };
+      const query = { x: 0.5, y: 0.5, r: 9 }; // normalized coords [0,1]
+      let tool = null; // 'A', 'B', 'delete', null
+      let dragging = null; // {type:'pt'|'query', id, ox, oy}
+      let lastPointerDown = 0;
+
+      // Animation state
+      let animReq = null;
+      let pulseTime = 0;
+      let lastBgUpdate = 0;
+      let bgCache = null; // offscreen grid map for decision region
+      let bgFade = 0; // 0..1 fade animation
+
+      // Canvas sizing & coordinate helpers
+      function resizeCanvas() {
+        const rect = area.getBoundingClientRect();
+        // Maintain device pixel ratio
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        canvas.width = Math.floor(rect.width * dpr);
+        canvas.height = Math.floor(rect.height * dpr);
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+        // Recompute background
+        scheduleBgCompute();
+      }
+
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+
+      // Tools handling
+      function clearToolButtons() {
+        [toolA, toolB, toolDelete].forEach(btn => btn.classList.remove('primary'));
+        [toolA, toolB, toolDelete].forEach(btn => btn.setAttribute('aria-pressed', 'false'));
+      }
+      toolA.addEventListener('click', () => {
+        if (tool === 'A') { tool = null; clearToolButtons(); }
+        else { tool = 'A'; clearToolButtons(); toolA.classList.add('primary'); toolA.setAttribute('aria-pressed','true'); }
+      });
+      toolB.addEventListener('click', () => {
+        if (tool === 'B') { tool = null; clearToolButtons(); }
+        else { tool = 'B'; clearToolButtons(); toolB.classList.add('primary'); toolB.setAttribute('aria-pressed','true'); }
+      });
+      toolDelete.addEventListener('click', () => {
+        if (tool === 'delete') { tool = null; clearToolButtons(); }
+        else { tool = 'delete'; clearToolButtons(); toolDelete.classList.add('primary'); toolDelete.setAttribute('aria-pressed','true'); }
+      });
+
+      // Add random points
+      randomBtn.addEventListener('click', () => {
+        points = [];
+        nextId = 1;
+        for (let i=0;i<18;i++){
+          const cl = i%2 === 0 ? 'A':'B';
+          points.push(randomPoint(cl));
+        }
+        scheduleBgCompute();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        points = [];
+        nextId = 1;
+        scheduleBgCompute();
+      });
+
+      centerQuery.addEventListener('click', () => {
+        query.x = 0.5; query.y = 0.5;
+      });
+
+      // K range
+      kRange.addEventListener('input', () => {
+        kValue.textContent = kRange.value;
+        scheduleBgCompute();
+      });
+
+      // Helpers: coordinate conversions
+      function toCanvasCoords(normX, normY) {
+        const r = canvas.getBoundingClientRect();
+        return { x: normX * r.width, y: normY * r.height };
+      }
+      function fromCanvasCoords(px, py) {
+        const r = canvas.getBoundingClientRect();
+        return { x: clamp(px / r.width, 0, 1), y: clamp(py / r.height, 0, 1) };
+      }
+      function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+      function randomPoint(cls) {
+        // helper to generate clusters for nicer distributions
+        const cx = Math.random() * 0.8 + 0.1;
+        const cy = Math.random() * 0.8 + 0.1;
+        const spread = 0.12 + Math.random()*0.12;
+        const x = clamp(cx + (Math.random()*2-1)*spread, 0.05, 0.95);
+        const y = clamp(cy + (Math.random()*2-1)*spread, 0.05, 0.95);
+        return { x, y, label: cls, id: nextId++ };
+      }
+
+      // Pointer interactions
+      canvas.addEventListener('pointerdown', (ev) => {
+        canvas.setPointerCapture(ev.pointerId);
+        lastPointerDown = performance.now();
+        const pos = fromCanvasCoords(ev.offsetX, ev.offsetY);
+
+        // Check if clicking close to an existing point (including query)
+        const hit = findPointNear(pos.x, pos.y, 14 / canvas.getBoundingClientRect().width);
+        if (tool === 'A' || tool === 'B') {
+          // place new labeled point
+          points.push({ x: pos.x, y: pos.y, label: tool, id: nextId++ });
+          scheduleBgCompute();
+          return;
+        }
+        if (tool === 'delete') {
+          if (hit && hit.type === 'pt') {
+            points = points.filter(p => p.id !== hit.obj.id);
+            scheduleBgCompute();
+            return;
+          }
+          return;
+        }
+
+        if (hit) {
+          // start dragging a point
+          if (hit.type === 'pt') {
+            dragging = { type: 'pt', id: hit.obj.id, ox: pos.x - hit.obj.x, oy: pos.y - hit.obj.y };
+          } else if (hit.type === 'query') {
+            dragging = { type: 'query', ox: pos.x - query.x, oy: pos.y - query.y };
+          }
+        } else {
+          // no hit: by default add a class A point (makes it discoverable)
+          // but better: do nothing, or place a default point? We'll add a default A point.
+          points.push({ x: pos.x, y: pos.y, label: 'A', id: nextId++ });
+          scheduleBgCompute();
+        }
+      });
+
+      canvas.addEventListener('pointermove', (ev) => {
+        const pos = fromCanvasCoords(ev.offsetX, ev.offsetY);
+        if (dragging) {
+          if (dragging.type === 'pt') {
+            const p = points.find(pt => pt.id === dragging.id);
+            if (!p) { dragging = null; return; }
+            p.x = clamp(pos.x - dragging.ox, 0, 1);
+            p.y = clamp(pos.y - dragging.oy, 0, 1);
+            scheduleBgComputeDebounced();
+          } else if (dragging.type === 'query') {
+            query.x = clamp(pos.x - dragging.ox, 0, 1);
+            query.y = clamp(pos.y - dragging.oy, 0, 1);
+            scheduleBgComputeDebounced();
+          }
+        }
+      });
+
+      canvas.addEventListener('pointerup', (ev) => {
+        canvas.releasePointerCapture(ev.pointerId);
+        // small tap without movement toggles a point if in delete mode
+        if (!dragging) return;
+        dragging = null;
+      });
+
+      // Hit test near: returns {type:'pt'|'query', obj:point|query}
+      function findPointNear(normX, normY, tolNorm) {
+        tolNorm = tolNorm || 14 / canvas.getBoundingClientRect().width;
+        // check query first
+        const dxq = normX - query.x, dyq = normY - query.y;
+        if (Math.hypot(dxq, dyq) < 18 / canvas.getBoundingClientRect().width) return { type: 'query', obj: query };
+        for (let i=points.length-1;i>=0;i--){
+          const p = points[i];
+          const dx = normX - p.x, dy = normY - p.y;
+          if (Math.hypot(dx, dy) < tolNorm) return { type:'pt', obj:p };
+        }
+        return null;
+      }
+
+      // Keyboard nudging for query when canvas focused
+      canvas.setAttribute('tabindex', '0');
+      canvas.addEventListener('keydown', (ev) => {
+        const step = 8 / canvas.getBoundingClientRect().width;
+        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(ev.key)){
+          ev.preventDefault();
+          if (ev.key === 'ArrowUp') query.y = clamp(query.y - step, 0, 1);
+          if (ev.key === 'ArrowDown') query.y = clamp(query.y + step, 0, 1);
+          if (ev.key === 'ArrowLeft') query.x = clamp(query.x - step, 0, 1);
+          if (ev.key === 'ArrowRight') query.x = clamp(query.x + step, 0, 1);
+          scheduleBgComputeDebounced();
+        }
+      });
+
+      // Distance metrics
+      function dist(a,b, metric) {
+        const dx = a.x - b.x, dy = a.y - b.y;
+        if (metric === 'euclidean') return Math.hypot(dx,dy);
+        if (metric === 'manhattan') return Math.abs(dx) + Math.abs(dy);
+        if (metric === 'chebyshev') return Math.max(Math.abs(dx), Math.abs(dy));
+        return Math.hypot(dx,dy);
+      }
+
+      // KNN classifier
+      function getNeighbors(q, k, metric) {
+        const arr = points.map(p => {
+          return { p, d: dist(p, q, metric) };
+        }).sort((a,b) => a.d - b.d);
+        return arr.slice(0,k);
+      }
+
+      function classify(q, k, metric, weighted) {
+        if (points.length === 0) return { label: null, confidence: 0, counts: {} };
+        const neighbors = getNeighbors(q,k,metric);
+        const counts = { A:0, B:0 };
+        let weightSum = 0;
+        neighbors.forEach(n => {
+          let w = 1;
+          if (weighted) {
+            // inverse distance weighting: w = 1/(d+eps)
+            const eps = 1e-6;
+            w = 1 / (n.d + eps);
+          }
+          counts[n.p.label] += w;
+          weightSum += w;
+        });
+        // Handle identical point (distance 0) by assigning exact label of first zero-distance neighbor
+        const zero = neighbors.find(n => n.d < 1e-8);
+        if (zero) {
+          const label = zero.p.label;
+          return { label, confidence: 1, counts };
+        }
+        // decide
+        const label = (counts.A >= counts.B) ? 'A' : 'B';
+        const conf = weightSum === 0 ? 0 : (counts[label] / weightSum);
+        return { label, confidence: conf, counts, neighbors };
+      }
+
+      // Background decision field computation: low-res grid classification
+      function computeBackground() {
+        const rect = canvas.getBoundingClientRect();
+        const w = Math.max(40, Math.floor(rect.width / 8)); // grid columns
+        const h = Math.max(40, Math.floor(rect.height / 8)); // grid rows
+        const k = parseInt(kRange.value, 10);
+        const metric = metricSel.value;
+        const weighted = weightChk.checked;
+
+        const grid = new Uint8Array(w*h); // 0=none,1=A,2=B
+        for (let gy=0; gy<h; gy++){
+          for (let gx=0; gx<w; gx++){
+            const nx = (gx + 0.5) / w;
+            const ny = (gy + 0.5) / h;
+            const q = { x: nx, y: ny };
+            const cls = classify(q, Math.min(k, Math.max(1, points.length)), metric, weighted);
+            const val = cls.label === 'A' ? 1 : (cls.label === 'B' ? 2 : 0);
+            grid[gy*w + gx] = val;
+          }
+        }
+        bgCache = { grid, w, h, ts: performance.now() };
+        bgFade = 0;
+        lastBgUpdate = performance.now();
+      }
+
+      // Debounced compute background to avoid heavy recompute during drag
+      let bgComputeTimer = null;
+      function scheduleBgComputeDebounced() {
+        if (bgComputeTimer) clearTimeout(bgComputeTimer);
+        bgComputeTimer = setTimeout(() => { computeBackground(); bgComputeTimer = null; }, 120);
+      }
+      function scheduleBgCompute() {
+        if (bgComputeTimer) { clearTimeout(bgComputeTimer); bgComputeTimer = null; }
+        computeBackground();
+      }
+
+      // Start with some points and initial background
+      (function init() {
+        points = [
+          { x: 0.18, y: 0.22, label: 'A', id: nextId++ },
+          { x: 0.26, y: 0.28, label: 'A', id: nextId++ },
+          { x: 0.21, y: 0.36, label: 'A', id: nextId++ },
+          { x: 0.75, y: 0.7, label: 'B', id: nextId++ },
+          { x: 0.66, y: 0.64, label: 'B', id: nextId++ },
+          { x: 0.72, y: 0.58, label: 'B', id: nextId++ },
+        ];
+        query.x = 0.5; query.y = 0.46;
+        computeBackground();
+        startAnimation();
+      })();
+
+      // Animation loop: draw
+      function startAnimation() {
+        let last = performance.now();
+        function frame(ts) {
+          const dt = ts - last;
+          last = ts;
+          pulseTime += dt * 0.003; // speed
+          update(ts);
+          animReq = requestAnimationFrame(frame);
+        }
+        animReq = requestAnimationFrame(frame);
+      }
+
+      function stopAnimation() {
+        if (animReq) cancelAnimationFrame(animReq);
+        animReq = null;
+      }
+
+      // Draw helpers
+      function draw() {
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0,0,rect.width, rect.height);
+
+        // draw background decision field if present
+        if (bgCache) {
+          const { grid, w, h } = bgCache;
+          // fade in effect
+          bgFade = Math.min(1, bgFade + 0.08);
+          ctx.save();
+          for (let gy=0; gy<h; gy++){
+            for (let gx=0; gx<w; gx++){
+              const val = grid[gy*w + gx];
+              if (!val) continue;
+              const x = gx * rect.width / w;
+              const y = gy * rect.height / h;
+              const cw = rect.width / w;
+              const ch = rect.height / h;
+              if (val === 1) {
+                ctx.fillStyle = hexToRgba(colors.A, 0.07 * bgFade);
+              } else {
+                ctx.fillStyle = hexToRgba(colors.B, 0.07 * bgFade);
+              }
+              ctx.fillRect(x,y,cw,ch);
+            }
+          }
+          ctx.restore();
+        }
+
+        // compute neighbors & classification
+        const k = Math.min(points.length || 1, Math.max(1, parseInt(kRange.value,10)));
+        kValue.textContent = k;
+        const metric = metricSel.value;
+        const weighted = weightChk.checked;
+        const result = classify(query, k, metric, weighted);
+        const neighbors = result.neighbors || getNeighbors(query, k, metric);
+
+        // Draw grid overlay subtle lines (optional)
+        // Draw lines from query to neighbors
+        ctx.save();
+        ctx.lineWidth = 1;
+        neighbors.forEach((n,i) => {
+          const p = n.p;
+          const cp = toCanvasCoords(p.x, p.y);
+          const cq = toCanvasCoords(query.x, query.y);
+          // line thickness proportional to weight (if weighted)
+          let w = 1;
+          if (weighted) w = Math.min(4, 1 + 3*(1/(n.d+1e-6)));
+          ctx.strokeStyle = hexToRgba(colors[p.label], 0.35);
+          ctx.beginPath();
+          ctx.moveTo(cq.x, cq.y);
+          ctx.lineTo(cp.x, cp.y);
+          ctx.stroke();
+        });
+        ctx.restore();
+
+        // Pulsing rings for neighbors
+        neighbors.forEach((n,i) => {
+          const p = n.p;
+          const cp = toCanvasCoords(p.x, p.y);
+          const pulse = Math.abs(Math.sin(pulseTime * (1 + i*0.12)));
+          ctx.beginPath();
+          ctx.arc(cp.x, cp.y, 8 + pulse*10, 0, Math.PI*2);
+          ctx.fillStyle = hexToRgba(colors[p.label], 0.045 * (1 + pulse));
+          ctx.fill();
+        });
+
+        // Draw points
+        points.forEach(p => {
+          const cp = toCanvasCoords(p.x, p.y);
+          ctx.beginPath();
+          ctx.fillStyle = colors[p.label];
+          ctx.strokeStyle = 'rgba(0,0,0,0.32)';
+          ctx.lineWidth = 1;
+          ctx.arc(cp.x, cp.y, 6, 0, Math.PI*2);
+          ctx.fill();
+          ctx.stroke();
+        });
+
+        // Draw neighbor outlines thicker
+        neighbors.forEach((n,i) => {
+          const p = n.p;
+          const cp = toCanvasCoords(p.x, p.y);
+          ctx.beginPath();
+          ctx.strokeStyle = hexToRgba(colors[p.label], 0.95);
+          ctx.lineWidth = 2.5;
+          ctx.arc(cp.x, cp.y, 9.5, 0, Math.PI*2);
+          ctx.stroke();
+        });
+
+        // Draw query point with predicted color
+        const cq = toCanvasCoords(query.x, query.y);
+        if (result.label) {
+          ctx.fillStyle = colors[result.label];
+        } else {
+          ctx.fillStyle = '#7aa2ff';
+        }
+        // Query fill with alpha representing confidence
+        const confAlpha = Math.max(0.18, Math.min(0.95, result.confidence || 0));
+        ctx.beginPath();
+        ctx.arc(cq.x, cq.y, query.r, 0, Math.PI*2);
+        ctx.fillStyle = hexToRgba(result.label ? colors[result.label] : getComputedStyle(document.documentElement).getPropertyValue('--accent-query').trim(), confAlpha);
+        ctx.fill();
+        // query stroke
+        ctx.beginPath();
+        ctx.arc(cq.x, cq.y, query.r+2, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Small id text
+        ctx.font = '12px ' + (getComputedStyle(document.documentElement).getPropertyValue('--mono') || 'sans-serif');
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.textAlign = 'center';
+        ctx.fillText('?', cq.x, cq.y + 4);
+
+        // update DOM stats (confidence bar)
+        const conf = Math.round((result.confidence || 0) * 100);
+        predictedEl.textContent = result.label ? (result.label === 'A' ? 'Class A' : 'Class B') : '—';
+        const colorPred = result.label ? (result.label === 'A' ? colors.A : colors.B) : '#7aa2ff';
+        probFill.style.width = conf + '%';
+        probFill.style.background = colorPred;
+        confidenceEl.textContent = result.label ? conf + '%' : '—';
+      }
+
+      // Utility to convert #rrggbb to rgba
+      function hexToRgba(hex, alpha) {
+        // hex may be in format '#rrggbb' or 'rgb(...)' or CSS variable
+        let c = hex.trim();
+        if (c.startsWith('rgb')) {
+          // convert to rgba with provided alpha
+          return c.replace('rgb','rgba').replace(')', ',' + (alpha || 1) + ')');
+        }
+        if (c[0] === '#') {
+          const v = c.slice(1);
+          const r = parseInt(v.slice(0,2),16);
+          const g = parseInt(v.slice(2,4),16);
+          const b = parseInt(v.slice(4,6),16);
+          return 'rgba(' + r + ',' + g + ',' + b + ',' + (alpha || 1) + ')';
+        }
+        // fallback
+        return c;
+      }
+
+      // Animation & update scheduling
+      let lastUpdate = 0;
+      let debouncedDrawTimer = null;
+      function update(ts) {
+        // throttle draws to ~60fps
+        draw();
+      }
+
+      // schedule background recompute with a slight delay in rapid updates
+      function scheduleBgComputeIfNeeded() {
+        if (!bgCache || (performance.now() - bgCache.ts > 120)) scheduleBgCompute();
+      }
+
+      // Keyboard shortcuts for tools
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'a' || e.key === 'A') { tool = 'A'; clearToolButtons(); toolA.classList.add('primary'); toolA.setAttribute('aria-pressed','true'); }
+        if (e.key === 'b' || e.key === 'B') { tool = 'B'; clearToolButtons(); toolB.classList.add('primary'); toolB.setAttribute('aria-pressed','true'); }
+        if (e.key === 'd' || e.key === 'D') { tool = 'delete'; clearToolButtons(); toolDelete.classList.add('primary'); toolDelete.setAttribute('aria-pressed','true'); }
+      });
+
+      // Misc: recompute background when metric or weighting changes
+      metricSel.addEventListener('change', scheduleBgCompute);
+      weightChk.addEventListener('change', scheduleBgCompute);
+
+      // Make sure canvas is focusable and draws when clicked
+      canvas.addEventListener('click', () => { canvas.focus(); });
+
+      // Periodically compute background if no cache
+      setInterval(() => {
+        if (!bgCache) computeBackground();
+      }, 1000);
+
+      // Start with draw loop
+      scheduleBgCompute();
+    })();
+  </script>
+</body>
+</html>

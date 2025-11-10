@@ -1,0 +1,262 @@
+{
+  "topic": "Interactive Dijkstra Module",
+  "description": "Finite State Machine modeling UI modes, selection/dragging, edge-creation and the Dijkstra algorithm lifecycle (run/step/pause/complete) for the interactive SVG graph application.",
+  "states": [
+    {
+      "name": "mode_move",
+      "onEnter": "setMode('move')",
+      "onExit": "",
+      "on": {
+        "CLICK_ADD_NODE": "mode_add_node",
+        "CLICK_ADD_EDGE": "mode_add_edge",
+        "POINTERDOWN_ON_NODE": "node_selected",
+        "POINTERDOWN_EMPTY_SVG": "clear_selection",
+        "START_DRAG_NODE": "dragging",
+        "RANDOM_GRAPH": "seeded_graph",
+        "RUN": "algorithm_start_request",
+        "STEP": "algorithm_step_request",
+        "SET_SOURCE": "set_source_action",
+        "SET_TARGET": "set_target_action",
+        "DELETE_SELECTED": "noop_if_none"
+      }
+    },
+    {
+      "name": "mode_add_node",
+      "onEnter": "setMode('add-node')",
+      "onExit": "",
+      "on": {
+        "POINTERDOWN_EMPTY_SVG": "add_node_action",
+        "CLICK_MOVE": "mode_move",
+        "CLICK_ADD_EDGE": "mode_add_edge",
+        "POINTERDOWN_ON_NODE": "node_selected",
+        "RANDOM_GRAPH": "seeded_graph"
+      }
+    },
+    {
+      "name": "mode_add_edge",
+      "onEnter": "setMode('add-edge'); addEdgeFrom=null",
+      "onExit": "addEdgeFrom=null; clearSelection()",
+      "on": {
+        "POINTERDOWN_ON_NODE": "edge_creating",
+        "CLICK_MOVE": "mode_move",
+        "CLICK_ADD_NODE": "mode_add_node",
+        "POINTERDOWN_EMPTY_SVG": "cancel_edge_creation",
+        "RANDOM_GRAPH": "seeded_graph"
+      }
+    },
+    {
+      "name": "edge_creating",
+      "onEnter": "addEdgeFrom = selected.nodeId; mark_node_selected(addEdgeFrom)",
+      "onExit": "addEdgeFrom = null; clearSelection()",
+      "on": {
+        "POINTERDOWN_ON_NODE_OTHER": "finish_add_edge",
+        "POINTERDOWN_EMPTY_SVG": "cancel_edge_creation",
+        "CLICK_MOVE": "mode_move",
+        "DELETE_SELECTED": "cancel_edge_creation"
+      }
+    },
+    {
+      "name": "node_selected",
+      "onEnter": "selectNode(selectedId)",
+      "onExit": "",
+      "on": {
+        "CLICK_SET_SOURCE": "set_source_action",
+        "CLICK_SET_TARGET": "set_target_action",
+        "DELETE_SELECTED": "delete_node_action",
+        "START_DRAG_NODE": "dragging",
+        "CLICK_ADD_EDGE": "mode_add_edge_initiate_from_selected",
+        "CLICK_EMPTY": "mode_move"
+      }
+    },
+    {
+      "name": "edge_selected",
+      "onEnter": "selectEdge(selectedId)",
+      "onExit": "",
+      "on": {
+        "DELETE_SELECTED": "delete_edge_action",
+        "DBLCLICK_EDGE": "editing_edge_weight",
+        "CLICK_EMPTY": "mode_move"
+      }
+    },
+    {
+      "name": "dragging",
+      "onEnter": "startDragNode(nodeId): capture pointer; attach pointermove/pointerup",
+      "onExit": "releasePointerCapture; remove move/up listeners; render()",
+      "on": {
+        "DRAG_MOVE": "dragging",
+        "DRAG_END": "mode_move",
+        "WINDOW_RESIZE": "clamp_and_render"
+      }
+    },
+    {
+      "name": "editing_edge_weight",
+      "onEnter": "openPromptForEdgeWeight(edgeId) -> if accepted updateEdgeWeight; render(); log()",
+      "onExit": "",
+      "on": {
+        "WEIGHT_CONFIRMED": "mode_move",
+        "WEIGHT_CANCELLED": "mode_move"
+      }
+    },
+    {
+      "name": "seeded_graph",
+      "onEnter": "clearAll(); createSeedExample(); set sourceId; render(); log()",
+      "onExit": "",
+      "on": {
+        "DONE": "mode_move",
+        "RUN": "algorithm_start_request"
+      }
+    },
+    {
+      "name": "algorithm_idle",
+      "onEnter": "algorithmRunning=false; algorithmPaused=false; // algorithm not active, distances may be set or cleared",
+      "onExit": "",
+      "on": {
+        "RUN": "algorithm_start_request",
+        "STEP": "algorithm_step_request",
+        "RESET": "reset_algorithm_action",
+        "SET_SOURCE": "set_source_action"
+      }
+    },
+    {
+      "name": "algorithm_start_request",
+      "onEnter": "if !sourceId -> alert('Set a source'); else initialize_algorithm_state(); algorithmRunning=true; algorithmPaused=false; pushPQ(sourceId,0); log('Dijkstra started'); scheduleNext()",
+      "onExit": "",
+      "on": {
+        "SCHEDULED_TICK": "algorithm_running",
+        "IMMEDIATE_STEP": "algorithm_processing"
+      }
+    },
+    {
+      "name": "algorithm_running",
+      "onEnter": "algorithmRunning=true; algorithmPaused=false",
+      "onExit": "",
+      "on": {
+        "TIMER_TICK": "algorithm_extract_min",
+        "PAUSE": "algorithm_paused",
+        "STEP": "algorithm_step_request",
+        "RESET": "reset_algorithm_action",
+        "RANDOM_GRAPH": "seeded_graph"
+      }
+    },
+    {
+      "name": "algorithm_extract_min",
+      "onEnter": "popPQ() until unvisited or empty; if none -> emit COMPLETE; else mark visiting; visited.add(u); currentProcessing = {id:u, neighbors:... , idx:0}; log('Extracted u'); scheduleNext()",
+      "onExit": "",
+      "on": {
+        "SCHEDULED_TICK": "algorithm_processing",
+        "COMPLETE": "algorithm_done",
+        "PAUSE": "algorithm_paused"
+      }
+    },
+    {
+      "name": "algorithm_processing",
+      "onEnter": "process currentProcessing.neighbors one-by-one: highlightEdge; compute alt; if alt < dists[v] -> RELAX_SUCCESS else RELAX_FAIL; update dists/prev/pq as needed; updateStateViews(); if neighbors remaining scheduleNext() else finalizeNode and go to algorithm_extract_min",
+      "onExit": "",
+      "on": {
+        "RELAX_SUCCESS": "algorithm_processing",
+        "RELAX_FAIL": "algorithm_processing",
+        "NEIGHBOR_DONE": "algorithm_processing",
+        "NEIGHBORS_EXHAUSTED": "algorithm_extract_min",
+        "PAUSE": "algorithm_paused",
+        "STEP_PAUSE": "algorithm_paused"
+      }
+    },
+    {
+      "name": "algorithm_paused",
+      "onEnter": "algorithmPaused=true; clearTimeout(algorithmTimer); log('Paused')",
+      "onExit": "algorithmPaused=false",
+      "on": {
+        "RUN": "algorithm_running",
+        "STEP": "algorithm_single_step",
+        "RESET": "reset_algorithm_action",
+        "STOP": "algorithm_idle"
+      }
+    },
+    {
+      "name": "algorithm_step_mode",
+      "onEnter": "algorithmStepMode=true; startDijkstra() if not running; pause after one neighbor/one step",
+      "onExit": "algorithmStepMode=false",
+      "on": {
+        "PERFORM_STEP": "algorithm_processing",
+        "PAUSE": "algorithm_paused"
+      }
+    },
+    {
+      "name": "algorithm_single_step",
+      "onEnter": "performOneStep(); algorithmPaused=true if step caused pause",
+      "onExit": "",
+      "on": {
+        "STEP_CONTINUE": "algorithm_paused",
+        "COMPLETE": "algorithm_done"
+      }
+    },
+    {
+      "name": "algorithm_done",
+      "onEnter": "algorithmRunning=false; algorithmPaused=false; log('Dijkstra complete'); highlightFinalTree(); if targetId and prev[targetId] -> observer will insert Show Path button",
+      "onExit": "",
+      "on": {
+        "SHOW_PATH": "highlight_path_action",
+        "RESET": "reset_algorithm_action",
+        "RUN": "algorithm_start_request",
+        "RANDOM_GRAPH": "seeded_graph"
+      }
+    },
+    {
+      "name": "highlighting_path",
+      "onEnter": "highlightPath(targetId): clear previous; trace prev[]; add 'improve' to path edges; log('Highlighted shortest path')",
+      "onExit": "",
+      "on": {
+        "DONE": "algorithm_done"
+      }
+    },
+    {
+      "name": "clear_selection",
+      "onEnter": "clearSelection()",
+      "onExit": "",
+      "on": {
+        "DONE": "mode_move",
+        "CLICK_ADD_EDGE": "mode_add_edge"
+      }
+    }
+  ],
+  "events": [
+    "CLICK_ADD_NODE",
+    "CLICK_ADD_EDGE",
+    "CLICK_MOVE",
+    "POINTERDOWN_EMPTY_SVG",
+    "POINTERDOWN_ON_NODE",
+    "POINTERDOWN_ON_NODE_OTHER",
+    "POINTERDOWN_ON_EDGE",
+    "START_DRAG_NODE",
+    "DRAG_MOVE",
+    "DRAG_END",
+    "DBLCLICK_EDGE",
+    "WEIGHT_CONFIRMED",
+    "WEIGHT_CANCELLED",
+    "DELETE_SELECTED",
+    "RANDOM_GRAPH",
+    "RUN",
+    "STEP",
+    "PAUSE",
+    "RESET",
+    "TIMER_TICK",
+    "SCHEDULED_TICK",
+    "TIMER_EXPIRED",
+    "POP_PQ",
+    "EXTRACT_MIN",
+    "RELAX_SUCCESS",
+    "RELAX_FAIL",
+    "NEIGHBOR_DONE",
+    "NEIGHBORS_EXHAUSTED",
+    "COMPLETE",
+    "SHOW_PATH",
+    "SET_SOURCE",
+    "SET_TARGET",
+    "CANCEL_ADD_EDGE",
+    "EDIT_EDGE_WEIGHT",
+    "WINDOW_RESIZE",
+    "SPEED_CHANGE",
+    "CLEAR_ALL"
+  ],
+  "notes": "This FSM models the primary interactive flows in the app. In the real implementation several aspects are orthogonal/concurrent (UI mode vs selection vs algorithm lifecycle). The FSM above flattens those into named states and transitions for clarity. onEnter/onExit actions are mapped to concrete functions or side-effects visible in the code: setMode(...), addNode(...), addEdge(...), startDragNode(...), initialize_algorithm_state(), scheduleNext()/clearTimeout(), performOneStep(), highlightEdge()/animateImprovement()/animateNoImprove(), highlightFinalTree(), highlightPath(). Some transitions are synchronous (e.g., double-click edit prompt) and others driven by timers (scheduleNext -> TIMER_TICK). Selection is treated as a lightweight state; multiple states may be active in the real app (e.g., mode_move + algorithm_running) — the FSM intentionally documents those interactions but the real app manages some of them independently."
+}

@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prim’s Algorithm — Interactive Module</title>
+  <style>
+    /* Safe area margin: 24px on all sides */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px; /* minimum spacing between interactive elements */
+      --bg: #0f1720;
+      --panel: #0b1220;
+      --accent: #06b6d4;
+      --muted: #94a3b8;
+      --glass: rgba(255,255,255,0.03);
+      --success: #34d399;
+      --danger: #fb7185;
+      --transition: 240ms ease;
+    }
+    html,body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg,#071021 0%, #071425 60%);
+      color: #e6eef6;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    .app {
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height: 100%;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: var(--gap);
+    }
+    /* Responsive: stack panels on narrow viewports */
+    @media (max-width: 920px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left main canvas area */
+    .canvas-panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+      min-height: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* Graph area */
+    .graph-area {
+      flex: 1 1 auto;
+      background: radial-gradient(circle at 10% 10%, rgba(6,182,212,0.03), transparent 6%),
+                  linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.015));
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+    }
+    .controls-row {
+      display: flex;
+      gap: var(--gap);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      background: var(--glass);
+      color: #e6eef6;
+      border: 1px solid rgba(255,255,255,0.04);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background var(--transition), transform 120ms;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn.primary {
+      background: linear-gradient(90deg, rgba(6,182,212,0.15), rgba(52,211,153,0.06));
+      border: 1px solid rgba(6,182,212,0.18);
+      color: #bff5fb;
+    }
+    .btn.warn { background: rgba(250,204,21,0.06); color: #fff7cc; }
+    .btn.ghost { background: transparent; border: 1px dashed rgba(255,255,255,0.03); }
+
+    /* Right side panel */
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      min-width: 260px;
+    }
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+    .panel h3 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+    }
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* Node styles (SVG classes) */
+    .node-circle {
+      fill: #0ea5a6;
+      stroke: rgba(255,255,255,0.12);
+      stroke-width: 1.5px;
+      transition: r 140ms ease, transform 140ms ease;
+      cursor: pointer;
+    }
+    .node-label {
+      font-size: 12px;
+      fill: #061014;
+      font-weight: 700;
+      pointer-events: none;
+    }
+    .node-key {
+      font-size: 11px;
+      fill: #e6eef6;
+      pointer-events: none;
+    }
+    .edge-line {
+      stroke: rgba(255,255,255,0.06);
+      stroke-width: 2.5px;
+      transition: stroke var(--transition), stroke-width var(--transition), opacity var(--transition);
+      stroke-linecap: round;
+    }
+    .edge-weight {
+      font-size: 12px;
+      fill: #f8fafc;
+      background: rgba(0,0,0,0.2);
+      pointer-events: none;
+    }
+    .edge-candidate { stroke: #f59e0b; stroke-width: 3.2px; }
+    .edge-mst {
+      stroke: var(--success);
+      stroke-width: 4.2px;
+      filter: drop-shadow(0 4px 8px rgba(52,211,153,0.12));
+    }
+    .node-selected { transform: scale(1.12); }
+    .node-start { fill: #f59e0b; } /* start node color */
+
+    /* Pseudocode highlighting */
+    .code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      background: rgba(255,255,255,0.01);
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #dbeafe;
+      line-height: 1.45;
+    }
+    .code-line { display: block; padding: 2px 6px; border-radius: 6px; }
+    .code-line.active { background: rgba(6,182,212,0.08); color: #bff5fb; }
+
+    /* PQ visualization */
+    .pq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 180px;
+      overflow: auto;
+      padding-right: 6px;
+    }
+    .pq-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      background: rgba(255,255,255,0.02);
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .tag {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.02);
+    }
+
+    /* small helper UI */
+    label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+    input[type="range"] { width: 100%; }
+    .muted { color: var(--muted); font-size: 13px; }
+
+    /* hint footer */
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Prim's Algorithm interactive module">
+    <!-- Left: Interactive Graph Area -->
+    <section class="canvas-panel" aria-labelledby="concept-title">
+      <div class="topbar">
+        <div>
+          <div id="concept-title" class="title">Prim’s Algorithm — Minimum Spanning Tree (MST)</div>
+          <div class="subtitle">Interactive step-through and visualizer</div>
+        </div>
+        <div style="flex:1"></div>
+        <div class="small muted">Safe margin: 24px &nbsp;•&nbsp; spacing: 16px</div>
+      </div>
+
+      <!-- Informational plan (Concept Title, Learning Objective, Interaction Design, Layout Description) -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <strong>Concept Title</strong>
+          <div class="muted">Prim’s Algorithm (greedy MST)</div>
+        </div>
+        <div>
+          <strong>Learning Objective</strong>
+          <div class="small muted">Understand how Prim’s algorithm grows an MST from a starting node, how keys (tentative distances) are updated, how the algorithm selects the next edge, and why the chosen edges form a minimum spanning tree.</div>
+        </div>
+        <div>
+          <strong>Interaction Design</strong>
+          <div class="small muted">
+            Click to add nodes, drag them to reposition. Use Connect mode to click two nodes and set an edge weight. Start Prim from any node or auto-select one. Step through the algorithm (or auto-play). Visual feedback highlights the current node, candidate edges, and edges added to the MST; a queue panel shows tentative keys. Animations show edges being added and candidate highlights update as keys change.
+          </div>
+        </div>
+        <div>
+          <strong>Layout Description</strong>
+          <div class="small muted">
+            Left: drawing canvas and controls. Right: explanatory panels including pseudocode, priority-queue view, and controls. Safe margins are 24px; interactive elements have at least 16px spacing. The UI is responsive: on narrow screens the side panels stack below the canvas.
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls-row" role="toolbar" aria-label="Controls">
+        <button class="btn" id="mode-add">Add Node</button>
+        <button class="btn" id="mode-connect">Connect</button>
+        <button class="btn" id="mode-drag">Drag</button>
+
+        <button class="btn" id="gen-random">Random Graph</button>
+
+        <button class="btn primary" id="start-prim">Start Prim</button>
+        <button class="btn" id="step-prim">Step</button>
+        <button class="btn ghost" id="play-prim">Play</button>
+        <button class="btn" id="reset">Reset</button>
+
+        <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+          <label style="margin:0; font-size:12px; color:var(--muted);">Speed</label>
+          <input type="range" id="speed" min="200" max="1500" value="700" />
+        </div>
+      </div>
+
+      <!-- Graph drawing area -->
+      <div class="graph-area" id="graph-area" role="region" aria-label="Graph drawing area">
+        <svg id="svg" tabindex="0" aria-label="Graph visualization"></svg>
+      </div>
+
+      <div class="hint">Hints: Add ≥ 3 nodes and connect them (or use Random Graph). Click a node to choose start node before starting Prim. Use Step to observe updates to keys and the PQ.</div>
+    </section>
+
+    <!-- Right: Panels (pseudocode, PQ, stats) -->
+    <aside class="side-panel" aria-live="polite">
+      <div class="panel">
+        <h3>Pseudocode (Prim)</h3>
+        <div class="code" id="pseudocode">
+          <span class="code-line" data-line="1">1. Initialize: for all v: key[v] = ∞, parent[v] = null</span>
+          <span class="code-line" data-line="2">2. Choose start s: key[s] = 0</span>
+          <span class="code-line" data-line="3">3. Q = set of all vertices</span>
+          <span class="code-line" data-line="4">4. while Q not empty:</span>
+          <span class="code-line" data-line="5">&nbsp;&nbsp;&nbsp;u = extract-min(Q)</span>
+          <span class="code-line" data-line="6">&nbsp;&nbsp;&nbsp;for each neighbor v of u:</span>
+          <span class="code-line" data-line="7">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if v in Q and w(u,v) < key[v]:</span>
+          <span class="code-line" data-line="8">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;parent[v] = u; key[v] = w(u,v)</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Priority Queue (tentative keys)</h3>
+        <div class="pq-list" id="pq-list">
+          <!-- List of nodes and keys updated live -->
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>State & Controls</h3>
+        <div class="small muted" id="status">Nodes: 0 • Edges: 0 • MST edges: 0</div>
+        <div style="height:8px"></div>
+        <label for="start-node" class="small muted">Choose start node (or click a node in canvas)</label>
+        <div style="display:flex;gap:8px;">
+          <select id="start-node" style="flex:1;padding:8px;border-radius:8px;background:transparent;color:#e6eef6;border:1px solid rgba(255,255,255,0.03)">
+            <option value="">(auto)</option>
+          </select>
+          <button class="btn" id="set-start">Set</button>
+        </div>
+        <div style="height:8px"></div>
+        <div class="small muted">MST Weight: <span id="mst-weight">0</span></div>
+      </div>
+
+      <div class="panel">
+        <h3>How interactions reinforce understanding</h3>
+        <div class="small muted">
+          - Watching keys change when a closer edge is found shows how Prim updates local best connections.<br>
+          - The PQ view emphasizes the "greedy" selection of the minimal key each step.<br>
+          - Animations for edges added to the MST help visualize the growth of the spanning tree.
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    /***********************************************************************
+     * Prim's Algorithm — Interactive Module
+     * - Vanilla JS, self-contained
+     * - Add nodes by clicking, drag nodes, connect with weights
+     * - Step through Prim with visual feedback and animations
+     ***********************************************************************/
+
+    /* Utility helpers */
+    const $ = id => document.getElementById(id);
+    const svg = $('svg');
+    const graphArea = $('graph-area');
+
+    /* State */
+    let nodes = []; // {id, x, y}
+    let edges = []; // {id, a, b, w, state: 'normal'|'candidate'|'mst'}
+    let mode = 'add'; // 'add', 'connect', 'drag'
+    let nodeCounter = 0;
+    let edgeCounter = 0;
+
+    /* Interaction */
+    let dragging = null;
+    let connectFrom = null;
+    let primRunning = false;
+    let primAutoPlay = false;
+    let primTimer = null;
+    let speed = 700;
+
+    /* Prim-specific state */
+    let key = {};      // nodeId -> number
+    let parent = {};   // nodeId -> nodeId|null
+    let inMST = {};    // nodeId -> boolean
+    let Q = new Set(); // remaining vertices
+    let startNode = null;
+    let mstWeight = 0;
+
+    /* DOM references */
+    const btnAdd = $('mode-add');
+    const btnConnect = $('mode-connect');
+    const btnDrag = $('mode-drag');
+    const btnGen = $('gen-random');
+    const btnStart = $('start-prim');
+    const btnStep = $('step-prim');
+    const btnPlay = $('play-prim');
+    const btnReset = $('reset');
+    const startSelect = $('start-node');
+    const setStartBtn = $('set-start');
+    const pqList = $('pq-list');
+    const statusText = $('status');
+    const mstWeightText = $('mst-weight');
+    const speedRange = $('speed');
+
+    /* Pseudocode lines */
+    const codeLines = Array.from(document.querySelectorAll('.code-line'));
+
+    /* Accessibility: initial mode highlight */
+    function updateModeButtons() {
+      [btnAdd, btnConnect, btnDrag].forEach(b => b.classList.remove('primary'));
+      if (mode === 'add') btnAdd.classList.add('primary');
+      if (mode === 'connect') btnConnect.classList.add('primary');
+      if (mode === 'drag') btnDrag.classList.add('primary');
+    }
+    updateModeButtons();
+
+    /* Event bindings for modes */
+    btnAdd.addEventListener('click', () => { mode = 'add'; connectFrom = null; updateModeButtons(); svg.style.cursor = 'crosshair'; });
+    btnConnect.addEventListener('click', () => { mode = 'connect'; connectFrom = null; updateModeButtons(); svg.style.cursor = 'pointer'; });
+    btnDrag.addEventListener('click', () => { mode = 'drag'; connectFrom = null; updateModeButtons(); svg.style.cursor = 'grab'; });
+
+    /* Speed control */
+    speedRange.addEventListener('input', () => {
+      speed = Number(speedRange.value);
+      if (primAutoPlay) {
+        clearInterval(primTimer);
+        primTimer = setInterval(runPrimStep, speed);
+      }
+    });
+
+    /* Reset */
+    btnReset.addEventListener('click', resetAll);
+
+    function resetAll() {
+      // Clear graph and Prim state
+      nodes = [];
+      edges = [];
+      nodeCounter = 0;
+      edgeCounter = 0;
+      primRunning = false;
+      primAutoPlay = false;
+      clearInterval(primTimer);
+      startNode = null;
+      key = {};
+      parent = {};
+      inMST = {};
+      Q = new Set();
+      connectFrom = null;
+      updateStartSelect();
+      render();
+      updateStatus();
+    }
+
+    /* Random graph generator for quick demos */
+    btnGen.addEventListener('click', () => {
+      resetAll();
+      const count = 6 + Math.floor(Math.random() * 5);
+      const w = svg.clientWidth, h = svg.clientHeight;
+      for (let i=0;i<count;i++){
+        addNode( 60 + Math.random()*(w-120), 60 + Math.random()*(h-120) );
+      }
+      // add random edges
+      const possible = [];
+      for (let i=0;i<nodes.length;i++){
+        for (let j=i+1;j<nodes.length;j++){
+          if (Math.random() < 0.45) {
+            possible.push([nodes[i].id, nodes[j].id]);
+          }
+        }
+      }
+      possible.forEach(([a,b])=>{
+        const weight = 1 + Math.floor(Math.random()*20);
+        addEdge(a,b,weight);
+      });
+      render();
+    });
+
+    /* Start Prim */
+    btnStart.addEventListener('click', () => {
+      if (nodes.length === 0) return alert('Add some nodes first.');
+      // If start node selected in dropdown, use it; else if user clicked one earlier, use that; otherwise first node
+      const sel = startSelect.value;
+      startNode = sel ? Number(sel) : (startNode || nodes[0].id);
+      initializePrim(startNode);
+      primRunning = true;
+      render();
+    });
+
+    /* Step Prim */
+    btnStep.addEventListener('click', () => {
+      if (!primRunning) {
+        alert('Press "Start Prim" first.');
+        return;
+      }
+      runPrimStep();
+    });
+
+    /* Play Prim (auto-step) */
+    btnPlay.addEventListener('click', () => {
+      if (!primRunning) {
+        alert('Press "Start Prim" first.');
+        return;
+      }
+      primAutoPlay = !primAutoPlay;
+      if (primAutoPlay) {
+        btnPlay.classList.add('primary');
+        primTimer = setInterval(runPrimStep, speed);
+      } else {
+        btnPlay.classList.remove('primary');
+        clearInterval(primTimer);
+      }
+    });
+
+    /* Start selection set button */
+    setStartBtn.addEventListener('click', () => {
+      const val = startSelect.value;
+      if (val) {
+        startNode = Number(val);
+        highlightNode(startNode);
+      }
+    });
+
+    /* Graph interactions: add node on click (when mode=add) */
+    svg.addEventListener('pointerdown', (evt) => {
+      const pt = getSvgPoint(evt);
+      // If clicking on an existing node element, events handled elsewhere.
+      if (mode === 'add') {
+        addNode(pt.x, pt.y);
+        render();
+      }
+    });
+
+    /* Global pointer events for drag mode */
+    svg.addEventListener('pointerdown', (evt) => {
+      if (mode !== 'drag') return;
+      const target = evt.target;
+      if (target && target.dataset && target.dataset.nodeId) {
+        const id = Number(target.dataset.nodeId);
+        dragging = {id, offsetX: 0, offsetY: 0, startX: evt.clientX, startY: evt.clientY};
+        const node = nodes.find(n=>n.id===id);
+        dragging.offsetX = node.x - evt.clientX;
+        dragging.offsetY = node.y - evt.clientY;
+        svg.setPointerCapture(evt.pointerId);
+      }
+    });
+
+    svg.addEventListener('pointermove', (evt) => {
+      if (dragging) {
+        const node = nodes.find(n => n.id === dragging.id);
+        node.x = evt.clientX + dragging.offsetX;
+        node.y = evt.clientY + dragging.offsetY;
+        // constrain within svg bounding box
+        const rect = svg.getBoundingClientRect();
+        const margin = 28;
+        node.x = Math.max(margin, Math.min(rect.width - margin, node.x));
+        node.y = Math.max(margin, Math.min(rect.height - margin, node.y));
+        render(false); // update positions without resetting state
+      }
+    });
+
+    svg.addEventListener('pointerup', (evt) => {
+      if (dragging) {
+        svg.releasePointerCapture(evt.pointerId);
+        dragging = null;
+      }
+    });
+
+    /* Node click handler (connect mode, selecting start) */
+    // We'll use event delegation via svg click
+    svg.addEventListener('click', (evt) => {
+      const target = evt.target;
+      if (!target) return;
+      if (target.dataset && target.dataset.nodeId) {
+        const id = Number(target.dataset.nodeId);
+        if (mode === 'connect') {
+          handleConnectClick(id);
+        } else {
+          // set as chosen start node
+          startNode = id;
+          updateStartSelect();
+          highlightNode(id);
+        }
+      }
+    });
+
+    function handleConnectClick(nodeId) {
+      if (!connectFrom) {
+        connectFrom = nodeId;
+        highlightNode(nodeId, true);
+      } else if (connectFrom === nodeId) {
+        connectFrom = null;
+        render();
+      } else {
+        // create edge between connectFrom and nodeId
+        const w = prompt('Edge weight (positive number):', String(1 + Math.floor(Math.random()*10)));
+        const weight = Number(w);
+        if (!isFinite(weight) || weight <= 0) { alert('Invalid weight'); connectFrom = null; render(); return; }
+        addEdge(connectFrom, nodeId, weight);
+        connectFrom = null;
+        render();
+      }
+    }
+
+    /* Create node and edge helpers */
+    function addNode(x,y) {
+      nodeCounter++;
+      const id = nodeCounter;
+      nodes.push({id, x, y});
+      updateStartSelect();
+      updateStatus();
+    }
+
+    function addEdge(a,b,w) {
+      // avoid duplicates (undirected)
+      if (edges.some(e => (e.a === a && e.b === b) || (e.a === b && e.b === a))) return;
+      edgeCounter++;
+      edges.push({id: edgeCounter, a, b, w: Number(w), state: 'normal'});
+      updateStatus();
+    }
+
+    /* Render function: redraw svg elements */
+    function render(resetHighlights=true) {
+      // Clear svg
+      while (svg.lastChild) svg.removeChild(svg.lastChild);
+
+      // Draw edges first
+      edges.forEach(e => {
+        const na = nodes.find(n => n.id === e.a);
+        const nb = nodes.find(n => n.id === e.b);
+        if (!na || !nb) return;
+
+        // Line
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1', na.x);
+        line.setAttribute('y1', na.y);
+        line.setAttribute('x2', nb.x);
+        line.setAttribute('y2', nb.y);
+        line.setAttribute('class', 'edge-line');
+        if (e.state === 'candidate') line.classList.add('edge-candidate');
+        if (e.state === 'mst') {
+          line.classList.add('edge-mst');
+          // animate stroke dash
+          line.style.strokeDasharray = 1000;
+          line.style.strokeDashoffset = 1000;
+          line.style.transition = 'stroke-dashoffset 600ms ease';
+          requestAnimationFrame(()=> line.style.strokeDashoffset = 0);
+        }
+        line.dataset.edgeId = e.id;
+        svg.appendChild(line);
+
+        // Edge weight label: midpoint
+        const mx = (na.x + nb.x)/2;
+        const my = (na.y + nb.y)/2;
+        const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+        text.setAttribute('x', mx);
+        text.setAttribute('y', my - 6);
+        text.setAttribute('class', 'edge-weight');
+        text.setAttribute('text-anchor', 'middle');
+        text.textContent = e.w;
+        svg.appendChild(text);
+      });
+
+      // Draw nodes on top
+      nodes.forEach(n => {
+        // circle
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('transform', `translate(${n.x},${n.y})`);
+        g.style.cursor = (mode === 'drag') ? 'grab' : 'pointer';
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circle.setAttribute('r', 16);
+        circle.setAttribute('class', 'node-circle');
+        circle.dataset.nodeId = n.id;
+        if (n.id === startNode) circle.classList.add('node-start');
+        // visual highlight if currently selected for connect
+        if (connectFrom && (connectFrom === n.id)) circle.classList.add('node-selected');
+        g.appendChild(circle);
+
+        // ID label
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('y', 5);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('class', 'node-label');
+        label.textContent = n.id;
+        g.appendChild(label);
+
+        // key / tentative value if prim started
+        const keyVal = (typeof key[n.id] === 'number') ? (isFinite(key[n.id]) ? String(key[n.id]) : '∞') : '';
+        if (keyVal !== '') {
+          const keyText = document.createElementNS('http://www.w3.org/2000/svg','text');
+          keyText.setAttribute('y', 28);
+          keyText.setAttribute('text-anchor', 'middle');
+          keyText.setAttribute('class', 'node-key');
+          keyText.textContent = keyVal === 'Infinity' ? '∞' : keyVal;
+          g.appendChild(keyText);
+        }
+
+        svg.appendChild(g);
+      });
+
+      // Update PQ and status panels
+      updatePQ();
+      updateStatus();
+      updateStartSelect();
+    }
+
+    /* Update PQ panel */
+    function updatePQ() {
+      // Clear
+      pqList.innerHTML = '';
+      const items = nodes.map(n => {
+        const k = key[n.id];
+        return {id: n.id, key: (k === undefined ? '∞' : (isFinite(k) ? k : '∞')), inMST: !!inMST[n.id]};
+      }).sort((a,b)=> {
+        // sort by key numeric (∞ goes last)
+        const ka = (a.key === '∞') ? Number.POSITIVE_INFINITY : Number(a.key);
+        const kb = (b.key === '∞') ? Number.POSITIVE_INFINITY : Number(b.key);
+        return ka - kb || a.id - b.id;
+      });
+
+      items.forEach(it => {
+        const div = document.createElement('div');
+        div.className = 'pq-item';
+        const left = document.createElement('div');
+        left.textContent = 'v' + it.id;
+        const right = document.createElement('div');
+        right.textContent = (it.key === '∞') ? '∞' : it.key;
+        if (it.inMST) {
+          const tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.style.background = 'linear-gradient(90deg,#22c55e20,#06b6d420)';
+          tag.textContent = 'in MST';
+          right.appendChild(document.createTextNode(' '));
+          right.appendChild(tag);
+        }
+        div.appendChild(left);
+        div.appendChild(right);
+        pqList.appendChild(div);
+      });
+    }
+
+    /* Update status */
+    function updateStatus() {
+      statusText.textContent = `Nodes: ${nodes.length} • Edges: ${edges.length} • MST edges: ${edges.filter(e=>e.state==='mst').length}`;
+      mstWeightText.textContent = String(mstWeight);
+    }
+
+    /* Update start node select options */
+    function updateStartSelect() {
+      const old = startSelect.value;
+      startSelect.innerHTML = '<option value="">(auto)</option>';
+      nodes.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n.id;
+        opt.textContent = 'v' + n.id;
+        if (n.id === startNode) opt.selected = true;
+        startSelect.appendChild(opt);
+      });
+      if (old && !Array.from(startSelect.options).some(o=>o.value===old)) {
+        // continue
+      }
+    }
+
+    /* Highlight node visually (temporary) */
+    function highlightNode(id, persist=false) {
+      // Temporarily mark that node as selected by making it startNode (persist=true) else flash
+      if (persist) {
+        startNode = id;
+      } else {
+        // flash: set startNode, then revert after 700ms
+        const prev = startNode;
+        startNode = id;
+        render();
+        setTimeout(()=> { startNode = prev; render(); }, 700);
+      }
+      render();
+    }
+
+    /* Initialize Prim's algorithm state */
+    function initializePrim(s) {
+      // reset states
+      key = {};
+      parent = {};
+      inMST = {};
+      Q = new Set();
+      edges.forEach(e => e.state = 'normal');
+      nodes.forEach(n => {
+        key[n.id] = Infinity;
+        parent[n.id] = null;
+        inMST[n.id] = false;
+        Q.add(n.id);
+      });
+      if (!s) s = nodes[0].id;
+      key[s] = 0;
+      mstWeight = 0;
+      // pseudocode highlight line 1-3
+      highlightCodeLine(1);
+      setTimeout(()=> highlightCodeLine(2), 280);
+      render();
+    }
+
+    /* Run a single Prim step (extract-min and relax neighbors) */
+    function runPrimStep() {
+      if (Q.size === 0) {
+        primRunning = false;
+        primAutoPlay = false;
+        clearInterval(primTimer);
+        btnPlay.classList.remove('primary');
+        alert('Prim complete. Final MST weight: ' + mstWeight);
+        highlightCodeLine(null);
+        return;
+      }
+
+      // highlight line 4-5
+      highlightCodeLine(4);
+
+      // extract min
+      highlightCodeLine(5);
+      let u = null;
+      let minKey = Infinity;
+      Q.forEach(v => {
+        if (key[v] < minKey) { minKey = key[v]; u = v; }
+      });
+      if (u === null) {
+        // disconnected nodes: pick arbitrary remaining
+        u = Array.from(Q.values())[0];
+      }
+
+      // mark u as in MST, animate
+      inMST[u] = true;
+      Q.delete(u);
+      // if u has parent, mark edge parent-u as mst
+      if (parent[u] !== null) {
+        const e = edges.find(ed => ( (ed.a === u && ed.b === parent[u]) || (ed.b === u && ed.a === parent[u]) ));
+        if (e) {
+          e.state = 'mst';
+          mstWeight += e.w;
+        }
+      }
+
+      render();
+
+      // delay to show extraction
+      setTimeout(()=> {
+        // relax neighbors
+        highlightCodeLine(6);
+        const neighbors = edges.filter(ed => ed.a === u || ed.b === u);
+        let relaxSteps = [];
+        neighbors.forEach(ed => {
+          const v = (ed.a === u) ? ed.b : ed.a;
+          if (!Q.has(v)) return;
+          // show candidate edge highlight briefly
+          ed.state = 'candidate';
+          render(false);
+          relaxSteps.push({edge: ed, v});
+        });
+
+        // iterate with delays to show each neighbor relaxation
+        let i = 0;
+        function relaxNext() {
+          if (i >= relaxSteps.length) {
+            // clean candidate marks
+            edges.forEach(e => { if (e.state === 'candidate') e.state = 'normal'; });
+            render();
+            // continue to next extract-min step automatically if autoplay, or allow manual step
+            if (!primAutoPlay) {
+              highlightCodeLine(null);
+              return;
+            } else {
+              setTimeout(runPrimStep, 200);
+            }
+            return;
+          }
+          const step = relaxSteps[i];
+          highlightCodeLine(7);
+          // if w(u,v) < key[v]: update
+          if (step.edge.w < key[step.v]) {
+            parent[step.v] = u;
+            key[step.v] = step.edge.w;
+            // visual feedback: mark this edge candidate more strongly
+            step.edge.state = 'candidate';
+            render();
+          }
+          i++;
+          setTimeout(relaxNext, 220);
+        }
+        relaxNext();
+
+      }, 420);
+    }
+
+    /* Pseudocode highlight helper */
+    function highlightCodeLine(n) {
+      codeLines.forEach(line => {
+        if (n && Number(line.dataset.line) === n) {
+          line.classList.add('active');
+        } else {
+          line.classList.remove('active');
+        }
+      });
+    }
+
+    /* SVG helpers */
+    function getSvgPoint(evt) {
+      // return coordinates relative to svg
+      const rect = svg.getBoundingClientRect();
+      return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    }
+
+    /* Initialize empty svg area with instructions */
+    function initialSetup() {
+      render();
+      // Keyboard shortcuts
+      window.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Spacebar') {
+          e.preventDefault();
+          if (primRunning) runPrimStep();
+        }
+        if (e.key === 'r') { resetAll(); }
+      });
+      // Small accessibility: focus svg on load
+      setTimeout(()=> { svg.setAttribute('tabindex', '0'); }, 300);
+    }
+
+    // Start
+    initialSetup();
+    // Expose some functions to developer console (for testing)
+    window._primModule = { nodes, edges, addNode, addEdge, initializePrim, runPrimStep, resetAll };
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive: Graphs — Directed vs Undirected</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #6ee7b7;
+      --muted: #94a3b8;
+      --danger: #fb7185;
+      --glass: rgba(255,255,255,0.03);
+      --focus: #60a5fa;
+      --node-fill: #111827;
+      --node-stroke: #60a5fa;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071029 0%, #081223 100%);
+      color:#e6eef8;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Safe area margins: 24px on all sides */
+    .app {
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height:100vh;
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+    }
+
+    /* Layout: left column text/instructions, right area interactive module */
+    .sidebar {
+      width: 360px;
+      min-width: 300px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:20px;
+      box-sizing:border-box;
+      border:1px solid rgba(255,255,255,0.03);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .title {
+      font-size:18px;
+      font-weight:700;
+      color:var(--accent);
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    .subtle {
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.3;
+    }
+
+    .section {
+      background:var(--glass);
+      padding:12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    .controls {
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    button, .toggle {
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      color:inherit;
+      padding:8px 10px;
+      border-radius:8px;
+      cursor:pointer;
+      min-height:40px;
+      min-width:44px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      transition:200ms ease;
+      font-size:13px;
+    }
+
+    button:hover, .toggle:hover { transform:translateY(-2px); border-color: rgba(255,255,255,0.12); }
+    .primary { background: linear-gradient(90deg,#0ea5a7,#60a5fa); color:#06202a; border:0; font-weight:700; }
+    .danger { background:transparent; border-color: rgba(251,113,133,0.16); color:var(--danger); }
+
+    .togrow { display:flex; gap:8px; align-items:center; }
+
+    label.switch {
+      position:relative;
+      display:inline-block;
+      width:56px;
+      height:30px;
+    }
+    label.switch input{ display:none; }
+    .slider {
+      position:absolute;
+      cursor:pointer;
+      top:0; left:0; right:0; bottom:0;
+      background:rgba(255,255,255,0.04);
+      border-radius:34px;
+      transition: .2s;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .slider:before{
+      position:absolute;
+      content:"";
+      height:22px;
+      width:22px;
+      left:4px;
+      top:4px;
+      background:white;
+      border-radius:50%;
+      transform:scale(.95);
+      transition: .2s;
+      box-shadow: 0 4px 8px rgba(2,6,23,0.6);
+    }
+    label.switch input:checked + .slider{
+      background: linear-gradient(90deg,#34d399,#60a5fa);
+      border-color: rgba(255,255,255,0.06);
+    }
+    label.switch input:checked + .slider:before{
+      transform: translateX(26px) scale(1);
+      background:white;
+    }
+
+    .workspace {
+      flex:1;
+      min-width:0;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      padding:18px;
+      box-sizing:border-box;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .toolbar {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .help {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .canvas-wrap {
+      flex:1;
+      border-radius:10px;
+      background:linear-gradient(180deg, rgba(0,0,0,0.04), rgba(255,255,255,0.01));
+      border:1px dashed rgba(255,255,255,0.03);
+      position:relative;
+      overflow:hidden;
+      min-height:420px;
+      display:flex;
+      align-items:stretch;
+      justify-content:stretch;
+      padding:12px;
+    }
+
+    svg {
+      width:100%;
+      height:100%;
+      cursor:crosshair;
+      touch-action:none;
+    }
+
+    /* Node styling */
+    .node {
+      cursor:grab;
+    }
+    .node:active { cursor:grabbing; }
+
+    circle.node-shape {
+      fill:var(--node-fill);
+      stroke:var(--node-stroke);
+      stroke-width:2;
+      transition: 200ms ease;
+      filter: drop-shadow(0 6px 10px rgba(2,6,23,0.5));
+    }
+
+    .node-label {
+      pointer-events:none;
+      font-size:12px;
+      fill:#e6f0ff;
+      font-weight:600;
+      text-anchor:middle;
+      dominant-baseline:central;
+    }
+
+    .edge {
+      stroke:#9fb4ff;
+      stroke-width:2.6;
+      fill:none;
+      transition: stroke 200ms ease;
+      stroke-linecap:round;
+    }
+    .edge.weighted { stroke:#fbbf24; }
+
+    .arrow {
+      fill:#9fb4ff;
+      opacity:0;
+      transition: opacity 300ms ease, transform 300ms ease;
+    }
+    .directed .arrow { opacity:1; }
+
+    .edge-pulse {
+      fill:var(--accent);
+      r:5;
+      opacity:0.95;
+    }
+
+    .selected circle.node-shape { stroke:#ffd166; stroke-width:3.5; transform:scale(1.06); }
+    .reachable circle.node-shape { stroke:#60a5fa; stroke-width:3; transform:scale(1.04); }
+
+    .info {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+      flex-wrap:wrap;
+    }
+
+    .stat {
+      background:rgba(255,255,255,0.02);
+      padding:8px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.02);
+      min-width:120px;
+      text-align:center;
+    }
+
+    .hint {
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.3;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width:980px){
+      .app{ flex-direction:column; padding:18px; }
+      .sidebar{ width:100%; order:2; }
+      .workspace{ order:1; min-height:480px; }
+    }
+
+    /* Ensure min spacing 16px between interactive elements by layout above */
+    /* Small helper for overlay prompt */
+    .prompt {
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      background:#07202a;
+      padding:12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.04);
+      z-index:40;
+      min-width:220px;
+      box-shadow: 0 10px 30px rgba(2,6,23,0.7);
+    }
+
+    input[type="number"]{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.04);
+      padding:8px;
+      color:inherit;
+      border-radius:8px;
+      width:100%;
+      box-sizing:border-box;
+    }
+
+    small.muted { color:var(--muted); display:block; margin-top:8px; font-size:12px }
+
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Interactive module teaching directed vs undirected graphs">
+    <div class="sidebar" aria-hidden="false">
+      <div class="title">Graph: Directed vs Undirected</div>
+
+      <div class="section" aria-live="polite">
+        <div style="font-weight:700; margin-bottom:6px">Learning objective</div>
+        <div class="subtle">
+          After using this module you will be able to:
+          - Create a small graph by adding and moving nodes and connecting them with edges.
+          - Toggle between undirected and directed graphs and observe how edges and node degrees differ.
+          - Explore reachability: see which nodes are reachable from a starting node when edge direction matters.
+        </div>
+      </div>
+
+      <div class="section">
+        <div style="font-weight:700; margin-bottom:6px">Interaction design (how to use)</div>
+        <div class="subtle">
+          - Click anywhere in the canvas to add a node.<br>
+          - Drag a node to move it. (Click and drag)<br>
+          - Hold Shift and drag from one node to another to create an edge (release on target).<br>
+          - Toggle "Directed" to switch modes — arrowheads animate in/out.<br>
+          - Click a node to select it; the info panel shows its degree (undirected) or in/out-degree (directed).<br>
+          - Press "Reachable" to animate which nodes are reachable from the selected node (respects direction).
+        </div>
+      </div>
+
+      <div class="section">
+        <div style="font-weight:700; margin-bottom:6px">Layout description</div>
+        <div class="subtle">
+          - Left column: controls, mode toggles and short instructions.<br>
+          - Right (main) column: large SVG canvas for drawing and interacting with the graph; top toolbar contains buttons and indicators; bottom shows node details.<br>
+          - Spacing: 24px safe margin; 16px minimum gap between interactive elements; responsive: stacks vertically on small screens.
+        </div>
+      </div>
+
+      <div class="section">
+        <div style="font-weight:700; margin-bottom:6px">Tips</div>
+        <div class="subtle">
+          - Use small graphs (3–8 nodes) to see clear differences between directed and undirected reachability.<br>
+          - Toggle "Weighted" if you want to add edge weights; double-click an edge to edit weight if weighted is enabled.
+        </div>
+      </div>
+
+    </div>
+
+    <div class="workspace" role="region" aria-label="Graph workspace">
+      <div class="toolbar">
+        <div style="display:flex; gap:12px; align-items:center;">
+          <button class="primary" id="addNodeBtn" title="Add node" aria-label="Add node">Add node</button>
+          <button id="clearBtn" aria-label="Clear graph">Clear</button>
+          <div style="width:1px; height:32px; background:rgba(255,255,255,0.02)"></div>
+
+          <div class="togrow" title="Toggle directed/undirected">
+            <div style="font-size:13px; color:var(--muted);">Directed</div>
+            <label class="switch" aria-label="Toggle directed">
+              <input type="checkbox" id="directedToggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="togrow" title="Toggle weighted mode">
+            <div style="font-size:13px; color:var(--muted);">Weighted</div>
+            <label class="switch" aria-label="Toggle weighted">
+              <input type="checkbox" id="weightedToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; align-items:center;">
+          <div class="help">
+            <span style="font-weight:700; color:var(--muted);">Mode</span>
+            <div id="modeIndicator" style="background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:8px; font-size:13px;">
+              Directed
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-wrap" id="canvasWrap" role="application" aria-label="Graph canvas">
+        <!-- SVG graph area -->
+        <svg id="svg" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet" tabindex="0" aria-label="Graph drawing area">
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L10,5 L0,10 z" fill="#9fb4ff" />
+            </marker>
+            <marker id="arrowhead-weighted" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24" />
+            </marker>
+          </defs>
+
+          <g id="edgesLayer"></g>
+          <g id="nodesLayer"></g>
+          <g id="overlayLayer"></g>
+        </svg>
+
+        <!-- dynamic prompt for weight input -->
+        <div id="promptContainer" style="display:none;"></div>
+
+      </div>
+
+      <div style="display:flex; gap:12px; align-items:center; justify-content:space-between;">
+        <div class="info">
+          <div class="stat" id="selectedInfo">No node selected</div>
+          <div class="stat" id="graphStats">Nodes: 0 • Edges: 0</div>
+          <div>
+            <button id="reachableBtn">Reachable</button>
+            <button id="animateBtn">Animate edge draw</button>
+          </div>
+        </div>
+
+        <div style="text-align:right; color:var(--muted); font-size:13px;">
+          <div>Hold Shift + drag from node → node to create an edge</div>
+          <small class="muted">Click node to select. Double-click edge to edit weight (when weighted).</small>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Graph interactive module
+    // Implementation: vanilla JS + SVG
+    (function(){
+      // Config & state
+      const svg = document.getElementById('svg');
+      const nodesLayer = document.getElementById('nodesLayer');
+      const edgesLayer = document.getElementById('edgesLayer');
+      const overlayLayer = document.getElementById('overlayLayer');
+      const promptContainer = document.getElementById('promptContainer');
+
+      const addNodeBtn = document.getElementById('addNodeBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const directedToggle = document.getElementById('directedToggle');
+      const weightedToggle = document.getElementById('weightedToggle');
+      const modeIndicator = document.getElementById('modeIndicator');
+      const selectedInfo = document.getElementById('selectedInfo');
+      const graphStats = document.getElementById('graphStats');
+      const reachableBtn = document.getElementById('reachableBtn');
+      const animateBtn = document.getElementById('animateBtn');
+      const canvasWrap = document.getElementById('canvasWrap');
+
+      let nodes = []; // {id,x,y,el}
+      let edges = []; // {id,from,to,weight,el,arrowEl,dir} dir=true if directed edge in directed mode
+      let nextNodeId = 1;
+      let nextEdgeId = 1;
+      let selectedNodeId = null;
+      let isDirected = directedToggle.checked;
+      let isWeighted = weightedToggle.checked;
+
+      // Temporary state for drag / edge-creation
+      let draggingNode = null;
+      let dragOffset = {x:0,y:0};
+      let creatingEdge = false;
+      let edgePreview = null;
+      let edgePreviewFrom = null;
+
+      // Utils: convert client coordinates to SVG coordinates
+      function clientToSvg(evt) {
+        const pt = svg.createSVGPoint();
+        pt.x = evt.clientX;
+        pt.y = evt.clientY;
+        const ctm = svg.getScreenCTM().inverse();
+        return pt.matrixTransform(ctm);
+      }
+
+      function updateModeUI(){
+        modeIndicator.textContent = isDirected ? 'Directed' : 'Undirected';
+        if (isDirected) svg.classList.add('directed'); else svg.classList.remove('directed');
+      }
+
+      function updateStats(){
+        graphStats.textContent = `Nodes: ${nodes.length} • Edges: ${edges.length}`;
+        if (selectedNodeId == null) {
+          selectedInfo.textContent = 'No node selected';
+          return;
+        }
+        const node = nodes.find(n=>n.id===selectedNodeId);
+        if (!node) { selectedInfo.textContent = 'No node selected'; return; }
+        if (isDirected) {
+          const inDeg = edges.filter(e=>e.to===node.id).length;
+          const outDeg = edges.filter(e=>e.from===node.id).length;
+          selectedInfo.innerHTML = `<div style="font-weight:700">${node.label}</div><div style="font-size:13px;color:var(--muted)">in-degree: ${inDeg} • out-degree: ${outDeg}</div>`;
+        } else {
+          // degree: count edges that include this node; for parallel edges count both
+          let deg=0;
+          edges.forEach(e=>{
+            if (e.from===node.id) deg++;
+            if (e.to===node.id) deg++;
+          });
+          // For undirected mode, each edge is considered a single undirected edge; since we store directed edges even in undirected mode (from,to),
+          // we should count unique edges touching node: if from===node or to===node counts 1 per edge (not two)
+          // Adjust: if not directed mode, count edges where from===node || to===node
+          if (!isDirected) {
+            deg = edges.reduce((acc,e)=> acc + ((e.from===node.id|| e.to===node.id)?1:0),0);
+          }
+          selectedInfo.innerHTML = `<div style="font-weight:700">${node.label}</div><div style="font-size:13px;color:var(--muted)">degree: ${deg}</div>`;
+        }
+      }
+
+      function setSelected(nodeId){
+        selectedNodeId = nodeId;
+        // visual selected
+        nodes.forEach(n=>{
+          if (n.id===nodeId) n.el.classList.add('selected'); else n.el.classList.remove('selected');
+        });
+        updateStats();
+      }
+
+      function clearSelected(){
+        selectedNodeId = null;
+        nodes.forEach(n=> n.el.classList.remove('selected'));
+        updateStats();
+      }
+
+      // Node creation
+      function createNode(x,y,label){
+        const id = nextNodeId++;
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('class','node');
+        g.setAttribute('data-id',id);
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circle.setAttribute('cx',x);
+        circle.setAttribute('cy',y);
+        circle.setAttribute('r',28);
+        circle.setAttribute('class','node-shape');
+        circle.setAttribute('fill',getComputedStyle(document.documentElement).getPropertyValue('--node-fill').trim());
+        circle.setAttribute('stroke',getComputedStyle(document.documentElement).getPropertyValue('--node-stroke').trim());
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+        text.setAttribute('x',x);
+        text.setAttribute('y',y);
+        text.setAttribute('class','node-label');
+        text.textContent = label || `N${id}`;
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg','title');
+        title.textContent = `Node ${label||id}`;
+
+        g.appendChild(circle);
+        g.appendChild(text);
+        g.appendChild(title);
+
+        nodesLayer.appendChild(g);
+
+        const nodeObj = {id, x, y, el:g, label: text.textContent};
+        nodes.push(nodeObj);
+
+        // event handlers
+        g.addEventListener('mousedown', onNodeMouseDown);
+        g.addEventListener('click', (e)=>{ e.stopPropagation(); setSelected(id); });
+        g.addEventListener('touchstart', (e)=>{ e.preventDefault(); onNodeMouseDown(e); });
+
+        updateStats();
+        return nodeObj;
+      }
+
+      // Edge creation
+      function createEdge(fromId, toId, weight=1, animate=true){
+        // allow parallel edges
+        const id = nextEdgeId++;
+        const eLine = document.createElementNS('http://www.w3.org/2000/svg','path');
+        eLine.setAttribute('class','edge');
+        eLine.setAttribute('data-id',id);
+        eLine.setAttribute('fill','none');
+        eLine.setAttribute('stroke-linecap','round');
+
+        const arrow = document.createElementNS('http://www.w3.org/2000/svg','path');
+        arrow.setAttribute('class','arrow');
+        arrow.setAttribute('d','M0,0 L8,4 L0,8 z');
+
+        edgesLayer.appendChild(eLine);
+        edgesLayer.appendChild(arrow);
+
+        const edgeObj = {id, from: fromId, to: toId, weight, el:eLine, arrowEl: arrow};
+        edges.push(edgeObj);
+
+        // double-click to edit weight if weighted
+        eLine.addEventListener('dblclick', (ev)=>{
+          ev.stopPropagation();
+          if (!isWeighted) return;
+          showWeightPrompt(edgeObj);
+        });
+
+        updateEdgePosition(edgeObj, false);
+
+        // animation of creation (stroke dash)
+        if (animate) {
+          const length = eLine.getTotalLength?.() || 200;
+          eLine.style.strokeDasharray = length;
+          eLine.style.strokeDashoffset = length;
+          eLine.getBoundingClientRect(); // force reflow
+          eLine.style.transition = 'stroke-dashoffset 420ms ease-out';
+          eLine.style.strokeDashoffset = '0';
+          setTimeout(()=> { eLine.style.transition = ''; eLine.style.strokeDasharray = ''; eLine.style.strokeDashoffset=''; }, 600);
+        }
+
+        updateEdgeVisuals(edgeObj);
+        updateStats();
+        return edgeObj;
+      }
+
+      function updateEdgeVisuals(edgeObj){
+        // set arrow visibility and markers based on mode & weight
+        const {el, arrowEl, weight} = edgeObj;
+        if (isWeighted) {
+          el.classList.add('weighted');
+          arrowEl.setAttribute('fill','#fbbf24');
+        } else {
+          el.classList.remove('weighted');
+          arrowEl.setAttribute('fill','#9fb4ff');
+        }
+        if (isDirected) {
+          arrowEl.style.opacity = 1;
+        } else {
+          arrowEl.style.opacity = 0;
+        }
+      }
+
+      function updateEdgePosition(edgeObj, updateArrow=true){
+        const fromNode = nodes.find(n=>n.id===edgeObj.from);
+        const toNode = nodes.find(n=>n.id===edgeObj.to);
+        if (!fromNode || !toNode) return;
+        const x1 = fromNode.x, y1 = fromNode.y;
+        const x2 = toNode.x, y2 = toNode.y;
+        // draw simple quadratic curve for nicer visuals if nodes overlap
+        const dx = x2-x1, dy = y2-y1;
+        const dist = Math.hypot(dx,dy) || 1;
+        const normX = dx/dist, normY = dy/dist;
+        // shift control point perpendicular for curve
+        const px = (x1 + x2)/2 + (-normY)*Math.min(60, dist/3);
+        const py = (y1 + y2)/2 + (normX)*Math.min(60, dist/3);
+
+        const d = `M ${x1} ${y1} Q ${px} ${py} ${x2} ${y2}`;
+        edgeObj.el.setAttribute('d', d);
+
+        // position arrow at 90% of path length
+        if (updateArrow){
+          const pathLen = edgeObj.el.getTotalLength();
+          const arrowPos = edgeObj.el.getPointAtLength(Math.max(0, pathLen*0.92));
+          // compute tangent for rotation
+          const ptBefore = edgeObj.el.getPointAtLength(Math.max(0, pathLen*0.9));
+          const angle = Math.atan2(arrowPos.y - ptBefore.y, arrowPos.x - ptBefore.x) * 180 / Math.PI;
+          edgeObj.arrowEl.setAttribute('transform', `translate(${arrowPos.x-6},${arrowPos.y-4}) rotate(${angle},6,4)`);
+        }
+      }
+
+      // Node drag & edge creation handlers
+      function onNodeMouseDown(e){
+        e.stopPropagation();
+        // support touch
+        const isTouch = e.type.startsWith('touch');
+        const evt = isTouch ? e.touches[0] : e;
+        const pt = clientToSvg(evt);
+        const g = e.currentTarget;
+        const id = +g.getAttribute('data-id');
+        // record initial positions
+        const node = nodes.find(n=>n.id===id);
+        draggingNode = node;
+        dragOffset.x = pt.x - node.x;
+        dragOffset.y = pt.y - node.y;
+
+        // if Shift pressed => start edge creation preview
+        if (evt.shiftKey) {
+          creatingEdge = true;
+          edgePreviewFrom = node;
+          // create preview path
+          edgePreview = document.createElementNS('http://www.w3.org/2000/svg','path');
+          edgePreview.setAttribute('stroke','#60a5fa');
+          edgePreview.setAttribute('stroke-width','2');
+          edgePreview.setAttribute('fill','none');
+          edgePreview.setAttribute('stroke-dasharray','6 6');
+          overlayLayer.appendChild(edgePreview);
+        } else {
+          creatingEdge = false;
+        }
+
+        window.addEventListener(isTouch ? 'touchmove' : 'mousemove', onMouseMove);
+        window.addEventListener(isTouch ? 'touchend' : 'mouseup', onMouseUp);
+      }
+
+      function onMouseMove(e){
+        const isTouch = e.type.startsWith('touch');
+        const evt = isTouch ? e.touches[0] : e;
+        const pt = clientToSvg(evt);
+        if (draggingNode && !creatingEdge){
+          // move node
+          draggingNode.x = pt.x - dragOffset.x;
+          draggingNode.y = pt.y - dragOffset.y;
+          // keep nodes within view box - clamp
+          draggingNode.x = Math.max(40, Math.min(1150, draggingNode.x));
+          draggingNode.y = Math.max(40, Math.min(660, draggingNode.y));
+          // update SVG elements
+          const circle = draggingNode.el.querySelector('circle');
+          const label = draggingNode.el.querySelector('text');
+          circle.setAttribute('cx', draggingNode.x);
+          circle.setAttribute('cy', draggingNode.y);
+          label.setAttribute('x', draggingNode.x);
+          label.setAttribute('y', draggingNode.y);
+          // update connected edges
+          edges.forEach(e2 => {
+            if (e2.from===draggingNode.id || e2.to===draggingNode.id) updateEdgePosition(e2);
+          });
+        }
+        if (creatingEdge && edgePreview){
+          const from = edgePreviewFrom;
+          const x1 = from.x, y1 = from.y;
+          const x2 = pt.x, y2 = pt.y;
+          const dx = x2-x1, dy = y2-y1;
+          const dist = Math.hypot(dx,dy) || 1;
+          const normX = dx/dist, normY = dy/dist;
+          const px = (x1 + x2)/2 + (-normY)*Math.min(60, dist/3);
+          const py = (y1 + y2)/2 + (normX)*Math.min(60, dist/3);
+          const d = `M ${x1} ${y1} Q ${px} ${py} ${x2} ${y2}`;
+          edgePreview.setAttribute('d', d);
+        }
+      }
+
+      function onMouseUp(e){
+        const isTouch = e.type.startsWith('touch');
+        const evt = isTouch ? (e.changedTouches ? e.changedTouches[0] : e.touches[0]) : e;
+        const pt = clientToSvg(evt);
+        // if creating edge, check if release on another node
+        if (creatingEdge && edgePreview){
+          // detect if mouse up target is a node under pointer
+          const target = document.elementFromPoint(evt.clientX, evt.clientY);
+          let targetNode = null;
+          if (target) {
+            const parent = target.closest && target.closest('.node');
+            if (parent) targetNode = nodes.find(n=> n.id === +parent.getAttribute('data-id'));
+          }
+          if (targetNode && targetNode.id !== edgePreviewFrom.id){
+            // create edge
+            const weight = isWeighted ? 1 : 1;
+            createEdge(edgePreviewFrom.id, targetNode.id, weight, true);
+          }
+        }
+
+        // cleanup
+        creatingEdge = false;
+        draggingNode = null;
+        if (edgePreview) {
+          overlayLayer.removeChild(edgePreview);
+          edgePreview = null;
+        }
+
+        window.removeEventListener(isTouch ? 'touchmove' : 'mousemove', onMouseMove);
+        window.removeEventListener(isTouch ? 'touchend' : 'mouseup', onMouseUp);
+
+        updateStats();
+      }
+
+      // Canvas click to add node
+      svg.addEventListener('click', (ev)=>{
+        // avoid adding if clicked on node
+        if (ev.target.closest && ev.target.closest('.node')) return;
+        const pt = clientToSvg(ev);
+        const label = `N${nextNodeId}`;
+        createNode(pt.x, pt.y, label);
+      });
+
+      // Buttons
+      addNodeBtn.addEventListener('click', ()=>{
+        // add near center
+        createNode(600 + (Math.random()-0.5)*200, 350 + (Math.random()-0.5)*200);
+      });
+
+      clearBtn.addEventListener('click', ()=>{
+        // animate fade
+        nodes.forEach(n => n.el.remove());
+        edges.forEach(e => { if (e.el) e.el.remove(); if (e.arrowEl) e.arrowEl.remove(); });
+        nodes = []; edges = []; nextEdgeId = 1; nextNodeId = 1;
+        clearSelected();
+        updateStats();
+      });
+
+      directedToggle.addEventListener('change', (e)=>{
+        isDirected = directedToggle.checked;
+        updateModeUI();
+        // animate arrowheads in/out
+        edges.forEach((edgeObj, i)=>{
+          // small staggered animation
+          setTimeout(()=> {
+            updateEdgeVisuals(edgeObj);
+            updateEdgePosition(edgeObj);
+            // use class to control arrow opacity if CSS present
+            if (isDirected) {
+              edgeObj.arrowEl.style.opacity = 1;
+            } else {
+              edgeObj.arrowEl.style.opacity = 0;
+            }
+          }, i*40);
+        });
+        updateStats();
+      });
+
+      weightedToggle.addEventListener('change', ()=>{
+        isWeighted = weightedToggle.checked;
+        edges.forEach(e => updateEdgeVisuals(e));
+      });
+
+      // edge position update on window resize (svg viewbox scaling may change)
+      window.addEventListener('resize', ()=> {
+        edges.forEach(e => updateEdgePosition(e));
+      });
+
+      // clicking canvas clears selection
+      svg.addEventListener('mousedown', (e)=> {
+        if (!e.target.closest('.node')) {
+          clearSelected();
+        }
+      });
+
+      // show weight prompt
+      function showWeightPrompt(edgeObj){
+        promptContainer.innerHTML = '';
+        promptContainer.style.display = 'block';
+        const box = document.createElement('div');
+        box.className = 'prompt';
+        box.innerHTML = `
+          <div style="font-weight:700;margin-bottom:8px">Edit weight</div>
+          <input type="number" id="weightInput" min="0" step="0.1" value="${edgeObj.weight}" />
+          <div style="display:flex; gap:8px; margin-top:10px; justify-content:flex-end;">
+            <button id="wOk">OK</button>
+            <button id="wCancel" class="danger">Cancel</button>
+          </div>
+        `;
+        promptContainer.appendChild(box);
+        const input = document.getElementById('weightInput');
+        input.focus();
+        document.getElementById('wOk').addEventListener('click', ()=>{
+          const v = parseFloat(input.value);
+          if (!isNaN(v)) {
+            edgeObj.weight = v;
+            // visually adjust stroke width or label
+            edgeObj.el.setAttribute('stroke-width', Math.max(1.6, Math.min(6, 1.6 + Math.log10(1+v)*2)));
+            promptContainer.style.display = 'none';
+          }
+        });
+        document.getElementById('wCancel').addEventListener('click', ()=>{
+          promptContainer.style.display = 'none';
+        });
+      }
+
+      // Reachability animation (BFS respecting direction)
+      reachableBtn.addEventListener('click', ()=>{
+        if (selectedNodeId == null) {
+          alert('Select a node to compute reachable nodes from it.');
+          return;
+        }
+        const startId = selectedNodeId;
+        // BFS
+        const visited = new Set();
+        const q = [startId];
+        visited.add(startId);
+        const order = [];
+        while (q.length){
+          const cur = q.shift();
+          order.push(cur);
+          edges.forEach(e=>{
+            // if directed, follow e.from -> e.to; if undirected, treat as undirected
+            if (isDirected) {
+              if (e.from === cur && !visited.has(e.to)){
+                visited.add(e.to); q.push(e.to);
+              }
+            } else {
+              if (e.from === cur && !visited.has(e.to)){ visited.add(e.to); q.push(e.to); }
+              if (e.to === cur && !visited.has(e.from)){ visited.add(e.from); q.push(e.from); }
+            }
+          });
+        }
+
+        // highlight reachable nodes (except start)
+        nodes.forEach(n => n.el.classList.remove('reachable'));
+        const reachableIds = Array.from(visited);
+        reachableIds.forEach(id=>{
+          const n = nodes.find(x=>x.id===id);
+          if (n) n.el.classList.add('reachable');
+        });
+
+        // animate pulses along edges in BFS tree order
+        // build BFS tree edges sequence
+        const pulses = [];
+        const parent = {};
+        // rebuild BFS with parent tracking
+        visited.clear();
+        q.length=0;
+        q.push(startId); visited.add(startId);
+        while (q.length){
+          const cur = q.shift();
+          edges.forEach(e=>{
+            if (isDirected) {
+              if (e.from === cur && !visited.has(e.to)){
+                visited.add(e.to); parent[e.to]=cur; q.push(e.to);
+                pulses.push({from:cur,to:e.to});
+              }
+            } else {
+              if (e.from === cur && !visited.has(e.to)){
+                visited.add(e.to); parent[e.to]=cur; q.push(e.to);
+                pulses.push({from:cur,to:e.to});
+              }
+              if (e.to === cur && !visited.has(e.from)){
+                visited.add(e.from); parent[e.from]=cur; q.push(e.from);
+                pulses.push({from:cur,to:e.from});
+              }
+            }
+          });
+        }
+
+        // animate pulses sequentially
+        let delay = 200;
+        pulses.forEach(p => {
+          setTimeout(()=> animatePulseAlongEdge(p.from, p.to), delay);
+          delay += 280;
+        });
+
+        // after animation, remove highlights after some time
+        setTimeout(()=> {
+          nodes.forEach(n=> n.el.classList.remove('reachable'));
+        }, delay + 900);
+      });
+
+      // Animate a small circle along direct path between two node ids
+      function animatePulseAlongEdge(fromId, toId){
+        const fromNode = nodes.find(n=>n.id===fromId);
+        const toNode = nodes.find(n=>n.id===toId);
+        if (!fromNode || !toNode) return;
+        const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circle.setAttribute('r',6);
+        circle.setAttribute('fill', 'url(#pulseGrad)');
+        circle.setAttribute('class','edge-pulse');
+        overlayLayer.appendChild(circle);
+        const x1=fromNode.x, y1=fromNode.y, x2=toNode.x, y2=toNode.y;
+        const duration = 520;
+        let start = null;
+        function step(ts){
+          if (!start) start = ts;
+          const t = Math.min(1, (ts-start)/duration);
+          const cx = x1 + (x2-x1)*t;
+          const cy = y1 + (y2-y1)*t;
+          circle.setAttribute('cx', cx);
+          circle.setAttribute('cy', cy);
+          if (t<1) requestAnimationFrame(step);
+          else {
+            overlayLayer.removeChild(circle);
+            // slight pulse on destination node
+            const target = nodes.find(n=>n.id===toId);
+            if (target){
+              const c = target.el.querySelector('circle');
+              c.animate([{transform:'scale(1)'},{transform:'scale(1.12)'},{transform:'scale(1)'}], {duration:260, easing:'ease-out'});
+            }
+          }
+        }
+        requestAnimationFrame(step);
+      }
+
+      // Animate edge draw: re-run creation animation for all edges
+      animateBtn.addEventListener('click', ()=>{
+        edges.forEach((e, idx) => {
+          const length = e.el.getTotalLength();
+          e.el.style.strokeDasharray = length;
+          e.el.style.strokeDashoffset = length;
+          e.el.getBoundingClientRect();
+          e.el.style.transition = 'stroke-dashoffset 420ms ease-out';
+          setTimeout(()=> e.el.style.strokeDashoffset = '0', idx*80);
+          setTimeout(()=> { e.el.style.transition=''; e.el.style.strokeDasharray=''; e.el.style.strokeDashoffset=''; }, 600 + idx*80);
+        });
+      });
+
+      // Initialize with a small example graph to get started
+      function seed(){
+        const n1 = createNode(420, 260, 'A');
+        const n2 = createNode(720, 260, 'B');
+        const n3 = createNode(570, 420, 'C');
+        createEdge(n1.id, n2.id, 1, true);
+        createEdge(n2.id, n3.id, 1, true);
+        createEdge(n3.id, n1.id, 1, true);
+      }
+      // add basic gradient for pulse if supported
+      (function addPulseGradient(){
+        const defs = svg.querySelector('defs');
+        const g = document.createElementNS('http://www.w3.org/2000/svg','radialGradient');
+        g.setAttribute('id','pulseGrad');
+        const s1 = document.createElementNS('http://www.w3.org/2000/svg','stop');
+        s1.setAttribute('offset','0%');
+        s1.setAttribute('stop-color',getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+        s1.setAttribute('stop-opacity','0.95');
+        const s2 = document.createElementNS('http://www.w3.org/2000/svg','stop');
+        s2.setAttribute('offset','100%');
+        s2.setAttribute('stop-color',getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+        s2.setAttribute('stop-opacity','0.15');
+        g.appendChild(s1); g.appendChild(s2);
+        defs.appendChild(g);
+      })();
+
+      // start
+      updateModeUI();
+      seed();
+      updateStats();
+
+      // Accessibility: keyboard - allow adding node with Enter when svg focused
+      svg.addEventListener('keydown', (e)=>{
+        if (e.key === 'Enter') {
+          const mid = {x:600, y:350};
+          createNode(mid.x + (Math.random()-0.5)*160, mid.y + (Math.random()-0.5)*160);
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          // delete selected node
+          if (selectedNodeId != null){
+            // remove edges connected
+            const remEdges = edges.filter(ed => ed.from===selectedNodeId || ed.to===selectedNodeId);
+            remEdges.forEach(re => {
+              if (re.el) re.el.remove();
+              if (re.arrowEl) re.arrowEl.remove();
+            });
+            edges = edges.filter(ed => !(ed.from===selectedNodeId || ed.to===selectedNodeId));
+            // remove node
+            const n = nodes.find(x=>x.id===selectedNodeId);
+            if (n) n.el.remove();
+            nodes = nodes.filter(x=> x.id !== selectedNodeId);
+            clearSelected();
+            updateStats();
+          }
+        }
+      });
+
+      // keep labels on top when updating edges
+      const observer = new MutationObserver(()=> {
+        // ensure nodesLayer is on top of edgesLayer? We want nodes above edges.
+        // nodesLayer should be after edgesLayer in DOM; ensure that.
+        if (svg.lastChild !== overlayLayer) {
+          svg.appendChild(edgesLayer);
+          svg.appendChild(nodesLayer);
+          svg.appendChild(overlayLayer);
+        }
+      });
+      observer.observe(svg, {childList:true});
+    })();
+  </script>
+</body>
+</html>

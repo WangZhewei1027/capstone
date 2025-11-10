@@ -1,0 +1,132 @@
+# Page snapshot
+
+```yaml
+- application "Set interactive module" [ref=e2]:
+  - complementary "Set Explorer" [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Set Explorer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Discover and practice the Set rule by selecting three cards that form a valid Set.
+    - generic [ref=e7]:
+      - strong [ref=e8]: Concept Title
+      - paragraph [ref=e9]: "What makes a Set: for each attribute (number, shape, color, shading), the three cards must be all the same or all different."
+    - generic [ref=e10]:
+      - strong [ref=e11]: Learning Objective
+      - paragraph [ref=e12]: After using this module, you'll be able to recognize valid Sets quickly and understand attribute-wise why a group of three cards is or isn't a Set.
+    - generic [ref=e13]:
+      - strong [ref=e14]: Interaction Design
+      - paragraph [ref=e15]: "Click or use keyboard (arrow keys + Enter/Space) to select cards. When three cards are selected the module checks them:"
+      - list [ref=e16]:
+        - listitem [ref=e17]: "Correct Set: cards animate away to the found area and your score increases."
+        - listitem [ref=e18]: "Incorrect: cards briefly shake and analysis shows which attributes fail."
+        - listitem [ref=e19]: "Hint: reveals one card of a Set or shows a full Set."
+    - generic [ref=e20]:
+      - button "New Game" [ref=e21] [cursor=pointer]
+      - button "Shuffle" [ref=e22] [cursor=pointer]
+      - button "Hint" [ref=e23] [cursor=pointer]
+      - button "Show Set" [ref=e24] [cursor=pointer]
+      - button "Deal 3" [ref=e25] [cursor=pointer]
+    - generic [ref=e26]:
+      - strong [ref=e27]: Layout Description
+      - paragraph [ref=e28]: "Left: instructions and controls. Center: the card board (default 12 cards). Right: selection analysis, score, found Sets. The layout respects 24px safe margins and 16px gaps. It's responsive: columns stack on small screens. Keyboard focus and semantic HTML improve accessibility."
+  - main [ref=e29]:
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - strong [ref=e32]: Board
+        - generic [ref=e33]: Select three cards to test for a Set.
+      - generic [ref=e35]: "Selected: 0/3"
+    - grid "Set cards grid" [ref=e36]:
+      - gridcell "3 O" [ref=e37] [cursor=pointer]:
+        - img [ref=e38]
+        - generic [ref=e46]:
+          - generic [ref=e47]: "3"
+          - generic [ref=e48]: O
+      - gridcell "2 O" [ref=e49] [cursor=pointer]:
+        - img [ref=e50]
+        - generic [ref=e56]:
+          - generic [ref=e57]: "2"
+          - generic [ref=e58]: O
+      - gridcell "1 S" [ref=e59] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e64]:
+          - generic [ref=e65]: "1"
+          - generic [ref=e66]: S
+      - gridcell "1 O" [ref=e67] [cursor=pointer]:
+        - img [ref=e68]
+        - generic [ref=e73]:
+          - generic [ref=e74]: "1"
+          - generic [ref=e75]: O
+      - gridcell "2 O" [ref=e76] [cursor=pointer]:
+        - img [ref=e77]
+        - generic [ref=e85]:
+          - generic [ref=e86]: "2"
+          - generic [ref=e87]: O
+      - gridcell "3 O" [ref=e88] [cursor=pointer]:
+        - img [ref=e89]
+        - generic [ref=e100]:
+          - generic [ref=e101]: "3"
+          - generic [ref=e102]: O
+      - gridcell "3 D" [ref=e103] [cursor=pointer]:
+        - img [ref=e104]
+        - generic [ref=e112]:
+          - generic [ref=e113]: "3"
+          - generic [ref=e114]: D
+      - gridcell "2 O" [ref=e115] [cursor=pointer]:
+        - img [ref=e116]
+        - generic [ref=e122]:
+          - generic [ref=e123]: "2"
+          - generic [ref=e124]: O
+      - gridcell "2 S" [ref=e125] [cursor=pointer]:
+        - img [ref=e126]
+        - generic [ref=e134]:
+          - generic [ref=e135]: "2"
+          - generic [ref=e136]: S
+      - gridcell "2 S" [ref=e137] [cursor=pointer]:
+        - img [ref=e138]
+        - generic [ref=e144]:
+          - generic [ref=e145]: "2"
+          - generic [ref=e146]: S
+      - gridcell "1 O" [ref=e147] [cursor=pointer]:
+        - img [ref=e148]
+        - generic [ref=e152]:
+          - generic [ref=e153]: "1"
+          - generic [ref=e154]: O
+      - gridcell "3 D" [ref=e155] [cursor=pointer]:
+        - img [ref=e156]
+        - generic [ref=e164]:
+          - generic [ref=e165]: "3"
+          - generic [ref=e166]: D
+    - generic [ref=e167]:
+      - generic [ref=e168]:
+        - generic [ref=e169]: Score
+        - generic [ref=e170]: "0"
+      - generic [ref=e171]:
+        - generic [ref=e172]: "Deck:"
+        - generic [ref=e173]: "69"
+    - generic [ref=e174]:
+      - strong [ref=e175]: Found Sets
+      - generic "Found sets" [ref=e176]
+  - complementary "Analysis and controls" [ref=e177]:
+    - generic [ref=e178]:
+      - strong [ref=e179]: Selection Analysis
+      - paragraph [ref=e180]: When three cards are chosen you'll see whether each attribute passes the Set rule.
+    - generic [ref=e182]:
+      - term [ref=e183]: Selected Cards
+      - definition [ref=e184]: —
+      - term [ref=e185]: Attribute Checks
+      - definition [ref=e186]:
+        - generic [ref=e187]:
+          - generic [ref=e188]:
+            - generic [ref=e189]: Number
+            - generic [ref=e190]: —
+          - generic [ref=e191]:
+            - generic [ref=e192]: Shape
+            - generic [ref=e193]: —
+          - generic [ref=e194]:
+            - generic [ref=e195]: Color
+            - generic [ref=e196]: —
+          - generic [ref=e197]:
+            - generic [ref=e198]: Shading
+            - generic [ref=e199]: —
+      - term [ref=e200]: Tips
+      - definition [ref=e201]: Try to scan attributes one row at a time. If two cards share an attribute, the third must match them to be "all same". If two differ, the third must differ from both to be "all different".
+```

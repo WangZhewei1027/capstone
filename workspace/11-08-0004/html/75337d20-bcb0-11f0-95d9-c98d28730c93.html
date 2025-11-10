@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>K-Means Clustering — Interactive</title>
+  <style>
+    :root{
+      --safe-padding: 24px;
+      --gap: 16px;
+      --panel-bg: #f7f8fb;
+      --accent: #2563eb;
+      --muted: #6b7280;
+      --bg: #ffffff;
+      --canvas-bg: #111827;
+      --control-width: 360px;
+      --radius-point: 6;
+      --radius-centroid: 10;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#0f172a}
+    body{padding:var(--safe-padding); display:flex; align-items:flex-start; justify-content:center;}
+    .container{width:100%; max-width:1200px; display:flex; gap:var(--gap);}
+    /* Responsive layout: column on narrow screens */
+    @media (max-width:900px){
+      .container{flex-direction:column;}
+    }
+    .panel{
+      min-width:0;
+      background:var(--panel-bg);
+      padding:18px;
+      border-radius:10px;
+      box-shadow: 0 1px 3px rgba(2,6,23,0.06);
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      width:var(--control-width);
+      flex-shrink:0;
+    }
+    @media (max-width:900px){
+      .panel{width:100%;}
+    }
+    h1{margin:0; font-size:1.15rem;}
+    p.lead{margin:0; color:var(--muted); font-size:0.95rem; line-height:1.4;}
+    label{font-size:0.9rem; color:#0f172a; display:block; margin-bottom:6px;}
+    .controls{display:flex; flex-direction:column; gap:12px;}
+    .row{display:flex; gap:12px; align-items:center;}
+    .row.wrap{flex-wrap:wrap;}
+    input[type="number"], input[type="range"], select{
+      padding:8px 10px; border-radius:8px; border:1px solid #e6e9ef; background:white;
+      font-size:0.95rem; color:#0b1221;
+    }
+    .btn{
+      padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:600;
+      color:white; background:var(--accent);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+    }
+    .btn.secondary{background:#374151;}
+    .btn.ghost{background:transparent; color:var(--muted); border:1px solid #e6e9ef;}
+    .small{font-size:0.9rem; color:var(--muted);}
+    .metrics{display:flex; gap:12px; flex-wrap:wrap;}
+    .metric{background:white; padding:8px 10px; border-radius:8px; min-width:110px; box-shadow: 0 0 0 1px rgba(15,23,42,0.03) inset;}
+    .canvas-wrap{flex:1; background:transparent; display:flex; flex-direction:column; gap:12px;}
+    .visual{
+      background:linear-gradient(180deg, rgba(2,6,23,0.02), rgba(2,6,23,0.01));
+      border-radius:10px; padding:12px; display:flex; gap:12px; align-items:center; justify-content:center;
+    }
+    canvas{
+      background:var(--canvas-bg);
+      border-radius:8px;
+      width:100%;
+      height:600px;
+      touch-action:none;
+      display:block;
+      max-height:75vh;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.08);
+    }
+    @media (max-width:900px){
+      canvas{height:420px;}
+    }
+    .instructions{font-size:0.9rem; color:var(--muted);}
+    .small-muted{font-size:0.85rem; color:var(--muted)}
+    .control-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .toggle{display:flex; align-items:center; gap:8px;}
+    .color-swatch{width:14px; height:14px; border-radius:4px; display:inline-block; border:2px solid rgba(255,255,255,0.15);}
+    .sr-only{position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;}
+    /* Ensure at least 16px spacing between interactive elements */
+    .controls > * { margin-bottom:0; }
+    .controls > * + * { margin-top:0; }
+    /* Tooltips/status */
+    .status{font-size:0.95rem; color:#0b1221; background:linear-gradient(180deg,#ffffff,#fbfdff); padding:8px 10px; border-radius:8px;}
+    footer{font-size:0.85rem; color:var(--muted);}
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <aside class="panel" aria-label="K-Means controls">
+      <div>
+        <h1>K‑Means Clustering</h1>
+        <p class="lead">Interactive stepwise demo: add points, set K, and watch assignment and centroid updates animate.</p>
+      </div>
+
+      <div class="controls" aria-hidden="false">
+        <div>
+          <label for="kRange">K — number of clusters</label>
+          <div class="row">
+            <input id="kRange" type="range" min="1" max="10" value="3" aria-label="K clusters" />
+            <input id="kNumber" type="number" min="1" max="10" value="3" style="width:72px" aria-label="K clusters number" />
+          </div>
+        </div>
+
+        <div class="row wrap">
+          <button class="btn" id="initBtn" title="Initialize centroids randomly">Init Centroids</button>
+          <button class="btn ghost" id="randomizePoints">Randomize Points</button>
+          <button class="btn secondary" id="clearPoints">Clear Points</button>
+        </div>
+
+        <div>
+          <label>Control</label>
+          <div class="row">
+            <button class="btn" id="stepBtn">Step</button>
+            <button class="btn ghost" id="playBtn">Play</button>
+            <button class="btn ghost" id="resetBtn">Reset</button>
+          </div>
+          <div class="row" style="margin-top:8px; align-items:center;">
+            <label for="speed" style="margin:0;">Speed</label>
+            <input id="speed" type="range" min="0.2" max="2.0" value="1" step="0.1" style="flex:1" />
+          </div>
+        </div>
+
+        <div>
+          <label>Options</label>
+          <div class="row">
+            <label class="toggle"><input id="showLines" type="checkbox" checked /> <span class="small-muted">Show connections</span></label>
+            <label class="toggle"><input id="dragPoints" type="checkbox" checked /> <span class="small-muted">Drag points</span></label>
+          </div>
+        </div>
+
+        <div>
+          <label>Dataset</label>
+          <div class="row">
+            <button class="btn ghost" id="clusteredData">Clustered Sample</button>
+            <button class="btn ghost" id="uniformData">Uniform Sample</button>
+          </div>
+        </div>
+
+        <div>
+          <label>Status</label>
+          <div class="status" id="status">Ready. Click canvas to add points. Drag centroids to initialize manually.</div>
+        </div>
+
+        <div>
+          <label>Metrics</label>
+          <div class="metrics">
+            <div class="metric" id="metricIter">Iteration: 0</div>
+            <div class="metric" id="metricInertia">Inertia: —</div>
+            <div class="metric" id="metricSizes">Sizes: —</div>
+          </div>
+        </div>
+
+        <div style="margin-top:6px;">
+          <p class="small-muted" style="margin:0;">Keyboard: Tab to controls. On canvas: click to add, drag to move; drag centroids to set initialization.</p>
+        </div>
+
+      </div>
+
+      <footer>
+        <div class="small-muted" style="margin-top:6px;">This demo uses vanilla HTML/CSS/JS — no libraries.</div>
+      </footer>
+    </aside>
+
+    <section class="canvas-wrap" aria-label="Visualization">
+      <div class="visual" role="region" aria-label="K-means scatterplot visualization">
+        <canvas id="plot" aria-label="Scatter plot for k-means visualization"></canvas>
+      </div>
+      <div class="instructions small-muted">Click to add points. Drag points (if enabled) or centroids. Use Step to alternate assignment and update. Play animates iterations.</div>
+    </section>
+  </div>
+
+  <script>
+    // K-Means Interactive Module
+    (function(){
+      // Utilities
+      function rand(min, max){ return Math.random() * (max - min) + min; }
+      function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+      function dist2(a,b){ let dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; }
+      // Color palette
+      const PALETTE = [
+        '#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#10b981','#06b6d4','#3b82f6','#6366f1','#8b5cf6'
+      ];
+
+      // DOM
+      const canvas = document.getElementById('plot');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const kRange = document.getElementById('kRange');
+      const kNumber = document.getElementById('kNumber');
+      const initBtn = document.getElementById('initBtn');
+      const randomizePointsBtn = document.getElementById('randomizePoints');
+      const clearPointsBtn = document.getElementById('clearPoints');
+      const stepBtn = document.getElementById('stepBtn');
+      const playBtn = document.getElementById('playBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const speedInput = document.getElementById('speed');
+      const statusEl = document.getElementById('status');
+      const metricIter = document.getElementById('metricIter');
+      const metricInertia = document.getElementById('metricInertia');
+      const metricSizes = document.getElementById('metricSizes');
+      const showLinesBox = document.getElementById('showLines');
+      const dragPointsBox = document.getElementById('dragPoints');
+      const clusteredDataBtn = document.getElementById('clusteredData');
+      const uniformDataBtn = document.getElementById('uniformData');
+
+      // State
+      let DPR = window.devicePixelRatio || 1;
+      let width = 800, height = 600;
+      let points = []; // {x:*, y:*, cluster: int}
+      let centroids = []; // {x,y,color}
+      let K = parseInt(kRange.value,10);
+      let iter = 0;
+      let stage = 'assign'; // or 'update' - Step alternates
+      let playing = false;
+      let animSpeed = 1.0;
+      let animateRequest = null;
+      let playTimer = null;
+
+      const POINT_R = 6;
+      const CENT_R = 10;
+
+      function resizeCanvas(){
+        const rect = canvas.getBoundingClientRect();
+        DPR = window.devicePixelRatio || 1;
+        width = Math.max(200, Math.floor(rect.width));
+        height = Math.max(200, Math.floor(rect.height));
+        canvas.width = Math.floor(width * DPR);
+        canvas.height = Math.floor(height * DPR);
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        draw();
+      }
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+
+      // Data generation
+      function genRandomPoints(n=40){
+        points = [];
+        for(let i=0;i<n;i++){
+          points.push({ x: rand(40, width-40), y: rand(40, height-40), cluster: -1 });
+        }
+        iter = 0;
+        stage='assign';
+        updateStatus('Generated random points.');
+        updateMetrics();
+        draw();
+      }
+
+      function genClustered(n=60, clusters=3){
+        points = [];
+        let centers=[];
+        for(let k=0;k<clusters;k++){
+          centers.push({x: rand(80, width-80), y: rand(80, height-80)});
+        }
+        for(let i=0;i<n;i++){
+          let c = centers[i%centers.length];
+          points.push({ x: clamp(c.x + rand(-40,40), 20, width-20), y: clamp(c.y + rand(-40,40), 20, height-20), cluster:-1 });
+        }
+        iter = 0;
+        stage='assign';
+        updateStatus('Generated clustered sample.');
+        updateMetrics();
+        draw();
+      }
+
+      // Centroid initialization
+      function initCentroidsRandom(){
+        centroids = [];
+        for(let i=0;i<K;i++){
+          centroids.push({ x: rand(40, width-40), y: rand(40, height-40), color: PALETTE[i % PALETTE.length] });
+        }
+        iter = 0;
+        stage = 'assign';
+        updateStatus('Centroids initialized randomly. Drag to adjust.');
+        updateMetrics();
+        draw();
+      }
+
+      function initCentroidsFromPoints(){
+        centroids = [];
+        // sample K unique points (or random if fewer points)
+        let sample = points.slice();
+        if(sample.length === 0){
+          initCentroidsRandom();
+          return;
+        }
+        // shuffle
+        for(let i = sample.length - 1; i > 0; i--){
+          const j = Math.floor(Math.random() * (i + 1));
+          [sample[i], sample[j]] = [sample[j], sample[i]];
+        }
+        for(let i=0;i<K;i++){
+          const p = sample[i % sample.length];
+          centroids.push({ x: p.x + rand(-6,6), y: p.y + rand(-6,6), color: PALETTE[i % PALETTE.length] });
+        }
+        iter = 0;
+        stage = 'assign';
+        updateStatus('Centroids initialized from points.');
+        draw();
+      }
+
+      // Assignment step
+      function assignPoints(){
+        if(centroids.length === 0) return;
+        for(let p of points){
+          let best = 0;
+          let bestd = dist2(p, centroids[0]);
+          for(let i=1;i<centroids.length;i++){
+            const d = dist2(p, centroids[i]);
+            if(d < bestd){ bestd = d; best = i; }
+          }
+          p.cluster = best;
+        }
+        updateMetrics();
+        draw({animatePoints:true});
+      }
+
+      // Update step (recompute centroids)
+      function updateCentroidsAnimated(done){
+        if(centroids.length === 0) return done && done();
+        // compute new centers
+        const sums = Array(centroids.length).fill(0).map(_=>({x:0,y:0,count:0}));
+        for(let p of points){
+          if(p.cluster >= 0){
+            const s = sums[p.cluster];
+            s.x += p.x; s.y += p.y; s.count += 1;
+          }
+        }
+        const newPos = [];
+        for(let i=0;i<centroids.length;i++){
+          const s = sums[i];
+          if(s.count === 0){
+            // empty cluster: reinitialize randomly (visual flash)
+            newPos.push({ x: rand(40, width-40), y: rand(40, height-40), empty: true });
+          } else {
+            newPos.push({ x: s.x / s.count, y: s.y / s.count, empty: false });
+          }
+        }
+        // animate centroids to newPos
+        const duration = 600 / animSpeed;
+        let start = null;
+        const startPos = centroids.map(c => ({x:c.x,y:c.y}));
+        function step(ts){
+          if(!start) start = ts;
+          const t = Math.min(1, (ts - start)/duration);
+          for(let i=0;i<centroids.length;i++){
+            centroids[i].x = startPos[i].x + (newPos[i].x - startPos[i].x) * easeInOut(t);
+            centroids[i].y = startPos[i].y + (newPos[i].y - startPos[i].y) * easeInOut(t);
+          }
+          draw();
+          if(t < 1) requestAnimationFrame(step);
+          else {
+            // handle empty clusters by ensuring they moved (already set). If any empty, color flash.
+            for(let i=0;i<newPos.length;i++){
+              if(newPos[i].empty){
+                flashCentroid(i);
+              }
+            }
+            done && done();
+          }
+        }
+        requestAnimationFrame(step);
+      }
+
+      function flashCentroid(i){
+        const orig = centroids[i].color;
+        let flashOn = true;
+        let flashes = 0;
+        const f = setInterval(()=>{
+          centroids[i].color = flashOn ? '#ffffff' : orig;
+          flashOn = !flashOn;
+          flashes++;
+          draw();
+          if(flashes>5){ clearInterval(f); centroids[i].color = orig; }
+        }, 120);
+      }
+
+      function computeInertia(){
+        let s = 0;
+        for(let p of points){
+          if(p.cluster >= 0 && centroids[p.cluster]) s += dist2(p, centroids[p.cluster]);
+        }
+        return s;
+      }
+
+      function updateMetrics(){
+        metricIter.textContent = 'Iteration: ' + iter;
+        const inertia = (points.length>0) ? Math.round(computeInertia()) : '—';
+        metricInertia.textContent = 'Inertia: ' + inertia;
+        if(centroids.length>0){
+          const counts = centroids.map((c, i) => points.filter(p=>p.cluster===i).length);
+          metricSizes.textContent = 'Sizes: ' + counts.join(', ');
+        } else {
+          metricSizes.textContent = 'Sizes: —';
+        }
+      }
+
+      // Main step: alternate assignment and update to represent the two sub-steps.
+      function stepOnce(){
+        if(centroids.length === 0){
+          updateStatus('Initialize centroids first.');
+          return;
+        }
+        if(stage === 'assign'){
+          assignPoints();
+          stage = 'update';
+          updateStatus('Assigned points to nearest centroids. Press Step to update centroids.');
+        } else {
+          // update centroids then increment iter
+          updateCentroidsAnimated(()=>{
+            iter++;
+            stage = 'assign';
+            updateStatus('Centroids updated. Iteration ' + iter);
+            assignPoints(); // after update, show new assignment immediately (common in visual demos)
+            updateMetrics();
+          });
+        }
+      }
+
+      // Auto-play until convergence or max iterations
+      function playToggle(){
+        if(playing){ stopPlaying(); }
+        else { startPlaying(); }
+      }
+      function startPlaying(){
+        if(centroids.length === 0){ updateStatus('Initialize centroids first.'); return; }
+        playing = true;
+        playBtn.textContent = 'Pause';
+        updateStatus('Playing...');
+        // Loop: run full iterations (assign then update with animation) until no change or stopped
+        function loop(){
+          if(!playing) return;
+          // perform assignment
+          assignPoints();
+          // compute next centroids and detect movement
+          const prev = centroids.map(c => ({x:c.x,y:c.y}));
+          updateCentroidsAnimated(()=>{
+            iter++;
+            // after update, assign again to see new clusters
+            assignPoints();
+            updateMetrics();
+            // Check for convergence: centroids moved < small epsilon
+            let moved=false;
+            for(let i=0;i<centroids.length;i++){
+              if(dist2(prev[i], centroids[i]) > 0.5) { moved=true; break; }
+            }
+            if(!moved){
+              updateStatus('Converged after ' + iter + ' iterations.');
+              stopPlaying();
+            } else {
+              // schedule next iteration based on speed
+              const delay = Math.max(120, 800 / animSpeed);
+              playTimer = setTimeout(loop, delay);
+            }
+          });
+        }
+        loop();
+      }
+      function stopPlaying(){
+        playing = false;
+        playBtn.textContent = 'Play';
+        if(playTimer) clearTimeout(playTimer);
+        updateStatus('Paused.');
+      }
+
+      function updateStatus(txt){
+        statusEl.textContent = txt;
+      }
+
+      // Drawing
+      function draw(opts={}) {
+        // background
+        ctx.fillStyle = '#0b1020';
+        ctx.fillRect(0, 0, width, height);
+        // grid
+        drawGrid();
+        // connections
+        if(showLinesBox.checked){
+          for(let p of points){
+            if(p.cluster >= 0 && centroids[p.cluster]){
+              ctx.beginPath();
+              const c = centroids[p.cluster];
+              ctx.strokeStyle = hexToRgba(centroids[p.cluster].color, 0.12);
+              ctx.lineWidth = 1;
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(c.x, c.y);
+              ctx.stroke();
+            }
+          }
+        }
+        // points
+        for(let p of points){
+          const color = (p.cluster >= 0 && centroids[p.cluster]) ? centroids[p.cluster].color : '#9ca3af';
+          ctx.beginPath();
+          ctx.fillStyle = color;
+          ctx.strokeStyle = '#0b1221';
+          ctx.lineWidth = 1;
+          ctx.arc(p.x, p.y, POINT_R, 0, Math.PI*2);
+          ctx.fill();
+          ctx.stroke();
+        }
+        // centroids (draw last)
+        for(let i=0;i<centroids.length;i++){
+          const c = centroids[i];
+          ctx.beginPath();
+          ctx.fillStyle = c.color;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.arc(c.x, c.y, CENT_R, 0, Math.PI*2);
+          ctx.fill();
+          ctx.stroke();
+          // label number
+          ctx.fillStyle = '#000';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(i+1), c.x, c.y);
+        }
+      }
+
+      function drawGrid(){
+        const step = 40;
+        ctx.save();
+        ctx.globalAlpha = 0.06;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        for(let x=0;x<width;x+=step){
+          ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke();
+        }
+        for(let y=0;y<height;y+=step){
+          ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      function hexToRgba(hex, a){
+        const h = hex.replace('#','');
+        const bigint = parseInt(h,16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        return 'rgba('+r+','+g+','+b+','+a+')';
+      }
+
+      function easeInOut(t){
+        return t<0.5 ? 2*t*t : -1 + (4 - 2*t)*t;
+      }
+
+      // Interaction: clicking, dragging
+      let dragging = null; // {type: 'point'|'centroid', index}
+      let dragOffset = {x:0,y:0};
+
+      function findPointAt(x,y){
+        for(let i=points.length-1;i>=0;i--){
+          let p = points[i];
+          if(Math.hypot(p.x-x,p.y-y) <= POINT_R+4) return i;
+        }
+        return -1;
+      }
+      function findCentroidAt(x,y){
+        for(let i=0;i<centroids.length;i++){
+          const c=centroids[i];
+          if(Math.hypot(c.x-x,c.y-y) <= CENT_R+6) return i;
+        }
+        return -1;
+      }
+
+      canvas.addEventListener('pointerdown', (ev)=>{
+        ev.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = (ev.clientX - rect.left);
+        const y = (ev.clientY - rect.top);
+        const ci = findCentroidAt(x,y);
+        if(ci >= 0){
+          dragging = {type:'centroid', index:ci};
+          dragOffset.x = centroids[ci].x - x;
+          dragOffset.y = centroids[ci].y - y;
+          updateStatus('Dragging centroid ' + (ci+1));
+          return;
+        }
+        const pi = findPointAt(x,y);
+        if(pi >= 0 && dragPointsBox.checked){
+          dragging = {type:'point', index:pi};
+          dragOffset.x = points[pi].x - x;
+          dragOffset.y = points[pi].y - y;
+          updateStatus('Dragging point');
+          return;
+        }
+        // else add point
+        points.push({ x:x, y:y, cluster:-1 });
+        updateStatus('Added point. You can step or play.');
+        draw();
+      });
+
+      canvas.addEventListener('pointermove', (ev)=>{
+        if(!dragging) return;
+        ev.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = (ev.clientX - rect.left);
+        const y = (ev.clientY - rect.top);
+        if(dragging.type === 'centroid'){
+          const c = centroids[dragging.index];
+          c.x = clamp(x + dragOffset.x, 8, width-8);
+          c.y = clamp(y + dragOffset.y, 8, height-8);
+          draw();
+        } else if(dragging.type === 'point'){
+          const p = points[dragging.index];
+          p.x = clamp(x + dragOffset.x, 6, width-6);
+          p.y = clamp(y + dragOffset.y, 6, height-6);
+          draw();
+        }
+      });
+
+      window.addEventListener('pointerup', (ev)=>{
+        if(dragging){
+          updateStatus('Drag ended.');
+          dragging = null;
+          // after manual centroid placement, assignment should be recomputed on next step
+        }
+      });
+
+      // Button handlers
+      kRange.addEventListener('input', (e)=>{
+        kNumber.value = kRange.value;
+        K = parseInt(kRange.value,10);
+      });
+      kNumber.addEventListener('input', (e)=>{
+        let v = parseInt(kNumber.value,10);
+        if(isNaN(v)) v = 1;
+        v = clamp(v, 1, 10);
+        kNumber.value = v;
+        kRange.value = v;
+        K = v;
+      });
+      kRange.addEventListener('change', ()=>{
+        // change K and initialize centroids to match
+        K = parseInt(kRange.value,10);
+        initCentroidsRandom();
+      });
+      initBtn.addEventListener('click', initCentroidsRandom);
+      randomizePointsBtn.addEventListener('click', ()=>genRandomPoints(50));
+      clearPointsBtn.addEventListener('click', ()=>{
+        points = [];
+        centroids = [];
+        iter = 0;
+        stage = 'assign';
+        updateStatus('Cleared points and centroids.');
+        updateMetrics();
+        draw();
+      });
+      stepBtn.addEventListener('click', ()=>stepOnce());
+      playBtn.addEventListener('click', ()=>playToggle());
+      resetBtn.addEventListener('click', ()=>{
+        points = [];
+        centroids = [];
+        iter = 0;
+        stage='assign';
+        playing=false;
+        playBtn.textContent='Play';
+        updateStatus('Reset.');
+        updateMetrics();
+        draw();
+      });
+      speedInput.addEventListener('input', ()=>{
+        animSpeed = parseFloat(speedInput.value);
+      });
+      showLinesBox.addEventListener('change', draw);
+      clusteredDataBtn.addEventListener('click', ()=>genClustered(60, Math.max(2, K)));
+      uniformDataBtn.addEventListener('click', ()=>genRandomPoints(60));
+
+      // Initialization
+      genRandomPoints(40);
+      initCentroidsRandom();
+
+      // keyboard shortcuts (space for step)
+      window.addEventListener('keydown', (e)=>{
+        if(e.key === ' '){
+          e.preventDefault();
+          stepOnce();
+        } else if(e.key === 'p'){
+          playToggle();
+        }
+      });
+
+      // initial draw
+      draw();
+
+      // Ensure canvas DPI correct on load
+      setTimeout(resizeCanvas, 100);
+    })();
+  </script>
+</body>
+</html>

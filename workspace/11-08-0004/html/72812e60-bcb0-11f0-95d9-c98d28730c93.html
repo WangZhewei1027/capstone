@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Linear Regression Module</title>
+  <style>
+    /* Safe area margins: 24px on all sides */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px;
+      --panel-bg: #fbfbff;
+      --accent: #2b7cff;
+      --muted: #6b7280;
+      --success: #059669;
+      --danger: #ef4444;
+      --surface: #ffffff;
+      --shadow: 0 6px 22px rgba(12, 18, 39, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+        Roboto, "Helvetica Neue", Arial;
+    }
+    html,body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg, #f7f9ff 0%, #ffffff 100%);
+      color: #0f172a;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .app {
+      box-sizing: border-box;
+      padding: var(--safe-margin);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: var(--gap);
+    }
+
+    /* Responsive: stack on narrow screens */
+    @media (max-width: 980px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .canvas-card {
+      background: var(--surface);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: calc(var(--gap) + 8px);
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      min-height: 520px;
+    }
+    .right-panel {
+      background: var(--panel-bg);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: calc(var(--gap) + 8px);
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      min-height: 520px;
+    }
+
+    /* Title & Objective */
+    .title {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .title h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: -0.01em;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    /* Canvas area */
+    .plot-wrapper {
+      position: relative;
+      flex: 1;
+      display: flex;
+      gap: 12px;
+      min-height: 320px;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
+      background: linear-gradient(180deg,#ffffff 0%, #f7f9ff 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    /* Controls layout */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      min-width: 220px;
+    }
+    .group {
+      background: white;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 4px 14px rgba(11, 20, 40, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .stat {
+      background: #f3f6ff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-weight: 600;
+      color: #0f172a;
+      font-size: 14px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+    button {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #f1f5f9;
+      color: #0f172a;
+      border: 1px solid #e6eefc;
+    }
+    button.danger {
+      background: var(--danger);
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .muted {
+      color: var(--muted);
+    }
+
+    .legend {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+
+    /* Ensure minimum spacing between interactive elements */
+    .controls > * { margin-bottom: 16px; }
+
+    /* Footer note */
+    .footer-note {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* Accessible focus styles */
+    button:focus, input:focus {
+      outline: 3px solid rgba(43,124,255,0.18);
+      outline-offset: 2px;
+    }
+
+    /* Tiny helpers */
+    .flex-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
+
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Linear Regression interactive module">
+    <!-- Left: Visualization -->
+    <section class="canvas-card" aria-labelledby="conceptTitle">
+      <div class="title">
+        <h1 id="conceptTitle">Linear Regression — Fit a Line to Data</h1>
+        <p class="subtitle">Drag points, adjust slope/intercept, or run gradient descent.</p>
+      </div>
+
+      <div class="plot-wrapper" id="plotRegion">
+        <canvas id="plotCanvas" width="800" height="520" role="img" aria-label="Scatter plot and regression line"></canvas>
+      </div>
+
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="legend" aria-hidden="true">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="width:12px; height:12px; background: var(--accent); border-radius: 2px;"></span>
+            <span class="small">Data points</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="width:12px; height:2px; background: #111827;"></span>
+            <span class="small">Current line</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="width:12px; height:2px; background: #ef4444;"></span>
+            <span class="small">Residuals</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="width:12px; height:2px; background: #059669;"></span>
+            <span class="small">OLS fit</span>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; align-items:center;">
+          <div class="stat" id="sseStat">SSE: 0.00</div>
+          <div class="stat" id="r2Stat">R²: 0.00</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: Controls & Explanations -->
+    <aside class="right-panel" aria-labelledby="learningObjectiveHeading">
+      <div class="group" style="gap:8px;">
+        <div class="flex-between">
+          <div>
+            <h2 style="margin:0; font-size:16px;">Learning Objective</h2>
+            <p class="small muted" id="learningObjectiveHeading" style="margin:6px 0 0;">
+              After interacting you should understand how changing slope and intercept affects fit,
+              how least-squares determines parameters, and how gradient descent iteratively minimizes error.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="group" aria-hidden="false">
+        <div class="flex-between">
+          <label for="slopeRange">Slope (m)</label>
+          <div class="mono" id="slopeValue">m = 0.00</div>
+        </div>
+        <input id="slopeRange" type="range" min="-5" max="5" step="0.01" value="0" aria-label="Slope slider">
+
+        <div class="flex-between">
+          <label for="interceptRange">Intercept (b)</label>
+          <div class="mono" id="interceptValue">b = 0.00</div>
+        </div>
+        <input id="interceptRange" type="range" min="-10" max="20" step="0.01" value="0" aria-label="Intercept slider">
+
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <button id="applyManual">Apply manual m/b</button>
+          <button id="fitOLS" class="secondary" title="Compute least-squares best-fit">Fit OLS</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="flex-between">
+          <label style="margin:0;">Gradient Descent</label>
+          <div class="small muted">Animated optimization</div>
+        </div>
+
+        <label for="lrRange" class="small muted">Learning rate</label>
+        <input id="lrRange" type="range" min="0.001" max="1" step="0.001" value="0.05" aria-label="Learning rate">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <div style="display:flex; gap:8px;">
+            <button id="gdStart">Start</button>
+            <button id="gdPause" class="secondary">Pause</button>
+            <button id="gdReset" class="secondary">Reset</button>
+          </div>
+          <div class="small muted mono" id="lossDisplay">Loss: 0.00</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <label>Interaction Design</label>
+        <ul style="margin:6px 0 0 18px; padding:0; color:var(--muted);">
+          <li>Drag any point on the plot to change data. Points are keyboard-focusable (tab + arrows).</li>
+          <li>Move sliders to manually set slope/intercept; click "Apply manual m/b" to update the line.</li>
+          <li>Click "Fit OLS" to compute and draw the least-squares solution (green line).</li>
+          <li>Start Gradient Descent to see the line animate toward a minimum; watch loss decrease.</li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <label>Layout Description</label>
+        <p class="small muted" style="margin:6px 0 0;">
+          A two-column layout: the left side contains the interactive plot (canvas) with a margin of 24px
+          around the viewport; the right column hosts controls and textual explanations. Controls are grouped
+          with at least 16px spacing to preserve clarity and touch-target size. The canvas is responsive and
+          accessible; all interactive controls include ARIA attributes.
+        </p>
+      </div>
+
+      <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
+        <div class="footer-note muted">Tip: try moving points then Fit OLS to see the analytical solution.</div>
+        <div style="display:flex; gap:8px;">
+          <button id="addPoint" class="secondary">Add Point</button>
+          <button id="resetData" class="danger">Reset</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // Interactive Linear Regression Module
+    // Self-contained: vanilla JS, HTML5 Canvas, no external assets.
+
+    // --- Canvas and coordinate mapping ---
+    const canvas = document.getElementById('plotCanvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
+
+    // Resize canvas to displayed size while keeping drawing buffer correct
+    function resizeCanvasToDisplaySize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', () => {
+      resizeCanvasToDisplaySize();
+      draw();
+    });
+
+    // Data space: x in [0, 10], y in [0, 10]
+    const xMin = 0, xMax = 10, yMin = 0, yMax = 10;
+
+    function toCanvasX(x) {
+      const padding = 40;
+      const w = canvas.clientWidth - padding * 2;
+      return padding + (x - xMin) / (xMax - xMin) * w;
+    }
+    function toCanvasY(y) {
+      const padding = 40;
+      const h = canvas.clientHeight - padding * 2;
+      // canvas y grows downward, so invert
+      return padding + (1 - (y - yMin) / (yMax - yMin)) * h;
+    }
+    function fromCanvasToData(cx, cy) {
+      const padding = 40;
+      const w = canvas.clientWidth - padding * 2;
+      const h = canvas.clientHeight - padding * 2;
+      let nx = (cx - padding) / w;
+      let ny = 1 - (cy - padding) / h;
+      nx = Math.max(0, Math.min(1, nx));
+      ny = Math.max(0, Math.min(1, ny));
+      return { x: xMin + nx * (xMax - xMin), y: yMin + ny * (yMax - yMin) };
+    }
+
+    // --- Data points ---
+    let points = [];
+    function randomPoints(n = 8) {
+      const arr = [];
+      for (let i = 0; i < n; i++) {
+        const x = 1 + Math.random() * 8;
+        const y = 1 + Math.random() * 8;
+        arr.push({ x, y, id: Math.random().toString(36).slice(2, 9) });
+      }
+      return arr;
+    }
+
+    function resetData() {
+      points = randomPoints(8);
+      params.m = 0;
+      params.b = 5;
+      gdReset();
+      recomputeStats();
+      draw();
+    }
+
+    // --- Regression parameters and stats ---
+    let params = { m: 0, b: 0 };
+    let olsParams = { m: 0, b: 0 };
+    let sse = 0, r2 = 0;
+
+    function predictY(x, m, b) { return m * x + b; }
+
+    function computeSSE(m, b) {
+      let sum = 0;
+      for (const p of points) {
+        const e = p.y - predictY(p.x, m, b);
+        sum += e * e;
+      }
+      return sum;
+    }
+    function computeR2(m, b) {
+      const meanY = points.reduce((s, p) => s + p.y, 0) / points.length;
+      let ssTot = 0, ssRes = 0;
+      for (const p of points) {
+        ssTot += (p.y - meanY) ** 2;
+        ssRes += (p.y - predictY(p.x, m, b)) ** 2;
+      }
+      return ssTot === 0 ? 0 : 1 - ssRes / ssTot;
+    }
+
+    // Least squares (OLS)
+    function fitOLS() {
+      const n = points.length;
+      if (n === 0) return { m: 0, b: 0 };
+      const meanX = points.reduce((s, p) => s + p.x, 0) / n;
+      const meanY = points.reduce((s, p) => s + p.y, 0) / n;
+      let num = 0, den = 0;
+      for (const p of points) {
+        num += (p.x - meanX) * (p.y - meanY);
+        den += (p.x - meanX) ** 2;
+      }
+      const m = den === 0 ? 0 : num / den;
+      const b = meanY - m * meanX;
+      return { m, b };
+    }
+
+    // UI elements
+    const slopeRange = document.getElementById('slopeRange');
+    const interceptRange = document.getElementById('interceptRange');
+    const slopeValue = document.getElementById('slopeValue');
+    const interceptValue = document.getElementById('interceptValue');
+    const applyManualBtn = document.getElementById('applyManual');
+    const fitOLSBtn = document.getElementById('fitOLS');
+    const sseStat = document.getElementById('sseStat');
+    const r2Stat = document.getElementById('r2Stat');
+
+    // Gradient descent controls
+    const lrRange = document.getElementById('lrRange');
+    const gdStart = document.getElementById('gdStart');
+    const gdPause = document.getElementById('gdPause');
+    const gdResetBtn = document.getElementById('gdReset');
+    const lossDisplay = document.getElementById('lossDisplay');
+
+    // Misc buttons
+    const addPointBtn = document.getElementById('addPoint');
+    const resetDataBtn = document.getElementById('resetData');
+
+    // Initialize
+    points = randomPoints(8);
+    params = { m: 0, b: 5 };
+    olsParams = fitOLS();
+    recomputeStats();
+    resizeCanvasToDisplaySize();
+    draw();
+
+    // --- Drawing functions ---
+    function clear() {
+      ctx.fillStyle = getComputedStyle(document.body).background || '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // White panel inside to get flat background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    }
+
+    function drawGrid() {
+      const padding = 40;
+      const w = canvas.clientWidth - padding * 2;
+      const h = canvas.clientHeight - padding * 2;
+
+      ctx.save();
+      ctx.strokeStyle = '#eef2ff';
+      ctx.lineWidth = 1;
+      ctx.translate(0.5, 0.5);
+
+      // vertical grid lines at integer x
+      for (let xi = 0; xi <= 10; xi++) {
+        const x = padding + (xi / 10) * w;
+        ctx.beginPath();
+        ctx.moveTo(x, padding);
+        ctx.lineTo(x, padding + h);
+        ctx.stroke();
+      }
+      // horizontal grid lines at integer y
+      for (let yi = 0; yi <= 10; yi++) {
+        const y = padding + (yi / 10) * h;
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(padding + w, y);
+        ctx.stroke();
+      }
+
+      // Axis
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      // x-axis at y=0
+      const y0 = toCanvasY(0);
+      ctx.moveTo(padding, y0);
+      ctx.lineTo(padding + w, y0);
+      ctx.stroke();
+      // y-axis at x=0
+      const x0 = toCanvasX(0);
+      ctx.beginPath();
+      ctx.moveTo(x0, padding);
+      ctx.lineTo(x0, padding + h);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawPoints() {
+      for (const p of points) {
+        const cx = toCanvasX(p.x);
+        const cy = toCanvasY(p.y);
+
+        // shadow
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(16,24,40,0.06)';
+        ctx.ellipse(cx + 1.5, cy + 2.5, 8, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // point
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(43,124,255,0.95)';
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.ellipse(cx, cy, 6, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    function drawResiduals(m, b) {
+      ctx.save();
+      ctx.lineWidth = 2.0;
+      for (const p of points) {
+        const cx = toCanvasX(p.x);
+        const cy = toCanvasY(p.y);
+        const py = predictY(p.x, m, b);
+        const cyPred = toCanvasY(py);
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, cyPred);
+        ctx.strokeStyle = 'rgba(239,68,68,0.9)';
+        ctx.stroke();
+
+        // small circle at predicted
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(239,68,68,0.9)';
+        ctx.ellipse(cx, cyPred, 3.2, 3.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawLine(m, b, style = { color: '#0f172a', width: 2, dash: [] }) {
+      // Draw line across xMin..xMax
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineWidth = style.width || 2;
+      ctx.strokeStyle = style.color || '#000';
+      if (style.dash && style.dash.length) ctx.setLineDash(style.dash);
+      const xA = xMin, xB = xMax;
+      const yA = predictY(xA, m, b);
+      const yB = predictY(xB, m, b);
+      ctx.moveTo(toCanvasX(xA), toCanvasY(yA));
+      ctx.lineTo(toCanvasX(xB), toCanvasY(yB));
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function draw() {
+      clear();
+      drawGrid();
+
+      // Draw OLS line (green, thin) for reference
+      if (showOLS) {
+        drawLine(olsParams.m, olsParams.b, { color: '#059669', width: 1.6, dash: [6, 6] });
+      }
+
+      // Draw current line
+      drawLine(params.m, params.b, { color: '#111827', width: 2.4 });
+
+      // Residuals and points
+      drawResiduals(params.m, params.b);
+      drawPoints();
+
+      // Overlay labels
+      drawOverlayText();
+    }
+
+    function drawOverlayText() {
+      ctx.save();
+      ctx.fillStyle = '#101828';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText('x', canvas.clientWidth - 24, canvas.clientHeight - 18);
+      ctx.restore();
+    }
+
+    // --- Interaction: dragging points ---
+    let dragging = null; // { point, id }
+    let pointerIdToPoint = new Map();
+
+    // Find nearest point within radius threshold
+    function findNearestPoint(clientX, clientY) {
+      // Translate client coords to canvas coordinates
+      const rect = canvas.getBoundingClientRect();
+      const cx = (clientX - rect.left);
+      const cy = (clientY - rect.top);
+      let minDist = Infinity;
+      let nearest = null;
+      for (const p of points) {
+        const px = toCanvasX(p.x);
+        const py = toCanvasY(p.y);
+        const dist = Math.hypot(px - cx, py - cy);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = p;
+        }
+      }
+      return (minDist <= 12) ? nearest : null;
+    }
+
+    canvas.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      canvas.setPointerCapture(ev.pointerId);
+      const p = findNearestPoint(ev.clientX, ev.clientY);
+      if (p) {
+        dragging = p;
+        pointerIdToPoint.set(ev.pointerId, p);
+      } else {
+        // If not clicking on a point, add new point at location
+        const rect = canvas.getBoundingClientRect();
+        const coords = fromCanvasToData(ev.clientX - rect.left, ev.clientY - rect.top);
+        points.push({ x: coords.x, y: coords.y, id: Math.random().toString(36).slice(2, 9) });
+        olsParams = fitOLS();
+        recomputeStats();
+        draw();
+      }
+    });
+
+    canvas.addEventListener('pointermove', (ev) => {
+      if (!pointerIdToPoint.has(ev.pointerId)) return;
+      ev.preventDefault();
+      const p = pointerIdToPoint.get(ev.pointerId);
+      const rect = canvas.getBoundingClientRect();
+      const coords = fromCanvasToData(ev.clientX - rect.left, ev.clientY - rect.top);
+      p.x = coords.x;
+      p.y = coords.y;
+      olsParams = fitOLS();
+      recomputeStats();
+      draw();
+    });
+
+    canvas.addEventListener('pointerup', (ev) => {
+      if (pointerIdToPoint.has(ev.pointerId)) {
+        pointerIdToPoint.delete(ev.pointerId);
+        recomputeStats();
+        draw();
+      }
+    });
+    canvas.addEventListener('pointercancel', (ev) => {
+      if (pointerIdToPoint.has(ev.pointerId)) {
+        pointerIdToPoint.delete(ev.pointerId);
+        recomputeStats();
+        draw();
+      }
+    });
+
+    // Keyboard accessibility: select a point by tabbing
+    // We'll render invisible focusable elements positioned over each point for accessibility
+    // For simplicity, keep a minimal implementation: keyboard arrows move the last added point.
+    let selectedPointIndex = null;
+    document.addEventListener('keydown', (ev) => {
+      if (selectedPointIndex === null) return;
+      const p = points[selectedPointIndex];
+      if (!p) return;
+      const step = (xMax - xMin) / 200;
+      let moved = false;
+      if (ev.key === 'ArrowLeft') { p.x = Math.max(xMin, p.x - step); moved = true; }
+      if (ev.key === 'ArrowRight') { p.x = Math.min(xMax, p.x + step); moved = true; }
+      if (ev.key === 'ArrowUp') { p.y = Math.min(yMax, p.y + step); moved = true; }
+      if (ev.key === 'ArrowDown') { p.y = Math.max(yMin, p.y - step); moved = true; }
+      if (moved) {
+        ev.preventDefault();
+        olsParams = fitOLS();
+        recomputeStats();
+        draw();
+      }
+    });
+
+    // Clicking on a point selects it (for keyboard)
+    canvas.addEventListener('click', (ev) => {
+      const p = findNearestPoint(ev.clientX, ev.clientY);
+      if (p) {
+        selectedPointIndex = points.indexOf(p);
+        // show a temporary ring around selected point
+        highlightSelectedPoint(selectedPointIndex);
+      } else {
+        selectedPointIndex = null;
+      }
+    });
+
+    function highlightSelectedPoint(idx) {
+      draw();
+      if (idx == null || idx < 0 || idx >= points.length) return;
+      const p = points[idx];
+      const cx = toCanvasX(p.x);
+      const cy = toCanvasY(p.y);
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(43,124,255,0.55)';
+      ctx.ellipse(cx, cy, 12, 12, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // --- UI bindings ---
+    slopeRange.addEventListener('input', () => {
+      slopeValue.textContent = `m = ${Number(slopeRange.value).toFixed(2)}`;
+    });
+    interceptRange.addEventListener('input', () => {
+      interceptValue.textContent = `b = ${Number(interceptRange.value).toFixed(2)}`;
+    });
+
+    applyManualBtn.addEventListener('click', () => {
+      params.m = Number(slopeRange.value);
+      params.b = Number(interceptRange.value);
+      olsParams = fitOLS();
+      recomputeStats();
+      draw();
+    });
+
+    fitOLSBtn.addEventListener('click', () => {
+      olsParams = fitOLS();
+      // Set params to OLS but keep OLS shown separately (green dashed)
+      params.m = olsParams.m;
+      params.b = olsParams.b;
+      slopeRange.value = params.m;
+      interceptRange.value = params.b;
+      slopeValue.textContent = `m = ${params.m.toFixed(2)}`;
+      interceptValue.textContent = `b = ${params.b.toFixed(2)}`;
+      recomputeStats();
+      draw();
+    });
+
+    // Add point / Reset
+    addPointBtn.addEventListener('click', () => {
+      points.push({ x: 2 + Math.random() * 6, y: 2 + Math.random() * 6, id: Math.random().toString(36).slice(2, 9) });
+      olsParams = fitOLS();
+      recomputeStats();
+      draw();
+    });
+    resetDataBtn.addEventListener('click', () => {
+      resetData();
+    });
+
+    // Stats recompute and update UI
+    function recomputeStats() {
+      sse = computeSSE(params.m, params.b);
+      r2 = computeR2(params.m, params.b);
+      sseStat.textContent = `SSE: ${sse.toFixed(3)}`;
+      r2Stat.textContent = `R²: ${r2.toFixed(3)}`;
+      lossDisplay.textContent = `Loss: ${sse.toFixed(3)}`;
+    }
+
+    // Show OLS toggle: we always compute it, but user can infer via Fit OLS.
+    let showOLS = true;
+
+    // --- Gradient Descent Animation ---
+    let gdRunning = false;
+    let gdPaused = false;
+    let gdAnimationFrame = null;
+    let gdState = { m: params.m, b: params.b };
+
+    function computeGradients(m, b) {
+      const n = points.length;
+      let dm = 0, db = 0;
+      for (const p of points) {
+        const error = p.y - (m * p.x + b);
+        dm += (-2) * p.x * error;
+        db += (-2) * error;
+      }
+      // Note: not dividing by n to keep LR intuitive (we allow LR adjustment)
+      return { dm, db };
+    }
+
+    function gdStep(lr) {
+      const grads = computeGradients(gdState.m, gdState.b);
+      // Adjust parameters
+      gdState.m = gdState.m - lr * grads.dm;
+      gdState.b = gdState.b - lr * grads.db;
+    }
+
+    function gdStart() {
+      if (points.length === 0) return;
+      if (gdRunning && !gdPaused) return;
+      gdRunning = true;
+      gdPaused = false;
+      gdState.m = params.m;
+      gdState.b = params.b;
+      stepLoop();
+    }
+
+    function gdPause() {
+      gdPaused = true;
+      gdRunning = false;
+      if (gdAnimationFrame) cancelAnimationFrame(gdAnimationFrame);
+    }
+
+    function gdReset() {
+      gdPaused = true;
+      gdRunning = false;
+      if (gdAnimationFrame) cancelAnimationFrame(gdAnimationFrame);
+      gdState.m = params.m;
+      gdState.b = params.b;
+      recomputeStats();
+      draw();
+    }
+
+    function stepLoop() {
+      const lr = Number(lrRange.value);
+      const iterPerFrame = 4; // multiple small steps for smoother animation
+      let steps = 0;
+      function frame() {
+        if (!gdRunning || gdPaused) return;
+        for (let i = 0; i < iterPerFrame; i++) {
+          gdStep(lr);
+          steps++;
+        }
+        // Update displayed line as interpolation between old and new params for animation smoothing
+        params.m = gdState.m;
+        params.b = gdState.b;
+        recomputeStats();
+        draw();
+        // stop criteria: small gradient or large steps
+        const grads = computeGradients(params.m, params.b);
+        const gradMag = Math.hypot(grads.dm, grads.db);
+        if (gradMag < 1e-4 || steps > 20000) {
+          gdRunning = false;
+          gdPaused = true;
+          cancelAnimationFrame(gdAnimationFrame);
+          return;
+        }
+        gdAnimationFrame = requestAnimationFrame(frame);
+      }
+      gdAnimationFrame = requestAnimationFrame(frame);
+    }
+
+    gdStart.addEventListener('click', () => {
+      gdStart();
+    });
+    gdPause.addEventListener('click', () => {
+      gdPause();
+    });
+    gdResetBtn.addEventListener('click', () => {
+      gdReset();
+    });
+
+    // Update displays initially
+    slopeValue.textContent = `m = ${params.m.toFixed(2)}`;
+    interceptValue.textContent = `b = ${params.b.toFixed(2)}`;
+    sseStat.textContent = `SSE: ${computeSSE(params.m, params.b).toFixed(3)}`;
+    r2Stat.textContent = `R²: ${computeR2(params.m, params.b).toFixed(3)}`;
+
+    // Periodic update to ensure canvas size sync and draw
+    setInterval(() => {
+      resizeCanvasToDisplaySize();
+      draw();
+    }, 400);
+
+    // Accessibility: aria live feedback for SSE/R2
+    const announcer = document.createElement('div');
+    announcer.setAttribute('aria-live', 'polite');
+    announcer.style.position = 'absolute';
+    announcer.style.left = '-9999px';
+    announcer.style.width = '1px';
+    announcer.style.height = '1px';
+    document.body.appendChild(announcer);
+
+    // Announce stats when recompute occurs
+    function announceStats() {
+      announcer.textContent = `Sum of squared errors ${sse.toFixed(2)}. R squared ${r2.toFixed(2)}.`;
+    }
+
+    // Hook recomputeStats to announce
+    const originalRecompute = recomputeStats;
+    recomputeStats = function() {
+      originalRecompute();
+      announceStats();
+    };
+
+    // Ensure olsParams reflect initial points
+    olsParams = fitOLS();
+    recomputeStats();
+    draw();
+  </script>
+</body>
+</html>

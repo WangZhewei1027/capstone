@@ -1,0 +1,141 @@
+{
+  "topic": "Adjacency Matrix Interactive Module",
+  "description": "Models the interactive states and transitions of the adjacency matrix / graph editor UI: adding/removing nodes, toggling edges (via node clicks, edge clicks or matrix cells), dragging nodes, hovering for tooltips/highlights, directed/undirected toggling, and the synchronous update/redraw cycle.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "clearSelection(); hideTooltip(); clearGraphHighlight(); clearMatrixHighlight();",
+      "on": {
+        "NODE_CLICK": "node_selected",
+        "NODE_POINTER_DOWN": "dragging",
+        "NODE_POINTER_OVER": "hover_node",
+        "EDGE_POINTER_OVER": "hover_edge",
+        "MATRIX_CELL_POINTER_OVER": "hover_cell",
+        "MATRIX_CELL_FOCUS": "focused_cell",
+        "CLICK_ADD_NODE": "updating",
+        "CLICK_DELETE_NODE": "updating",
+        "CLICK_CLEAR": "updating",
+        "CLICK_RANDOM": "updating",
+        "TOGGLE_DIRECTED": "updating",
+        "EDGE_CLICK": "updating",
+        "MATRIX_CELL_CLICK": "updating",
+        "SVG_CLICK": "idle"
+      }
+    },
+    {
+      "name": "node_selected",
+      "onEnter": "highlightNode(selectedNodeIndex, true); /* visually mark the source node for edge creation */",
+      "onExit": "highlightNode(selectedNodeIndex, false); selectedNode = null;",
+      "on": {
+        "NODE_CLICK": "idle",
+        "NODE_POINTER_DOWN": "dragging",
+        "SVG_CLICK": "idle",
+        "NODE_POINTER_OVER": "hover_node",
+        "EDGE_POINTER_OVER": "hover_edge",
+        "MATRIX_CELL_POINTER_OVER": "hover_cell"
+      }
+    },
+    {
+      "name": "dragging",
+      "onEnter": "startDrag(pointerEvent => { set dragging state, capture pointer });",
+      "onExit": "endDrag(); redrawAllEdges(); /* release pointer capture handled in event */",
+      "on": {
+        "POINTER_MOVE": "dragging",
+        "NODE_POINTER_UP": "idle",
+        "NODE_CLICK": "idle",
+        "SVG_CLICK": "idle"
+      }
+    },
+    {
+      "name": "hover_node",
+      "onEnter": "showTooltipAt(cursorX, cursorY, 'Node X'); /* transient tooltip for node */",
+      "onExit": "hideTooltip();",
+      "on": {
+        "NODE_POINTER_OUT": "idle",
+        "NODE_CLICK": "node_selected",
+        "NODE_POINTER_DOWN": "dragging",
+        "EDGE_POINTER_OVER": "hover_edge",
+        "MATRIX_CELL_POINTER_OVER": "hover_cell"
+      }
+    },
+    {
+      "name": "hover_edge",
+      "onEnter": "highlightMatrixCell(i,j); showTooltipAt(cursorX,cursorY, 'Edge A → B');",
+      "onExit": "clearMatrixHighlight(); hideTooltip();",
+      "on": {
+        "EDGE_POINTER_OUT": "idle",
+        "EDGE_CLICK": "updating",
+        "NODE_POINTER_OVER": "hover_node",
+        "MATRIX_CELL_POINTER_OVER": "hover_cell"
+      }
+    },
+    {
+      "name": "hover_cell",
+      "onEnter": "highlightGraphEdge(i,j); highlightTableRowCol(i,j); showTooltipAt(cursorX,cursorY, `Cell [...]`);",
+      "onExit": "clearGraphHighlight(); clearTableRowColHighlight(); hideTooltip();",
+      "on": {
+        "MATRIX_CELL_POINTER_OUT": "idle",
+        "MATRIX_CELL_CLICK": "updating",
+        "MATRIX_CELL_FOCUS": "focused_cell",
+        "NODE_POINTER_OVER": "hover_node",
+        "EDGE_POINTER_OVER": "hover_edge"
+      }
+    },
+    {
+      "name": "focused_cell",
+      "onEnter": "highlightGraphEdge(i,j); /* keyboard focus highlight */",
+      "onExit": "clearGraphHighlight();",
+      "on": {
+        "MATRIX_CELL_BLUR": "idle",
+        "MATRIX_CELL_CLICK": "updating",
+        "MATRIX_CELL_POINTER_OVER": "hover_cell"
+      }
+    },
+    {
+      "name": "updating",
+      "onEnter": "performUpdate() { rebuildMatrix(); redrawAllEdges(); update DOM synchronously; }, /* may be triggered by add/delete/clear/random/toggle/cell/edge click */",
+      "onExit": "",
+      "on": {
+        "REBUILD_COMPLETE": "idle",
+        "ANIMATION_END": "idle"
+      }
+    },
+    {
+      "name": "animating_edge",
+      "onEnter": "createEdgeElement(i,j) /* starts stroke-dash animation and registers animation/timer */",
+      "onExit": "",
+      "on": {
+        "ANIMATION_END": "idle",
+        "EDGE_CLICK": "updating"
+      }
+    }
+  ],
+  "events": [
+    "CLICK_ADD_NODE",
+    "CLICK_DELETE_NODE",
+    "CLICK_CLEAR",
+    "CLICK_RANDOM",
+    "TOGGLE_DIRECTED",
+    "NODE_POINTER_DOWN",
+    "NODE_POINTER_UP",
+    "NODE_CLICK",
+    "NODE_POINTER_OVER",
+    "NODE_POINTER_OUT",
+    "POINTER_MOVE",
+    "SVG_CLICK",
+    "EDGE_CLICK",
+    "EDGE_POINTER_OVER",
+    "EDGE_POINTER_OUT",
+    "MATRIX_CELL_CLICK",
+    "MATRIX_CELL_FOCUS",
+    "MATRIX_CELL_BLUR",
+    "MATRIX_CELL_POINTER_OVER",
+    "MATRIX_CELL_POINTER_OUT",
+    "DRAG_START",
+    "DRAG_MOVE",
+    "DRAG_END",
+    "REBUILD_COMPLETE",
+    "ANIMATION_END"
+  ],
+  "notes": "This FSM models the primary interactive behaviors implemented in the vanilla JS module. Implementation details and simplifications: (1) 'updating' represents synchronous DOM rebuilds triggered by node/edge/matrix/toggle actions (rebuildMatrix and redrawAllEdges are invoked immediately in code); the code does not use asynchronous fetches so REBUILD_COMPLETE can be considered immediate after rebuildMatrix returns. (2) Hovering and tooltip display are modeled as explicit hover states (hover_node/hover_edge/hover_cell) though in DOM they are transient pointer events. (3) Dragging uses pointer capture and continuous POINTER_MOVE events to update node positions; represented as the 'dragging' state with onEnter/startDrag and onExit/endDrag actions. (4) 'animating_edge' models the temporary stroke-dash animation applied when edges are created; the real code starts this via requestAnimationFrame and does not block updates. (5) onEnter/onExit action strings reference the actual functions/behaviors in the code (e.g., rebuildMatrix(), redrawAllEdges(), showTooltipAt(), hideTooltip(), highlightGraphEdge(), clearGraphHighlight(), highlightNode())."
+}

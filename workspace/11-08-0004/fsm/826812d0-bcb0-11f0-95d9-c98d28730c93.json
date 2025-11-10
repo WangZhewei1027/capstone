@@ -1,0 +1,146 @@
+{
+  "topic": "Floyd–Warshall Interactive Module",
+  "description": "Finite state machine modeling the interactive behaviors of a Floyd–Warshall visualization: matrix editing, graph updates, stepping through the triple loop, autoplay, path reconstruction, import/export and related UI interactions.",
+  "states": [
+    {
+      "name": "idle",
+      "onEnter": "initDisplay (renderMatrix, renderGraph, populate selectors, show ready trace)",
+      "onExit": "",
+      "on": {
+        "EDIT_CELL_BEGIN": "editing",
+        "NODE_COUNT_CHANGE": "idle",
+        "TOGGLE_DIRECTED": "idle",
+        "RANDOMIZE": "idle",
+        "APPLY_MATRIX": "idle",
+        "IMPORT_SAMPLE": "idle",
+        "EXPORT_MATRIX": "idle",
+        "RESET": "idle",
+        "RUN_ALL": "running",
+        "STEP": "stepping",
+        "BACK": "snapshot",
+        "NODE_CLICK": "idle",
+        "SELECT_SRC": "idle",
+        "SELECT_TGT": "idle",
+        "SHOW_PATH": "pathDisplayed"
+      }
+    },
+    {
+      "name": "editing",
+      "onEnter": "showCellInputOverlay (focus input, capture old value)",
+      "onExit": "hideCellInputOverlay (commit or revert changes, renderMatrix, renderGraph, update initialAdjSnapshot)",
+      "on": {
+        "EDIT_CELL_COMMIT": "idle",
+        "EDIT_CELL_CANCEL": "idle"
+      }
+    },
+    {
+      "name": "prepared",
+      "onEnter": "prepareExecution (applyAdjToDist, build history array of snapshots, set currentStep=-1)",
+      "onExit": "",
+      "on": {
+        "RUN_ALL": "running",
+        "STEP": "stepping",
+        "BACK": "snapshot",
+        "RESET": "idle"
+      }
+    },
+    {
+      "name": "stepping",
+      "onEnter": "stepForwardAction (if history empty -> prepareExecution; advance currentStep; set dist/next from snapshot; showSnapshot)",
+      "onExit": "",
+      "on": {
+        "STEP_COMPLETE": "snapshot",
+        "STEP_ERROR_NO_HISTORY": "idle",
+        "PAUSE": "paused"
+      }
+    },
+    {
+      "name": "snapshot",
+      "onEnter": "showSnapshot (renderDistanceMatrix using current snapshot.dist/current.snapshot.next, renderGraph with highlight for updated pair if any, traceMsg)",
+      "onExit": "",
+      "on": {
+        "STEP": "stepping",
+        "BACK": "stepping",
+        "RUN_ALL": "running",
+        "EDIT_CELL_BEGIN": "editing",
+        "SHOW_PATH": "pathDisplayed",
+        "RESET": "idle",
+        "APPLY_MATRIX": "idle"
+      }
+    },
+    {
+      "name": "running",
+      "onEnter": "startAutoplay (prepareExecution if needed; set running=true; set autoplayTimer with interval = speed; on each tick -> perform stepForwardAction)",
+      "onExit": "stopAutoplay (clear autoplayTimer; running=false)",
+      "on": {
+        "AUTOPLAY_TICK": "snapshot",
+        "PAUSE": "paused",
+        "RUN_COMPLETE": "done",
+        "RESET": "idle",
+        "EDIT_CELL_BEGIN": "editing"
+      }
+    },
+    {
+      "name": "paused",
+      "onEnter": "stopAutoplayTimer (clear timer; running=false; traceMsg paused)",
+      "onExit": "",
+      "on": {
+        "RUN_ALL": "running",
+        "STEP": "stepping",
+        "BACK": "stepping",
+        "RESET": "idle",
+        "EDIT_CELL_BEGIN": "editing"
+      }
+    },
+    {
+      "name": "done",
+      "onEnter": "finalizeRun (stopAutoplay; running=false; traceMsg 'Completed algorithm run.'; currentStep at end)",
+      "onExit": "",
+      "on": {
+        "STEP": "snapshot",
+        "BACK": "snapshot",
+        "RESET": "idle",
+        "APPLY_MATRIX": "idle"
+      }
+    },
+    {
+      "name": "pathDisplayed",
+      "onEnter": "reconstructPathAndHighlight (use current next matrix to reconstruct path, update pathInfo, renderGraph with path highlights)",
+      "onExit": "clearPathHighlights (renderGraph without path highlights or with selected node highlights)",
+      "on": {
+        "SELECT_SRC": "pathDisplayed",
+        "SELECT_TGT": "pathDisplayed",
+        "SHOW_PATH": "pathDisplayed",
+        "NODE_CLICK": "pathDisplayed",
+        "RESET": "idle",
+        "EDIT_CELL_BEGIN": "editing",
+        "APPLY_MATRIX": "idle"
+      }
+    }
+  ],
+  "events": [
+    "EDIT_CELL_BEGIN",
+    "EDIT_CELL_COMMIT",
+    "EDIT_CELL_CANCEL",
+    "NODE_COUNT_CHANGE",
+    "TOGGLE_DIRECTED",
+    "RANDOMIZE",
+    "APPLY_MATRIX",
+    "IMPORT_SAMPLE",
+    "EXPORT_MATRIX",
+    "RESET",
+    "RUN_ALL",
+    "STEP",
+    "BACK",
+    "AUTOPLAY_TICK",
+    "PAUSE",
+    "RUN_COMPLETE",
+    "NODE_CLICK",
+    "SELECT_SRC",
+    "SELECT_TGT",
+    "SHOW_PATH",
+    "SPEED_CHANGE",
+    "PLAY_PAUSE_TOGGLE"
+  ],
+  "notes": "High-level mapping of UI actions to FSM behaviors. Many UI events perform side-effect actions while remaining in 'idle' (for example RANDOMIZE, APPLY_MATRIX, TOGGLE_DIRECTED, NODE_COUNT_CHANGE, IMPORT_SAMPLE, EXPORT_MATRIX and RESET). 'prepared' is a logical step where the algorithm history is prepared (prepareExecution) and currentStep is reset; stepping and running both rely on that history. 'stepping' represents the act of advancing one inner (i,j) step; after it completes the machine moves to 'snapshot' which renders the distance matrix and graph highlight for that step. 'running' starts an autoplay timer and on each tick performs a step (AUTOPLAY_TICK -> snapshot). 'paused' is a stopped autoplay state that still preserves history/currentStep. 'done' represents completion when the run reaches the final snapshot. Path reconstruction lives in 'pathDisplayed' where the graph is highlighted; this is an overlay-like state and can be exited by resetting, editing, or selecting different nodes. Some transitions are conditional in the implementation (e.g., stepping/back when history is empty leads to prepareExecution or to idle); those conditionals are described here but in the state table are represented by the 'prepareExecution' action invoked onEnter of relevant states. Actions named in onEnter/onExit are conceptual groupings of the concrete functions present in the source (renderMatrix, renderGraph, applyAdjToDist, prepareExecution, start/stop autoplay timer, reconstructPath, traceMsg, randomizeAdj, exportMatrix, importSample, commit/cancel edit)."
+}

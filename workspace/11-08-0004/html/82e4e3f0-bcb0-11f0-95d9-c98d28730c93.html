@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Huffman Coding Explorer</title>
+  <style>
+    /* Safe area margins: 24px on all sides */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #6ee7b7;
+      --muted: #94a3b8;
+      --card: #071229;
+      --danger: #ff7b7b;
+      --glass: rgba(255,255,255,0.03);
+      --transition: 280ms cubic-bezier(.2,.9,.2,1);
+    }
+    html,body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#051026 0%, #071229 100%);
+      color: #e6eef8;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    main {
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height: calc(100vh - calc(var(--safe-margin) * 2));
+    }
+    header {
+      margin-bottom: var(--gap);
+      display: flex;
+      gap: var(--gap);
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 {
+      font-size: 20px;
+      margin: 0;
+      letter-spacing: -0.2px;
+    }
+    header .subtle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* Layout: three columns on wide screens, stacked on narrow */
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr 320px;
+      gap: var(--gap);
+      align-items: start;
+    }
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Panels */
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      min-height: 160px;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    /* Left panel (info + controls) */
+    .info h2 {
+      margin: 4px 0 8px 0;
+      font-size: 15px;
+    }
+    .info p {
+      margin: 0 0 12px 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    textarea, input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.04);
+      background: rgba(255,255,255,0.02);
+      color: #e6eef8;
+      font-size: 13px;
+      box-sizing: border-box;
+      resize: vertical;
+      min-height: 60px;
+    }
+    .row {
+      display: flex;
+      gap: var(--gap);
+      align-items: center;
+    }
+    .row .btn {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: none;
+      background: linear-gradient(180deg,var(--accent), #3ecf91);
+      color: #042018;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform var(--transition);
+    }
+    .row .btn:active { transform: scale(0.98); }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.04);
+      color: var(--accent);
+      font-weight: 600;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .small {
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+
+    /* Center canvas */
+    .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+    .canvas .svgbox {
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      border-radius: 10px;
+      padding: 12px;
+      min-height: 420px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+    svg {
+      width: 100%;
+      height: 420px;
+      display: block;
+    }
+
+    /* Node styling */
+    .node {
+      cursor: pointer;
+      transition: transform var(--transition), opacity var(--transition);
+    }
+    .node circle {
+      fill: #071229;
+      stroke: rgba(255,255,255,0.06);
+      stroke-width: 1.5;
+    }
+    .node .label {
+      font-size: 12px;
+      fill: #cfeef0;
+      pointer-events: none;
+    }
+    .node .freq {
+      font-size: 11px;
+      fill: var(--muted);
+      pointer-events: none;
+    }
+    .node.leaf circle {
+      fill: linear-gradient(180deg,#0b2a3a,#072b3a);
+    }
+
+    .node.highlight circle {
+      stroke: var(--accent);
+      stroke-width: 3;
+      filter: drop-shadow(0 6px 18px rgba(110,231,183,0.18));
+    }
+
+    .link {
+      stroke: rgba(255,255,255,0.06);
+      stroke-width: 2;
+      fill: none;
+      transition: stroke var(--transition), stroke-dashoffset var(--transition);
+    }
+    .link.highlight {
+      stroke: var(--accent);
+      stroke-width: 2.5;
+    }
+
+    /* Right panel: codes & encoding */
+    .codes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 300px;
+      overflow: auto;
+    }
+    .code-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.01);
+      border: 1px solid rgba(255,255,255,0.02);
+      gap: 12px;
+    }
+    .symbol {
+      font-weight: 700;
+      font-size: 16px;
+      min-width: 36px;
+      text-align: center;
+    }
+    .code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      color: #bfeef0;
+      font-size: 13px;
+      word-break: break-all;
+    }
+
+    .bitstr {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      background: rgba(255,255,255,0.02);
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.02);
+      color: #dff9f1;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    .bitstr .bit {
+      display: inline-block;
+      padding: 4px 6px;
+      margin-right: 2px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background var(--transition), transform var(--transition);
+    }
+    .bitstr .bit:hover { transform: translateY(-2px); }
+    .bitstr .bit.active {
+      background: rgba(110,231,183,0.12);
+      color: var(--accent);
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer {
+      margin-top: var(--gap);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* Accessibility focus */
+    button:focus, input:focus, textarea:focus { outline: 2px solid rgba(110,231,183,0.12); outline-offset: 2px; }
+
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Huffman Coding — Interactive Explorer</h1>
+        <div class="subtle">Visualize building the Huffman tree, compute codes, and encode/decode strings.</div>
+      </div>
+      <div class="subtle">Safe margins: 24px — responsive, accessible, and fully client-side</div>
+    </header>
+
+    <div class="layout" role="main" aria-label="Huffman coding interactive module">
+
+      <!-- LEFT: Info + Controls -->
+      <section class="panel info" aria-labelledby="concept-title">
+        <h2 id="concept-title">Concept Overview & Controls</h2>
+        <p><strong>Concept Title:</strong> Huffman Coding — prefix-free variable-length codes that minimize average code length given symbol frequencies.</p>
+        <p><strong>Learning Objective:</strong> After interacting, you should understand how Huffman merges lowest-frequency symbols to form a binary tree, how binary codes are assigned from root-to-leaf paths, and how encoding/decoding follow those codes.</p>
+
+        <h2 style="margin-top:12px">Interactive Design Plan</h2>
+        <p class="muted" style="margin-bottom:8px;">
+          Interaction: enter text or add symbol frequencies → press "Build" or step through merges. Each merge animates two smallest nodes joining to form a parent. Once the tree is complete, codes appear; hover or click a code to highlight its path. Encode/Decode panel lets you see the bitstring and step through decoding bit-by-bit with animations.
+        </p>
+
+        <div class="controls" aria-hidden="false">
+          <div>
+            <label for="sampleText">Sample text (type or paste):</label>
+            <textarea id="sampleText" aria-label="Sample text input" placeholder="e.g. abracadabra">abracadabra</textarea>
+            <div style="display:flex;gap:12px;margin-top:8px;">
+              <button id="useText" class="btn small" title="Use text to build frequencies">Use Text to Build Frequencies</button>
+              <button id="clearText" class="btn-ghost small" title="Clear">Clear</button>
+            </div>
+          </div>
+
+          <div>
+            <label>Manual symbol frequencies (optional)</label>
+            <div style="display:flex;gap:8px;">
+              <input id="symInput" type="text" placeholder="Symbol" aria-label="Symbol" />
+              <input id="freqInput" type="number" placeholder="Frequency" min="1" aria-label="Frequency" />
+              <button id="addSym" class="btn-ghost small">Add</button>
+            </div>
+            <div id="freqList" style="margin-top:10px; display:flex; flex-direction:column; gap:8px; max-height:120px; overflow:auto;"></div>
+          </div>
+
+          <div>
+            <label>Build controls</label>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <button id="resetBtn" class="btn-ghost small">Reset</button>
+              <button id="stepBtn" class="btn small">Step Merge (Space)</button>
+              <button id="autoBtn" class="btn small">Auto Build</button>
+              <button id="completeBtn" class="btn-ghost small">Complete Immediately</button>
+            </div>
+          </div>
+
+          <div style="margin-top:6px;">
+            <div class="muted">Tips: Use the text area to auto-generate frequencies. Step to see which nodes are chosen (lowest frequencies). Hover codes to highlight paths. Click bits to step decode.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CENTER: Canvas -->
+      <section class="panel canvas" aria-labelledby="canvas-title">
+        <h2 id="canvas-title" style="margin:0 0 8px 0">Tree Visualization</h2>
+        <div class="svgbox" role="img" aria-label="Huffman tree visualization">
+          <svg id="svgCanvas" viewBox="0 0 1000 420" preserveAspectRatio="xMidYMid meet" aria-hidden="false">
+            <defs>
+              <filter id="soft-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.55"/>
+              </filter>
+            </defs>
+            <g id="links"></g>
+            <g id="nodes"></g>
+          </svg>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div class="muted">Active forest nodes shown; each merge creates a parent node above. Click a leaf to pin and view its code.</div>
+        </div>
+      </section>
+
+      <!-- RIGHT: Codes & Encoding -->
+      <section class="panel" aria-labelledby="codes-title">
+        <h2 id="codes-title">Codes & Encoding</h2>
+        <div>
+          <div class="muted" style="margin-bottom:8px;">Huffman codes (click a row to highlight path):</div>
+          <div id="codes" class="codes-list" aria-live="polite"></div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <label>Encoded bitstring</label>
+          <div id="bitContainer" class="bitstr" aria-live="polite" style="min-height:44px;">(build tree to see encoding)</div>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
+            <button id="decodeStep" class="btn-ghost small">Decode Next Bit</button>
+            <button id="resetDecode" class="btn-ghost small">Reset Decode</button>
+            <div class="muted" style="margin-left:auto;">Click a bit to play traversal.</div>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="muted">Decoded output:</div>
+            <div id="decodedOut" class="muted" style="padding:8px;border-radius:8px;background:rgba(255,255,255,0.01);border:1px solid rgba(255,255,255,0.02);min-height:40px;margin-top:6px;"></div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+
+    <footer>
+      This module demonstrates a single concept: building and using Huffman codes. It's fully client-side and uses animated merges to reinforce the greedy merge rule.
+    </footer>
+  </main>
+
+  <script>
+    /* Huffman Interactive — Vanilla JS
+       - Maintains safe margins and spacing via CSS
+       - Interactive features:
+         * Build frequencies from text
+         * Add manual symbol-frequency pairs
+         * Step-by-step animated merges forming a Huffman tree
+         * Show codes and encoded bitstring
+         * Interactive decoding step-by-step with pointer animation
+    */
+
+    // DOM refs
+    const sampleText = document.getElementById('sampleText');
+    const useTextBtn = document.getElementById('useText');
+    const clearTextBtn = document.getElementById('clearText');
+    const symInput = document.getElementById('symInput');
+    const freqInput = document.getElementById('freqInput');
+    const addSymBtn = document.getElementById('addSym');
+    const freqListDiv = document.getElementById('freqList');
+    const resetBtn = document.getElementById('resetBtn');
+    const stepBtn = document.getElementById('stepBtn');
+    const autoBtn = document.getElementById('autoBtn');
+    const completeBtn = document.getElementById('completeBtn');
+
+    const svg = document.getElementById('svgCanvas');
+    const nodesGroup = document.getElementById('nodes');
+    const linksGroup = document.getElementById('links');
+
+    const codesDiv = document.getElementById('codes');
+    const bitContainer = document.getElementById('bitContainer');
+    const decodeStepBtn = document.getElementById('decodeStep');
+    const resetDecodeBtn = document.getElementById('resetDecode');
+    const decodedOut = document.getElementById('decodedOut');
+
+    // State
+    let freqMap = new Map();
+    let nodeIdCounter = 1;
+    let allNodes = []; // all nodes (including internal)
+    let activeNodes = []; // forest roots (not yet merged)
+    let treeRoot = null;
+    let building = false;
+    let autoTimer = null;
+
+    // Decode state
+    let encodedBits = [];
+    let decodePointer = null;
+    let decodePos = 0;
+    let decodeAnimating = false;
+
+    // Visual layout constants (SVG viewBox is 1000x420)
+    const SVG_W = 1000;
+    const SVG_H = 420;
+    const BOTTOM_Y = 360;
+    const LEVEL_GAP = 68;
+    const NODE_RADIUS = 20;
+
+    // Utility: compute frequencies from text
+    function frequenciesFromText(text) {
+      const m = new Map();
+      for (const ch of text) {
+        m.set(ch, (m.get(ch) || 0) + 1);
+      }
+      return m;
+    }
+
+    // UI: populate freqListDiv with current freqMap
+    function renderFreqList() {
+      freqListDiv.innerHTML = '';
+      const entries = Array.from(freqMap.entries()).sort((a,b)=>b[1]-a[1]);
+      for (const [sym, f] of entries) {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        row.style.padding = '6px';
+        row.style.borderRadius = '8px';
+        row.style.background = 'rgba(255,255,255,0.01)';
+        row.style.border = '1px solid rgba(255,255,255,0.02)';
+        row.style.gap = '8px';
+
+        const left = document.createElement('div');
+        left.style.display = 'flex';
+        left.style.alignItems = 'center';
+        left.style.gap = '8px';
+
+        const symSpan = document.createElement('div');
+        symSpan.textContent = sym === ' ' ? '␣' : sym;
+        symSpan.style.fontWeight = '700';
+        symSpan.style.minWidth = '28px';
+        symSpan.style.textAlign = 'center';
+        left.appendChild(symSpan);
+
+        const freqSpan = document.createElement('div');
+        freqSpan.textContent = f + ' times';
+        freqSpan.className = 'muted';
+        left.appendChild(freqSpan);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn-ghost small';
+        delBtn.textContent = 'Remove';
+        delBtn.onclick = () => { freqMap.delete(sym); renderFreqList(); resetBuild(); };
+
+        row.appendChild(left);
+        row.appendChild(delBtn);
+        freqListDiv.appendChild(row);
+      }
+      if (entries.length === 0) {
+        const note = document.createElement('div');
+        note.className = 'muted';
+        note.textContent = 'No symbols yet. Type text or add a symbol manually.';
+        freqListDiv.appendChild(note);
+      }
+    }
+
+    // Build initial leaves and layout
+    function resetBuild() {
+      cancelAuto();
+      building = false;
+      nodeIdCounter = 1;
+      allNodes = [];
+      activeNodes = [];
+      treeRoot = null;
+      clearSVG();
+      clearCodesAndBits();
+      renderFreqList();
+      // If freqMap empty, nothing else to do
+      if (freqMap.size === 0) return;
+
+      // Create leaves sorted by frequency then symbol for deterministic layout
+      const entries = Array.from(freqMap.entries()).sort((a,b) => {
+        if (a[1] !== b[1]) return a[1] - b[1];
+        return String(a[0]).localeCompare(String(b[0]));
+      });
+      const n = entries.length;
+      // evenly space across width
+      const margin = 60;
+      const usableW = SVG_W - margin*2;
+      entries.forEach((e,i) => {
+        const [sym,f] = e;
+        const x = margin + (i + 0.5) * (usableW / n);
+        const y = BOTTOM_Y;
+        const node = createNode({symbol: sym, freq: f, x, y, level: 0, isLeaf: true});
+        allNodes.push(node);
+        activeNodes.push(node);
+      });
+      renderAllNodes();
+    }
+
+    function createNode({symbol=null, freq=0, x=0, y=0, level=0, isLeaf=false}) {
+      const node = {
+        id: nodeIdCounter++,
+        symbol,
+        freq,
+        x, y,
+        level,
+        left: null,
+        right: null,
+        parent: null,
+        isLeaf,
+        gEl: null // SVG group
+      };
+      return node;
+    }
+
+    function clearSVG() {
+      nodesGroup.innerHTML = '';
+      linksGroup.innerHTML = '';
+    }
+
+    function renderAllNodes() {
+      clearSVG();
+      // Draw links for nodes with parent
+      // Draw nodes (parents after children so they appear on top)
+      const drawOrder = allNodes.slice().sort((a,b)=>a.level - b.level); // lower level (closer to root) first
+      // But for clarity draw links then nodes
+      drawLinks();
+      for (const n of allNodes) {
+        drawNode(n);
+      }
+    }
+
+    function drawNode(node) {
+      // create group if not present
+      let g = node.gEl;
+      if (!g) {
+        g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.classList.add('node');
+        g.setAttribute('data-id', node.id);
+        g.style.transition = 'transform 350ms cubic-bezier(.2,.9,.2,1), opacity 220ms';
+        node.gEl = g;
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circle.setAttribute('r', NODE_RADIUS);
+        circle.setAttribute('cx', 0);
+        circle.setAttribute('cy', 0);
+
+        const lab = document.createElementNS('http://www.w3.org/2000/svg','text');
+        lab.setAttribute('x', 0);
+        lab.setAttribute('y', -6);
+        lab.setAttribute('text-anchor', 'middle');
+        lab.classList.add('label');
+        lab.textContent = node.isLeaf ? (node.symbol === ' ' ? '␣' : node.symbol) : '';
+
+        const freq = document.createElementNS('http://www.w3.org/2000/svg','text');
+        freq.setAttribute('x', 0);
+        freq.setAttribute('y', 16);
+        freq.setAttribute('text-anchor', 'middle');
+        freq.classList.add('freq');
+        freq.textContent = node.freq;
+
+        g.appendChild(circle);
+        g.appendChild(lab);
+        g.appendChild(freq);
+
+        // events
+        g.addEventListener('mouseenter', () => { g.classList.add('highlight'); });
+        g.addEventListener('mouseleave', () => { g.classList.remove('highlight'); });
+        g.addEventListener('click', (e) => {
+          e.stopPropagation();
+          // If leaf: show code highlight
+          if (node.isLeaf && treeRoot) {
+            const codes = computeCodes(treeRoot);
+            const code = codes.get(node.symbol) || '';
+            highlightCodePath(node, code);
+          }
+        });
+
+        nodesGroup.appendChild(g);
+      }
+
+      // update label and freq in case changed
+      const texts = g.querySelectorAll('text');
+      if (texts.length >= 2) {
+        texts[0].textContent = node.isLeaf ? (node.symbol === ' ' ? '␣' : node.symbol) : '';
+        texts[1].textContent = node.freq;
+      }
+      // position using transform
+      g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+    }
+
+    function drawLinks() {
+      linksGroup.innerHTML = '';
+      for (const node of allNodes) {
+        if (node.left) drawLink(node, node.left);
+        if (node.right) drawLink(node, node.right);
+      }
+    }
+
+    function drawLink(parent, child) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.classList.add('link');
+      const sx = parent.x, sy = parent.y;
+      const tx = child.x, ty = child.y;
+      const mx = (sx + tx) / 2;
+      // simple cubic curve
+      const d = `M ${sx} ${sy+NODE_RADIUS*0.4} C ${sx} ${sy+40}, ${tx} ${ty-40}, ${tx} ${ty-NODE_RADIUS*0.4}`;
+      path.setAttribute('d', d);
+      linksGroup.appendChild(path);
+    }
+
+    // Building operations: one merge step
+    function stepMerge() {
+      if (building) return; // already animating/auto
+      if (activeNodes.length <= 1) return; // done
+      building = true;
+
+      // choose two nodes with smallest freq; tie-break deterministically by id
+      activeNodes.sort((a,b) => {
+        if (a.freq !== b.freq) return a.freq - b.freq;
+        return a.id - b.id;
+      });
+      const a = activeNodes.shift();
+      const b = activeNodes.shift();
+
+      // determine left/right: smaller freq -> left; tie-break by id
+      let left = a, right = b;
+      if (b.freq < a.freq || (b.freq === a.freq && b.id < a.id)) { left = b; right = a; }
+
+      // create parent
+      const parentX = (left.x + right.x) / 2;
+      const parentY = Math.min(left.y, right.y) - LEVEL_GAP;
+      const parentLevel = Math.max(left.level, right.level) + 1;
+      const parent = createNode({symbol: null, freq: left.freq + right.freq, x: parentX, y: parentY, level: parentLevel, isLeaf: false});
+      parent.left = left;
+      parent.right = right;
+      left.parent = parent;
+      right.parent = parent;
+
+      allNodes.push(parent);
+      activeNodes.push(parent);
+
+      // Animate children moving slightly inward then up (we'll update coordinates and rely on transforms)
+      // target positions: left.x = parentX - offset, right.x = parentX + offset, with new y = parentY + small offset
+      const offset = Math.max(30, Math.abs(right.x - left.x)/2);
+      left.x = parentX - offset;
+      right.x = parentX + offset;
+      left.y = parentY + 36;
+      right.y = parentY + 36;
+
+      // Draw children if not already
+      drawNode(left);
+      drawNode(right);
+      // re-draw links to reflect moving positions (links will be updated after positions settle)
+      drawLinks();
+
+      // animate movement by updating transform (already done in drawNode)
+      // after a delay, create parent node and finalize positions
+      setTimeout(() => {
+        // create parent element
+        drawNode(parent);
+        drawLinks();
+        // nudge children to final positions under parent
+        left.y = parentY + 30;
+        right.y = parentY + 30;
+        left.x = parentX - 34;
+        right.x = parentX + 34;
+        drawNode(left);
+        drawNode(right);
+        drawNode(parent);
+        drawLinks();
+      }, 320);
+
+      // finalize after animation
+      setTimeout(() => {
+        // recompute x positions to avoid overlaps: for the subtree, enforce left/x ordering by inorder traversal
+        normalizeSubtree(parent);
+        // redraw everything
+        drawLinks();
+        for (const n of allNodes) drawNode(n);
+        building = false;
+        // if only one active node left => tree complete
+        if (activeNodes.length === 1) {
+          treeRoot = activeNodes[0];
+          onTreeComplete();
+        }
+      }, 760);
+    }
+
+    // Auto build
+    function autoBuild() {
+      if (activeNodes.length <= 1) return;
+      cancelAuto();
+      autoBtn.textContent = 'Stop';
+      autoTimer = setInterval(() => {
+        if (activeNodes.length > 1) {
+          stepMerge();
+        } else {
+          cancelAuto();
+        }
+      }, 900);
+    }
+    function cancelAuto() {
+      if (autoTimer) {
+        clearInterval(autoTimer);
+        autoTimer = null;
+      }
+      autoBtn.textContent = 'Auto Build';
+    }
+
+    // Complete immediately
+    function completeImmediately() {
+      cancelAuto();
+      while (activeNodes.length > 1) {
+        // perform merge without animation to be quick
+        activeNodes.sort((a,b) => {
+          if (a.freq !== b.freq) return a.freq - b.freq;
+          return a.id - b.id;
+        });
+        const a = activeNodes.shift();
+        const b = activeNodes.shift();
+        let left = a, right = b;
+        if (b.freq < a.freq || (b.freq === a.freq && b.id < a.id)) { left = b; right = a; }
+        const parentX = (left.x + right.x) / 2;
+        const parentY = Math.min(left.y, right.y) - LEVEL_GAP;
+        const parentLevel = Math.max(left.level, right.level) + 1;
+        const parent = createNode({symbol: null, freq: left.freq + right.freq, x: parentX, y: parentY, level: parentLevel, isLeaf: false});
+        parent.left = left;
+        parent.right = right;
+        left.parent = parent;
+        right.parent = parent;
+        allNodes.push(parent);
+        activeNodes.push(parent);
+        // adjust positions
+        left.x = parentX - 34;
+        right.x = parentX + 34;
+        left.y = parentY + 30;
+        right.y = parentY + 30;
+        normalizeSubtree(parent);
+      }
+      // redraw
+      renderAllNodes();
+      if (activeNodes.length === 1) {
+        treeRoot = activeNodes[0];
+        onTreeComplete();
+      }
+    }
+
+    // Normalize subtree: assign x positions using inorder traversal widths to avoid overlap
+    function normalizeSubtree(root) {
+      // collect leaves of this subtree in order
+      const leaves = [];
+      function collectLeaves(n) {
+        if (!n) return;
+        if (n.isLeaf) { leaves.push(n); return; }
+        collectLeaves(n.left);
+        collectLeaves(n.right);
+      }
+      collectLeaves(root);
+      if (leaves.length === 0) return;
+      // compute min and max x of these leaves to center around parent.x
+      const minX = Math.min(...leaves.map(l=>l.x));
+      const maxX = Math.max(...leaves.map(l=>l.x));
+      const center = (minX + maxX)/2;
+      const available = (leaves.length - 1) * 68; // spacing
+      // place leaves evenly centered at root.x
+      leaves.forEach((leaf,i) => {
+        const x = root.x - available/2 + i * 68;
+        leaf.x = x;
+        leaf.y = BOTTOM_Y - leaf.level * LEVEL_GAP;
+      });
+      // now recompute internal node positions by post-order: parent x = avg child x, y = min child y - level gap
+      function updateInternal(n) {
+        if (!n || n.isLeaf) return;
+        updateInternal(n.left);
+        updateInternal(n.right);
+        n.x = (n.left.x + n.right.x)/2;
+        n.y = Math.min(n.left.y, n.right.y) - LEVEL_GAP;
+      }
+      updateInternal(root);
+    }
+
+    // After tree complete: compute codes and render codes + encoding
+    function onTreeComplete() {
+      // compute codes
+      const codes = computeCodes(treeRoot);
+      renderCodes(codes);
+      // produce encoding for sampleText if present
+      if (sampleText.value.trim().length > 0) {
+        const bits = [];
+        for (const ch of sampleText.value) {
+          const c = codes.get(ch);
+          if (!c) {
+            // unknown symbol, skip
+            continue;
+          }
+          bits.push(...c.split('').map(b => b));
+        }
+        encodedBits = bits;
+        renderBitString();
+      }
+    }
+
+    // Compute codes: map symbol -> bitstring. Left child => 0, Right => 1
+    function computeCodes(root) {
+      const map = new Map();
+      function dfs(node, prefix) {
+        if (!node) return;
+        if (node.isLeaf) {
+          map.set(node.symbol, prefix || '0'); // edge case: single symbol -> code '0'
+          return;
+        }
+        dfs(node.left, prefix + '0');
+        dfs(node.right, prefix + '1');
+      }
+      if (root) dfs(root, '');
+      return map;
+    }
+
+    function renderCodes(codes) {
+      codesDiv.innerHTML = '';
+      const entries = Array.from(codes.entries()).sort((a,b)=>{
+        // sort by freq desc then symbol
+        const af = freqMap.get(a[0]) || 0;
+        const bf = freqMap.get(b[0]) || 0;
+        if (af !== bf) return bf - af;
+        return String(a[0]).localeCompare(String(b[0]));
+      });
+      for (const [sym, code] of entries) {
+        const row = document.createElement('div');
+        row.className = 'code-row';
+        row.tabIndex = 0;
+        row.setAttribute('role','button');
+        row.style.cursor = 'pointer';
+        const left = document.createElement('div');
+        left.style.display = 'flex';
+        left.style.alignItems = 'center';
+        left.style.gap = '10px';
+        const s = document.createElement('div'); s.className = 'symbol'; s.textContent = sym === ' ' ? '␣' : sym;
+        const f = document.createElement('div'); f.className = 'muted'; f.textContent = (freqMap.get(sym)||0)+'×';
+        left.appendChild(s);
+        left.appendChild(f);
+
+        const codeEl = document.createElement('div'); codeEl.className = 'code'; codeEl.textContent = code;
+
+        row.appendChild(left);
+        row.appendChild(codeEl);
+
+        // highlight path on hover/click
+        row.addEventListener('mouseenter', () => {
+          const node = findLeafNodeBySymbol(sym);
+          if (node) highlightCodePath(node, code);
+        });
+        row.addEventListener('mouseleave', () => {
+          clearHighlights();
+        });
+        row.addEventListener('click', () => {
+          const node = findLeafNodeBySymbol(sym);
+          if (node) {
+            // flash the path
+            flashPath(node);
+          }
+        });
+
+        codesDiv.appendChild(row);
+      }
+    }
+
+    function findLeafNodeBySymbol(sym) {
+      return allNodes.find(n=>n.isLeaf && n.symbol === sym);
+    }
+
+    // Highlight nodes and links along the path from root to node
+    function highlightCodePath(leaf, code) {
+      clearHighlights();
+      let cur = leaf;
+      // mark leaf first, then walk up
+      while (cur) {
+        if (cur.gEl) cur.gEl.classList.add('highlight');
+        // highlight link from parent to current
+        if (cur.parent) {
+          // find corresponding path element: we can highlight links by matching path d endpoints
+          // simpler: highlight all links and then specially highlight links connected to this parent-child pair by proximity
+          // We'll find the path whose d contains the child's current x coordinate as target
+          const paths = Array.from(linksGroup.querySelectorAll('.link'));
+          for (const p of paths) {
+            const d = p.getAttribute('d');
+            // quick approximate check: presence of `${cur.x}` in the d string
+            if (d.includes(`${Math.round(cur.x)}`) || d.includes(`${cur.x}`)) {
+              p.classList.add('highlight');
+            }
+          }
+        }
+        cur = cur.parent;
+      }
+    }
+
+    function clearHighlights() {
+      const highlightedNodes = nodesGroup.querySelectorAll('.highlight');
+      highlightedNodes.forEach(n => n.classList.remove('highlight'));
+      const highlightedLinks = linksGroup.querySelectorAll('.highlight');
+      highlightedLinks.forEach(l => l.classList.remove('highlight'));
+    }
+
+    function flashPath(leaf) {
+      highlightCodePath(leaf);
+      setTimeout(() => {
+        clearHighlights();
+      }, 900);
+    }
+
+    // Render encoded bitstring as interactive bits
+    function renderBitString() {
+      bitContainer.innerHTML = '';
+      if (!encodedBits || encodedBits.length === 0) {
+        bitContainer.textContent = '(no bits)';
+        return;
+      }
+      encodedBits.forEach((b, i) => {
+        const span = document.createElement('span');
+        span.className = 'bit';
+        span.dataset.idx = i;
+        span.textContent = b;
+        span.addEventListener('click', () => {
+          // step decode up to this bit (visualize)
+          decodeToPosition(i+1);
+        });
+        bitContainer.appendChild(span);
+      });
+      // reset decode state
+      resetDecodeState();
+    }
+
+    function clearCodesAndBits() {
+      codesDiv.innerHTML = '';
+      bitContainer.innerHTML = '(build tree to see encoding)';
+      decodedOut.textContent = '';
+      encodedBits = [];
+      resetDecodeState();
+    }
+
+    // Decoding interactive
+    function resetDecodeState() {
+      decodePointer = treeRoot || null;
+      decodePos = 0;
+      decodedOut.textContent = '';
+      const bitEls = bitContainer.querySelectorAll('.bit');
+      bitEls.forEach(b => b.classList.remove('active'));
+    }
+
+    function decodeNextBit() {
+      if (!treeRoot || encodedBits.length === 0) return;
+      if (decodeAnimating) return;
+      if (decodePos >= encodedBits.length) return;
+      const b = encodedBits[decodePos];
+      const bitEls = bitContainer.querySelectorAll('.bit');
+      if (bitEls[decodePos]) bitEls[decodePos].classList.add('active');
+      decodeAnimating = true;
+      // animate traversal: highlight link and node steps
+      if (!decodePointer) decodePointer = treeRoot;
+      // initial pointer at root
+      // choose direction: 0 -> left, 1 -> right
+      const nextNode = b === '0' ? decodePointer.left : decodePointer.right;
+      if (!nextNode) {
+        // invalid; stop
+        decodeAnimating = false;
+        decodePos++;
+        return;
+      }
+      // highlight link between decodePointer and nextNode temporarily
+      highlightTemporaryLink(decodePointer, nextNode, 600);
+      // after animation, if nextNode is leaf, append symbol to output and reset pointer to root
+      setTimeout(() => {
+        if (nextNode.isLeaf) {
+          decodedOut.textContent += nextNode.symbol;
+          decodePointer = treeRoot;
+        } else {
+          decodePointer = nextNode;
+        }
+        decodePos++;
+        decodeAnimating = false;
+      }, 640);
+    }
+
+    function highlightTemporaryLink(parent, child, duration=500) {
+      // find path element approximating the link between these coords
+      const paths = Array.from(linksGroup.querySelectorAll('.link'));
+      let found = null;
+      for (const p of paths) {
+        const d = p.getAttribute('d');
+        if (d.includes(`${Math.round(child.x)}`) || d.includes(`${child.x}`)) {
+          found = p;
+          break;
+        }
+      }
+      if (found) {
+        found.classList.add('highlight');
+        // pulse corresponding node
+        if (child.gEl) child.gEl.classList.add('highlight');
+        setTimeout(() => {
+          found.classList.remove('highlight');
+          if (child.gEl) child.gEl.classList.remove('highlight');
+        }, duration);
+      }
+    }
+
+    function decodeToPosition(pos) {
+      // reset decode and step until pos
+      resetDecodeState();
+      if (!treeRoot || encodedBits.length === 0) return;
+      let i = 0;
+      function step() {
+        if (i < pos && i < encodedBits.length) {
+          decodeNextBit();
+          i++;
+          setTimeout(step, 260);
+        }
+      }
+      step();
+    }
+
+    // Event wiring
+    useTextBtn.addEventListener('click', () => {
+      const txt = sampleText.value;
+      const m = frequenciesFromText(txt);
+      freqMap = m;
+      resetBuild();
+    });
+    clearTextBtn.addEventListener('click', () => {
+      sampleText.value = '';
+    });
+    addSymBtn.addEventListener('click', () => {
+      const sym = symInput.value;
+      const f = Number(freqInput.value);
+      if (!sym) return alert('Enter a symbol (single character allowed). Use space to add a space.');
+      if (!f || f <= 0) return alert('Enter a positive frequency.');
+      freqMap.set(sym, f);
+      symInput.value = '';
+      freqInput.value = '';
+      renderFreqList();
+      resetBuild();
+    });
+    resetBtn.addEventListener('click', () => {
+      resetBuild();
+    });
+    stepBtn.addEventListener('click', () => {
+      stepMerge();
+    });
+    autoBtn.addEventListener('click', () => {
+      if (autoTimer) cancelAuto(); else autoBuild();
+    });
+    completeBtn.addEventListener('click', () => {
+      completeImmediately();
+    });
+
+    decodeStepBtn.addEventListener('click', () => {
+      decodeNextBit();
+    });
+    resetDecodeBtn.addEventListener('click', () => {
+      resetDecodeState();
+    });
+
+    // Keyboard: space triggers step
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        stepMerge();
+      }
+    });
+
+    // Initialize with sample text
+    (function init() {
+      freqMap = frequenciesFromText(sampleText.value || '');
+      renderFreqList();
+      resetBuild();
+    })();
+
+    // Responsive: listen to window resize to adjust svg viewBox? We're using viewBox with coordinates fixed
+    // Accessibility: clicking outside clears highlights
+    document.body.addEventListener('click', (e) => {
+      clearHighlights();
+    });
+
+  </script>
+</body>
+</html>

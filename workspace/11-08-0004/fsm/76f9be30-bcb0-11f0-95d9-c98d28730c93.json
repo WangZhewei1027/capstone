@@ -1,0 +1,102 @@
+{
+  "topic": "Interactive Application",
+  "description": "Finite state machine modeling the interactive Insertion Sort visualizer: pre-run editing, building the action sequence, stepping through recorded micro-actions, autoplaying, and completion.",
+  "states": [
+    {
+      "name": "preRun",
+      "onEnter": "renderBars / updateInputFromArray / resetRunState",
+      "onExit": "none",
+      "on": {
+        "APPLY_INPUT": "preRun",
+        "RANDOMIZE": "preRun",
+        "SIZE_CHANGE": "preRun",
+        "SELECT_BAR": "preRun",
+        "SWAP_PRE": "preRun",
+        "START": "executing",
+        "PLAY_TOGGLE": "preRun",
+        "STEP": "preRun",
+        "BACK": "preRun",
+        "RESET": "preRun",
+        "EXPLAIN": "preRun",
+        "WINDOW_RESIZE": "preRun"
+      }
+    },
+    {
+      "name": "builtPaused",
+      "onEnter": "buildActionsFrom (pushAction...); updateCounters; clearPseudocodeHighlight",
+      "onExit": "none",
+      "on": {
+        "STEP": "executing",
+        "BACK": "executing",
+        "PLAY_TOGGLE": "autoplaying",
+        "RESET": "preRun",
+        "START": "executing",
+        "EXPLAIN": "builtPaused",
+        "APPLY_INPUT": "preRun",
+        "RANDOMIZE": "preRun",
+        "WINDOW_RESIZE": "builtPaused"
+      }
+    },
+    {
+      "name": "executing",
+      "onEnter": "renderAction (highlightPseudocode / update counters / renderArrayState / animate); (await animation)",
+      "onExit": "clear temporary per-action highlights (handled by renderAction/clearPseudocodeHighlight)",
+      "on": {
+        "ACTION_DONE": "autoplaying",
+        "ACTION_DONE_PAUSED": "builtPaused",
+        "REACHED_END": "completed",
+        "PLAY_TOGGLE": "builtPaused",
+        "RESET": "preRun",
+        "BACK": "executing",
+        "WINDOW_RESIZE": "executing"
+      }
+    },
+    {
+      "name": "autoplaying",
+      "onEnter": "startAutoplay (set playing = true; playToggle text change; continueAutoplay schedule)",
+      "onExit": "stopAutoplay (set playing = false; clear timeout; playToggle text change)",
+      "on": {
+        "AUTOPLAY_TIMER": "executing",
+        "PLAY_TOGGLE": "builtPaused",
+        "SPEED_CHANGE": "autoplaying",
+        "REACHED_END": "completed",
+        "RESET": "preRun",
+        "WINDOW_RESIZE": "autoplaying"
+      }
+    },
+    {
+      "name": "completed",
+      "onEnter": "stopAutoplay; render final state; mark all bars sorted; clearPseudocodeHighlight (after slight delay)",
+      "onExit": "none",
+      "on": {
+        "RESET": "preRun",
+        "BACK": "executing",
+        "START": "executing",
+        "PLAY_TOGGLE": "builtPaused",
+        "EXPLAIN": "completed",
+        "WINDOW_RESIZE": "completed"
+      }
+    }
+  ],
+  "events": [
+    "APPLY_INPUT",
+    "RANDOMIZE",
+    "SIZE_CHANGE",
+    "START",
+    "STEP",
+    "BACK",
+    "RESET",
+    "PLAY_TOGGLE",
+    "AUTOPLAY_TIMER",
+    "ACTION_DONE",
+    "ACTION_DONE_PAUSED",
+    "REACHED_END",
+    "SPEED_CHANGE",
+    "SELECT_BAR",
+    "SWAP_PRE",
+    "EXPLAIN",
+    "WINDOW_RESIZE",
+    "KEYBOARD_NAV"
+  ],
+  "notes": "High-level FSM mapping of the visualizer. Important implementation/guard details:\n- preRun: the editable state. Users can type/apply arrays, randomize, pick a bar (SELECT_BAR), and swap elements (SWAP_PRE / KEYBOARD_NAV) only while stepIndex < 0 (no built actions or not started). UI helpers: renderBars(), updateInputFromArray().\n- START always calls buildActionsFrom(initialArray) which records a sequence of micro-actions (pushAction). After building, code sets stepIndex = -1 and immediately steps forward. This is modeled as a transition from preRun/builtPaused to executing that first action.\n- builtPaused: actions exist but autoplay is not active (playing=false). STEP triggers executing the next action; BACK triggers rendering the previous action (may go to preRun if stepping back to initial state). RESET returns to preRun and clears recorded actions (resetRunState).\n- executing: represents the single micro-action render/animation lifecycle (renderAction). On completion the FSM either returns to builtPaused (if autoplay is not active) or to autoplaying (if playing true). If the executed action is the final 'end' action, the FSM transitions to completed.\n- autoplaying: playing=true; the implementation schedules AUTOPLAY_TIMER timeouts (continueAutoplay) that dispatch AUTOPLAY_TIMER->executing. SPEED_CHANGE while autoplaying restarts the timeout. PLAY_TOGGLE stops autoplay and transitions to builtPaused.\n- completed: final state when stepIndex reaches the last recorded action. From here RESET returns to preRun, BACK steps to the prior action (executing), and START rebuilds and restarts.\n- Events like APPLY_INPUT, RANDOMIZE, SIZE_CHANGE, SELECT_BAR, SWAP_PRE, KEYBOARD_NAV are only meaningful in preRun (or when there are no active actions). Attempting to start autoplay without built actions triggers an alert in the implementation (modeled here as PLAY_TOGGLE being a no-op in preRun).\n- onEnter/onExit actions are described with the actual function names used in the code (renderBars, buildActionsFrom, renderAction, startAutoplay, stopAutoplay, resetRunState, highlightPseudocode, clearPseudocodeHighlight, updateCounters, updateInputFromArray).\n- The FSM is simplified: some transitions in code are guarded by runtime conditions (e.g., BACK behavior differs if stepIndex <= 0). These guards are called out in notes, and the 'executing' state is used to represent both forward and backward single-step animation renderings."
+}

@@ -1,0 +1,102 @@
+{
+  "topic": "Recursion Visualizer (factorial)",
+  "description": "Finite state machine for the interactive factorial call-stack visualizer: handles input changes, building event sequences for recursive calls, stepping forward/back, playing an automated animation, rendering call-stack frames, and completion.",
+  "states": [
+    {
+      "name": "init",
+      "onEnter": "initializeApp (setN(initialValue) -> rebuildEvents -> resetVisualization -> updateButtons)",
+      "on": {
+        "INITIALIZED": "idle_at_start"
+      }
+    },
+    {
+      "name": "rebuilding",
+      "description": "Transient state when the input n changes: rebuild events and reset the visualization.",
+      "onEnter": "rebuildEventsAndReset (rebuildEvents(); eventCountBadge update; resetVisualization(); updateButtons())",
+      "on": {
+        "DONE": "idle_at_start"
+      }
+    },
+    {
+      "name": "idle_at_start",
+      "description": "Not playing, pointer is at 0 (no events applied). Controls updated accordingly.",
+      "onEnter": "renderUpTo(pointer=0); updateButtons(); highlightLine()",
+      "on": {
+        "SET_N": "rebuilding",
+        "REBUILD_EVENTS": "rebuilding",
+        "STEP_FORWARD": "idle_mid_or_end (advance pointer then render; if pointer==events.length -> idle_end, else -> idle_mid)",
+        "STEP_BACK": "idle_at_start (no-op, button disabled)",
+        "PLAY_TOGGLE": "playing (startPlaying: if pointer>=events.length then pointer=0; start timer)",
+        "RESET": "idle_at_start (resetVisualization)",
+        "KEY_ARROW_RIGHT": "STEP_FORWARD",
+        "KEY_ARROW_LEFT": "STEP_BACK",
+        "KEY_SPACE": "PLAY_TOGGLE"
+      }
+    },
+    {
+      "name": "idle_mid",
+      "description": "Not playing, pointer is between 1 and events.length-1 (some events applied).",
+      "onEnter": "renderUpTo(pointer); updateButtons(); highlightLine()",
+      "onExit": "",
+      "on": {
+        "SET_N": "rebuilding",
+        "REBUILD_EVENTS": "rebuilding",
+        "STEP_FORWARD": "idle_mid_or_end (advance pointer then render; if pointer==events.length -> idle_end, else -> idle_mid)",
+        "STEP_BACK": "idle_mid_or_start (decrement pointer then render; if pointer==0 -> idle_at_start, else -> idle_mid)",
+        "PLAY_TOGGLE": "playing (startPlaying)",
+        "RESET": "idle_at_start",
+        "KEY_ARROW_RIGHT": "STEP_FORWARD",
+        "KEY_ARROW_LEFT": "STEP_BACK",
+        "KEY_SPACE": "PLAY_TOGGLE"
+      }
+    },
+    {
+      "name": "idle_end",
+      "description": "Not playing, pointer is at events.length (all events applied) — completed/run finished.",
+      "onEnter": "renderUpTo(pointer=events.length); updateButtons(); highlightLine(); show final result",
+      "on": {
+        "SET_N": "rebuilding",
+        "REBUILD_EVENTS": "rebuilding",
+        "STEP_FORWARD": "idle_end (no-op, button disabled)",
+        "STEP_BACK": "idle_mid_or_start (decrement pointer then render; if pointer==0 -> idle_at_start, else -> idle_mid)",
+        "PLAY_TOGGLE": "playing (startPlaying: code restarts by setting pointer=0 then starts timer)",
+        "RESET": "idle_at_start",
+        "KEY_ARROW_RIGHT": "STEP_FORWARD",
+        "KEY_ARROW_LEFT": "STEP_BACK",
+        "KEY_SPACE": "PLAY_TOGGLE"
+      }
+    },
+    {
+      "name": "playing",
+      "description": "Automated playback mode; a timer advances pointer and renders events. Stops automatically when the sequence completes or when the user pauses/stops.",
+      "onEnter": "startPlaying (if events.length === 0 || pointer >= events.length -> pointer=0; renderUpTo(pointer); playing=true; startPlayTimer())",
+      "onExit": "stopPlaying (stopPlayTimer(); playing=false; updateButtons())",
+      "on": {
+        "PLAY_TIMER_TICK": "playing_or_done (advance pointer and render; if pointer < events.length -> remain in playing; if pointer == events.length -> PLAY_STOP -> idle_end)",
+        "PLAY_TOGGLE": "stop_and_idle (stopPlaying -> transition to idle_mid/idle_at_start/idle_end depending on pointer)",
+        "SET_N": "rebuilding (user changed input during play -> rebuildEvents then resetVisualization; stopPlaying executed by resetVisualization)",
+        "RESET": "idle_at_start (resetVisualization and stopPlaying)",
+        "KEY_SPACE": "PLAY_TOGGLE",
+        "STOP": "idle_mid_or_end (stopPlaying then transition depending on pointer)"
+      }
+    }
+  ],
+  "events": [
+    "INITIALIZED",
+    "SET_N",
+    "REBUILD_EVENTS",
+    "DONE",
+    "STEP_FORWARD",
+    "STEP_BACK",
+    "PLAY_TOGGLE",
+    "PLAY_START",
+    "PLAY_STOP",
+    "PLAY_TIMER_TICK",
+    "RESET",
+    "KEY_SPACE",
+    "KEY_ARROW_RIGHT",
+    "KEY_ARROW_LEFT",
+    "STOP"
+  ],
+  "notes": "State transitions depend on the runtime pointer (number of events applied) relative to events.length. The visualization functions called in onEnter actions include: rebuildEvents(), resetVisualization() (which sets pointer=0, calls renderUpTo(0) and stopPlaying()), renderUpTo(pointer) (reconstructs stack DOM up to pointer and highlights pseudo-code), startPlayTimer()/stopPlayTimer() (interval that emits PLAY_TIMER_TICK). Guarded transitions described as 'idle_mid_or_end' or similar imply a conditional: if pointer after the action equals events.length -> idle_end, else if pointer==0 -> idle_at_start, else -> idle_mid. Keyboard events map to the same control events (SPACE -> PLAY_TOGGLE, ArrowRight -> STEP_FORWARD, ArrowLeft -> STEP_BACK). The 'rebuilding' and 'init' states are effectively instantaneous: their onEnter actions finish synchronously and then emit DONE/INITIALIZED to land in idle_at_start. The playing state internally handles automatic PLAY_TIMER_TICK events (setInterval) and will stop (transition to idle_end) when the pointer reaches the end of the event sequence."
+}

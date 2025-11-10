@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Module — Queue (FIFO)</title>
+  <style>
+    /* === Page safe area and variables === */
+    :root{
+      --safe-padding: 24px;    /* required safe area margin */
+      --gap: 16px;             /* minimum spacing */
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --muted: #98a0b3;
+      --accent: #3ea3ff;
+      --success: #22c55e;
+      --danger: #ff6b6b;
+      --slot: #0f1a2b;
+      --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071125 0%, #071b2a 100%);
+      color: #e6eef8;
+      font-family: var(--font-sans);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    /* Safe area margin 24px on all sides */
+    .app{
+      padding: var(--safe-padding);
+      box-sizing:border-box;
+      min-height:100%;
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+    }
+
+    /* Module container */
+    .module{
+      width:100%;
+      max-width:1100px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:24px;
+      box-shadow: 0 10px 30px rgba(2,6,23,0.65);
+      box-sizing:border-box;
+    }
+
+    /* Top header */
+    .header{
+      display:flex;
+      align-items:center;
+      gap:16px;
+      margin-bottom:18px;
+    }
+    .title{
+      flex:1;
+    }
+    .title h1{
+      margin:0;
+      font-size:20px;
+      letter-spacing:0.2px;
+    }
+    .subtitle{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* Layout: left controls/text and right visualization */
+    .content{
+      display:flex;
+      gap:24px; /* at least 16 px */
+      flex-wrap:wrap;
+    }
+    .left, .right{
+      box-sizing:border-box;
+    }
+    .left{
+      flex: 1 1 380px;
+      min-width:300px;
+      max-width:520px;
+    }
+    .right{
+      flex: 1 1 420px;
+      min-width:320px;
+    }
+
+    /* Instruction / plan cards */
+    .card{
+      background: rgba(255,255,255,0.02);
+      border-radius:10px;
+      padding:16px;
+      margin-bottom:16px;
+    }
+    .card h2{
+      margin:0 0 8px 0;
+      font-size:15px;
+    }
+    .card p{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.4;
+    }
+
+    /* Controls */
+    .controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:var(--gap);
+      align-items:center;
+      margin-top:12px;
+    }
+    .controls .inputRow{
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    input[type="text"]{
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+      color: #e6eef8;
+      min-width:160px;
+      outline:none;
+    }
+    input[type="range"]{
+      -webkit-appearance:none;
+      width:160px;
+      height:6px;
+      background: rgba(255,255,255,0.04);
+      border-radius:6px;
+      outline:none;
+    }
+    input[type="range"]::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:18px;height:18px;border-radius:50%;
+      background:var(--accent);box-shadow:0 2px 6px rgba(62,163,255,0.25);
+      border:2px solid rgba(255,255,255,0.06);
+    }
+    .btn{
+      padding:10px 14px;
+      border-radius:8px;
+      border:0;
+      cursor:pointer;
+      color:#061425;
+      background: linear-gradient(180deg,var(--accent),#1a82d6);
+      font-weight:600;
+      box-shadow: 0 6px 12px rgba(24,120,190,0.15);
+    }
+    .btn.secondary{
+      background: rgba(255,255,255,0.04);
+      color:var(--accent);
+      font-weight:600;
+      border:1px solid rgba(255,255,255,0.04);
+    }
+    .btn.danger{
+      background: linear-gradient(180deg,var(--danger),#ff4040);
+      color:white;
+    }
+    .btn:disabled{
+      opacity:0.45;
+      cursor:not-allowed;
+    }
+
+    /* Queue visualization area */
+    .visual{
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      padding:18px;
+      border-radius:10px;
+    }
+    .slots{
+      display:flex;
+      gap:12px;
+      justify-content:center;
+      align-items:end;
+      padding:10px;
+      overflow:auto;
+    }
+    .slot{
+      width:80px;
+      min-width:64px;
+      height:70px;
+      background: linear-gradient(180deg,#081424,var(--slot));
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 4px 14px rgba(2,8,18,0.6);
+      color:var(--muted);
+      font-weight:700;
+      font-size:14px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .slot.empty{
+      color:rgba(255,255,255,0.18);
+      font-weight:600;
+      font-size:12px;
+    }
+
+    /* Front / Rear indicators */
+    .pointer{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      font-size:12px;
+      padding:2px 6px;
+      border-radius:6px;
+      background: rgba(255,255,255,0.03);
+      color:var(--muted);
+      top:-34px;
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+    .pointer.rear{
+      bottom:-34px;
+      top:auto;
+    }
+    .pointer .flag{
+      display:inline-block;
+      width:10px;height:10px;border-radius:2px;
+      background:var(--accent);
+      box-shadow:0 2px 6px rgba(62,163,255,0.18);
+    }
+
+    /* Animating bubble used when enqueueing / dequeuing */
+    .bubble{
+      position:absolute;
+      min-width:46px;
+      height:40px;
+      line-height:40px;
+      padding:0 12px;
+      border-radius:8px;
+      background: linear-gradient(180deg,#3ea3ff,#1a82d6);
+      color:#021427;
+      font-weight:700;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow:0 8px 18px rgba(2,8,18,0.5);
+      z-index:40;
+      transform-origin:center;
+    }
+
+    /* Log area */
+    .log{
+      margin-top:14px;
+      background: rgba(255,255,255,0.02);
+      border-radius:8px;
+      padding:10px;
+      min-height:46px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .mutedSmall{ color:var(--muted); font-size:13px; margin-top:6px; }
+
+    /* responsive */
+    @media (max-width:840px){
+      .content{ flex-direction:column; }
+      .right{ order:-1; } /* show visualization first on small screens */
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <main class="module" role="main" aria-labelledby="moduleTitle">
+      <div class="header">
+        <div class="title">
+          <h1 id="moduleTitle">Queue — First-In, First-Out (FIFO)</h1>
+          <p class="subtitle">Interactive module: visualize enqueue, dequeue, and the FIFO behavior</p>
+        </div>
+        <div style="font-size:12px;color:var(--muted)">Accessible • Responsive</div>
+      </div>
+
+      <div class="content">
+        <!-- LEFT: Explanations and controls -->
+        <section class="left">
+          <!-- Concept Title -->
+          <div class="card" aria-hidden="false">
+            <h2>Concept Title</h2>
+            <p>Queue (FIFO) — a linear data structure where the first element added is the first removed.</p>
+          </div>
+
+          <!-- Learning Objective -->
+          <div class="card">
+            <h2>Learning Objective</h2>
+            <p>
+              After interacting with this module you will be able to:
+              understand how enqueue and dequeue change queue state, identify the front and rear elements,
+              and predict results of a sequence of operations under the FIFO discipline.
+            </p>
+          </div>
+
+          <!-- Interaction Design -->
+          <div class="card" id="interactionDesign">
+            <h2>Interaction Design</h2>
+            <p>
+              Use the controls below to add (enqueue) and remove (dequeue) items from the visual queue.
+              - Type a label and press Enqueue (or Enter) to insert — an animated "bubble" slides into the rear slot.
+              - Press Dequeue to remove the front item — it slides out with an animation.
+              - Peek shows the current front without removing it.
+              - Adjust capacity (4–10) to change how many slots appear.
+              Feedback is provided with animations, pointer highlights for front/rear, and a live textual log.
+            </p>
+          </div>
+
+          <!-- Layout Description -->
+          <div class="card">
+            <h2>Layout Description</h2>
+            <p>
+              The module is split left/right: textual instructions and controls on the left, the interactive
+              visualization on the right. Spacing follows a 24px safe margin and 16px minimum gaps. Controls are grouped
+              with clear labels and large tappable buttons for accessibility. Visual slots are centered and scale down
+              on narrow screens.
+            </p>
+          </div>
+
+          <!-- Controls -->
+          <div class="card" aria-label="Controls">
+            <h2>Controls</h2>
+
+            <div class="controls" role="group" aria-label="Queue operations">
+              <div class="inputRow">
+                <label for="valueInput" class="mutedSmall" style="margin-right:8px;">Value</label>
+                <input id="valueInput" type="text" maxlength="12" placeholder="e.g. A" aria-label="value to enqueue" />
+                <button id="enqueueBtn" class="btn" title="Enqueue (Enter)">Enqueue</button>
+              </div>
+
+              <button id="dequeueBtn" class="btn secondary" title="Dequeue (D)">Dequeue</button>
+              <button id="peekBtn" class="btn secondary" title="Peek (P)">Peek</button>
+              <button id="clearBtn" class="btn danger" title="Clear all">Clear</button>
+
+              <div style="display:flex; align-items:center; gap:8px;">
+                <label for="capacityRange" class="mutedSmall">Capacity</label>
+                <input id="capacityRange" type="range" min="4" max="10" value="6" aria-label="Queue capacity" />
+                <div id="capacityLabel" class="mutedSmall" style="min-width:30px;text-align:right;">6</div>
+              </div>
+            </div>
+
+            <div class="mutedSmall" style="margin-top:10px;">
+              Keyboard: Enter = Enqueue, D = Dequeue, P = Peek. Buttons disable when action invalid.
+            </div>
+          </div>
+
+          <!-- Log -->
+          <div class="card">
+            <h2>Activity Log</h2>
+            <div id="log" class="log" aria-live="polite" aria-atomic="true">Queue is empty. Capacity: 6.</div>
+          </div>
+        </section>
+
+        <!-- RIGHT: Visualization -->
+        <section class="right">
+          <div class="visual" aria-label="Queue visualization">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+              <div style="font-weight:700;">Visual Queue</div>
+              <div id="sizeDisplay" style="color:var(--muted); font-size:13px;">Size: 0 / 6</div>
+            </div>
+
+            <div id="slotsContainer" class="slots" role="list" aria-label="Queue slots">
+              <!-- Slots are generated by JS -->
+            </div>
+
+            <!-- Log area (duplicate small) -->
+            <div id="miniLog" class="mutedSmall" style="margin-top:12px; color:var(--muted);">Front and Rear pointers highlight the first and last elements.</div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // === Queue Module Implementation (Vanilla JS) ===
+    // Clean, self-contained implementation that respects accessibility and animations.
+    (function () {
+      // DOM references
+      const valueInput = document.getElementById('valueInput');
+      const enqueueBtn = document.getElementById('enqueueBtn');
+      const dequeueBtn = document.getElementById('dequeueBtn');
+      const peekBtn = document.getElementById('peekBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const capacityRange = document.getElementById('capacityRange');
+      const capacityLabel = document.getElementById('capacityLabel');
+      const slotsContainer = document.getElementById('slotsContainer');
+      const log = document.getElementById('log');
+      const sizeDisplay = document.getElementById('sizeDisplay');
+
+      // State
+      let capacity = parseInt(capacityRange.value, 10);
+      let queue = []; // will store values from front to rear
+      // Initialize UI
+      capacityLabel.textContent = capacity;
+      renderSlots();
+
+      // Utilities
+      function setLog(text, tone) {
+        log.textContent = text;
+        if (tone === 'error') {
+          log.style.color = getComputedStyle(document.documentElement).getPropertyValue('--danger');
+        } else {
+          log.style.color = '';
+        }
+      }
+
+      function updateControls() {
+        enqueueBtn.disabled = queue.length >= capacity;
+        dequeueBtn.disabled = queue.length === 0;
+        peekBtn.disabled = queue.length === 0;
+        sizeDisplay.textContent = `Size: ${queue.length} / ${capacity}`;
+      }
+
+      function renderSlots() {
+        // Clear and build slots equal to capacity
+        slotsContainer.innerHTML = '';
+        for (let i = 0; i < capacity; i++) {
+          const slot = document.createElement('div');
+          slot.className = 'slot empty';
+          slot.setAttribute('data-index', i);
+          slot.setAttribute('role', 'listitem');
+          // Add pointer placeholders (positioned absolutely within each slot)
+          const topPointer = document.createElement('div');
+          topPointer.className = 'pointer';
+          topPointer.style.display = 'none';
+          topPointer.setAttribute('aria-hidden', 'true');
+          const flag = document.createElement('span'); flag.className = 'flag';
+          topPointer.appendChild(flag);
+          topPointer.appendChild(document.createTextNode('Front'));
+          slot.appendChild(topPointer);
+
+          const bottomPointer = document.createElement('div');
+          bottomPointer.className = 'pointer rear';
+          bottomPointer.style.display = 'none';
+          bottomPointer.setAttribute('aria-hidden', 'true');
+          const flag2 = document.createElement('span'); flag2.className = 'flag';
+          bottomPointer.appendChild(document.createTextNode('Rear'));
+          bottomPointer.appendChild(flag2);
+          slot.appendChild(bottomPointer);
+
+          // index label
+          const idxLabel = document.createElement('div');
+          idxLabel.style.position = 'absolute';
+          idxLabel.style.bottom = '6px';
+          idxLabel.style.right = '6px';
+          idxLabel.style.fontSize = '11px';
+          idxLabel.style.color = 'rgba(255,255,255,0.06)';
+          idxLabel.textContent = i;
+          slot.appendChild(idxLabel);
+
+          slotsContainer.appendChild(slot);
+        }
+        refreshSlotValues();
+        updateControls();
+      }
+
+      function refreshSlotValues() {
+        // Clear all slots and fill with queue values starting at index 0 (front) to last (rear).
+        const slots = slotsContainer.querySelectorAll('.slot');
+        slots.forEach((slot) => {
+          // Remove any content text nodes except pointer and index; easiest to reset classes and insert value element
+          slot.classList.add('empty');
+          // Remove existing value node if present
+          const existing = slot.querySelector('.valueLabel');
+          if (existing) existing.remove();
+        });
+
+        for (let i = 0; i < queue.length; i++) {
+          const slot = slots[i];
+          slot.classList.remove('empty');
+          const val = document.createElement('div');
+          val.className = 'valueLabel';
+          val.style.fontWeight = '800';
+          val.style.fontSize = '14px';
+          val.textContent = queue[i];
+          // Ensure value container is on top of index and pointers
+          slot.appendChild(val);
+        }
+
+        // Update pointers: front at slot 0 if queue non-empty; rear at slot (queue.length - 1)
+        slots.forEach((slot, idx) => {
+          const tp = slot.querySelector('.pointer');
+          const rp = slot.querySelector('.pointer.rear');
+          if (queue.length > 0 && idx === 0) {
+            tp.style.display = 'flex';
+          } else {
+            tp.style.display = 'none';
+          }
+          if (queue.length > 0 && idx === queue.length - 1) {
+            rp.style.display = 'flex';
+          } else {
+            rp.style.display = 'none';
+          }
+        });
+
+        // Empty slot placeholders: show "empty"
+        const emptySlots = slotsContainer.querySelectorAll('.slot.empty');
+        emptySlots.forEach(s => {
+          // If no existing placeholder text, add one
+          if (!s.querySelector('.placeholder')) {
+            const ph = document.createElement('div');
+            ph.className = 'placeholder';
+            ph.style.position = 'absolute';
+            ph.style.fontSize = '12px';
+            ph.style.color = 'rgba(255,255,255,0.12)';
+            ph.textContent = 'empty';
+            s.appendChild(ph);
+          }
+        });
+
+        updateControls();
+      }
+
+      // Animation helpers
+      function animateEnqueue(value, targetIndex) {
+        // Create floating bubble at the enqueue button location, animate to target slot center
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = value;
+        document.body.appendChild(bubble);
+
+        // position start: near enqueue button
+        const startRect = enqueueBtn.getBoundingClientRect();
+        const targetSlot = slotsContainer.querySelector(`.slot[data-index="${targetIndex}"]`);
+        const targetRect = targetSlot.getBoundingClientRect();
+
+        // Set initial style (off DOM to be able to measure)
+        bubble.style.left = (startRect.left + startRect.width / 2 - bubble.offsetWidth / 2) + 'px';
+        bubble.style.top = (startRect.top + startRect.height / 2 - bubble.offsetHeight / 2) + 'px';
+        bubble.style.opacity = '0.0';
+        bubble.style.transform = 'scale(0.85) translateY(-6px)';
+        bubble.style.transition = 'transform 220ms ease, left 520ms cubic-bezier(.2,.9,.2,1), top 520ms cubic-bezier(.2,.9,.2,1), opacity 160ms';
+
+        // Force paint
+        void bubble.offsetWidth;
+
+        // animate in (fade)
+        bubble.style.opacity = '1';
+        bubble.style.transform = 'scale(1) translateY(0)';
+
+        // Move to target mid-point
+        const targetLeft = targetRect.left + (targetRect.width - bubble.offsetWidth) / 2;
+        const targetTop = targetRect.top + (targetRect.height - bubble.offsetHeight) / 2;
+
+        // Delay slightly for a nicer effect
+        setTimeout(() => {
+          bubble.style.left = targetLeft + 'px';
+          bubble.style.top = targetTop + 'px';
+        }, 80);
+
+        // On transition end, insert into slot and remove bubble
+        const cleanup = () => {
+          bubble.removeEventListener('transitionend', cleanup);
+          // Put value into slot DOM (will be managed by refreshSlotValues)
+          refreshSlotValues();
+          // Remove bubble with a small scale/fade
+          bubble.style.transition = 'transform 160ms ease, opacity 160ms ease';
+          bubble.style.opacity = '0';
+          bubble.style.transform = 'scale(0.9)';
+          setTimeout(() => bubble.remove(), 180);
+        };
+        bubble.addEventListener('transitionend', cleanup);
+      }
+
+      function animateDequeue(fromIndex, value) {
+        // Animate the front slot's value leaving to the left
+        const slot = slotsContainer.querySelector(`.slot[data-index="${fromIndex}"]`);
+        if (!slot) return;
+        const valNode = slot.querySelector('.valueLabel');
+        if (!valNode) {
+          // fallback: create a bubble at the slot's center and animate
+          const rect = slot.getBoundingClientRect();
+          const bubble = document.createElement('div');
+          bubble.className = 'bubble';
+          bubble.textContent = value;
+          document.body.appendChild(bubble);
+          bubble.style.left = (rect.left + (rect.width - bubble.offsetWidth) / 2) + 'px';
+          bubble.style.top = (rect.top + (rect.height - bubble.offsetHeight) / 2) + 'px';
+          bubble.style.opacity = '1';
+          bubble.style.transition = 'transform 480ms cubic-bezier(.2,.9,.2,1), left 480ms cubic-bezier(.2,.9,.2,1), top 480ms, opacity 280ms';
+          // move left + fade
+          setTimeout(() => {
+            bubble.style.left = (rect.left - 120) + 'px';
+            bubble.style.opacity = '0';
+            bubble.style.transform = 'scale(0.95) translateY(-6px)';
+          }, 10);
+          setTimeout(() => bubble.remove(), 520);
+        } else {
+          // Animate the value node itself by creating a clone (keeps layout stable)
+          const rect = valNode.getBoundingClientRect();
+          const clone = valNode.cloneNode(true);
+          clone.className = 'bubble';
+          clone.style.left = rect.left + 'px';
+          clone.style.top = rect.top + 'px';
+          document.body.appendChild(clone);
+          // small shrink then fly left and fade
+          clone.style.transition = 'transform 360ms cubic-bezier(.2,.9,.2,1), left 520ms ease, opacity 360ms';
+          clone.style.transform = 'scale(0.98)';
+          setTimeout(() => {
+            clone.style.left = (rect.left - 140) + 'px';
+            clone.style.opacity = '0';
+            clone.style.transform = 'scale(0.9) translateY(-8px)';
+          }, 10);
+          setTimeout(() => clone.remove(), 540);
+        }
+      }
+
+      // Core operations
+      function enqueue(value) {
+        if (!value || value.trim() === '') {
+          setLog('Enter a non-empty value to enqueue.', 'error');
+          valueInput.focus();
+          return;
+        }
+        if (queue.length >= capacity) {
+          setLog('Queue is full. Increase capacity or dequeue first.', 'error');
+          return;
+        }
+        // Accept value (trim) and push to queue
+        const val = value.trim();
+        queue.push(val);
+        setLog(`Enqueued "${val}". Size is now ${queue.length}.`);
+        // Animate: bubble moves into last slot (index = queue.length - 1)
+        animateEnqueue(val, queue.length - 1);
+        // Update DOM after small delay to let animation show
+        setTimeout(() => {
+          refreshSlotValues();
+          updateControls();
+        }, 360);
+      }
+
+      function dequeue() {
+        if (queue.length === 0) {
+          setLog('Queue is empty. Nothing to dequeue.', 'error');
+          return;
+        }
+        const val = queue.shift();
+        setLog(`Dequeued "${val}". Size is now ${queue.length}.`);
+        // animate removal from slot 0
+        animateDequeue(0, val);
+        // After animation, re-render and shift elements left visually
+        setTimeout(() => {
+          refreshSlotValues();
+          updateControls();
+        }, 420);
+      }
+
+      function peek() {
+        if (queue.length === 0) {
+          setLog('Queue is empty. Nothing to peek.', 'error');
+          return;
+        }
+        setLog(`Front element is "${queue[0]}".`);
+        // Briefly pulse the front pointer to draw attention
+        const frontSlot = slotsContainer.querySelector('.slot[data-index="0"] .pointer');
+        if (frontSlot) {
+          const orig = frontSlot.style.boxShadow;
+          frontSlot.style.transition = 'transform 220ms, background 220ms';
+          frontSlot.style.transform = 'translateY(-4px)';
+          setTimeout(() => { frontSlot.style.transform = ''; }, 260);
+        }
+      }
+
+      function clearQueue() {
+        if (queue.length === 0) {
+          setLog('Queue is already empty.');
+          return;
+        }
+        // animate all existing items fading out quickly
+        const current = queue.slice();
+        queue = [];
+        setLog('Queue cleared.');
+        // create clones for existing values to fade out
+        const slots = slotsContainer.querySelectorAll('.slot');
+        current.forEach((val, idx) => {
+          animateDequeue(idx, val);
+        });
+        setTimeout(() => {
+          refreshSlotValues();
+          updateControls();
+        }, 450);
+      }
+
+      // Event wiring
+      enqueueBtn.addEventListener('click', () => {
+        enqueue(valueInput.value);
+        valueInput.value = '';
+        valueInput.focus();
+      });
+
+      dequeueBtn.addEventListener('click', () => {
+        dequeue();
+      });
+
+      peekBtn.addEventListener('click', () => {
+        peek();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        clearQueue();
+      });
+
+      capacityRange.addEventListener('input', (e) => {
+        const newCap = parseInt(e.target.value, 10);
+        capacity = newCap;
+        capacityLabel.textContent = newCap;
+        // If capacity reduced below current size, trim queue (explain to user)
+        if (queue.length > capacity) {
+          // remove from rear until fits (but preserve FIFO for front)
+          const removed = queue.splice(capacity);
+          setLog(`Capacity reduced; removed ${removed.length} item(s) from rear.`);
+        } else {
+          setLog(`Capacity set to ${capacity}.`);
+        }
+        renderSlots();
+      });
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (ev) => {
+        // Avoid capturing keys when input focused except Enter
+        const active = document.activeElement;
+        if (ev.key === 'Enter') {
+          // Enqueue quick
+          enqueue(valueInput.value);
+          valueInput.value = '';
+          valueInput.focus();
+        } else if (!active || active === document.body) {
+          if (ev.key.toLowerCase() === 'd') {
+            dequeue();
+          } else if (ev.key.toLowerCase() === 'p') {
+            peek();
+          }
+        }
+      });
+
+      // Initial instructions
+      setLog(`Queue is empty. Capacity: ${capacity}. Use the input to enqueue a value.`);
+      updateControls();
+
+      // Expose for debugging (optional)
+      window._queueModule = {
+        get state(){ return {capacity, queue: queue.slice()}; },
+      };
+    })();
+  </script>
+</body>
+</html>

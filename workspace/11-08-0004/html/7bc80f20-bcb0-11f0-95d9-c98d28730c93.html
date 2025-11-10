@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Breadth-First Search — Interactive Module</title>
+  <style>
+    /* Safe area margins: 24px on all sides */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px; /* minimum spacing between interactive elements */
+      --bg: #0f1720;
+      --panel: #0b1220;
+      --card: #0e1626;
+      --accent: #38bdf8;
+      --muted: #9aa4b2;
+      --good: #10b981;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --node-size: 44px;
+    }
+    html,body {
+      height: 100%;
+      margin: 0;
+      padding: var(--safe-margin);
+      background: linear-gradient(180deg,#071023 0%, #081428 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #e6eef6;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      box-sizing: border-box;
+    }
+    *,*::before,*::after { box-sizing: inherit; }
+
+    /* Layout: left panel for controls & text, right area for canvas & status */
+    .container {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: var(--gap);
+      height: calc(100vh - (var(--safe-margin) * 2));
+      min-height: 520px;
+    }
+
+    /* Responsive: stack on narrow screens */
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+        grid-auto-rows: min-content 1fr;
+      }
+    }
+
+    /* Left panel */
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.03);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 260px;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 6px 0;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0 0 6px 0;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,0.02);
+      font-size: 13px;
+      color: #dbeafe;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--gap);
+      margin-top: 6px;
+    }
+    button, .toggle {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color: #e6eef6;
+      border: 1px solid rgba(255,255,255,0.04);
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      min-width: 88px;
+    }
+    button[aria-pressed="true"], .toggle.active {
+      border-color: rgba(56,189,248,0.6);
+      box-shadow: 0 4px 18px rgba(56,189,248,0.08);
+    }
+    .toggle {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+
+    .small {
+      padding: 8px 10px;
+      min-width: 72px;
+      font-size: 13px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    .row {
+      display:flex;
+      gap: 12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    /* Right area: canvas & status */
+    .stage {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      gap: var(--gap);
+      height: 100%;
+    }
+
+    .canvas-card {
+      background: linear-gradient(180deg,#071428 0%, #051122 100%);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.02);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      min-height: 320px;
+      align-items: stretch;
+    }
+
+    /* SVG canvas takes remaining width */
+    svg.graph {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .hint {
+      position: absolute;
+      left: 16px;
+      top: 14px;
+      background: rgba(0,0,0,0.3);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+
+    /* Node styles */
+    .node {
+      cursor: grab;
+      user-select: none;
+      transition: transform 160ms ease, fill 220ms ease, stroke 220ms ease;
+    }
+    .node:active { cursor: grabbing; }
+    .node circle {
+      fill: #0b1220;
+      stroke: rgba(255,255,255,0.06);
+      stroke-width: 2px;
+      transition: fill 220ms ease, stroke 220ms ease;
+    }
+    .node text {
+      fill: #e6eef6;
+      font-size: 13px;
+      pointer-events: none;
+      dominant-baseline: middle;
+      text-anchor: middle;
+    }
+
+    /* Node states */
+    .node.unvisited circle { fill: #0b1220; stroke: rgba(255,255,255,0.06); }
+    .node.start circle { fill: #0ea5e9; stroke: rgba(255,255,255,0.2); }
+    .node.frontier circle { fill: #f59e0b; stroke: rgba(255,255,255,0.12); transform: scale(1.05); }
+    .node.visited circle { fill: #10b981; stroke: rgba(255,255,255,0.12); transform: scale(1.02); }
+    .node.exploring circle { fill: #f97316; stroke: rgba(255,255,255,0.12); transform: scale(1.06); }
+
+    /* Edge styles */
+    .edge {
+      stroke: rgba(255,255,255,0.06);
+      stroke-width: 3;
+      transition: stroke 200ms ease, stroke-width 200ms ease;
+      fill: none;
+    }
+    .edge.traversed {
+      stroke: #38bdf8;
+      stroke-width: 4;
+      filter: drop-shadow(0 1px 6px rgba(56,189,248,0.12));
+    }
+    .edge.explore {
+      stroke: #f59e0b;
+      stroke-width: 4;
+    }
+
+    /* queue visual */
+    .statusbar {
+      display:flex;
+      gap: var(--gap);
+      align-items:center;
+      padding: 12px;
+    }
+    .queue {
+      display:flex;
+      gap: 8px;
+      align-items:center;
+      padding: 8px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.02);
+      min-height: 48px;
+    }
+    .qitem {
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      padding: 8px 10px;
+      min-width: 36px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:600;
+      transition: transform 260ms cubic-bezier(.2,.9,.3,1), opacity 260ms;
+    }
+    .qitem.front { background: var(--accent); color: #022b3a; transform: translateY(-6px) scale(1.06); }
+    .qitem.enqueued { background: #f59e0b; color: #071018; transform: translateY(-4px); }
+    .visited-list {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      padding: 8px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.02);
+      min-height:48px;
+      overflow:auto;
+    }
+    .vitem {
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.03);
+      font-size:13px;
+    }
+
+    /* small helper */
+    .muted-block { color: var(--muted); font-size: 13px; }
+
+    /* focus outlines accessible */
+    button:focus, .toggle:focus {
+      outline: 3px solid rgba(56,189,248,0.18);
+      outline-offset: 2px;
+    }
+
+    /* subtle animation for edge arrow marker when traversed */
+    .edge-marker use {
+      transition: fill 220ms ease;
+    }
+
+    /* credits area */
+    .meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* small footer under canvas */
+    .canvas-footer {
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      padding: 10px 6px;
+      align-items:center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="Breadth-First Search interactive module">
+    <!-- Left Panel: Title, Objective, Interaction Design, Controls -->
+    <aside class="panel" aria-labelledby="title">
+      <div>
+        <h1 id="title">Breadth-First Search (BFS) Visualizer</h1>
+        <p class="subtitle">Explore BFS step-by-step on custom graphs — learn about queue order, levels, and edge traversal.</p>
+      </div>
+
+      <div class="card" aria-hidden="false">
+        <strong>Learning Objective</strong>
+        <p class="muted" style="margin:8px 0 0 0;">
+          After interacting, you should be able to:
+          1) Explain how BFS uses a queue to visit nodes layer-by-layer.
+          2) Trace the enqueue / dequeue order and resulting shortest distances (in unweighted graphs).
+          3) Recognize frontier vs visited nodes visually.
+        </p>
+      </div>
+
+      <div class="card" aria-hidden="false">
+        <strong>Interaction Design</strong>
+        <p class="muted" style="margin:8px 0 0 0;">
+          - Click empty canvas to add nodes. Drag nodes to reposition.<br>
+          - Click "Connect" then click a source node and a destination node to add an edge. Toggle directed/undirected.<br>
+          - Click a node then "Set Start" (or double-click) to choose BFS root.<br>
+          - Use "Step" to advance BFS one queue operation, or "Play" to animate continuously. Watch the queue visualization update — items animate when enqueued/dequeued. Edges being inspected highlight briefly.
+        </p>
+      </div>
+
+      <div class="card" aria-hidden="false">
+        <strong>Layout Description</strong>
+        <p class="muted" style="margin:8px 0 0 0;">
+          Left column contains instructions and controls with at least 16px spacing. The right area is the interactive SVG canvas (graph) with a status bar below showing the queue and visited order. Safe margins are 24px on all sides. The UI is responsive: panels stack on small screens.
+        </p>
+      </div>
+
+      <!-- Controls -->
+      <div class="card" aria-label="Controls">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label class="muted">Mode</label>
+          <div class="row">
+            <button id="mode-add" class="toggle" aria-pressed="false" title="Add nodes">Add</button>
+            <button id="mode-connect" class="toggle" aria-pressed="false" title="Connect nodes">Connect</button>
+            <button id="mode-move" class="toggle active" aria-pressed="true" title="Move nodes">Move</button>
+            <button id="mode-delete" class="toggle" aria-pressed="false" title="Delete nodes/edges">Delete</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
+          <button id="btn-set-start" class="small" title="Set selected node as BFS start">Set Start</button>
+          <button id="btn-step" class="small" title="Perform one BFS step">Step</button>
+          <button id="btn-play" class="small" title="Run BFS automatically">Play</button>
+          <button id="btn-reset" class="small" title="Reset BFS state">Reset</button>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
+          <button id="btn-random" class="small" title="Generate a random graph">Random</button>
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input id="directed" type="checkbox" aria-label="Directed edges toggle" />
+            <span class="muted">Directed</span>
+          </label>
+        </div>
+
+        <div style="margin-top:8px;">
+          <label class="muted">Speed</label>
+          <input id="speed" type="range" min="100" max="1500" step="50" value="700" aria-label="Playback speed" />
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;">
+          <button id="btn-clear" class="small" title="Clear everything">Clear</button>
+          <button id="btn-help" class="small" title="Show help">Help</button>
+        </div>
+      </div>
+
+      <div class="card meta" aria-hidden="false">
+        <div><strong>Interaction hints</strong></div>
+        <ul style="margin:8px 0 0 18px;color:var(--muted);padding:0;">
+          <li>Double-click a node to make it the start node.</li>
+          <li>In Connect mode: click source then target to create an edge. Edges auto-avoid duplicates.</li>
+          <li>Edge direction shows arrow when Directed is on.</li>
+        </ul>
+      </div>
+
+    </aside>
+
+    <!-- Right area: SVG canvas and status area -->
+    <main class="stage">
+      <div class="canvas-card" id="canvasCard">
+        <div class="hint" id="hint">Mode: Move • Click canvas to add nodes</div>
+
+        <!-- SVG graph -->
+        <svg class="graph" id="svg" viewBox="0 0 1200 700" role="img" aria-label="Graph canvas">
+          <defs>
+            <!-- Arrow head -->
+            <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#cceeff" />
+            </marker>
+          </defs>
+
+          <!-- edges layer -->
+          <g id="edges"></g>
+          <!-- nodes layer -->
+          <g id="nodes"></g>
+        </svg>
+      </div>
+
+      <div class="canvas-footer card" aria-live="polite">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div>
+            <div class="muted">Queue</div>
+            <div class="queue" id="queue"></div>
+          </div>
+
+          <div>
+            <div class="muted">Visited order</div>
+            <div class="visited-list" id="visited"></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="muted">Status:</div>
+          <div id="status" class="muted-block">Idle</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // BFS Interactive Module (vanilla JS)
+    // Data model: nodes {id, x, y, neighbors:Set}, edges {id, from, to, svg}
+    // Node states: 'unvisited', 'start', 'frontier', 'visited', 'exploring'
+
+    (function () {
+      // DOM refs
+      const svg = document.getElementById('svg');
+      const edgesG = document.getElementById('edges');
+      const nodesG = document.getElementById('nodes');
+      const hint = document.getElementById('hint');
+      const queueEl = document.getElementById('queue');
+      const visitedEl = document.getElementById('visited');
+      const statusEl = document.getElementById('status');
+
+      const modeAdd = document.getElementById('mode-add');
+      const modeConnect = document.getElementById('mode-connect');
+      const modeMove = document.getElementById('mode-move');
+      const modeDelete = document.getElementById('mode-delete');
+      const btnSetStart = document.getElementById('btn-set-start');
+      const btnStep = document.getElementById('btn-step');
+      const btnPlay = document.getElementById('btn-play');
+      const btnReset = document.getElementById('btn-reset');
+      const btnRandom = document.getElementById('btn-random');
+      const btnClear = document.getElementById('btn-clear');
+      const btnHelp = document.getElementById('btn-help');
+      const directedToggle = document.getElementById('directed');
+      const speedSlider = document.getElementById('speed');
+
+      let width = 1200, height = 700;
+      const nodeSize = 22; // radius
+      let nodes = new Map(); // id -> node
+      let edges = new Map(); // id -> edge
+      let adjacency = new Map(); // id -> Set of neighbor ids
+      let idCounter = 0;
+
+      // BFS runtime state
+      let startNode = null;
+      let bfsQueue = [];
+      let visitedOrder = [];
+      let visitedSet = new Set();
+      let frontierSet = new Set();
+      let exploringEdge = null;
+
+      // Playback
+      let playing = false;
+      let playTimer = null;
+
+      // Modes (only one active)
+      let currentMode = 'move'; // 'add', 'connect', 'move', 'delete'
+      let connectSource = null;
+      let selectedNode = null; // for setting start or deletion
+
+      // Accessibility & status updates
+      function setStatus(text) {
+        statusEl.textContent = text;
+      }
+
+      // Utilities
+      function makeNodeId() { return 'n' + (++idCounter); }
+      function makeEdgeId(a,b) { return 'e' + a + '-' + b; }
+
+      // Create a node at position
+      function createNode(x, y, label) {
+        const id = makeNodeId();
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.classList.add('node', 'unvisited');
+        g.setAttribute('data-id', id);
+        g.setAttribute('tabindex', '0');
+        g.setAttribute('role', 'button');
+        g.setAttribute('aria-label', 'Node ' + id);
+
+        // circle
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('r', nodeSize);
+        circle.setAttribute('cx', 0);
+        circle.setAttribute('cy', 0);
+        g.appendChild(circle);
+
+        // text
+        const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        t.textContent = label || id;
+        g.appendChild(t);
+
+        // position group
+        g.setAttribute('transform', `translate(${x} ${y})`);
+
+        nodesG.appendChild(g);
+
+        const node = { id, x, y, g, circle, text: t };
+        nodes.set(id, node);
+        adjacency.set(id, new Set());
+
+        makeInteractive(node);
+        return node;
+      }
+
+      // Add edge (optionally directed)
+      function addEdge(aId, bId) {
+        if (!nodes.has(aId) || !nodes.has(bId)) return null;
+        const key = makeEdgeId(aId, bId);
+        if (edges.has(key)) return edges.get(key);
+
+        // create line
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.classList.add('edge');
+        path.setAttribute('data-id', key);
+        path.setAttribute('fill', 'none');
+        edgesG.appendChild(path);
+
+        // attach arrow if directed
+        if (directedToggle.checked) {
+          path.setAttribute('marker-end', 'url(#arrow)');
+        } else {
+          path.removeAttribute('marker-end');
+        }
+
+        const edge = { id: key, from: aId, to: bId, path };
+        edges.set(key, edge);
+
+        // update adjacency for traversal (always directed for representation if toggle on, else add both)
+        adjacency.get(aId).add(bId);
+        if (!directedToggle.checked) {
+          adjacency.get(bId).add(aId);
+        }
+        updateEdgePositions(edge);
+        return edge;
+      }
+
+      // Recompute path position between nodes
+      function updateEdgePositions(edge) {
+        const a = nodes.get(edge.from);
+        const b = nodes.get(edge.to);
+        if (!a || !b) return;
+        // draw a simple curved path for readability
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const mx = a.x + dx * 0.5;
+        const my = a.y + dy * 0.5;
+        const nx = -dy * 0.15;
+        const ny = dx * 0.15;
+        const cx = mx + nx;
+        const cy = my + ny;
+        const d = `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+        edge.path.setAttribute('d', d);
+      }
+
+      // Remove edge representation and adjacency
+      function removeEdge(edge) {
+        if (!edges.has(edge.id)) return;
+        // remove adjacency entries
+        const { from, to } = edge;
+        adjacency.get(from).delete(to);
+        if (!directedToggle.checked) adjacency.get(to).delete(from);
+        edge.path.remove();
+        edges.delete(edge.id);
+      }
+
+      // Remove node and connected edges
+      function removeNode(node) {
+        // remove edges connecting to or from node
+        const toRemove = [];
+        edges.forEach((e) => {
+          if (e.from === node.id || e.to === node.id) toRemove.push(e);
+        });
+        toRemove.forEach(removeEdge);
+        adjacency.delete(node.id);
+        nodes.delete(node.id);
+        node.g.remove();
+      }
+
+      // Interactive behaviors for node elements
+      function makeInteractive(node) {
+        const g = node.g;
+        let dragging = false;
+        let offset = { x: 0, y: 0 };
+
+        // pointer events for dragging (move mode)
+        g.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          selectedNode = node;
+          if (currentMode === 'add') {
+            // in add mode, clicking a node selects it as potential connect source
+            if (connectSource == null) {
+              connectSource = node;
+              hint.textContent = `Connect mode: selected ${node.text.textContent} as source — click target`;
+            } else if (connectSource === node) {
+              // clicked same node, deselect
+              connectSource = null;
+              hint.textContent = 'Connect mode: click source then target';
+            } else {
+              // create edge
+              addEdge(connectSource.id, node.id);
+              connectSource = null;
+              hint.textContent = 'Edge created';
+              renderAll();
+            }
+            return;
+          } else if (currentMode === 'connect') {
+            // connect mode (explicit)
+            if (!connectSource) {
+              connectSource = node;
+              hint.textContent = `Connect mode: selected ${node.text.textContent} (source)`;
+            } else {
+              if (connectSource !== node) {
+                addEdge(connectSource.id, node.id);
+                renderAll();
+              }
+              connectSource = null;
+              hint.textContent = 'Connect mode';
+            }
+            return;
+          } else if (currentMode === 'delete') {
+            // delete node
+            removeNode(node);
+            renderAll();
+            return;
+          } else if (currentMode === 'move') {
+            // begin dragging
+            dragging = true;
+            g.setPointerCapture(e.pointerId);
+            const pt = svg.createSVGPoint();
+            pt.x = e.clientX; pt.y = e.clientY;
+            const ctm = svg.getScreenCTM();
+            const loc = pt.matrixTransform(ctm.inverse());
+            offset.x = loc.x - node.x;
+            offset.y = loc.y - node.y;
+            node.g.classList.add('dragging');
+          }
+        });
+
+        g.addEventListener('pointermove', (e) => {
+          if (!dragging) return;
+          const pt = svg.createSVGPoint();
+          pt.x = e.clientX; pt.y = e.clientY;
+          const ctm = svg.getScreenCTM();
+          const loc = pt.matrixTransform(ctm.inverse());
+          node.x = Math.max(30, Math.min(width-30, loc.x - offset.x));
+          node.y = Math.max(30, Math.min(height-30, loc.y - offset.y));
+          node.g.setAttribute('transform', `translate(${node.x} ${node.y})`);
+          // update adjacent edges
+          edges.forEach(updateEdgePositions);
+        });
+
+        g.addEventListener('pointerup', (e) => {
+          dragging = false;
+          node.g.classList.remove('dragging');
+          try { g.releasePointerCapture(e.pointerId); } catch (err) {}
+        });
+
+        // double-click sets start node
+        g.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          setStart(node.id);
+        });
+
+        // keyboard interaction for accessibility: Enter selects / begins connection / deletion etc.
+        g.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (currentMode === 'move') {
+              // toggle selection as start
+              setStart(node.id);
+            } else if (currentMode === 'connect') {
+              if (!connectSource) {
+                connectSource = node;
+                hint.textContent = `Connect mode: selected ${node.text.textContent} as source`;
+              } else {
+                if (connectSource !== node) addEdge(connectSource.id, node.id);
+                connectSource = null;
+              }
+              renderAll();
+            } else if (currentMode === 'delete') {
+              removeNode(node);
+              renderAll();
+            }
+          }
+        });
+      }
+
+      // Mode toggling
+      function setMode(m) {
+        currentMode = m;
+        [modeAdd, modeConnect, modeMove, modeDelete].forEach(btn => btn.classList.remove('active'));
+        modeAdd.setAttribute('aria-pressed', 'false');
+        modeConnect.setAttribute('aria-pressed', 'false');
+        modeMove.setAttribute('aria-pressed', 'false');
+        modeDelete.setAttribute('aria-pressed', 'false');
+        if (m === 'add') { modeAdd.classList.add('active'); modeAdd.setAttribute('aria-pressed','true'); hint.textContent = 'Click canvas to add nodes'; }
+        if (m === 'connect') { modeConnect.classList.add('active'); modeConnect.setAttribute('aria-pressed','true'); hint.textContent = 'Connect mode: click source then target'; }
+        if (m === 'move') { modeMove.classList.add('active'); modeMove.setAttribute('aria-pressed','true'); hint.textContent = 'Move nodes: drag to reposition'; }
+        if (m === 'delete') { modeDelete.classList.add('active'); modeDelete.setAttribute('aria-pressed','true'); hint.textContent = 'Click nodes or edges to delete'; }
+        // reset any halfway connect
+        connectSource = null;
+      }
+
+      // Canvas behavior
+      svg.addEventListener('pointerdown', (e) => {
+        // add node on click in add mode
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX; pt.y = e.clientY;
+        const ctm = svg.getScreenCTM();
+        const loc = pt.matrixTransform(ctm.inverse());
+        if (currentMode === 'add') {
+          createNode(loc.x, loc.y);
+          renderAll();
+        }
+      });
+
+      // Click on edges to delete in delete mode
+      edgesG.addEventListener('pointerdown', (e) => {
+        if (currentMode !== 'delete') return;
+        const path = e.target;
+        const id = path.getAttribute('data-id');
+        if (!id) return;
+        const ed = edges.get(id);
+        if (ed) removeEdge(ed);
+        renderAll();
+      });
+
+      // BFS logic
+      function resetBFSState(keepGraph = true) {
+        bfsQueue = [];
+        visitedOrder = [];
+        visitedSet.clear();
+        frontierSet.clear();
+        exploringEdge = null;
+        playing = false;
+        if (playTimer) { clearInterval(playTimer); playTimer = null; }
+        setStatus('Idle');
+
+        // reset node visual states
+        nodes.forEach(n => {
+          n.g.classList.remove('frontier', 'visited', 'exploring', 'start');
+          n.g.classList.add('unvisited');
+        });
+        // if start node exists, mark it
+        if (startNode && nodes.has(startNode)) {
+          const s = nodes.get(startNode);
+          s.g.classList.remove('unvisited');
+          s.g.classList.add('start', 'frontier');
+          frontierSet.add(startNode);
+          bfsQueue = [startNode];
+        } else {
+          startNode = null;
+        }
+
+        // reset edges visuals
+        edges.forEach(e => e.path.classList.remove('traversed', 'explore'));
+
+        renderQueue();
+        renderVisited();
+      }
+
+      function setStart(id) {
+        if (!nodes.has(id)) return;
+        startNode = id;
+        resetBFSState();
+        setStatus('Start set to ' + id);
+      }
+
+      function stepBFS() {
+        // perform one atomic operation: if queue empty, finish
+        if (!startNode) {
+          setStatus('Please set a start node first.');
+          return;
+        }
+        if (bfsQueue.length === 0) {
+          setStatus('BFS complete');
+          return;
+        }
+
+        // Dequeue
+        const current = bfsQueue.shift();
+        frontierSet.delete(current);
+        visitedSet.add(current);
+        visitedOrder.push(current);
+
+        // update visuals: mark node exploring -> visited
+        const curNode = nodes.get(current);
+        if (curNode) {
+          curNode.g.classList.remove('frontier');
+          curNode.g.classList.add('exploring');
+        }
+        setStatus('Dequeued ' + current);
+
+        // highlight neighbors being inspected briefly
+        const neighbors = Array.from(adjacency.get(current) || []);
+        let neighborIdx = 0;
+
+        function inspectNext() {
+          if (neighborIdx >= neighbors.length) {
+            // done with this node
+            if (curNode) {
+              curNode.g.classList.remove('exploring');
+              curNode.g.classList.add('visited');
+            }
+            renderVisited();
+            renderQueue();
+            setStatus('Explored ' + current);
+            return;
+          }
+          const nb = neighbors[neighborIdx++];
+          const edgeId = makeEdgeId(current, nb);
+          const edge = edges.get(edgeId) || edges.get(makeEdgeId(nb, current));
+          // mark edge exploring briefly
+          if (edge) {
+            edge.path.classList.add('explore');
+            setTimeout(() => edge.path.classList.remove('explore'), 420);
+          }
+          // if not visited and not in frontier, enqueue
+          if (!visitedSet.has(nb) && !frontierSet.has(nb)) {
+            frontierSet.add(nb);
+            bfsQueue.push(nb);
+            // visual mark
+            const nbNode = nodes.get(nb);
+            if (nbNode) {
+              nbNode.g.classList.remove('unvisited');
+              nbNode.g.classList.add('frontier');
+            }
+            // animate queue update
+            renderQueue(true);
+          }
+          // small delay between inspecting neighbors
+          setTimeout(inspectNext, Math.max(160, speedSlider.value / 4));
+        }
+
+        // start inspecting neighbors
+        setTimeout(inspectNext, 200);
+
+        renderQueue();
+        renderVisited();
+      }
+
+      function playBFS() {
+        if (playing) {
+          playing = false;
+          btnPlay.textContent = 'Play';
+          if (playTimer) { clearInterval(playTimer); playTimer = null; }
+          setStatus('Paused');
+          return;
+        }
+        playing = true;
+        btnPlay.textContent = 'Pause';
+        setStatus('Playing');
+        // run at intervals, but step performs sub-inspections internally; ensure interval >= speed
+        playTimer = setInterval(() => {
+          // if queue empty, stop
+          if (!startNode || bfsQueue.length === 0) {
+            playing = false;
+            btnPlay.textContent = 'Play';
+            clearInterval(playTimer);
+            playTimer = null;
+            setStatus('BFS complete');
+            return;
+          }
+          stepBFS();
+        }, Math.max(150, speedSlider.value));
+      }
+
+      // Render helpers
+      function renderAll() {
+        // reposition nodes/edges as needed and ensure ordering
+        edges.forEach(updateEdgePositions);
+        renderQueue();
+        renderVisited();
+      }
+
+      function renderQueue(animateEnqueue=false) {
+        // show queue items with front highlighted
+        queueEl.innerHTML = '';
+        bfsQueue.forEach((id, idx) => {
+          const span = document.createElement('div');
+          span.className = 'qitem';
+          if (idx === 0) span.classList.add('front');
+          else if (animateEnqueue && idx === bfsQueue.length - 1) span.classList.add('enqueued');
+          span.textContent = nodes.get(id)?.text?.textContent || id;
+          queueEl.appendChild(span);
+        });
+      }
+
+      function renderVisited() {
+        visitedEl.innerHTML = '';
+        visitedOrder.forEach((id, idx) => {
+          const div = document.createElement('div');
+          div.className = 'vitem';
+          div.textContent = `${idx+1}: ${id}`;
+          visitedEl.appendChild(div);
+        });
+      }
+
+      // Random graph generator
+      function generateRandomGraph(n = 7, p = 0.22) {
+        // clear existing
+        nodes.forEach(nod => nod.g.remove());
+        nodes.clear();
+        edges.forEach(e => e.path.remove());
+        edges.clear();
+        adjacency.clear();
+        idCounter = 0;
+
+        // place nodes in circle-ish
+        const cx = width / 2, cy = height / 2;
+        const radius = Math.min(width, height) / 2 - 80;
+        for (let i = 0; i < n; i++) {
+          const angle = (i / n) * Math.PI * 2;
+          const x = cx + Math.cos(angle) * (radius * (0.6 + Math.random() * 0.35));
+          const y = cy + Math.sin(angle) * (radius * (0.6 + Math.random() * 0.35));
+          createNode(x, y, String.fromCharCode(65 + i));
+        }
+        // random edges
+        const ids = Array.from(nodes.keys());
+        for (let i = 0; i < ids.length; i++) {
+          for (let j = i+1; j < ids.length; j++) {
+            if (Math.random() < p) {
+              addEdge(ids[i], ids[j]);
+              if (Math.random() < 0.5 && !directedToggle.checked) addEdge(ids[j], ids[i]); // sometimes duplicate for undirected randomness
+            }
+            // for directed graphs, occasionally add reverse
+            if (directedToggle.checked && Math.random() < p*0.3) addEdge(ids[j], ids[i]);
+          }
+        }
+        renderAll();
+        setStatus('Random graph generated');
+      }
+
+      // UI events wiring
+      modeAdd.addEventListener('click', () => setMode('add'));
+      modeConnect.addEventListener('click', () => setMode('connect'));
+      modeMove.addEventListener('click', () => setMode('move'));
+      modeDelete.addEventListener('click', () => setMode('delete'));
+
+      btnSetStart.addEventListener('click', () => {
+        if (selectedNode) {
+          setStart(selectedNode.id);
+        } else {
+          setStatus('Click a node to select then press Set Start (or double-click a node).');
+        }
+      });
+
+      btnStep.addEventListener('click', () => {
+        stepBFS();
+      });
+
+      btnPlay.addEventListener('click', () => {
+        playBFS();
+      });
+
+      btnReset.addEventListener('click', () => {
+        resetBFSState();
+      });
+
+      directedToggle.addEventListener('change', () => {
+        // update existing edges' markers and adjacency orientation
+        edges.forEach(e => {
+          if (directedToggle.checked) e.path.setAttribute('marker-end', 'url(#arrow)');
+          else e.path.removeAttribute('marker-end');
+        });
+        // recompute adjacency for undirected toggle: reconstruct adjacency from edges map
+        adjacency.forEach((v,k) => adjacency.set(k, new Set()));
+        edges.forEach(e => {
+          adjacency.get(e.from).add(e.to);
+          if (!directedToggle.checked) adjacency.get(e.to).add(e.from);
+        });
+        setStatus(directedToggle.checked ? 'Directed edges' : 'Undirected edges');
+      });
+
+      btnRandom.addEventListener('click', () => generateRandomGraph(7, 0.25));
+      btnClear.addEventListener('click', () => {
+        // clear everything
+        nodes.forEach(n => n.g.remove());
+        edges.forEach(e => e.path.remove());
+        nodes.clear(); edges.clear(); adjacency.clear();
+        idCounter = 0;
+        startNode = null;
+        resetBFSState();
+        renderAll();
+        setStatus('Cleared');
+      });
+
+      btnHelp.addEventListener('click', () => {
+        alert('BFS Visualizer — Controls:\n\n• Add: click canvas to add nodes.\n• Move: drag nodes.\n• Connect: click source then target to add an edge.\n• Delete: click nodes or edges to remove them.\n• Set Start: select a node (click) then press Set Start or double-click a node.\n• Step: take one BFS step.\n• Play: animate BFS.\n\nQueue and visited lists show algorithm progress. Directed toggle shows arrows.');
+      });
+
+      // clicking on nodes should select them
+      svg.addEventListener('click', (e) => {
+        // if click on a node, selection is handled by node pointerdown; otherwise deselect
+        if (e.target.closest('.node')) return;
+        selectedNode = null;
+      });
+
+      // Initialize with a simple example graph
+      function seedExample() {
+        nodes.forEach(n => n.g.remove());
+        edges.forEach(e => e.path.remove());
+        nodes.clear(); edges.clear(); adjacency.clear();
+        idCounter = 0;
+        const a = createNode(320, 180, 'A');
+        const b = createNode(520, 120, 'B');
+        const c = createNode(720, 200, 'C');
+        const d = createNode(420, 340, 'D');
+        const e = createNode(640, 360, 'E');
+        addEdge(a.id, b.id); addEdge(b.id, c.id);
+        addEdge(a.id, d.id); addEdge(d.id, e.id); addEdge(b.id, d.id);
+        adjacency.forEach((s,k) => {}); // just to ensure map created
+        renderAll();
+      }
+
+      // Responsive svg viewbox update on window resize
+      function fitSvg() {
+        const rect = svg.getBoundingClientRect();
+        width = Math.max(600, rect.width);
+        height = Math.max(360, rect.height);
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      }
+      window.addEventListener('resize', fitSvg);
+      fitSvg();
+
+      // initialize
+      seedExample();
+      resetBFSState();
+      setMode('move');
+      setStatus('Ready — double-click a node to set start');
+
+      // expose tiny helpers for debugging (not required)
+      window._bfs = {
+        nodes, edges, adjacency, createNode, addEdge, stepBFS, resetBFSState
+      };
+    })();
+  </script>
+</body>
+</html>

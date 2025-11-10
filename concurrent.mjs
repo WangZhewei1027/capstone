@@ -36,13 +36,13 @@ For this module, include the following sections:
 
 // 简单的测试配置
 const TEST_CONFIG = {
-  workspace: "10-28-0007",
-  concurrencyLimit: 15,
+  workspace: "11-08-0004",
+  concurrencyLimit: 150,
   defaultTopic: "bubble sort", // 默认主题
   enableFSM: true, // 启用 FSM 生成（Agent 2）
-  enableTests: true, // 启用 Playwright 测试生成（Agent 3）
+  enableTests: true, // 启用 Playwright 测con试生成（Agent 3）
   showProgress: false, // 是否显示详细进度
-
+  generationsPerQuestion: 3, // 每个问题生成的次数（默认1次）
   // 每个 Agent 使用的模型配置
   models: {
     htmlAgent: "gpt-5-mini", // Agent 1: HTML 生成
@@ -73,25 +73,35 @@ const TEST_CONFIG = {
 //   },
 // ];
 
-const testTasks = questionList.map((q) => {
+const testTasks = questionList.flatMap((q) => {
   // 从问题中提取 topic，或使用默认 topic
   const topic = q || TEST_CONFIG.defaultTopic;
 
-  return {
+  // 获取生成次数（可以从问题对象中指定，或使用默认值）
+  const generations =
+    (typeof q === "object" && q.generations) ||
+    TEST_CONFIG.generationsPerQuestion;
+
+  // 为每个问题生成指定次数的任务
+  return Array.from({ length: generations }, (_, index) => ({
     workspace: TEST_CONFIG.workspace,
     model: TEST_CONFIG.models.htmlAgent, // 使用配置的 HTML Agent 模型
-    question: q.question || q, // 支持字符串或对象格式
+    question: typeof q === "object" ? q.question : q, // 支持字符串或对象格式
     system: generateSystemPrompt(topic), // 根据 topic 生成 system prompt
     topic: null, // 不指定 topic，测试文件名只使用 UUID
     // 传递所有 Agent 的模型配置
     models: TEST_CONFIG.models,
-  };
+    // 添加生成索引信息（用于区分同一问题的不同生成）
+    generationIndex: index + 1,
+    totalGenerations: generations,
+  }));
 });
 
 console.log("开始并发测试...");
 console.log(
-  `任务数量: ${testTasks.length}, 并发限制: ${TEST_CONFIG.concurrencyLimit}`
+  `问题数量: ${questionList.length}, 总任务数: ${testTasks.length}, 并发限制: ${TEST_CONFIG.concurrencyLimit}`
 );
+console.log(`每个问题生成次数: ${TEST_CONFIG.generationsPerQuestion}`);
 console.log(`Multi-Agent 模式:`);
 console.log(`  - Agent 1 (HTML 生成): ✓ [${TEST_CONFIG.models.htmlAgent}]`);
 console.log(
@@ -113,7 +123,9 @@ async function runTest() {
 
   // 创建并发任务
   const taskPromises = testTasks.map((task, index) => {
-    const taskId = `Test-${index + 1}`;
+    const questionIndex =
+      Math.floor(index / TEST_CONFIG.generationsPerQuestion) + 1;
+    const taskId = `Q${questionIndex}-G${task.generationIndex}`;
 
     return limiter.add(async () => {
       console.log(`[${taskId}] 开始执行...`);

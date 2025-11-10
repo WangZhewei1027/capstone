@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sliding Window — Interactive Module</title>
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --muted:#9aa7bd;
+      --accent:#3b82f6;
+      --accent-2:#06b6d4;
+      --success:#10b981;
+      --danger:#ef4444;
+      --glass: rgba(255,255,255,0.02);
+      --radius:12px;
+      --gap:16px; /* minimum spacing */
+    }
+
+    /* Safe area margins 24px on all sides */
+    html,body{
+      height:100%;
+      margin:0;
+      background:linear-gradient(180deg,#071025 0%, var(--bg) 100%);
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#e6eef8;
+      -webkit-font-smoothing:antialiased;
+      padding:24px;
+      box-sizing:border-box;
+    }
+    *{box-sizing:inherit}
+
+    .container{
+      max-width:1100px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:32px;
+    }
+
+    /* Responsive: stack at small widths */
+    @media (max-width:920px){
+      .container{
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);
+      padding:20px;
+      border-radius:var(--radius);
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    }
+
+    /* Left: explanation & controls */
+    .left-col{
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+
+    h1{
+      margin:0 0 4px 0;
+      font-size:20px;
+      letter-spacing: -0.2px;
+    }
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+      margin:0 0 12px 0;
+    }
+
+    .section-title{
+      font-size:13px;
+      color:var(--muted);
+      margin:0 0 8px 0;
+    }
+
+    .card {
+      background:transparent;
+      border-radius:10px;
+      padding:12px;
+      border:1px dashed rgba(255,255,255,0.03);
+    }
+
+    label{
+      display:block;
+      font-size:13px;
+      color:var(--muted);
+      margin-bottom:8px;
+    }
+
+    input[type="text"], .controls input[type="number"], select {
+      width:100%;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.04);
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      color:inherit;
+      font-size:14px;
+    }
+
+    .controls{
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+
+    .row {
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+    }
+
+    .row .flex{
+      flex:1;
+    }
+
+    .small {
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    button{
+      background:linear-gradient(180deg,var(--accent), #176ed9);
+      border:none;
+      color:white;
+      padding:10px 14px;
+      border-radius:10px;
+      font-weight:600;
+      cursor:pointer;
+      min-width:44px;
+    }
+    button.secondary{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      color:var(--muted);
+      font-weight:600;
+    }
+    button.ghost{
+      background:transparent;
+      color:var(--muted);
+      border:1px dashed rgba(255,255,255,0.03);
+    }
+
+    .controls-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:var(--gap);
+    }
+
+    /* Right: interactive canvas */
+    .canvas-area{
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      min-height:320px;
+      align-items:stretch;
+      justify-content:flex-start;
+    }
+
+    .array-visual{
+      background:var(--glass);
+      border-radius:10px;
+      padding:20px;
+      overflow-x:auto;
+      min-height:160px;
+      position:relative;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .array-row{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      min-height:84px;
+      padding-bottom:10px;
+    }
+
+    .cell{
+      min-width:56px;
+      height:56px;
+      border-radius:8px;
+      background:rgba(255,255,255,0.03);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted);
+      font-weight:700;
+      font-size:16px;
+      border:1px solid rgba(255,255,255,0.03);
+      transition: transform 160ms ease, background-color 240ms ease, color 200ms ease, box-shadow 160ms ease;
+      user-select:none;
+      cursor:default;
+      flex-shrink:0;
+    }
+
+    .cell.inside {
+      background:linear-gradient(180deg, rgba(59,130,246,0.12), rgba(6,182,212,0.06));
+      color: #eaf6ff;
+      box-shadow: 0 8px 20px rgba(9,30,66,0.32);
+      transform: translateY(-6px);
+      border-color: rgba(59,130,246,0.25);
+    }
+
+    .cell.max {
+      outline: 3px solid rgba(16,185,129,0.14);
+      box-shadow: 0 10px 34px rgba(16,185,129,0.08);
+    }
+
+    /* draggable window overlay */
+    .window-overlay{
+      position:absolute;
+      top:22px; /* align with row padding */
+      height:72px;
+      border-radius:10px;
+      pointer-events:auto;
+      transition:left 220ms cubic-bezier(.2,.9,.3,1), width 180ms cubic-bezier(.2,.9,.3,1);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:transparent;
+      user-select:none;
+      cursor:grab;
+      z-index:20;
+    }
+    .window-overlay:active{ cursor:grabbing; }
+
+    .window-pill{
+      padding:6px 10px;
+      background:rgba(255,255,255,0.02);
+      border-radius:999px;
+      color:var(--muted);
+      font-weight:700;
+      font-size:12px;
+      border:1px solid rgba(255,255,255,0.03);
+      backdrop-filter: blur(6px);
+      transform: translateY(-54px);
+    }
+
+    /* status area */
+    .status{
+      display:flex;
+      gap:16px;
+      align-items:center;
+    }
+    .stat{
+      background:linear-gradient(180deg, rgba(255,255,255,0.015), transparent);
+      padding:10px 12px;
+      border-radius:10px;
+      font-weight:700;
+      min-width:120px;
+      text-align:left;
+      color:#eaf6ff;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+    .stat .label{
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      font-weight:600;
+    }
+    .stat .value{
+      font-size:20px;
+      margin-top:4px;
+    }
+
+    /* controls at bottom of canvas */
+    .play-controls{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:flex-start;
+      flex-wrap:wrap;
+    }
+
+    .hint{
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    /* focus styles for accessibility */
+    button:focus, input:focus {
+      outline: 3px solid rgba(59,130,246,0.18);
+      outline-offset:2px;
+    }
+
+    /* subtle number animation */
+    .num-anim { display:inline-block; transform-origin:center; transition: transform 260ms cubic-bezier(.2,.9,.3,1); }
+    .num-anim.pulse { transform: scale(1.12); }
+
+    /* small footer text */
+    .explain {
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <!-- LEFT COLUMN: Description & Controls -->
+    <div class="panel left-col" aria-labelledby="title">
+      <div>
+        <h1 id="title">Sliding Window — Sum & Max Finder</h1>
+        <p class="muted">Explore how the sliding window technique moves over a sequence to compute windowed results efficiently.</p>
+      </div>
+
+      <!-- Learning Objective -->
+      <div class="card" aria-label="Learning Objective">
+        <div class="section-title">Learning Objective</div>
+        <p class="explain">After interacting you will understand how a fixed-size window moves across an array to compute the sum for each window efficiently by reusing previous work (remove outgoing, add incoming). You will see how the maximum sum and its indices are found step-by-step.</p>
+      </div>
+
+      <!-- Interaction Design -->
+      <div class="card" aria-label="Interaction Design">
+        <div class="section-title">Interaction Design</div>
+        <p class="explain">
+          - Change the array (comma-separated numbers) or auto-generate a random array. <br>
+          - Adjust the window size using the slider. <br>
+          - Click Play to animate the window moving across the array, or use Next / Prev for manual stepping. <br>
+          - Drag the window overlay horizontally to reposition the start index directly. <br>
+          - Toggle "Show incremental update" to visualize subtracting the outgoing element and adding the incoming one when the window moves.
+        </p>
+      </div>
+
+      <!-- Layout Description -->
+      <div class="card" aria-label="Layout Description">
+        <div class="section-title">Layout Description</div>
+        <p class="explain">
+          The left column contains controls and explanations (inputs, buttons). The right column is the interactive canvas showing the array as cells, a draggable highlight representing the window, and status readouts for current sum and best (max) sum. Spacing respects 24px safe margins and a 16px minimum gap between interactive items. The layout is responsive and keyboard-accessible (left/right to step, space to play/pause).
+        </p>
+      </div>
+
+      <!-- Controls -->
+      <div class="card controls" aria-label="Controls">
+        <label for="arrayInput">Array (comma-separated numbers)</label>
+        <input id="arrayInput" type="text" value="4, 2, -1, 3, 6, -2, 5, 1" aria-describedby="array-help" />
+        <div id="array-help" class="small" style="margin-top:8px;">Tip: use integers; negative values are allowed.</div>
+
+        <div class="row">
+          <div class="flex">
+            <label for="windowSize">Window Size</label>
+            <input id="windowSize" type="range" min="1" max="8" value="3" />
+            <div class="small" style="margin-top:6px;">Current: <span id="windowSizeVal">3</span></div>
+          </div>
+          <div style="min-width:120px;">
+            <label>&nbsp;</label>
+            <button id="applyBtn" class="secondary" style="width:100%;">Apply</button>
+          </div>
+        </div>
+
+        <div class="controls-grid">
+          <div>
+            <label for="randomLen">Auto-generate</label>
+            <div class="row">
+              <input id="randomLen" type="number" min="3" max="20" value="8" />
+              <button id="randomBtn" style="margin-left:8px;">Random</button>
+            </div>
+          </div>
+
+          <div>
+            <label for="toggleIncremental">Show incremental update</label>
+            <div class="row">
+              <select id="toggleIncremental" aria-label="Toggle incremental">
+                <option value="on" selected>On (subtract/add)</option>
+                <option value="off">Off (recompute)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:6px;">
+          <button id="playBtn" style="flex:1;">Play</button>
+          <button id="prevBtn" class="ghost">Prev</button>
+          <button id="nextBtn" class="ghost">Next</button>
+          <button id="resetBtn" class="secondary">Reset</button>
+        </div>
+
+        <div class="small" style="margin-top:12px;">
+          Keyboard: Left/Right = Prev/Next, Space = Play/Pause, Home = Start, End = End. Drag the highlighted window to move.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: Interactive Canvas -->
+    <div class="panel canvas-area" aria-label="Interactive Canvas">
+
+      <div class="array-visual" id="canvas" tabindex="0" aria-live="polite" aria-label="Array visualization">
+        <div class="array-row" id="arrayRow" aria-hidden="false"></div>
+
+        <!-- draggable window overlay (positioned via JS) -->
+        <div id="windowOverlay" class="window-overlay" role="slider" aria-label="Sliding Window"
+             aria-valuemin="0" aria-valuemax="7" aria-valuenow="0" draggable="false">
+          <div class="window-pill" id="windowPill">window</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="status" style="flex:1;">
+          <div class="stat" aria-live="polite">
+            <span class="label">Current start</span>
+            <span class="value" id="currentStart">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Current sum</span>
+            <span class="value" id="currentSum"><span class="num-anim" id="sumAnim">0</span></span>
+          </div>
+          <div class="stat">
+            <span class="label">Max sum</span>
+            <span class="value" id="bestSum">—</span>
+            <div class="small" style="margin-top:6px;">Indices: <span id="bestRange">—</span></div>
+          </div>
+        </div>
+
+        <div style="width:260px;">
+          <div class="play-controls">
+            <button id="fastForwardBtn" class="secondary">⏭️ End</button>
+            <button id="shuffleBtn" class="ghost" title="Shuffle values">Shuffle</button>
+            <button id="explainBtn" class="secondary" title="Show explanation">Explain</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="explainCard" style="display:none;">
+        <div class="section-title">What's happening (step-by-step)</div>
+        <p class="explain" id="explainText">When the window moves right by one, the outgoing element (left-most) is subtracted and the incoming element (newly included) is added to update the sum in O(1) time. This avoids recomputing the whole window sum each time.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Sliding Window Interactive Module (vanilla JS)
+    // Consistent formatting & indentation
+    (function () {
+      // DOM Elements
+      const arrayInput = document.getElementById('arrayInput');
+      const applyBtn = document.getElementById('applyBtn');
+      const arrayRow = document.getElementById('arrayRow');
+      const windowSizeRange = document.getElementById('windowSize');
+      const windowSizeVal = document.getElementById('windowSizeVal');
+      const windowOverlay = document.getElementById('windowOverlay');
+      const windowPill = document.getElementById('windowPill');
+      const currentStartEl = document.getElementById('currentStart');
+      const currentSumEl = document.getElementById('sumAnim');
+      const bestSumEl = document.getElementById('bestSum');
+      const bestRangeEl = document.getElementById('bestRange');
+      const playBtn = document.getElementById('playBtn');
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const randomBtn = document.getElementById('randomBtn');
+      const randomLen = document.getElementById('randomLen');
+      const toggleIncremental = document.getElementById('toggleIncremental');
+      const fastForwardBtn = document.getElementById('fastForwardBtn');
+      const shuffleBtn = document.getElementById('shuffleBtn');
+      const explainBtn = document.getElementById('explainBtn');
+      const explainCard = document.getElementById('explainCard');
+      const canvas = document.getElementById('canvas');
+
+      // State
+      let arr = [];
+      let windowSize = parseInt(windowSizeRange.value, 10);
+      let startIndex = 0;
+      let playing = false;
+      let timer = null;
+      let stepDuration = 700; // ms
+      let currentSum = 0;
+      let best = { sum: -Infinity, from: 0, to: 0 };
+      let incremental = true;
+
+      // layout metrics (updated on render)
+      let cellWidth = 0;
+      let overlayLeft = 0;
+      let overlayWidth = 0;
+
+      // Utilities
+      function parseArrayInput(str) {
+        try {
+          const parts = str.split(',').map(s => s.trim()).filter(s => s.length);
+          const nums = parts.map(x => Number(x));
+          if (nums.some(n => Number.isNaN(n))) return null;
+          return nums;
+        } catch {
+          return null;
+        }
+      }
+
+      function setArrayFromInput() {
+        const parsed = parseArrayInput(arrayInput.value);
+        if (parsed && parsed.length > 0) {
+          arr = parsed;
+        } else {
+          // ignore invalid input
+          return;
+        }
+        // adjust window range slider max
+        windowSizeRange.max = Math.max(1, arr.length);
+        if (windowSize > arr.length) {
+          windowSize = arr.length;
+          windowSizeRange.value = windowSize;
+          windowSizeVal.textContent = windowSize;
+        }
+        startIndex = 0;
+        computeInitial();
+        renderAll();
+      }
+
+      function computeInitial() {
+        // initial sum of first window
+        const end = Math.min(windowSize, arr.length);
+        currentSum = 0;
+        for (let i = 0; i < end; i++) currentSum += arr[i];
+        best = { sum: currentSum, from: 0, to: end - 1 };
+      }
+
+      function renderArray() {
+        arrayRow.innerHTML = '';
+        arr.forEach((v, idx) => {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.textContent = String(v);
+          cell.setAttribute('data-index', idx);
+          cell.setAttribute('tabindex', '-1');
+          arrayRow.appendChild(cell);
+        });
+        // After adding cells, measure sizes and position overlay
+        requestAnimationFrame(() => {
+          const firstCell = arrayRow.querySelector('.cell');
+          cellWidth = firstCell ? (firstCell.getBoundingClientRect().width + 12 /* gap */) : 68;
+          updateOverlayPosition(true);
+          highlightWindow();
+        });
+      }
+
+      function updateOverlayPosition(skipTransition=false) {
+        // place overlay based on startIndex and windowSize
+        const cells = Array.from(arrayRow.querySelectorAll('.cell'));
+        if (cells.length === 0) return;
+        const fromCell = cells[startIndex];
+        const toIndex = Math.min(startIndex + windowSize - 1, cells.length - 1);
+        const toCell = cells[toIndex];
+        const rowRect = arrayRow.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        const left = fromCell.getBoundingClientRect().left - rowRect.left + arrayRow.scrollLeft;
+        const right = toCell.getBoundingClientRect().right - rowRect.left + arrayRow.scrollLeft;
+        overlayLeft = left + 12 /* padding left */;
+        overlayWidth = Math.max( (right - left) + 8, (windowSize * 56) ); // ensure min width
+        // set styles
+        windowOverlay.style.left = overlayLeft + 'px';
+        windowOverlay.style.width = overlayWidth + 'px';
+        windowOverlay.style.top = (8) + 'px';
+        windowOverlay.style.height = (72) + 'px';
+        windowOverlay.setAttribute('aria-valuenow', startIndex);
+        windowPill.textContent = `window (${startIndex} → ${toIndex})`;
+      }
+
+      function highlightWindow() {
+        const cells = Array.from(arrayRow.querySelectorAll('.cell'));
+        cells.forEach((c, i) => {
+          c.classList.remove('inside', 'max');
+          if (i >= startIndex && i < startIndex + windowSize) c.classList.add('inside');
+        });
+        // mark the best range if any
+        if (best && best.sum !== -Infinity) {
+          for (let i = best.from; i <= best.to; i++) {
+            const c = arrayRow.querySelector(`.cell[data-index="${i}"]`);
+            if (c) c.classList.add('max');
+          }
+        }
+      }
+
+      function renderStatus() {
+        currentStartEl.textContent = String(startIndex);
+        // animate number change
+        animateNumber(currentSumEl, currentSum);
+        bestSumEl.textContent = (best.sum === -Infinity ? '—' : String(best.sum));
+        if (best.sum === -Infinity) bestRangeEl.textContent = '—';
+        else bestRangeEl.textContent = `${best.from}..${best.to}`;
+      }
+
+      // small numeric animation helper
+      function animateNumber(el, newVal) {
+        el.classList.add('pulse');
+        el.textContent = String(newVal);
+        setTimeout(() => el.classList.remove('pulse'), 260);
+      }
+
+      function recomputeAllWindows() {
+        // recompute all windows to find best (used both incremental and non-incremental)
+        let maxSum = -Infinity;
+        let maxFrom = 0;
+        for (let i = 0; i + windowSize <= arr.length; i++) {
+          let s = 0;
+          for (let j = i; j < i + windowSize; j++) s += arr[j];
+          if (s > maxSum) {
+            maxSum = s; maxFrom = i;
+          }
+        }
+        best = { sum: maxSum, from: maxFrom, to: maxFrom + windowSize - 1 };
+      }
+
+      function stepRight() {
+        if (startIndex + windowSize >= arr.length) {
+          // already at end
+          stop();
+          return;
+        }
+        const outgoing = arr[startIndex];
+        const incoming = arr[startIndex + windowSize];
+        if (incremental) {
+          // animated explanation: show outgoing subtraction, incoming addition
+          animateIncrementalUpdate(outgoing, incoming, () => {
+            currentSum = currentSum - outgoing + incoming;
+            startIndex++;
+            updateBestAndRender();
+          });
+        } else {
+          // recompute whole window
+          startIndex++;
+          let s = 0;
+          for (let i = startIndex; i < startIndex + windowSize; i++) s += arr[i];
+          currentSum = s;
+          updateBestAndRender();
+        }
+      }
+
+      function stepLeft() {
+        if (startIndex <= 0) return;
+        const outgoing = arr[startIndex + windowSize - 1]; // when moving left, outgoing is rightmost of previous window
+        const incoming = arr[startIndex - 1];
+        if (incremental) {
+          // moving left: reverse of right step
+          animateIncrementalUpdate(outgoing, incoming, () => {
+            currentSum = currentSum - outgoing + incoming;
+            startIndex--;
+            updateBestAndRender();
+          }, /*directionLeft=*/true);
+        } else {
+          startIndex--;
+          let s = 0;
+          for (let i = startIndex; i < startIndex + windowSize; i++) s += arr[i];
+          currentSum = s;
+          updateBestAndRender();
+        }
+      }
+
+      function updateBestAndRender() {
+        // update best if necessary
+        if (currentSum > best.sum) {
+          best = { sum: currentSum, from: startIndex, to: startIndex + windowSize - 1 };
+          // small pulse animation on bestSumEl
+          bestSumEl.classList.add('pulse');
+          setTimeout(() => bestSumEl.classList.remove('pulse'), 260);
+        }
+        renderAll();
+      }
+
+      function animateIncrementalUpdate(outgoing, incoming, callback, directionLeft=false) {
+        // Visual cue: mark outgoing and incoming cells, show transient badges
+        const outIndex = directionLeft ? startIndex + windowSize - 1 : startIndex;
+        const inIndex = directionLeft ? startIndex - 1 : startIndex + windowSize;
+        const outCell = arrayRow.querySelector(`.cell[data-index="${outIndex}"]`);
+        const inCell = arrayRow.querySelector(`.cell[data-index="${inIndex}"]`);
+        if (!outCell || !inCell) { callback(); return; }
+
+        // flash outgoing then incoming
+        outCell.style.transition = 'box-shadow 260ms ease, transform 260ms ease';
+        outCell.style.boxShadow = '0 0 0 6px rgba(239,68,68,0.12)';
+        outCell.style.transform = 'translateY(-2px) scale(1.03)';
+        setTimeout(() => {
+          outCell.style.boxShadow = '';
+          outCell.style.transform = '';
+          // show incoming
+          inCell.style.boxShadow = '0 0 0 8px rgba(16,185,129,0.12)';
+          inCell.style.transform = 'translateY(-4px) scale(1.06)';
+          setTimeout(() => {
+            inCell.style.boxShadow = '';
+            inCell.style.transform = '';
+            // call update logic after visual cues
+            callback();
+          }, 320);
+        }, 320);
+      }
+
+      function renderAll() {
+        renderArray();
+        updateOverlayPosition();
+        highlightWindow();
+        renderStatus();
+      }
+
+      // Playback controls
+      function play() {
+        if (playing) return;
+        playing = true;
+        playBtn.textContent = 'Pause';
+        tick(); // immediate step for responsiveness
+        timer = setInterval(tick, stepDuration);
+      }
+      function stop() {
+        playing = false;
+        if (timer) { clearInterval(timer); timer = null; }
+        playBtn.textContent = 'Play';
+      }
+      function togglePlay() { playing ? stop() : play(); }
+      function tick() {
+        if (startIndex + windowSize >= arr.length) { stop(); return; }
+        stepRight();
+      }
+
+      function resetToStart() {
+        startIndex = 0;
+        computeInitial();
+        renderAll();
+      }
+
+      function jumpToEnd() {
+        // move startIndex to last possible
+        startIndex = Math.max(0, arr.length - windowSize);
+        // compute sum of that window
+        let s = 0;
+        for (let i = startIndex; i < startIndex + windowSize; i++) s += arr[i];
+        currentSum = s;
+        recomputeAllWindows();
+        renderAll();
+      }
+
+      // Dragging the overlay
+      let dragging = false;
+      let dragStartX = 0;
+      let dragStartLeft = 0;
+
+      windowOverlay.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        windowOverlay.setPointerCapture(e.pointerId);
+        dragStartX = e.clientX;
+        dragStartLeft = parseFloat(windowOverlay.style.left || 0);
+        e.preventDefault();
+      });
+      windowOverlay.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - dragStartX;
+        let newLeft = dragStartLeft + dx;
+        // constrain within row
+        const rowRect = arrayRow.getBoundingClientRect();
+        const minLeft = 0;
+        const maxLeft = Math.max(0, rowRect.width - overlayWidth);
+        newLeft = Math.min(Math.max(newLeft, minLeft), maxLeft);
+        windowOverlay.style.left = newLeft + 'px';
+        // compute approximate startIndex from newLeft
+        let approxIndex = Math.round(newLeft / (cellWidth));
+        approxIndex = Math.max(0, Math.min(approxIndex, Math.max(0, arr.length - windowSize)));
+        // highlight temporary
+        startIndex = approxIndex;
+        highlightWindow();
+        currentStartEl.textContent = String(startIndex);
+      });
+      windowOverlay.addEventListener('pointerup', (e) => {
+        if (!dragging) return;
+        dragging = false;
+        windowOverlay.releasePointerCapture(e.pointerId);
+        // snap to nearest index and recalc sum & best
+        // compute startIndex from overlay left
+        const left = parseFloat(windowOverlay.style.left || 0);
+        let idx = Math.round(left / (cellWidth));
+        idx = Math.max(0, Math.min(idx, Math.max(0, arr.length - windowSize)));
+        startIndex = idx;
+        // recompute currentSum properly (we'll recompute safe way)
+        let s = 0;
+        for (let i = startIndex; i < startIndex + windowSize; i++) s += arr[i];
+        currentSum = s;
+        recomputeAllWindows();
+        renderAll();
+      });
+
+      // Buttons & input events
+      applyBtn.addEventListener('click', () => {
+        setArrayFromInput();
+      });
+
+      windowSizeRange.addEventListener('input', (e) => {
+        windowSize = parseInt(e.target.value, 10);
+        windowSizeVal.textContent = windowSize;
+      });
+
+      randomBtn.addEventListener('click', () => {
+        const n = Math.max(3, Math.min(20, parseInt(randomLen.value || 8, 10)));
+        const newArr = [];
+        for (let i = 0; i < n; i++) {
+          // random between -5 and 12
+          newArr.push(Math.floor(Math.random() * 18) - 5);
+        }
+        arr = newArr;
+        arrayInput.value = arr.join(', ');
+        // adjust slider
+        windowSizeRange.max = Math.max(1, arr.length);
+        if (windowSize > arr.length) { windowSize = arr.length; windowSizeRange.value = windowSize; windowSizeVal.textContent = windowSize; }
+        startIndex = 0;
+        computeInitial();
+        renderAll();
+      });
+
+      shuffleBtn.addEventListener('click', () => {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        arrayInput.value = arr.join(', ');
+        startIndex = 0;
+        computeInitial();
+        renderAll();
+      });
+
+      toggleIncremental.addEventListener('change', (e) => {
+        incremental = (e.target.value === 'on');
+      });
+
+      playBtn.addEventListener('click', () => {
+        togglePlay();
+      });
+
+      prevBtn.addEventListener('click', () => {
+        stop();
+        stepLeft();
+      });
+
+      nextBtn.addEventListener('click', () => {
+        stop();
+        stepRight();
+      });
+
+      resetBtn.addEventListener('click', () => {
+        stop();
+        resetToStart();
+      });
+
+      fastForwardBtn.addEventListener('click', () => {
+        stop();
+        jumpToEnd();
+      });
+
+      explainBtn.addEventListener('click', () => {
+        explainCard.style.display = (explainCard.style.display === 'none' ? 'block' : 'none');
+      });
+
+      // Keyboard interactions for accessibility
+      document.addEventListener('keydown', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
+          return; // don't override typing
+        }
+        if (e.code === 'Space') {
+          e.preventDefault();
+          togglePlay();
+        } else if (e.code === 'ArrowRight') {
+          e.preventDefault();
+          stop();
+          stepRight();
+        } else if (e.code === 'ArrowLeft') {
+          e.preventDefault();
+          stop();
+          stepLeft();
+        } else if (e.code === 'Home') {
+          e.preventDefault();
+          stop();
+          resetToStart();
+        } else if (e.code === 'End') {
+          e.preventDefault();
+          stop();
+          jumpToEnd();
+        }
+      });
+
+      // Resize observer to adjust overlay if layout changes
+      let ro = new ResizeObserver(() => {
+        // re-measure cell width and overlay
+        const firstCell = arrayRow.querySelector('.cell');
+        cellWidth = firstCell ? (firstCell.getBoundingClientRect().width + 12) : 68;
+        updateOverlayPosition();
+      });
+      ro.observe(arrayRow);
+
+      // initial setup
+      (function init() {
+        const parsed = parseArrayInput(arrayInput.value);
+        if (parsed) arr = parsed;
+        windowSize = parseInt(windowSizeRange.value, 10);
+        windowSizeVal.textContent = windowSize;
+        windowSizeRange.max = Math.max(1, arr.length);
+        computeInitial();
+        recomputeAllWindows();
+        renderAll();
+      })();
+
+      // ensure elements are focusable for keyboard
+      canvas.addEventListener('focus', () => {
+        canvas.style.outline = 'none';
+      });
+
+    })();
+  </script>
+</body>
+</html>

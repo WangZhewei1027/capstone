@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dijkstra — Interactive Visualizer</title>
+  <style>
+    :root{
+      --safe-pad: 24px;
+      --gap: 16px;
+      --bg:#f7f8fb;
+      --panel:#ffffff;
+      --muted:#6b7280;
+      --node-radius:20;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      padding:var(--safe-pad);
+      background:var(--bg);
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#111827;
+      box-sizing:border-box;
+    }
+    *{box-sizing:inherit}
+    .container{
+      display:flex;
+      gap:var(--gap);
+      height:calc(100% - (var(--safe-pad) * 2));
+      align-items:stretch;
+    }
+    /* Left workspace */
+    .workspace{
+      flex:1.6;
+      min-width:320px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    /* Right info column */
+    .panel{
+      flex:1;
+      min-width:260px;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    .card{
+      background:var(--panel);
+      border-radius:10px;
+      padding:16px;
+      box-shadow:0 1px 4px rgba(16,24,40,0.06);
+    }
+    .control-bar{
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    button, input[type="range"]{
+      font-size:14px;
+      padding:8px 12px;
+      border-radius:8px;
+      border:1px solid #e6e9ef;
+      background:white;
+      cursor:pointer;
+    }
+    button[aria-pressed="true"]{
+      background:#111827;
+      color:white;
+      border-color:transparent;
+    }
+    button:disabled{opacity:.5; cursor:not-allowed}
+    .btn-ghost{
+      background:transparent;
+      border:1px dashed #cbd5e1;
+    }
+    .small{
+      padding:6px 8px;
+      font-size:13px;
+      border-radius:6px;
+    }
+    .canvas-wrap{
+      background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%);
+      border:1px solid #e6e9ef;
+      border-radius:10px;
+      height:100%;
+      min-height:420px;
+      position:relative;
+      overflow:hidden;
+    }
+    svg{width:100%; height:100%; display:block; touch-action:none}
+    .legend{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .legend .item{display:flex;gap:8px;align-items:center}
+    .dot{width:14px;height:14px;border-radius:7px}
+    /* Colors */
+    .state-unvisited{background:#e5e7eb}
+    .state-front{background:#facc15}
+    .state-current{background:#3b82f6}
+    .state-visited{background:#10b981}
+    /* Right column specifics */
+    .queue-list{display:flex;flex-direction:column;gap:8px; max-height:240px; overflow:auto; padding-right:4px}
+    .queue-row{
+      display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:#fafafa;border:1px solid #f1f5f9;
+      font-size:14px;
+    }
+    .log{font-size:13px;color:var(--muted); max-height:160px; overflow:auto; white-space:pre-wrap}
+    .info-title{font-weight:600;margin-bottom:8px}
+    /* Small helpers */
+    .muted{color:var(--muted);font-size:13px}
+    .controls-group{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    /* Weight input popup */
+    .weight-input {
+      position:absolute;
+      background:white;
+      border-radius:8px;
+      box-shadow:0 6px 18px rgba(15,23,42,0.12);
+      padding:8px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      z-index:30;
+    }
+    .weight-input input{width:80px;padding:6px;border-radius:6px;border:1px solid #e6e9ef}
+    /* Responsive */
+    @media (max-width:980px){
+      .container{flex-direction:column}
+      .workspace, .panel{min-width:unset}
+      .canvas-wrap{min-height:360px}
+    }
+    /* Node and edge label styles via SVG text fallback (not CSS) */
+  </style>
+</head>
+<body>
+  <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+    <h1 style="margin:0;font-size:20px">Dijkstra’s Algorithm — Interactive Visualizer</h1>
+    <div class="muted" style="margin-left:8px">Step-by-step exploration of shortest paths (non-negative weights)</div>
+  </div>
+
+  <div class="container" role="application" aria-label="Dijkstra interactive module">
+    <div class="workspace">
+      <div class="card control-bar" role="toolbar" aria-label="Graph controls">
+        <div class="controls-group" style="gap:8px">
+          <button id="addNodeBtn" class="small" aria-pressed="false">Add Node</button>
+          <button id="connectBtn" class="small" aria-pressed="false">Connect Mode</button>
+          <button id="setStartBtn" class="small" aria-pressed="false">Set Start</button>
+          <button id="deleteBtn" class="small" aria-pressed="false">Delete Mode</button>
+        </div>
+
+        <div style="flex:1"></div>
+
+        <div class="controls-group">
+          <button id="stepBtn" class="small" title="Step one relaxation">Step</button>
+          <button id="playBtn" class="small" title="Auto-run">Play</button>
+          <label class="muted" style="display:flex;align-items:center;gap:8px">Speed
+            <input id="speed" type="range" min="0.25" max="2" step="0.25" value="1" />
+          </label>
+          <button id="resetBtn" class="small">Reset</button>
+          <button id="clearBtn" class="small btn-ghost">Clear</button>
+        </div>
+      </div>
+
+      <div class="card canvas-wrap" aria-label="Graph canvas">
+        <svg id="svg" tabindex="0" aria-label="Graph drawing area"></svg>
+        <div id="weightPopup" class="weight-input" style="display:none" role="dialog" aria-hidden="true">
+          <label class="muted">Weight</label>
+          <input id="weightValue" type="number" min="0" step="1" value="1" aria-label="Edge weight">
+          <button id="confirmWeight">Confirm</button>
+          <button id="cancelWeight">Cancel</button>
+        </div>
+      </div>
+
+      <div class="card legend" aria-hidden="false">
+        <div class="item"><div class="dot state-unvisited"></div><div class="muted">Unvisited</div></div>
+        <div class="item"><div class="dot state-front"></div><div class="muted">Frontier (tentative)</div></div>
+        <div class="item"><div class="dot state-current"></div><div class="muted">Current</div></div>
+        <div class="item"><div class="dot state-visited"></div><div class="muted">Visited (final)</div></div>
+        <div style="flex:1"></div>
+        <div class="muted">Tip: Add nodes by clicking the canvas. Connect two nodes in Connect Mode.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="card">
+        <div class="info-title">Priority Queue & Distances</div>
+        <div id="queue" class="queue-list" aria-live="polite"></div>
+      </div>
+
+      <div class="card">
+        <div class="info-title">Action Log</div>
+        <div id="log" class="log" aria-live="polite"></div>
+      </div>
+
+      <div class="card">
+        <div class="info-title">Instructions</div>
+        <div class="muted">
+          - Create nodes by clicking empty space. Drag to move.<br>
+          - Connect Mode: click two nodes to add an edge with a weight.<br>
+          - Set a start node before stepping. Use Step to run Dijkstra one node at a time.<br>
+          - We use undirected edges with non-negative weights. Observe how distances update and nodes finalize.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Basic graph model
+    const svg = document.getElementById('svg');
+    const addNodeBtn = document.getElementById('addNodeBtn');
+    const connectBtn = document.getElementById('connectBtn');
+    const setStartBtn = document.getElementById('setStartBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const stepBtn = document.getElementById('stepBtn');
+    const playBtn = document.getElementById('playBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const speedInput = document.getElementById('speed');
+    const queueEl = document.getElementById('queue');
+    const logEl = document.getElementById('log');
+    const weightPopup = document.getElementById('weightPopup');
+    const weightValue = document.getElementById('weightValue');
+    const confirmWeight = document.getElementById('confirmWeight');
+    const cancelWeight = document.getElementById('cancelWeight');
+
+    // Modes
+    let mode = { addNode:false, connect:false, setStart:false, delete:false };
+    let dragging = null;
+    let dragOffset = {x:0,y:0};
+    let nodes = []; // {id,x,y,el,circle, labelEl, dist, prev, visited}
+    let edges = []; // {id,a,b,weight,lineEl,weightEl}
+    let nextNodeId = 0, nextEdgeId = 0;
+    let connectSource = null;
+    let running = false;
+    let autoInterval = null;
+    let startNodeId = null;
+
+    // Dijkstra runtime state
+    let dijkstraState = {
+      initialized:false,
+      unvisited:new Set(),
+      distances:{},
+      prev:{},
+      current:null
+    };
+
+    // Visual constants
+    const R = 20;
+    // Ensure SVG viewBox tracks size for correct coords
+    function svgPoint(evt){
+      const pt = svg.createSVGPoint();
+      pt.x = evt.clientX; pt.y = evt.clientY;
+      const ctm = svg.getScreenCTM().inverse();
+      const loc = pt.matrixTransform(ctm);
+      return {x: loc.x, y: loc.y};
+    }
+
+    // Event wiring for mode buttons
+    addNodeBtn.addEventListener('click', ()=>toggleMode('addNode'));
+    connectBtn.addEventListener('click', ()=>toggleMode('connect'));
+    setStartBtn.addEventListener('click', ()=>toggleMode('setStart'));
+    deleteBtn.addEventListener('click', ()=>toggleMode('delete'));
+
+    stepBtn.addEventListener('click', stepDijkstra);
+    playBtn.addEventListener('click', togglePlay);
+    resetBtn.addEventListener('click', resetAlgorithm);
+    clearBtn.addEventListener('click', clearAll);
+
+    confirmWeight.addEventListener('click', ()=>createEdgeWithWeight(parseFloat(weightValue.value)));
+    cancelWeight.addEventListener('click', ()=>hideWeightPopup());
+
+    // Speed affects interval time
+    function getIntervalTime(){ return 1000 / (parseFloat(speedInput.value) || 1); }
+
+    // Mode toggling
+    function toggleMode(m){
+      // Exclusive modes for add/connect/setStart/delete
+      for(let k in mode) mode[k] = false;
+      mode[m] = !mode[m];
+      // update button aria-pressed
+      addNodeBtn.setAttribute('aria-pressed', mode.addNode);
+      connectBtn.setAttribute('aria-pressed', mode.connect);
+      setStartBtn.setAttribute('aria-pressed', mode.setStart);
+      deleteBtn.setAttribute('aria-pressed', mode.delete);
+      // If exiting connect mode, clear source
+      if(!mode.connect) connectSource = null;
+    }
+
+    // Create node at coordinates
+    function createNode(x,y){
+      const id = nextNodeId++;
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('data-id', id);
+      g.setAttribute('cursor','pointer');
+      g.setAttribute('transform', `translate(${x},${y})`);
+      g.setAttribute('tabindex',0);
+      g.setAttribute('aria-label', `Node ${id}`);
+      // line for predecessor arrow (optional)
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('r', R);
+      circle.setAttribute('fill','#e5e7eb');
+      circle.setAttribute('stroke','#9ca3af');
+      circle.setAttribute('stroke-width','1');
+      // Node label (id)
+      const idText = document.createElementNS('http://www.w3.org/2000/svg','text');
+      idText.setAttribute('x',0);
+      idText.setAttribute('y',5);
+      idText.setAttribute('text-anchor','middle');
+      idText.setAttribute('font-size','13');
+      idText.setAttribute('fill','#111827');
+      idText.textContent = String(id);
+      // Distance label above node
+      const distText = document.createElementNS('http://www.w3.org/2000/svg','text');
+      distText.setAttribute('x',0);
+      distText.setAttribute('y', -R - 6);
+      distText.setAttribute('text-anchor','middle');
+      distText.setAttribute('font-size','12');
+      distText.setAttribute('fill','#111827');
+      distText.textContent = '∞';
+      // Prev arrow (small line)
+      const prevLine = document.createElementNS('http://www.w3.org/2000/svg','line');
+      prevLine.setAttribute('stroke','#94a3b8');
+      prevLine.setAttribute('stroke-width','2');
+      prevLine.setAttribute('opacity','0'); // visible when prev set
+
+      g.appendChild(prevLine);
+      g.appendChild(circle);
+      g.appendChild(idText);
+      g.appendChild(distText);
+      svg.appendChild(g);
+
+      const node = {id,x,y,el:g,circle,cx:x,cy:y,label:idText,distEl:distText,dist:Infinity,prev:null,visited:false,prevLine};
+      nodes.push(node);
+
+      // Interactions: drag, click
+      circle.addEventListener('mousedown', (e)=>startDrag(e,node));
+      circle.addEventListener('touchstart', (e)=>startDrag(e,node), {passive:false});
+      circle.addEventListener('click', (e)=>onNodeClick(e,node));
+      g.addEventListener('keydown', (e)=>onNodeKeyDown(e,node));
+      updateNodeVisual(node);
+      log(`Node ${id} created`);
+      return node;
+    }
+
+    // Node keyboard accessibility (Enter acts as click)
+    function onNodeKeyDown(e,node){
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        onNodeClick(e,node);
+      }
+    }
+
+    // Start drag
+    function startDrag(evt, node){
+      evt.preventDefault();
+      if(mode.addNode || mode.connect || mode.setStart || mode.delete){
+        // treat as click only
+        return;
+      }
+      dragging = node;
+      const point = svgPoint(evt.type.startsWith('touch') ? evt.touches[0] : evt);
+      dragOffset.x = point.x - node.cx;
+      dragOffset.y = point.y - node.cy;
+      document.addEventListener('mousemove', onDrag);
+      document.addEventListener('mouseup', endDrag);
+      document.addEventListener('touchmove', onDrag, {passive:false});
+      document.addEventListener('touchend', endDrag);
+    }
+    function onDrag(evt){
+      evt.preventDefault();
+      if(!dragging) return;
+      const point = svgPoint(evt.type.startsWith('touch') ? evt.touches[0] : evt);
+      const nx = point.x - dragOffset.x;
+      const ny = point.y - dragOffset.y;
+      dragging.cx = nx; dragging.cy = ny;
+      dragging.el.setAttribute('transform', `translate(${nx},${ny})`);
+      // Update connected edges positions
+      edges.forEach(e=>{
+        if(e.a.id === dragging.id || e.b.id === dragging.id) updateEdgeElement(e);
+      });
+    }
+    function endDrag(){
+      document.removeEventListener('mousemove', onDrag);
+      document.removeEventListener('mouseup', endDrag);
+      document.removeEventListener('touchmove', onDrag);
+      document.removeEventListener('touchend', endDrag);
+      dragging = null;
+    }
+
+    // Click on canvas: add node or other actions
+    svg.addEventListener('click', (evt)=>{
+      // Prevent handling when clicking on node elements (they stopPropagation)
+      const target = evt.target;
+      if(target.closest && target.closest('g')) return;
+      const p = svgPoint(evt);
+      if(mode.addNode){
+        createNode(p.x,p.y);
+      } else {
+        // maybe deactivate some modes when clicking off
+        if(mode.setStart) { toggleMode('setStart'); }
+      }
+    });
+
+    // Node click behavior for connect/setStart/delete/select
+    function onNodeClick(e,node){
+      e.stopPropagation();
+      if(mode.connect){
+        if(connectSource == null){
+          connectSource = node;
+          highlightNode(node, 'yellow');
+          log(`Connect: selected source node ${node.id}. Choose target.`);
+        } else if(connectSource.id === node.id){
+          // cancel
+          connectSource = null;
+          updateNodeVisual(node);
+        } else {
+          // show weight popup at midpoint
+          const mx = (connectSource.cx + node.cx)/2;
+          const my = (connectSource.cy + node.cy)/2;
+          showWeightPopup(mx,my,{a:connectSource,b:node});
+        }
+      } else if(mode.setStart){
+        if(startNodeId != null){
+          // clear previous
+          const prev = nodes.find(n=>n.id===startNodeId);
+          if(prev) updateNodeVisual(prev);
+        }
+        startNodeId = node.id;
+        updateNodeVisual(node);
+        toggleMode('setStart'); // exit setStart mode
+        resetAlgorithm(); // reinitialize
+        log(`Start node set to ${node.id}`);
+      } else if(mode.delete){
+        // delete node and adjacent edges
+        deleteNode(node.id);
+      } else {
+        // normal click -> highlight as selection toggle
+        highlightNode(node,'#d1fae5');
+      }
+    }
+
+    function highlightNode(node, color){
+      node.circle.setAttribute('fill', color);
+    }
+
+    // Delete node
+    function deleteNode(id){
+      const nodeIdx = nodes.findIndex(n=>n.id===id);
+      if(nodeIdx === -1) return;
+      const node = nodes[nodeIdx];
+      // remove edges attached
+      const attached = edges.filter(e=>e.a.id===id || e.b.id===id);
+      attached.forEach(e=>removeEdge(e.id));
+      // remove SVG
+      svg.removeChild(node.el);
+      nodes.splice(nodeIdx,1);
+      log(`Node ${id} deleted`);
+      if(startNodeId === id){ startNodeId = null; dijkstraState.initialized=false; }
+      refreshQueue();
+    }
+
+    // Show weight input popup
+    let pendingEdgePair = null;
+    function showWeightPopup(x,y,pair){
+      pendingEdgePair = pair;
+      weightPopup.style.left = (x) + 'px';
+      weightPopup.style.top = (y) + 'px';
+      weightPopup.style.display = 'flex';
+      weightPopup.setAttribute('aria-hidden','false');
+      weightValue.value = 1;
+      weightValue.focus();
+    }
+    function hideWeightPopup(){
+      pendingEdgePair = null;
+      weightPopup.style.display = 'none';
+      weightPopup.setAttribute('aria-hidden','true');
+      if(mode.connect) {
+        // keep connect mode active, keep source highlighted
+        if(connectSource) updateNodeVisual(connectSource);
+      }
+    }
+    function createEdgeWithWeight(w){
+      if(!pendingEdgePair) return;
+      const a = pendingEdgePair.a, b = pendingEdgePair.b;
+      // Prevent duplicate edges (undirected)
+      if(edges.some(e=> (e.a.id===a.id && e.b.id===b.id) || (e.a.id===b.id && e.b.id===a.id))){
+        log(`Edge between ${a.id} and ${b.id} already exists`);
+        hideWeightPopup(); connectSource = null; return;
+      }
+      const id = nextEdgeId++;
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('stroke','#111827');
+      line.setAttribute('stroke-opacity','0.9');
+      line.setAttribute('stroke-width','2');
+      line.setAttribute('data-id', id);
+
+      const weightText = document.createElementNS('http://www.w3.org/2000/svg','text');
+      weightText.setAttribute('font-size','12');
+      weightText.setAttribute('fill','#111827');
+      weightText.setAttribute('text-anchor','middle');
+      weightText.textContent = String(w);
+
+      svg.insertBefore(line, svg.firstChild); // lines behind nodes
+      svg.appendChild(weightText);
+      const edge = {id,a,b,weight:w,lineEl:line,weightEl:weightText};
+      edges.push(edge);
+      updateEdgeElement(edge);
+      log(`Edge ${id}: ${a.id} ↔ ${b.id} (w=${w})`);
+      hideWeightPopup();
+      // reset connect source highlight
+      if(connectSource) updateNodeVisual(connectSource);
+      connectSource = null;
+    }
+
+    function removeEdge(edgeId){
+      const idx = edges.findIndex(e=>e.id===edgeId);
+      if(idx===-1) return;
+      const e = edges[idx];
+      try{ svg.removeChild(e.lineEl); svg.removeChild(e.weightEl); }catch(err){}
+      edges.splice(idx,1);
+      log(`Edge ${edgeId} removed`);
+    }
+
+    function updateEdgeElement(e){
+      const ax = e.a.cx, ay = e.a.cy, bx = e.b.cx, by = e.b.cy;
+      e.lineEl.setAttribute('x1',ax); e.lineEl.setAttribute('y1',ay);
+      e.lineEl.setAttribute('x2',bx); e.lineEl.setAttribute('y2',by);
+      const mx = (ax+bx)/2, my = (ay+by)/2;
+      e.weightEl.setAttribute('x', mx);
+      e.weightEl.setAttribute('y', my - 6);
+      e.weightEl.textContent = String(e.weight);
+    }
+
+    function updateNodeVisual(node){
+      // color based on dijkstra state and visited flags
+      if(node.id === startNodeId){
+        node.circle.setAttribute('fill','#3b82f6'); // start blue
+        node.circle.setAttribute('stroke','#1f2937');
+      } else if(!dijkstraState.initialized){
+        node.circle.setAttribute('fill','#e5e7eb');
+        node.circle.setAttribute('stroke','#9ca3af');
+      } else {
+        if(node.visited){
+          node.circle.setAttribute('fill','#10b981');
+          node.circle.setAttribute('stroke','#065f46');
+        } else if(dijkstraState.distances[node.id] < Infinity){
+          node.circle.setAttribute('fill','#facc15'); // frontier
+          node.circle.setAttribute('stroke','#92400e');
+        } else {
+          node.circle.setAttribute('fill','#e5e7eb');
+          node.circle.setAttribute('stroke','#9ca3af');
+        }
+      }
+      // distance label
+      node.dist = dijkstraState.distances[node.id] ?? Infinity;
+      node.distEl.textContent = node.dist === Infinity ? '∞' : String(node.dist);
+      // prev line: if prev exists, draw small line from prev node
+      if(node.prev != null){
+        node.prevLine.setAttribute('opacity','1');
+        const p = nodes.find(n=>n.id === node.prev);
+        if(p){
+          node.prevLine.setAttribute('x1', 0);
+          node.prevLine.setAttribute('y1', 0);
+          // compute vector from this node to prev to place small line toward prev
+          const dx = p.cx - node.cx;
+          const dy = p.cy - node.cy;
+          const len = Math.sqrt(dx*dx+dy*dy) || 1;
+          const nx = (dx/len) * (R - 6);
+          const ny = (dy/len) * (R - 6);
+          node.prevLine.setAttribute('x2', nx);
+          node.prevLine.setAttribute('y2', ny);
+        }
+      } else {
+        node.prevLine.setAttribute('opacity','0');
+      }
+    }
+
+    // Basic logging
+    function log(msg){
+      const t = new Date().toLocaleTimeString();
+      logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
+    }
+
+    // Dijkstra initialization
+    function initializeDijkstra(){
+      if(startNodeId == null){
+        alert('Please choose a start node (Set Start) before running the algorithm.');
+        return false;
+      }
+      dijkstraState.initialized = true;
+      dijkstraState.unvisited = new Set();
+      dijkstraState.distances = {};
+      dijkstraState.prev = {};
+      dijkstraState.current = null;
+      nodes.forEach(n=>{
+        dijkstraState.distances[n.id] = Infinity;
+        dijkstraState.prev[n.id] = null;
+        n.visited = false;
+      });
+      dijkstraState.distances[startNodeId] = 0;
+      nodes.forEach(n => dijkstraState.unvisited.add(n.id));
+      refreshQueue();
+      log(`Dijkstra initialized with start ${startNodeId}`);
+      // update visuals
+      nodes.forEach(updateNodeVisual);
+      return true;
+    }
+
+    // Step of Dijkstra: pick smallest unvisited dist node, relax neighbors
+    async function stepDijkstra(){
+      if(!dijkstraState.initialized){
+        if(!initializeDijkstra()) return;
+      }
+      // find unvisited node with smallest tentative distance
+      let current = null;
+      let min = Infinity;
+      dijkstraState.unvisited.forEach(id=>{
+        const d = dijkstraState.distances[id];
+        if(d < min){ min = d; current = id; }
+      });
+      if(current == null || min === Infinity){
+        log('No reachable unvisited nodes remain. Algorithm finished.');
+        // finalize any remaining as unreachable
+        dijkstraState.unvisited.forEach(id=>{
+          const n = nodes.find(x=>x.id===id);
+          if(n) n.visited = true;
+        });
+        dijkstraState.unvisited.clear();
+        nodes.forEach(updateNodeVisual);
+        refreshQueue();
+        return;
+      }
+      // mark current
+      dijkstraState.current = current;
+      const curNode = nodes.find(n=>n.id===current);
+      highlightCurrent(curNode);
+      log(`Processing node ${current} (dist=${dijkstraState.distances[current]})`);
+      await animateNodeHighlight(curNode);
+      // relax neighbors
+      const incidentEdges = edges.filter(e=> e.a.id === current || e.b.id === current);
+      for(const e of incidentEdges){
+        // neighbor
+        const neighbor = e.a.id === current ? e.b : e.a;
+        // animate edge
+        await flashEdge(e);
+        const alt = dijkstraState.distances[current] + e.weight;
+        if(alt < dijkstraState.distances[neighbor.id]){
+          dijkstraState.distances[neighbor.id] = alt;
+          dijkstraState.prev[neighbor.id] = current;
+          // update neighbor's prev and distance
+          neighbor.prev = current;
+          updateNodeVisual(neighbor);
+          log(`Relaxed: Updated dist of ${neighbor.id} to ${alt} via ${current}`);
+          refreshQueue();
+          // small animation to show update
+          await pulseNode(neighbor);
+        } else {
+          log(`No relax: ${neighbor.id} remains ${dijkstraState.distances[neighbor.id]}`);
+        }
+      }
+      // mark current visited / finalized
+      curNode.visited = true;
+      dijkstraState.unvisited.delete(current);
+      updateNodeVisual(curNode);
+      refreshQueue();
+    }
+
+    // Visual helpers: highlight current then restore
+    function highlightCurrent(node){
+      node.circle.setAttribute('fill','#3b82f6');
+      node.circle.setAttribute('stroke','#1e40af');
+    }
+    function animateNodeHighlight(node){
+      return new Promise(res=>{
+        const orig = node.circle.getAttribute('fill');
+        node.circle.setAttribute('stroke-width','3');
+        setTimeout(()=>{ node.circle.setAttribute('stroke-width','1'); res(); }, getIntervalTime()*0.9);
+      });
+    }
+    function flashEdge(edge){
+      return new Promise(res=>{
+        const orig = edge.lineEl.getAttribute('stroke');
+        edge.lineEl.setAttribute('stroke','#f97316'); // orange
+        edge.lineEl.setAttribute('stroke-width','4');
+        setTimeout(()=>{ edge.lineEl.setAttribute('stroke',orig); edge.lineEl.setAttribute('stroke-width','2'); res(); }, getIntervalTime()*0.9);
+      });
+    }
+    function pulseNode(node){
+      return new Promise(res=>{
+        const origFill = node.circle.getAttribute('fill');
+        node.circle.setAttribute('fill','#34d399');
+        setTimeout(()=>{ node.circle.setAttribute('fill', origFill); updateNodeVisual(node); res(); }, getIntervalTime()*0.8);
+      });
+    }
+
+    // Queue rendering (ordered list of tentative distances)
+    function refreshQueue(){
+      const list = Object.keys(dijkstraState.distances || {}).map(id=>({
+        id: Number(id),
+        dist: dijkstraState.distances[id]
+      }));
+      list.sort((a,b)=>{
+        if(a.dist === b.dist) return a.id - b.id;
+        if(a.dist === Infinity) return 1;
+        if(b.dist === Infinity) return -1;
+        return a.dist - b.dist;
+      });
+      queueEl.innerHTML = '';
+      list.forEach(item=>{
+        const node = nodes.find(n=>n.id===item.id);
+        const div = document.createElement('div');
+        div.className = 'queue-row';
+        const left = document.createElement('div');
+        left.textContent = `Node ${item.id}`;
+        const right = document.createElement('div');
+        right.textContent = item.dist === Infinity ? '∞' : String(item.dist);
+        if(node && node.visited) div.style.opacity = '0.6';
+        queueEl.appendChild(div);
+        div.appendChild(left);
+        div.appendChild(right);
+      });
+    }
+
+    // Auto-play
+    function togglePlay(){
+      if(running){
+        stopAuto();
+      } else {
+        startAuto();
+      }
+    }
+    function startAuto(){
+      if(!dijkstraState.initialized){
+        if(!initializeDijkstra()) return;
+      }
+      running = true;
+      playBtn.textContent = 'Pause';
+      runAutoStep();
+      autoInterval = setInterval(()=>runAutoStep(), getIntervalTime()+20);
+    }
+    function runAutoStep(){
+      // stop if finished
+      if(dijkstraState.unvisited.size === 0){
+        stopAuto();
+        log('Algorithm complete (auto-run).');
+        return;
+      }
+      stepDijkstra();
+    }
+    function stopAuto(){
+      running = false;
+      playBtn.textContent = 'Play';
+      if(autoInterval) { clearInterval(autoInterval); autoInterval = null; }
+    }
+
+    // Reset algorithm but keep graph
+    function resetAlgorithm(){
+      stopAuto();
+      dijkstraState.initialized = false;
+      dijkstraState.unvisited = new Set();
+      dijkstraState.distances = {};
+      dijkstraState.prev = {};
+      dijkstraState.current = null;
+      nodes.forEach(n=>{ n.visited=false; n.prev=null; });
+      nodes.forEach(updateNodeVisual);
+      refreshQueue();
+      log('Algorithm reset. Set start node and press Step to begin.');
+    }
+
+    // Clear entire graph
+    function clearAll(){
+      stopAuto();
+      nodes.slice().forEach(n=>{ try{svg.removeChild(n.el);}catch(e){} });
+      edges.slice().forEach(e=>{ try{svg.removeChild(e.lineEl); svg.removeChild(e.weightEl);}catch(e){} });
+      nodes = []; edges = []; nextNodeId = 0; nextEdgeId = 0; startNodeId = null;
+      dijkstraState = {initialized:false, unvisited:new Set(), distances:{}, prev:{}, current:null};
+      queueEl.innerHTML = '';
+      log('Cleared graph.');
+    }
+
+    // Make clicking in connect or setStart mode work when clicking node text or circle
+    // Ensure node elements stop propagation to avoid svg click handlers
+    svg.addEventListener('mousedown', (e)=>e.stopPropagation());
+    svg.addEventListener('touchstart',(e)=>e.stopPropagation());
+
+    // Initialize a small example graph for demonstration
+    (function seedGraph(){
+      const w = svg.clientWidth || 800;
+      const h = svg.clientHeight || 500;
+      // sample nodes
+      const a = createNode(140,120);
+      const b = createNode(300,80);
+      const c = createNode(460,140);
+      const d = createNode(200,260);
+      const e = createNode(400,260);
+      // connect sample edges
+      function addEdgeByNodes(n1,n2,wgt){
+        pendingEdgePair = {a:n1,b:n2};
+        createEdgeWithWeight(wgt);
+      }
+      addEdgeByNodes(a,b,4);
+      addEdgeByNodes(a,d,2);
+      addEdgeByNodes(b,c,3);
+      addEdgeByNodes(b,d,5);
+      addEdgeByNodes(d,e,10);
+      addEdgeByNodes(c,e,4);
+      addEdgeByNodes(b,e,8);
+      // set start
+      startNodeId = a.id;
+      updateNodeVisual(nodes.find(n=>n.id === startNodeId));
+      log('Sample graph loaded. Start node is 0.');
+    })();
+
+    // Accessibility: keyboard shortcuts
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'a') toggleMode('addNode');
+      if(e.key === 'c') toggleMode('connect');
+      if(e.key === 's') toggleMode('setStart');
+      if(e.key === 'd') toggleMode('delete');
+      if(e.key === ' ') { e.preventDefault(); togglePlay(); }
+      if(e.key === 'Enter') stepDijkstra();
+    });
+
+    // Update edges & labels on window resize (SVG uses pixels)
+    window.addEventListener('resize', ()=>{ edges.forEach(updateEdgeElement); nodes.forEach(n=>{ n.el.setAttribute('transform', `translate(${n.cx},${n.cy})`); }); });
+
+  </script>
+</body>
+</html>

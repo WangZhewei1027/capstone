@@ -1,0 +1,79 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main "Binary Tree Interactive Module" [ref=e2]:
+    - complementary "Binary Tree — Interactive Explorer" [ref=e3]:
+      - generic [ref=e4]:
+        - heading "Binary Tree — Interactive Explorer" [level=2] [ref=e5]
+        - paragraph [ref=e6]: Build a binary search tree, visualize structure, and watch traversals animate step-by-step.
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - generic [ref=e9]: Node value (integer)
+          - spinbutton "Node value to insert" [ref=e10]: "50"
+        - generic [ref=e11]:
+          - button "Insert" [ref=e12] [cursor=pointer]
+          - button "Delete" [ref=e13] [cursor=pointer]
+          - button "Clear" [ref=e14] [cursor=pointer]
+        - generic [ref=e15]:
+          - generic [ref=e16]: Random fill
+          - generic [ref=e17]:
+            - spinbutton "Number of random nodes" [ref=e18]: "6"
+            - button "Fill" [ref=e19] [cursor=pointer]
+        - generic "Traversal controls" [ref=e20]:
+          - generic [ref=e21]: Traversals
+          - generic [ref=e22]:
+            - combobox "Choose traversal" [ref=e23]:
+              - option "In-order" [selected]
+              - option "Pre-order"
+              - option "Post-order"
+              - option "Level-order (BFS)"
+            - button "Animate" [ref=e24] [cursor=pointer]
+          - generic [ref=e25]:
+            - generic [ref=e26]: Speed
+            - slider [ref=e27]: "350"
+            - generic [ref=e28]: 350 ms
+        - generic [ref=e29]:
+          - generic [ref=e30]:
+            - text: "Nodes:"
+            - strong [ref=e31]: "0"
+          - generic [ref=e32]:
+            - text: "Height:"
+            - strong [ref=e33]: "0"
+          - generic [ref=e34]:
+            - text: "Leaves:"
+            - strong [ref=e35]: "0"
+        - generic [ref=e36]:
+          - strong [ref=e37]: How to use
+          - paragraph [ref=e38]: Insert integers to build the tree (duplicates are ignored). Click "Animate" to watch traversals highlight nodes in visiting order. Height, node count, and leaves update instantly.
+    - region "Binary tree visualization" [ref=e39]:
+      - toolbar "Canvas toolbar" [ref=e40]:
+        - generic [ref=e41]: Canvas
+        - button "Auto-layout" [ref=e42] [cursor=pointer]
+        - button "Copy SVG" [ref=e43] [cursor=pointer]
+      - img "Binary tree SVG" [ref=e44]:
+        - generic [ref=e45]: Empty tree — insert nodes to visualize
+      - generic [ref=e46]:
+        - generic [ref=e47]: "Status: Interactive Binary Tree ready."
+        - generic [ref=e48]: "Tip: Use wide screens for best experience."
+      - generic [ref=e49]: Interactive Binary Tree ready.
+  - generic [ref=e50]:
+    - strong [ref=e51]: Design Plan
+    - generic [ref=e52]: "Concept Title:"
+    - generic [ref=e53]: Binary Tree — structure & traversals (BST insert demo)
+    - generic [ref=e54]: "Learning Objective:"
+    - generic [ref=e55]: Build and manipulate a binary search tree. Understand structural properties (height, leaves, size) and internalize traversal orders via animated step-throughs.
+    - generic [ref=e56]: "Interaction Design:"
+    - generic [ref=e57]:
+      - text: "- Click \"Insert\" with a value: the tree inserts the node following BST rules. The path from the root is highlighted step-by-step, and the new node pops into place."
+      - text: "- \"Delete\" removes a node (BST delete rules). Removal animates (fade/scale) and tree reflows."
+      - text: "- \"Random fill\" generates several nodes quickly to create a richer tree."
+      - text: "- Select a traversal and \"Animate\": nodes are highlighted in visiting order with timing controlled by the speed slider. The currently visited node uses a distinct color and screen-reader announcements are made for accessibility."
+      - text: "- Visual feedback: node and edge highlights, pop/scale animations on insert, smooth position transitions when layout changes, and an animated traversal sequence that reinforces how each traversal visits nodes."
+    - generic [ref=e58]: "Layout Description:"
+    - generic [ref=e59]:
+      - text: "- Left panel (controls) fixed-width with 24px safe margins and 16px spacing between controls."
+      - text: "- Right area is a responsive SVG canvas that auto-computes and animates node positions. Depth determines vertical spacing (90px) and in-order index determines horizontal placement."
+      - text: "- Accessibility: accessible labels, aria-live updates for traversal steps, keyboard-focusable controls, responsive layout stacks on small screens."
+      - text: "- Visual balance: controls are compact for fast experimentation; canvas maximizes space for clear tree visuals."
+```
