@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bellman-Ford Interactive Module</title>
+  <style>
+    :root{
+      --safe-padding: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #4f9cff;
+      --accent-2: #7bffb2;
+      --muted: #99a0b0;
+      --danger: #ff6b6b;
+      --glass: rgba(255,255,255,0.03);
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071028 0%, #071523 60%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#e6eef8;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Safe area */
+    .app {
+      padding: var(--safe-padding);
+      box-sizing:border-box;
+      min-height:100vh;
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+    }
+
+    /* Layout: left column controls + explanation, right column canvas */
+    .left {
+      width:380px;
+      min-width:260px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:20px;
+      box-sizing:border-box;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    .right {
+      flex:1;
+      min-width:320px;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    h1{
+      margin:0;
+      font-size:18px;
+      letter-spacing:0.2px;
+    }
+
+    .card-title{
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .section {
+      background:var(--glass);
+      padding:12px;
+      border-radius:10px;
+      box-sizing:border-box;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .controls {
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .btn-row {
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+    }
+
+    button {
+      background:transparent;
+      color:var(--accent-2);
+      border:1px solid rgba(127,170,255,0.08);
+      padding:8px 10px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:13px;
+      min-height:40px;
+      transition:transform .12s ease, background .12s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    button:hover{ transform:translateY(-2px); background:rgba(127,170,255,0.02); }
+    button.primary{
+      background:linear-gradient(90deg,var(--accent),#7fceff22);
+      color:#031029;
+      border:none;
+      box-shadow:0 6px 18px rgba(79,156,255,0.06);
+    }
+    button.danger{
+      background:linear-gradient(90deg,#ff8b8b22,#ff6b6b11);
+      color:#fff;
+      border:none;
+    }
+
+    .small {
+      font-size:13px;
+      padding:6px 8px;
+      min-height:36px;
+    }
+
+    label { font-size:13px; color:var(--muted); }
+
+    .controls .row {
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+
+    /* Canvas area */
+    .canvas-wrap{
+      background: linear-gradient(180deg,#071428 0%, #031828 100%);
+      border-radius:12px;
+      padding:12px;
+      min-height:420px;
+      position:relative;
+      overflow:hidden;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);
+    }
+
+    svg {
+      width:100%;
+      height:420px;
+      display:block;
+      touch-action:none;
+    }
+
+    .panel-bottom {
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+      flex-wrap:wrap;
+    }
+
+    .table {
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      padding:10px;
+      border-radius:10px;
+      min-width:220px;
+      box-sizing:border-box;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .table .row { display:flex; justify-content:space-between; gap:8px; font-size:14px; }
+    .table .title { font-weight:700; color:var(--accent-2); }
+
+    /* Node and edge styles */
+    .node {
+      cursor:pointer;
+      transition:transform .12s ease;
+    }
+    .node circle {
+      fill: linear-gradient(180deg,#1e3a8a, #0a254a);
+      fill:#0b2244;
+      stroke:rgba(127,170,255,0.12);
+      stroke-width:2px;
+    }
+    .node text {
+      font-size:13px;
+      text-anchor:middle;
+      dominant-baseline:middle;
+      pointer-events:none;
+      fill:#e6eef8;
+      font-weight:700;
+    }
+    .node .dist {
+      font-size:12px;
+      fill:var(--muted);
+      font-weight:600;
+    }
+
+    .node.pulse circle {
+      animation: nodePulse 520ms ease forwards;
+    }
+    @keyframes nodePulse {
+      0% { transform: scale(1); filter:drop-shadow(0 0 0 rgba(127,170,255,0.0)); }
+      50% { transform: scale(1.08); filter:drop-shadow(0 8px 18px rgba(79,156,255,0.12)); }
+      100% { transform: scale(1); filter:none; }
+    }
+
+    .edge {
+      stroke:#73a6ff55;
+      stroke-width:2.4px;
+      fill:none;
+      transition:stroke .18s, stroke-width .18s;
+    }
+    .edge.highlight { stroke:#ffd166; stroke-width:3.6px; }
+    .edge.relaxed { stroke:#7bffb2; stroke-width:3.6px; }
+    .edge.bad { stroke:var(--danger); stroke-width:3.6px; }
+
+    .weight-label {
+      fill:#e2f0ff;
+      font-size:12px;
+      pointer-events:none;
+      font-weight:700;
+    }
+
+    .info {
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    .status {
+      padding:10px;
+      border-radius:10px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .speed {
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    input[type=range] { width:140px; }
+
+    /* Responsiveness */
+    @media (max-width:920px){
+      .app{ flex-direction:column; padding:16px; }
+      .left{ width:100%; min-width:auto; order:2; }
+      .right{ order:1; }
+      svg{ height:320px; }
+    }
+
+    /* Accessibility focus */
+    button:focus, .node:focus { outline: 2px dashed rgba(127,170,255,0.18); outline-offset:3px; }
+
+    .muted-block { color:var(--muted); font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="app" role="main" aria-label="Bellman-Ford Interactive Module">
+    <div class="left" id="leftPanel">
+      <div class="section" aria-hidden="false">
+        <div class="card-title">
+          <h1>Bellman-Ford Algorithm — Interactive Explorer</h1>
+        </div>
+        <div class="muted">Single concept: shortest paths with possible negative weights &amp; negative cycle detection.</div>
+      </div>
+
+      <div class="section" aria-label="Learning Objective">
+        <strong>Learning Objective</strong>
+        <div class="muted-block">
+          After interacting with this module you will be able to:
+          <ul>
+            <li>Run Bellman-Ford step-by-step and observe edge relaxations.</li>
+            <li>Understand why up to |V|-1 iterations are needed.</li>
+            <li>See how negative cycles are detected and visualized.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="section" aria-label="Interaction Design">
+        <strong>Interaction Design</strong>
+        <div class="muted-block">
+          Controls and interactions:
+          <ul>
+            <li>Add nodes by clicking "Add Node" then clicking the canvas, or use "Add Sample".</li>
+            <li>Add directed edges: activate "Add Edge", click source then target, then provide weight.</li>
+            <li>Drag nodes to reposition. Click a node to set it as the source (or use "Set Source").</li>
+            <li>Run algorithm: Step (relax a single edge), Next Iteration (complete one full pass), Play/Pause (auto-run), Reset.</li>
+            <li>Animations: edges highlight while being relaxed, nodes pulse when their distance improves. Negative cycles flash red.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="section" aria-label="Layout Description">
+        <strong>Layout Description</strong>
+        <div class="muted-block">
+          - Left column: controls, explanations, and status. Safe area margin 24px, minimum spacing 16px.<br>
+          - Right column: interactive SVG canvas on top and a distance table/panel below showing current distances and predecessors.<br>
+          - Responsive: columns stack on small screens; controls remain accessible with keyboard focus outlines.
+        </div>
+      </div>
+
+      <div class="section controls" aria-label="Controls">
+        <div class="btn-row" role="toolbar" aria-label="Graph editing controls">
+          <button id="addNodeBtn" title="Add Node">Add Node</button>
+          <button id="addEdgeBtn" title="Add Edge">Add Edge</button>
+          <button id="setSourceBtn" title="Set Source">Set Source</button>
+          <button id="sampleBtn" class="primary" title="Load sample graph">Add Sample</button>
+        </div>
+
+        <div class="btn-row" role="toolbar" aria-label="Algorithm controls">
+          <button id="stepBtn" class="small">Step</button>
+          <button id="iterBtn" class="small">Next Iteration</button>
+          <button id="playBtn" class="small">Play</button>
+          <button id="resetBtn" class="small">Reset</button>
+          <button id="clearBtn" class="small danger" title="Clear graph">Clear</button>
+        </div>
+
+        <div class="row">
+          <label for="speed">Speed</label>
+          <div class="speed">
+            <input id="speed" type="range" min="100" max="1200" step="50" value="450" aria-label="Animation speed" />
+            <div class="muted" id="speedVal">450ms</div>
+          </div>
+        </div>
+
+        <div class="status" id="status" aria-live="polite">Idle. Add nodes and edges, set a source, then run the algorithm.</div>
+      </div>
+
+      <div class="section" aria-label="Hints">
+        <strong>Hints</strong>
+        <div class="muted-block">
+          - Use negative weights to see negative cycle detection.<br>
+          - If you see "Inf" for a node, it's not reachable yet from the chosen source.<br>
+          - Distances and predecessors update live while relaxing edges.
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="canvas-wrap" id="canvasWrap">
+        <svg id="svgCanvas" tabindex="0" aria-label="Graph canvas">
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="12" refY="5"
+                    orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L10,5 L0,10 z" fill="#cfe9ff" />
+            </marker>
+            <marker id="arrow-highlight" markerWidth="12" markerHeight="12" refX="13" refY="6"
+                    orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L12,6 L0,12 z" fill="#ffd166" />
+            </marker>
+          </defs>
+        </svg>
+      </div>
+
+      <div class="panel-bottom">
+        <div class="table" aria-label="Distance table">
+          <div class="row title"><div>Node</div><div>Distance — Predecessor</div></div>
+          <div id="distList"></div>
+        </div>
+
+        <div class="table" style="flex:1;" aria-label="Algorithm info">
+          <div class="row title"><div>Algorithm</div><div>Details</div></div>
+          <div class="info" id="algoInfo">Iteration: 0 / ? <br> Edge index: 0 / 0</div>
+          <div style="height:8px;"></div>
+          <div class="muted" id="log">Action log appears here.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /*****************************************************************************
+     * Bellman-Ford Interactive Module
+     * - Vanilla JS, self-contained
+     * - Graph drawn on SVG; nodes draggable; edges directed with arrow markers
+     * - Modes: add node, add edge, set source, default
+     * - Controls: step, next iteration (one full pass), play/pause, reset, clear
+     * - Visual feedback: edge highlight while relaxing, node pulse on improvement,
+     *   negative cycle detection highlights a cycle in red pulsing.
+     *****************************************************************************/
+
+    (function(){
+      // Basic data structures
+      let nodes = []; // {id, x,y,svgGroup, labelEl, distEl}
+      let edges = []; // {id, u,v,weight, pathEl, labelEl}
+      let nodeIdCounter = 0;
+      let edgeIdCounter = 0;
+      let mode = null; // 'addNode' | 'addEdge' | 'setSource' | null
+      let addEdgeState = { from: null };
+      let source = null; // node id
+      const INF = 1e15;
+
+      // Bellman-Ford execution state
+      let running = false;
+      let playing = false;
+      let iteration = 0;
+      let edgeIndex = 0;
+      let relaxOrder = []; // edges order used for relaxing (array of edge indices)
+      let speed = 450;
+      let playTimer = null;
+      let negativeCycleDetected = false;
+
+      // DOM references
+      const svg = document.getElementById('svgCanvas');
+      const canvasWrap = document.getElementById('canvasWrap');
+      const addNodeBtn = document.getElementById('addNodeBtn');
+      const addEdgeBtn = document.getElementById('addEdgeBtn');
+      const setSourceBtn = document.getElementById('setSourceBtn');
+      const sampleBtn = document.getElementById('sampleBtn');
+      const stepBtn = document.getElementById('stepBtn');
+      const iterBtn = document.getElementById('iterBtn');
+      const playBtn = document.getElementById('playBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const statusEl = document.getElementById('status');
+      const distList = document.getElementById('distList');
+      const algoInfo = document.getElementById('algoInfo');
+      const logEl = document.getElementById('log');
+      const speedRange = document.getElementById('speed');
+      const speedVal = document.getElementById('speedVal');
+
+      // Initialize
+      svg.addEventListener('click', canvasClick);
+      addNodeBtn.addEventListener('click', () => setMode('addNode'));
+      addEdgeBtn.addEventListener('click', () => setMode('addEdge'));
+      setSourceBtn.addEventListener('click', () => setMode('setSource'));
+      sampleBtn.addEventListener('click', addSampleGraph);
+      stepBtn.addEventListener('click', stepOnce);
+      iterBtn.addEventListener('click', nextIteration);
+      playBtn.addEventListener('click', togglePlay);
+      resetBtn.addEventListener('click', resetAlgorithmState);
+      clearBtn.addEventListener('click', clearGraph);
+      speedRange.addEventListener('input', (e)=> {
+        speed = parseInt(e.target.value,10);
+        speedVal.textContent = speed + 'ms';
+      });
+
+      // Utility:
+      function log(msg){
+        logEl.textContent = msg;
+      }
+      function setStatus(txt){
+        statusEl.textContent = txt;
+      }
+
+      // Mode handling
+      function setMode(m){
+        mode = (mode === m ? null : m);
+        addEdgeState.from = null;
+        updateModeUI();
+      }
+      function updateModeUI(){
+        const active = (btn, name) => {
+          if(mode === name) btn.classList.add('primary');
+          else btn.classList.remove('primary');
+        };
+        active(addNodeBtn, 'addNode'); active(addEdgeBtn, 'addEdge'); active(setSourceBtn, 'setSource');
+        setStatus(mode ? 'Mode: ' + mode : 'Idle.');
+      }
+
+      // Canvas click: adding node if in addNode mode
+      function canvasClick(evt){
+        if(mode !== 'addNode') return;
+        const rect = svg.getBoundingClientRect();
+        const x = (evt.clientX - rect.left);
+        const y = (evt.clientY - rect.top);
+        addNode(x,y);
+      }
+
+      // Node creation
+      function addNode(x=80, y=80, label=null){
+        const id = 'n' + (++nodeIdCounter);
+        const group = document.createElementNS('http://www.w3.org/2000/svg','g');
+        group.setAttribute('class','node');
+        group.setAttribute('tabindex','0');
+        group.setAttribute('data-id', id);
+
+        // circle
+        const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+        circle.setAttribute('r', 22);
+        circle.setAttribute('fill','#0b2244');
+        circle.setAttribute('stroke','#6fa9ff22');
+        group.appendChild(circle);
+
+        // label
+        const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+        text.setAttribute('x', x);
+        text.setAttribute('y', y-2);
+        text.textContent = label || id;
+        group.appendChild(text);
+
+        // distance text
+        const distText = document.createElementNS('http://www.w3.org/2000/svg','text');
+        distText.setAttribute('x', x);
+        distText.setAttribute('y', y+20);
+        distText.setAttribute('class','dist');
+        distText.textContent = 'Inf';
+        group.appendChild(distText);
+
+        svg.appendChild(group);
+
+        const node = { id, x, y, svgGroup: group, labelEl: text, distEl: distText, r:22, pred:null, dist:INF };
+        nodes.push(node);
+
+        // Interaction
+        group.addEventListener('mousedown', (e)=> startDrag(e, node));
+        group.addEventListener('click', (e)=> nodeClicked(e, node));
+        group.addEventListener('keydown', (e)=> {
+          if(e.key === 'Enter') nodeClicked(e, node);
+        });
+
+        updateDistancesList();
+        redrawAllEdges();
+        return node;
+      }
+
+      // Node click depending on mode
+      function nodeClicked(e, node){
+        e.stopPropagation();
+        if(mode === 'addEdge'){
+          if(!addEdgeState.from){
+            addEdgeState.from = node;
+            setStatus('Selected source ' + node.id + '. Now click a target node.');
+            node.svgGroup.classList.add('selected');
+            node.svgGroup.style.outline = '2px solid rgba(127,170,255,0.10)';
+          } else {
+            const from = addEdgeState.from;
+            addEdgeState.from = null;
+            // remove selected style
+            from.svgGroup.classList.remove('selected');
+            from.svgGroup.style.outline = '';
+            // prompt for weight
+            let w = prompt(`Weight for edge ${from.id} → ${node.id}`, "1");
+            if(w === null) { setStatus('Edge creation cancelled.'); return; }
+            w = Number(w);
+            if(isNaN(w)) { alert('Please enter a numeric weight.'); return; }
+            addEdge(from.id, node.id, w);
+            setStatus(`Added edge ${from.id} → ${node.id} (w=${w})`);
+          }
+          return;
+        }
+        if(mode === 'setSource'){
+          source = node.id;
+          setStatus('Source set to ' + source + '.');
+          updateNodeStyles();
+          updateDistancesList();
+          return;
+        }
+        // Default click: set source as well
+        source = node.id;
+        setStatus('Source set to ' + source + '.');
+        updateNodeStyles();
+        updateDistancesList();
+      }
+
+      // Dragging
+      let dragState = null;
+      function startDrag(e, node){
+        e.preventDefault();
+        const rect = svg.getBoundingClientRect();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        dragState = { node, startX, startY, origX: node.x, origY: node.y };
+        window.addEventListener('mousemove', onDragMove);
+        window.addEventListener('mouseup', onDragEnd);
+      }
+      function onDragMove(e){
+        if(!dragState) return;
+        const dx = e.clientX - dragState.startX;
+        const dy = e.clientY - dragState.startY;
+        const nx = dragState.origX + dx;
+        const ny = dragState.origY + dy;
+        dragState.node.x = nx;
+        dragState.node.y = ny;
+        updateNodePosition(dragState.node);
+        redrawAllEdges();
+      }
+      function onDragEnd(){
+        dragState = null;
+        window.removeEventListener('mousemove', onDragMove);
+        window.removeEventListener('mouseup', onDragEnd);
+      }
+
+      function updateNodePosition(node){
+        const group = node.svgGroup;
+        const circle = group.querySelector('circle');
+        const text = node.labelEl;
+        const distText = node.distEl;
+        circle.setAttribute('cx', node.x);
+        circle.setAttribute('cy', node.y);
+        text.setAttribute('x', node.x);
+        text.setAttribute('y', node.y-2);
+        distText.setAttribute('x', node.x);
+        distText.setAttribute('y', node.y+20);
+      }
+
+      // Edge creation and drawing
+      function addEdge(uId, vId, weight){
+        const u = nodes.find(n=>n.id===uId);
+        const v = nodes.find(n=>n.id===vId);
+        if(!u || !v){ console.warn('Invalid nodes for edge'); return; }
+
+        const id = 'e' + (++edgeIdCounter);
+        // path
+        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.setAttribute('class','edge');
+        path.setAttribute('id', id);
+        path.setAttribute('marker-end','url(#arrow)');
+
+        // weight label
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('class','weight-label');
+        label.textContent = String(weight);
+
+        svg.insertBefore(path, svg.firstChild); // edges under nodes
+        svg.appendChild(label);
+
+        const edge = { id, u:uId, v:vId, weight: Number(weight), pathEl: path, labelEl: label };
+        edges.push(edge);
+        redrawEdge(edge);
+        updateDistancesList();
+        return edge;
+      }
+
+      function redrawEdge(edge){
+        const u = nodes.find(n=>n.id===edge.u);
+        const v = nodes.find(n=>n.id===edge.v);
+        if(!u || !v) return;
+        // create a simple curved path offset a bit
+        const dx = v.x - u.x;
+        const dy = v.y - u.y;
+        const dist = Math.hypot(dx,dy);
+        const offset = Math.min(40, dist/3);
+        // perpendicular vector
+        const px = -dy/dist;
+        const py = dx/dist;
+        const mx = (u.x + v.x)/2 + px*offset;
+        const my = (u.y + v.y)/2 + py*offset;
+        const d = `M ${u.x} ${u.y} Q ${mx} ${my} ${v.x} ${v.y}`;
+        edge.pathEl.setAttribute('d', d);
+
+        // label position: at midpoint of curve using quadratic formula (t=0.5)
+        const t = 0.5;
+        const x = (1-t)*(1-t)*u.x + 2*(1-t)*t*mx + t*t*v.x;
+        const y = (1-t)*(1-t)*u.y + 2*(1-t)*t*my + t*t*v.y;
+        edge.labelEl.setAttribute('x', x);
+        edge.labelEl.setAttribute('y', y-6);
+        edge.labelEl.textContent = String(edge.weight);
+      }
+
+      function redrawAllEdges(){
+        edges.forEach(redrawEdge);
+      }
+
+      // Distances list UI
+      function updateDistancesList(){
+        distList.innerHTML = '';
+        nodes.forEach(n=>{
+          const row = document.createElement('div');
+          row.setAttribute('class','row');
+          const left = document.createElement('div'); left.textContent = n.id;
+          const right = document.createElement('div');
+          const d = (n.dist >= INF/2) ? 'Inf' : String(n.dist);
+          const p = n.pred || '-';
+          right.textContent = d + '  —  ' + p;
+          row.appendChild(left); row.appendChild(right);
+          distList.appendChild(row);
+        });
+      }
+
+      // Node visual state updates
+      function updateNodeStyles(){
+        nodes.forEach(n=>{
+          if(n.id === source){
+            n.svgGroup.querySelector('circle').setAttribute('stroke','#7bffb2');
+            n.svgGroup.querySelector('circle').setAttribute('stroke-width','3');
+          } else {
+            n.svgGroup.querySelector('circle').setAttribute('stroke','#6fa9ff22');
+            n.svgGroup.querySelector('circle').setAttribute('stroke-width','2');
+          }
+        });
+      }
+
+      // Algorithm: prepare
+      function prepareAlgorithm(){
+        resetAlgorithmState(true);
+        if(!source){ setStatus('Please set a source node first.'); return false; }
+        // init distances
+        nodes.forEach(n => { n.dist = INF; n.pred = null; });
+        const s = nodes.find(n=>n.id===source);
+        if(!s){ setStatus('Source not found.'); return false; }
+        s.dist = 0;
+        // prepare order
+        relaxOrder = edges.map((e,i)=>i); // current order: insertion order
+        iteration = 0;
+        edgeIndex = 0;
+        running = true;
+        negativeCycleDetected = false;
+        updateDistancesList();
+        updateAlgoInfo();
+        setStatus('Prepared algorithm. Ready to step.');
+        return true;
+      }
+
+      // Step a single edge relaxation
+      async function stepOnce(){
+        if(!running && !prepareAlgorithm()) return;
+        if(negativeCycleDetected){ setStatus('Negative cycle already detected. Reset to rerun.'); return; }
+        if(iteration >= Math.max(0, nodes.length - 1)){
+          // after |V|-1 iterations, run negative cycle check (one more pass)
+          await relaxEdgeForNegativeCheck();
+          return;
+        }
+        // process the current edge in the current iteration
+        const eIdx = relaxOrder[edgeIndex];
+        await animateRelaxEdge(eIdx);
+        edgeIndex++;
+        if(edgeIndex >= relaxOrder.length){
+          iteration++;
+          edgeIndex = 0;
+          setStatus(`Completed iteration ${iteration}.`);
+          // If no improvements happened in iteration, you could early stop (optional)
+        } else {
+          setStatus(`Relaxed edge ${edgeIndex}/${relaxOrder.length} in iteration ${iteration}.`);
+        }
+        updateAlgoInfo();
+      }
+
+      // Next iteration: complete the rest of edges of current iteration
+      async function nextIteration(){
+        if(!running && !prepareAlgorithm()) return;
+        if(negativeCycleDetected){ setStatus('Negative cycle already detected. Reset to rerun.'); return; }
+        if(iteration >= Math.max(0, nodes.length - 1)){
+          await relaxEdgeForNegativeCheck();
+          return;
+        }
+        setStatus('Running complete iteration ' + (iteration+1) + '...');
+        while(edgeIndex < relaxOrder.length){
+          const eIdx = relaxOrder[edgeIndex];
+          await animateRelaxEdge(eIdx);
+          edgeIndex++;
+        }
+        iteration++;
+        edgeIndex = 0;
+        setStatus(`Completed iteration ${iteration}.`);
+        updateAlgoInfo();
+      }
+
+      // Play mode: animate continuously through iterations
+      function togglePlay(){
+        if(playing){
+          playing = false;
+          playBtn.textContent = 'Play';
+          if(playTimer) { clearTimeout(playTimer); playTimer = null; }
+          setStatus('Paused.');
+          return;
+        }
+        if(!running && !prepareAlgorithm()) return;
+        playing = true;
+        playBtn.textContent = 'Pause';
+        setStatus('Auto-playing...');
+        continuePlaying();
+      }
+      function continuePlaying(){
+        if(!playing) return;
+        if(negativeCycleDetected){ playing=false; playBtn.textContent='Play'; setStatus('Detected negative cycle — paused.'); return; }
+        if(iteration >= Math.max(0, nodes.length - 1)){
+          // after |V|-1 iterations, do negative check
+          relaxEdgeForNegativeCheck().then(()=>{ playing=false; playBtn.textContent='Play'; });
+          return;
+        }
+        const eIdx = relaxOrder[edgeIndex];
+        animateRelaxEdge(eIdx).then(()=>{
+          edgeIndex++;
+          if(edgeIndex >= relaxOrder.length){
+            iteration++;
+            edgeIndex = 0;
+          }
+          updateAlgoInfo();
+          playTimer = setTimeout(continuePlaying, speed);
+        });
+      }
+
+      // Perform relaxation animation for edge index
+      function animateRelaxEdge(eIdx){
+        return new Promise((resolve)=>{
+          const edge = edges[eIdx];
+          if(!edge){ resolve(); return; }
+          const pathEl = edge.pathEl;
+          // highlight edge
+          pathEl.classList.add('highlight');
+          // change marker (arrow)
+          pathEl.setAttribute('marker-end','url(#arrow-highlight)');
+          log(`Relaxing ${edge.u} → ${edge.v} (w=${edge.weight})`);
+          updateAlgoInfo();
+
+          setTimeout(()=> {
+            // compute relaxation
+            const uNode = nodes.find(n=>n.id===edge.u);
+            const vNode = nodes.find(n=>n.id===edge.v);
+            let improved = false;
+            if(uNode && vNode && uNode.dist < INF/2){
+              const candidate = uNode.dist + Number(edge.weight);
+              if(candidate < vNode.dist){
+                vNode.dist = candidate;
+                vNode.pred = uNode.id;
+                improved = true;
+                // node pulse
+                vNode.svgGroup.classList.add('pulse');
+                setTimeout(()=> vNode.svgGroup.classList.remove('pulse'), 520);
+                // mark edge as relaxed
+                pathEl.classList.remove('highlight');
+                pathEl.classList.add('relaxed');
+                pathEl.setAttribute('marker-end','url(#arrow)');
+                // update UI
+                updateDistancesList();
+                log(`Improved ${vNode.id}: distance → ${candidate} (via ${uNode.id})`);
+              } else {
+                // no change
+                pathEl.classList.add(''); // nothing
+                log(`No change for ${edge.v}`);
+              }
+            } else {
+              log(`Cannot relax ${edge.u} → ${edge.v} (u unreachable)`);
+            }
+
+            // small pause then remove highlight, keep relaxed class if improved
+            setTimeout(()=>{
+              pathEl.classList.remove('highlight');
+              // keep .relaxed if improved; otherwise reset
+              if(!improved){
+                pathEl.classList.remove('relaxed');
+              }
+              updateAlgoInfo();
+              resolve();
+            }, speed/2);
+          }, Math.min(300, speed/2));
+        });
+      }
+
+      // Negative cycle check: one pass, detect any relaxations. If relaxation found, mark cycle.
+      async function relaxEdgeForNegativeCheck(){
+        setStatus('Checking for negative cycles...');
+        let found = false;
+        let foundEdge = null;
+        for(let i=0;i<relaxOrder.length;i++){
+          const eIdx = relaxOrder[i];
+          const edge = edges[eIdx];
+          const uNode = nodes.find(n=>n.id===edge.u);
+          const vNode = nodes.find(n=>n.id===edge.v);
+          // animate highlight
+          edge.pathEl.classList.add('highlight');
+          edge.pathEl.setAttribute('marker-end','url(#arrow-highlight)');
+          await new Promise(r => setTimeout(r, speed/2));
+          if(uNode && vNode && uNode.dist < INF/2){
+            if(uNode.dist + Number(edge.weight) < vNode.dist){
+              found = true;
+              foundEdge = edge;
+              edge.pathEl.classList.remove('highlight');
+              edge.pathEl.classList.add('bad');
+              log('Negative cycle relaxation detected at edge ' + edge.id);
+              break;
+            }
+          }
+          edge.pathEl.classList.remove('highlight');
+          edge.pathEl.setAttribute('marker-end','url(#arrow)');
+          await new Promise(r => setTimeout(r, speed/4));
+        }
+        if(found){
+          negativeCycleDetected = true;
+          setStatus('Negative cycle detected! Highlighting cycle...');
+          await highlightNegativeCycle(foundEdge);
+        } else {
+          setStatus('No negative cycle detected. Algorithm finished.');
+          running = false;
+        }
+        updateAlgoInfo();
+      }
+
+      // Follow predecessors to find a cycle and highlight it
+      async function highlightNegativeCycle(edge){
+        // attempt to locate a cycle reachable from v by following predecessors
+        const start = edge.v;
+        // To find cycle, follow pred chain and mark visited
+        let cur = start;
+        const visited = {};
+        for(let i=0;i< nodes.length*2;i++){
+          if(!cur) break;
+          if(visited[cur]){
+            // cycle found from visited[cur] to cur
+            const cycleNodes = [];
+            let nodeInCycle = cur;
+            do {
+              cycleNodes.push(nodeInCycle);
+              nodeInCycle = nodes.find(n=>n.id===nodeInCycle).pred;
+            } while(nodeInCycle && nodeInCycle !== cur && cycleNodes.length < nodes.length+2);
+            // highlight edges that connect cycle nodes
+            const cycleEdges = [];
+            for(let j=0;j<cycleNodes.length;j++){
+              const a = cycleNodes[j];
+              const b = nodes.find(n=>n.id===a).pred;
+              if(!b) continue;
+              const e = edges.find(ed => ed.u === b && ed.v === a);
+              if(e) cycleEdges.push(e);
+            }
+            // animate cycle edges pulsing red
+            cycleEdges.forEach(e=> e.pathEl.classList.add('bad'));
+            // pulse effect
+            let times = 6;
+            while(times--){
+              cycleEdges.forEach(e=> e.pathEl.style.opacity = '0.4');
+              await new Promise(r=>setTimeout(r,200));
+              cycleEdges.forEach(e=> e.pathEl.style.opacity = '1');
+              await new Promise(r=>setTimeout(r,200));
+            }
+            setStatus('Negative cycle highlighted. Reset to try again.');
+            return;
+          }
+          visited[cur] = true;
+          const n = nodes.find(no=>no.id===cur);
+          cur = n ? n.pred : null;
+        }
+        // fallback: flash the offending edge
+        const offending = edge.pathEl;
+        for(let i=0;i<6;i++){
+          offending.style.opacity = (i%2? '0.3' : '1');
+          await new Promise(r=>setTimeout(r,180));
+        }
+        setStatus('Negative cycle suspected, but cycle path could not be reconstructed.');
+      }
+
+      // Reset algorithm execution state but keep graph
+      function resetAlgorithmState(keepNodes=false){
+        if(!keepNodes){
+          nodes.forEach(n=>{ n.dist = INF; n.pred = null; });
+        } else {
+          // set distances but keep nodes (prepareAlgorithm does init)
+        }
+        running = false;
+        playing = false;
+        playBtn.textContent = 'Play';
+        if(playTimer){ clearTimeout(playTimer); playTimer = null; }
+        iteration = 0;
+        edgeIndex = 0;
+        relaxOrder = [];
+        negativeCycleDetected = false;
+        // clear edge classes
+        edges.forEach(e=>{
+          e.pathEl.classList.remove('highlight','relaxed','bad');
+          e.pathEl.style.opacity = '1';
+          e.pathEl.setAttribute('marker-end','url(#arrow)');
+        });
+        updateDistancesList();
+        updateAlgoInfo();
+        setStatus('Reset algorithm state.');
+      }
+
+      function updateAlgoInfo(){
+        algoInfo.innerHTML = `Iteration: ${iteration} / ${Math.max(0, nodes.length-1)} <br> Edge index: ${edgeIndex} / ${edges.length}`;
+      }
+
+      // Clear graph completely
+      function clearGraph(){
+        nodes.forEach(n=> svg.removeChild(n.svgGroup));
+        edges.forEach(e=> { if(e.pathEl.parentNode) svg.removeChild(e.pathEl); if(e.labelEl.parentNode) svg.removeChild(e.labelEl); });
+        nodes = []; edges = [];
+        nodeIdCounter = 0; edgeIdCounter = 0;
+        source = null;
+        resetAlgorithmState();
+        updateDistancesList();
+        setStatus('Graph cleared.');
+      }
+
+      // Sample graph with negative cycle optionally
+      function addSampleGraph(){
+        clearGraph();
+        // Add sample nodes in positions
+        const A = addNode(120,80,'A');
+        const B = addNode(300,60,'B');
+        const C = addNode(480,120,'C');
+        const D = addNode(380,260,'D');
+        const E = addNode(160,220,'E');
+
+        // edges
+        addEdge(A.id, B.id, 6);
+        addEdge(A.id, D.id, 7);
+        addEdge(B.id, C.id, 5);
+        addEdge(C.id, B.id, -2);
+        addEdge(B.id, D.id, 8);
+        addEdge(B.id, E.id, -4);
+        addEdge(D.id, E.id, 9);
+        addEdge(E.id, C.id, 7);
+        addEdge(D.id, C.id, -3);
+
+        // set source
+        source = A.id;
+        updateNodeStyles();
+        setStatus('Sample graph loaded. Source = A');
+        updateDistancesList();
+      }
+
+      // Initialize small example
+      addSampleGraph();
+
+      // Keyboard shortcuts (optional)
+      window.addEventListener('keydown', (e)=>{
+        if(e.key === 'n') setMode('addNode');
+        if(e.key === 'e') setMode('addEdge');
+        if(e.key === 's') setMode('setSource');
+        if(e.key === ' ') { e.preventDefault(); togglePlay(); }
+      });
+    })();
+  </script>
+</body>
+</html>

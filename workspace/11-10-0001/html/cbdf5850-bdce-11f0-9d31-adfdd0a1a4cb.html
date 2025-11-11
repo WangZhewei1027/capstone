@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Heap Sort Module</title>
+  <style>
+    /* Safe area margin: 24px on all sides */
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    body {
+      box-sizing: border-box;
+      padding: 24px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #111;
+      background: #f7f8fa;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Layout container */
+    .module {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 24px; /* at least 16px, using 24 for breathing room */
+      align-items: start;
+    }
+
+    /* Responsive stack on narrow screens */
+    @media (max-width: 960px) {
+      .module {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left column: visualization and controls */
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    header.title {
+      display:flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header.title h1 {
+      font-size: 20px;
+      margin: 0;
+    }
+    .meta {
+      font-size: 13px;
+      color: #444;
+    }
+
+    .controls {
+      display:flex;
+      flex-wrap:wrap;
+      gap: 16px; /* minimum spacing between interactive elements */
+      align-items:center;
+    }
+
+    .controls > * {
+      min-width: 0;
+    }
+
+    input[type="text"] {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #d0d7de;
+      min-width: 220px;
+      font-size: 14px;
+    }
+    button, select {
+      background: #0b5fff;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #e6eefc;
+      color: #0b5fff;
+      border: 1px solid #cfe0ff;
+    }
+    button.ghost {
+      background: transparent;
+      color: #0b5fff;
+      border: 1px solid transparent;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .range {
+      display:flex;
+      gap: 8px;
+      align-items:center;
+    }
+    .range input[type="range"] {
+      width: 160px;
+    }
+
+    /* Visual area */
+    .visual {
+      display:flex;
+      gap: 16px;
+      align-items: start;
+      justify-content: space-between;
+      flex-wrap:wrap;
+    }
+
+    .heap-area {
+      flex: 1 1 60%;
+      min-width: 280px;
+      position: relative;
+      border-radius: 10px;
+      padding: 12px;
+      background: linear-gradient(180deg,#ffffff,#fbfdff);
+      border: 1px solid #eef3ff;
+    }
+
+    .array-area {
+      flex: 1 1 35%;
+      min-width: 200px;
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    /* Array bars */
+    .bars {
+      width: 100%;
+      height: 160px;
+      display:flex;
+      align-items:end;
+      gap: 8px;
+      padding: 8px;
+      box-sizing:border-box;
+    }
+    .bar {
+      flex: 1 1 0;
+      background: linear-gradient(180deg,#8fb6ff,#3b82f6);
+      border-radius: 6px 6px 4px 4px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color: white;
+      font-weight: 600;
+      transition: transform 400ms cubic-bezier(.2,.9,.2,1), background 300ms;
+      position: relative;
+      min-width: 20px;
+      cursor: grab;
+      user-select: none;
+    }
+    .bar.dragging {
+      opacity: 0.85;
+      transform: scale(1.05);
+      cursor: grabbing;
+      box-shadow: 0 10px 30px rgba(11,92,255,0.12);
+    }
+    .bar.index {
+      position: absolute;
+      top: -18px;
+      font-size: 12px;
+      color: #1f2937;
+      background: transparent;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    .bar.bad {
+      background: linear-gradient(180deg,#ffa8a8,#ff6b6b);
+    }
+    .bar.highlight {
+      box-shadow: 0 6px 18px rgba(59,130,246,0.18);
+      transform: translateY(-6px);
+    }
+
+    /* Heap tree visualization using SVG overlaid nodes */
+    .tree-svg {
+      width: 100%;
+      height: 320px;
+      position: relative;
+      overflow: visible;
+    }
+
+    .node {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid #cfe0ff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight: 700;
+      color: #0b5fff;
+      box-shadow: 0 4px 10px rgba(11,92,255,0.06);
+      transition: transform 350ms, background 300ms, border-color 300ms;
+      z-index: 2;
+    }
+    .node.small {
+      width: 36px;
+      height: 36px;
+      font-size: 13px;
+    }
+    .node.highlight {
+      background: linear-gradient(180deg,#e6f0ff,#d2e6ff);
+      border-color: #0b5fff;
+      transform: scale(1.08);
+    }
+    .node.sorted {
+      background: linear-gradient(180deg,#e6fffa,#a7f3d0);
+      color: #065f46;
+      border-color: #bbf7d0;
+    }
+
+    /* Info panel on right */
+    .info {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+      font-size: 14px;
+      color: #1f2937;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .info h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .muted {
+      color: #6b7280;
+      font-size: 13px;
+    }
+    .log {
+      font-family: ui-monospace,SFMono-Regular,Monaco,Menlo,monospace;
+      font-size: 13px;
+      background: #fbfdff;
+      border: 1px dashed #eef3ff;
+      padding: 8px;
+      border-radius: 8px;
+      max-height: 220px;
+      overflow:auto;
+    }
+
+    /* Footer small controls */
+    .play-controls {
+      display:flex;
+      gap: 12px;
+      align-items:center;
+    }
+
+    /* Accessibility focus */
+    button:focus, input:focus {
+      outline: 3px solid rgba(11,92,255,0.14);
+      outline-offset: 2px;
+    }
+
+    /* Tiny helper */
+    .small {
+      font-size: 13px;
+      padding: 6px 10px;
+    }
+  </style>
+</head>
+<body>
+  <main class="module" role="main" aria-labelledby="title">
+    <!-- Left column: visual + controls -->
+    <section class="panel" aria-labelledby="title">
+      <header class="title">
+        <div>
+          <h1 id="title">Heap Sort — Build a Max-Heap and Sort</h1>
+          <div class="meta">Interactive step-by-step visualization of Heap Sort (max-heap).</div>
+        </div>
+        <div class="meta" id="statusLabel" aria-live="polite">Idle</div>
+      </header>
+
+      <!-- Learning objective and interaction design -->
+      <div>
+        <strong>Learning objective</strong>
+        <p class="muted" id="objective">
+          Understand how Heap Sort builds a max-heap and repeatedly extracts the maximum to produce a sorted array.
+          You will step through heapify operations, observe swaps in both array and heap tree, and test with custom arrays.
+        </p>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls" aria-label="Controls">
+        <label class="small" for="sizeRange">Size</label>
+        <div class="range" style="min-width:120px;">
+          <input id="sizeRange" type="range" min="4" max="16" value="8" aria-label="Array size" />
+          <div id="sizeVal" class="small muted">8</div>
+        </div>
+
+        <input id="customInput" type="text" aria-label="Custom array input" placeholder="e.g. 6,3,9,1,5" />
+        <button id="loadBtn" class="small secondary" aria-label="Load custom array">Load</button>
+
+        <button id="randomBtn" class="small" aria-label="Generate random array">Randomize</button>
+        <button id="buildBtn" class="small" aria-label="Build max-heap">Build Heap</button>
+        <button id="sortBtn" class="small" aria-label="Start heap sort">Start Sort</button>
+        <button id="resetBtn" class="small ghost" aria-label="Reset">Reset</button>
+      </div>
+
+      <!-- Visuals -->
+      <div class="visual" aria-hidden="false">
+        <div class="heap-area" aria-label="Heap tree visualization">
+          <svg id="links" class="tree-svg" role="img" aria-hidden="true"></svg>
+          <!-- nodes will be absolutely positioned on top of SVG -->
+          <div id="nodesLayer" aria-hidden="true"></div>
+        </div>
+
+        <div class="array-area" aria-label="Array representation and interaction">
+          <div style="width:100%;display:flex;align-items:center;justify-content:space-between;">
+            <div><strong>Array</strong></div>
+            <div class="muted small">Drag bars to reorder</div>
+          </div>
+          <div id="bars" class="bars" role="list" aria-label="Array bars"></div>
+
+          <div style="width:100%;display:flex;gap:8px;align-items:center;justify-content:space-between;">
+            <div class="muted">Step: <span id="stepCounter">0 / 0</span></div>
+            <div style="display:flex;gap:8px;">
+              <button id="prevBtn" class="small secondary" aria-label="Previous step">Prev</button>
+              <button id="nextBtn" class="small" aria-label="Next step">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Play controls -->
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="play-controls">
+          <button id="playPauseBtn" class="small" aria-label="Play">Play</button>
+          <div class="muted small">Speed</div>
+          <input id="speed" type="range" min="100" max="1500" value="800" aria-label="Animation speed (ms)" />
+        </div>
+
+        <div class="muted small">Algorithm: Heap Sort (Max-Heap)</div>
+      </div>
+    </section>
+
+    <!-- Right column: info / explanation / log -->
+    <aside class="info" aria-labelledby="explainTitle">
+      <h2 id="explainTitle">Interaction Design & Layout</h2>
+      <div>
+        <strong>Interaction design</strong>
+        <p class="muted">
+          - Create arrays by randomizing or entering comma-separated values. <br>
+          - Drag bars horizontally to experiment with initial ordering (keyboard accessible focus and buttons). <br>
+          - Press "Build Heap" to run the heapify process (from last parent down). Each heapify emits steps: comparisons and swaps. <br>
+          - Press "Start Sort" to perform the full Heap Sort: swap root with end, mark sorted region, heapify root within reduced heap. <br>
+          - Use Play/Pause and Next/Prev to move through recorded steps. Animations highlight nodes/bars being compared or swapped and update the tree layout via SVG lines.
+        </p>
+      </div>
+
+      <div>
+        <strong>Layout description</strong>
+        <p class="muted">
+          - Safe area: 24px padding around viewport. Controls and visuals keep at least 16px spacing. <br>
+          - Left column holds visuals and controls for focus; right column contains explanations and logs. <br>
+          - On small screens the two columns stack vertically for clarity. Node and bar sizes scale for responsiveness.
+        </p>
+      </div>
+
+      <div>
+        <strong>Step log</strong>
+        <div id="log" class="log" aria-live="polite"></div>
+      </div>
+
+      <div>
+        <strong>How this teaches Heap Sort</strong>
+        <p class="muted">
+          Visual feedback (bar heights and a tree) ties abstract heap operations to array indices. Highlighting compares and animated swaps make the relationship between heap structure and array ordering explicit.
+        </p>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    // Self-contained Heap Sort interactive module (vanilla JS)
+    (function(){
+      // DOM elements
+      const sizeRange = document.getElementById('sizeRange');
+      const sizeVal = document.getElementById('sizeVal');
+      const randomBtn = document.getElementById('randomBtn');
+      const loadBtn = document.getElementById('loadBtn');
+      const customInput = document.getElementById('customInput');
+      const barsEl = document.getElementById('bars');
+      const nodesLayer = document.getElementById('nodesLayer');
+      const linksSvg = document.getElementById('links');
+      const buildBtn = document.getElementById('buildBtn');
+      const sortBtn = document.getElementById('sortBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const playPauseBtn = document.getElementById('playPauseBtn');
+      const speedRange = document.getElementById('speed');
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const logEl = document.getElementById('log');
+      const stepCounter = document.getElementById('stepCounter');
+      const statusLabel = document.getElementById('statusLabel');
+
+      let array = [];
+      let steps = []; // recorded steps for visualization
+      let currentStep = -1;
+      let playing = false;
+      let playTimer = null;
+
+      // Utility: random array
+      function randomArray(n, max=100) {
+        const a = [];
+        for (let i=0;i<n;i++) a.push(Math.floor(Math.random()*max)+1);
+        return a;
+      }
+
+      // Initialize
+      function initInitialArray(n) {
+        array = randomArray(n, 90);
+        recordReset();
+        renderAll();
+      }
+
+      sizeRange.addEventListener('input', ()=> {
+        sizeVal.textContent = sizeRange.value;
+      });
+
+      randomBtn.addEventListener('click', ()=> {
+        const n = Number(sizeRange.value);
+        array = randomArray(n, 90);
+        recordReset();
+        renderAll();
+        log('Randomized array.');
+      });
+
+      loadBtn.addEventListener('click', ()=> {
+        const text = customInput.value.trim();
+        if (!text) return;
+        const parts = text.split(',').map(s=>s.trim()).filter(s=>s.length);
+        const nums = parts.map(p => Number(p));
+        if (nums.some(n => Number.isNaN(n))) {
+          alert('Please enter comma-separated numbers only.');
+          return;
+        }
+        if (nums.length < 2 || nums.length > 40) {
+          // keep reasonable bounds
+          if (!confirm('Array length should be between 2 and 40. Continue?')) return;
+        }
+        array = nums;
+        sizeRange.value = Math.min(Math.max(nums.length, 4), 16);
+        sizeVal.textContent = sizeRange.value;
+        recordReset();
+        renderAll();
+        log('Loaded custom array.');
+      });
+
+      resetBtn.addEventListener('click', ()=> {
+        if (confirm('Reset and clear steps?')) {
+          recordReset();
+          renderAll();
+          log('Reset.');
+        }
+      });
+
+      // Drag to reorder bars (pointer events)
+      let dragState = null;
+      function makeBarsDraggable() {
+        // Clear previous listeners by reassigning innerHTML; but we will attach per element listeners on render
+      }
+
+      // Render bars and attach drag handlers
+      function renderBars() {
+        barsEl.innerHTML = '';
+        const maxVal = Math.max(...array, 1);
+        array.forEach((val, idx) => {
+          const bar = document.createElement('div');
+          bar.className = 'bar';
+          bar.setAttribute('role','listitem');
+          bar.setAttribute('tabindex','0');
+          bar.setAttribute('aria-label',`Index ${idx}, value ${val}`);
+          bar.style.height = `${Math.max(24, (val/maxVal)*120)}px`;
+          bar.dataset.index = idx;
+          bar.innerHTML = `<div class="index">${idx}</div><div>${val}</div>`;
+          // Dragging
+          bar.addEventListener('pointerdown', (e)=>{
+            e.preventDefault();
+            bar.setPointerCapture(e.pointerId);
+            bar.classList.add('dragging');
+            dragState = {el:bar, startX:e.clientX, index: idx};
+          });
+          bar.addEventListener('pointermove', (e)=>{
+            if (!dragState || dragState.el !== bar) return;
+            const dx = e.clientX - dragState.startX;
+            bar.style.transform = `translateX(${dx}px) scale(1.04)`;
+          });
+          bar.addEventListener('pointerup', (e)=>{
+            if (!dragState || dragState.el !== bar) return;
+            bar.releasePointerCapture(e.pointerId);
+            bar.classList.remove('dragging');
+            bar.style.transform = '';
+            // determine drop position by x coordinate relative to barsEl
+            const rect = barsEl.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            // compute target index by dividing bars width evenly
+            const children = Array.from(barsEl.children);
+            const childWidth = rect.width / Math.max(children.length,1);
+            let target = Math.floor(x / childWidth);
+            target = Math.max(0, Math.min(children.length-1, target));
+            const from = Number(bar.dataset.index);
+            if (from !== target) {
+              // perform reorder
+              const val = array.splice(from,1)[0];
+              array.splice(target,0,val);
+              recordReset(); // clear steps since data changed
+              renderAll();
+              log(`Dragged value ${val} from ${from} to ${target}.`);
+            } else {
+              renderBars(); // reset transforms
+            }
+            dragState = null;
+          });
+          bar.addEventListener('keydown', (e)=>{
+            // keyboard reordering: left/right arrows move element
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+              const from = idx;
+              let to = (e.key === 'ArrowLeft') ? Math.max(0, from-1) : Math.min(array.length-1, from+1);
+              if (to !== from) {
+                const val = array.splice(from,1)[0];
+                array.splice(to,0,val);
+                recordReset();
+                renderAll();
+                log(`Moved value ${val} from ${from} to ${to} (keyboard).`);
+                // focus moved element
+                const newBar = barsEl.children[to];
+                if (newBar) newBar.focus();
+              }
+            }
+          });
+
+          barsEl.appendChild(bar);
+        });
+      }
+
+      // Render heap tree nodes and connecting lines (SVG)
+      function renderTree() {
+        nodesLayer.innerHTML = '';
+        linksSvg.innerHTML = '';
+        if (array.length === 0) return;
+        const n = array.length;
+        // Determine positions for a binary tree layout:
+        // For level h (0-based), nodes distributed evenly horizontally.
+        const levels = Math.floor(Math.log2(n)) + 1;
+        const width = linksSvg.clientWidth || linksSvg.getBoundingClientRect().width || 360;
+        const height = linksSvg.clientHeight || 320;
+        const positions = [];
+        for (let i=0;i<n;i++){
+          const level = Math.floor(Math.log2(i+1));
+          const indexInLevel = i - (2**level - 1);
+          const nodesInLevel = 2**level;
+          const x = ((indexInLevel + 0.5) / nodesInLevel) * (width - 20) + 10;
+          const y = (level + 0.5) / levels * (height - 10) + 5;
+          positions.push({x,y});
+        }
+        // Draw lines first
+        for (let i=0;i<n;i++){
+          const left = 2*i+1;
+          const right = 2*i+2;
+          if (left < n) {
+            const p1 = positions[i];
+            const p2 = positions[left];
+            const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+            line.setAttribute('x1', p1.x);
+            line.setAttribute('y1', p1.y);
+            line.setAttribute('x2', p2.x);
+            line.setAttribute('y2', p2.y);
+            line.setAttribute('stroke','#cfe0ff');
+            line.setAttribute('stroke-width','2');
+            linksSvg.appendChild(line);
+          }
+          if (right < n) {
+            const p1 = positions[i];
+            const p2 = positions[right];
+            const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+            line.setAttribute('x1', p1.x);
+            line.setAttribute('y1', p1.y);
+            line.setAttribute('x2', p2.x);
+            line.setAttribute('y2', p2.y);
+            line.setAttribute('stroke','#cfe0ff');
+            line.setAttribute('stroke-width','2');
+            linksSvg.appendChild(line);
+          }
+        }
+        // Create nodes
+        const maxVal = Math.max(...array,1);
+        for (let i=0;i<n;i++){
+          const node = document.createElement('div');
+          node.className = 'node';
+          node.dataset.index = i;
+          node.setAttribute('role','img');
+          node.setAttribute('aria-label',`Heap node index ${i} value ${array[i]}`);
+          node.textContent = array[i];
+          // position absolute
+          const pos = positions[i];
+          node.style.left = `${pos.x - 22}px`;
+          node.style.top = `${pos.y - 22}px`;
+          nodesLayer.appendChild(node);
+        }
+      }
+
+      // Render everything
+      function renderAll() {
+        renderBars();
+        renderTree();
+        updateStepCounter();
+      }
+
+      // Logging
+      function log(s) {
+        const time = new Date().toLocaleTimeString();
+        const entry = document.createElement('div');
+        entry.textContent = `[${time}] ${s}`;
+        logEl.prepend(entry);
+      }
+
+      // Steps recorder management
+      function recordReset() {
+        steps = [];
+        currentStep = -1;
+        playing = false;
+        playPauseBtn.textContent = 'Play';
+        statusLabel.textContent = 'Idle';
+        logEl.innerHTML = '';
+        updateStepCounter();
+      }
+
+      function updateStepCounter() {
+        stepCounter.textContent = `${Math.max(0,currentStep+1)} / ${steps.length}`;
+      }
+
+      // Heap sort engine that creates step-by-step actions
+      function buildStepsForHeapSort(input) {
+        // Work on a copy to record snapshots
+        const a = input.slice();
+        const n = a.length;
+        const rec = [];
+
+        function pushStep(kind, info) {
+          // push a step object: kind: 'compare'|'swap'|'heapify'|'markSorted' etc.
+          rec.push({kind, info, snapshot: a.slice()});
+        }
+
+        function swap(i,j) {
+          const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+          pushStep('swap', {i,j});
+        }
+
+        function heapify(len, i) {
+          pushStep('heapifyStart', {i, len});
+          let largest = i;
+          const l = 2*i + 1;
+          const r = 2*i + 2;
+          if (l < len) {
+            pushStep('compare', {a:i, b:l});
+            if (a[l] > a[largest]) largest = l;
+          }
+          if (r < len) {
+            pushStep('compare', {a:largest, b:r});
+            if (a[r] > a[largest]) largest = r;
+          }
+          if (largest !== i) {
+            swap(i, largest);
+            heapify(len, largest);
+          } else {
+            pushStep('heapifyEnd', {i, len});
+          }
+        }
+
+        // Build max heap
+        for (let i = Math.floor(n/2)-1; i >= 0; i--) {
+          heapify(n, i);
+        }
+        pushStep('builtHeap', {});
+
+        // Extract elements from heap one by one
+        for (let end = n-1; end >= 1; end--) {
+          // swap root and end
+          pushStep('aboutToSwapRoot', {root:0, end});
+          swap(0, end);
+          pushStep('markSorted', {index:end});
+          // heapify reduced heap
+          heapify(end, 0);
+        }
+        pushStep('markSorted', {index:0});
+        pushStep('sorted', {});
+        return rec;
+      }
+
+      // Execute a single recorded step (apply visual changes)
+      function applyStep(stepIndex) {
+        if (stepIndex < 0 || stepIndex >= steps.length) return;
+        const st = steps[stepIndex];
+        currentStep = stepIndex;
+        // Update status label and visuals according to step.kind
+        statusLabel.textContent = st.kind;
+        // animate by reading st.snapshot
+        const snap = st.snapshot;
+        array = snap.slice(); // update current array to snapshot for rendering
+        renderAll();
+        // highlight involved nodes/bars
+        clearHighlights();
+        const info = st.info || {};
+        if (st.kind === 'compare') {
+          highlightIndices([info.a, info.b], 'highlight');
+          log(`Compare index ${info.a} (val ${array[info.a]}) and ${info.b} (val ${array[info.b]})`);
+        } else if (st.kind === 'swap') {
+          highlightIndices([info.i, info.j], 'highlight');
+          animateSwap(info.i, info.j);
+          log(`Swap index ${info.i} ⇄ ${info.j}`);
+        } else if (st.kind === 'heapifyStart') {
+          highlightIndices([info.i], 'highlight');
+          log(`Heapify start at index ${info.i}, heap length ${info.len}`);
+        } else if (st.kind === 'heapifyEnd') {
+          highlightIndices([info.i], 'highlight');
+          log(`Heapify end at ${info.i}`);
+        } else if (st.kind === 'aboutToSwapRoot') {
+          highlightIndices([info.root, info.end], 'highlight');
+          log(`About to swap root and end index ${info.end}`);
+        } else if (st.kind === 'markSorted') {
+          markSortedIndex(info.index);
+          log(`Element at index ${info.index} marked sorted.`);
+        } else if (st.kind === 'builtHeap') {
+          log('Max-heap built.');
+        } else if (st.kind === 'sorted') {
+          log('Array sorted.');
+        }
+        updateStepCounter();
+      }
+
+      // Helper: highlight node and bar by indices
+      function clearHighlights() {
+        document.querySelectorAll('.node, .bar').forEach(n=>n.classList.remove('highlight','sorted','bad'));
+      }
+
+      function highlightIndices(indices, cls) {
+        indices.forEach(i=>{
+          const node = nodesLayer.querySelector(`.node[data-index="${i}"]`);
+          const bar = barsEl.querySelector(`.bar[data-index="${i}"]`);
+          if (node) node.classList.add(cls);
+          if (bar) bar.classList.add(cls);
+        });
+      }
+
+      function markSortedIndex(i) {
+        const node = nodesLayer.querySelector(`.node[data-index="${i}"]`);
+        const bar = barsEl.querySelector(`.bar[data-index="${i}"]`);
+        if (node) node.classList.add('sorted');
+        if (bar) bar.classList.add('sorted');
+      }
+
+      // Animate swap visually using CSS transform between two bars
+      function animateSwap(i,j) {
+        // Swap positions in DOM after animation
+        const barI = barsEl.querySelector(`.bar[data-index="${i}"]`);
+        const barJ = barsEl.querySelector(`.bar[data-index="${j}"]`);
+        if (!barI || !barJ) return;
+        const rectI = barI.getBoundingClientRect();
+        const rectJ = barJ.getBoundingClientRect();
+        const dx = rectJ.left - rectI.left;
+
+        // Temporarily transform bars visually, then swap DOM and update attributes
+        barI.style.transition = 'transform 320ms';
+        barJ.style.transition = 'transform 320ms';
+        barI.style.transform = `translateX(${dx}px)`;
+        barJ.style.transform = `translateX(${-dx}px)`;
+
+        setTimeout(()=>{
+          // reset transforms
+          barI.style.transition = '';
+          barJ.style.transition = '';
+          barI.style.transform = '';
+          barJ.style.transform = '';
+          // swap indices/data attributes in DOM to match array order
+          const children = Array.from(barsEl.children);
+          // swap positions in DOM: remove and reinsert
+          if (i < j) {
+            barsEl.insertBefore(barJ, barI);
+            const after = barsEl.children;
+            barsEl.insertBefore(barI, after[i+1]);
+          } else {
+            barsEl.insertBefore(barI, barJ);
+            const after = barsEl.children;
+            barsEl.insertBefore(barJ, after[j+1]);
+          }
+          // Update bar dataset indices to match new array ordering
+          barsEl.querySelectorAll('.bar').forEach((b, idx)=>{
+            b.dataset.index = idx;
+            const val = array[idx];
+            b.querySelector('div:last-child').textContent = val;
+            b.querySelector('.index').textContent = idx;
+            b.setAttribute('aria-label', `Index ${idx}, value ${val}`);
+          });
+          // update tree after swap
+          renderTree();
+        }, 340);
+      }
+
+      // Controls: Build Heap button
+      buildBtn.addEventListener('click', ()=> {
+        if (array.length === 0) return;
+        steps = buildStepsForHeapSort(array).filter(s=>s.kind !== 'markSorted' && s.kind !== 'sorted'); // optionally show build steps only if desired
+        // We want to show the heapify operations and swaps up through builtHeap
+        // Trim after 'builtHeap'
+        const builtIndex = steps.findIndex(s=>s.kind === 'builtHeap');
+        if (builtIndex !== -1) {
+          steps = steps.slice(0, builtIndex+1);
+        }
+        currentStep = -1;
+        updateStepCounter();
+        log('Recorded heapify steps for building max-heap.');
+        // set steps to full build sequence so user can step
+        // But also keep original full steps in a separate var? Simpler: regenerate full on sort click.
+      });
+
+      // Start full Heap Sort and record steps
+      sortBtn.addEventListener('click', ()=> {
+        if (array.length === 0) return;
+        steps = buildStepsForHeapSort(array);
+        currentStep = -1;
+        updateStepCounter();
+        log('Recorded full heap sort steps.');
+      });
+
+      // Next, Prev
+      nextBtn.addEventListener('click', ()=> {
+        if (currentStep < steps.length - 1) {
+          applyStep(currentStep + 1);
+        }
+      });
+      prevBtn.addEventListener('click', ()=> {
+        if (currentStep > 0) {
+          applyStep(currentStep - 1);
+        } else if (currentStep === 0) {
+          // go to initial state
+          currentStep = -1;
+          recordReset();
+          renderAll();
+        }
+      });
+
+      // Play/pause
+      playPauseBtn.addEventListener('click', ()=> {
+        if (!playing) {
+          if (currentStep >= steps.length - 1) {
+            // restart
+            currentStep = -1;
+          }
+          playing = true;
+          playPauseBtn.textContent = 'Pause';
+          statusLabel.textContent = 'Playing';
+          scheduleNext();
+        } else {
+          playing = false;
+          playPauseBtn.textContent = 'Play';
+          statusLabel.textContent = 'Paused';
+          if (playTimer) clearTimeout(playTimer);
+        }
+      });
+
+      function scheduleNext() {
+        if (!playing) return;
+        const delay = Number(speedRange.value) || 700;
+        playTimer = setTimeout(()=>{
+          if (currentStep < steps.length - 1) {
+            applyStep(currentStep + 1);
+            scheduleNext();
+          } else {
+            playing = false;
+            playPauseBtn.textContent = 'Play';
+            statusLabel.textContent = 'Finished';
+          }
+        }, delay);
+      }
+
+      // window resize -> re-render tree positions
+      window.addEventListener('resize', throttle(()=> {
+        renderTree();
+      }, 120));
+
+      // throttle helper
+      function throttle(fn, wait) {
+        let t = null;
+        return function(...args) {
+          if (t) return;
+          t = setTimeout(()=> {
+            t = null;
+            fn.apply(this,args);
+          }, wait);
+        };
+      }
+
+      // Initial load
+      initInitialArray(Number(sizeRange.value));
+
+      // Keyboard accessibility: allow pressing Enter on bars to mark/inspect
+      barsEl.addEventListener('keydown', (e)=>{
+        // handled on per-bar keydown
+      });
+
+      // Start with a random array
+      log('Module ready. Change size and randomize or enter a custom array to begin.');
+
+    })();
+  </script>
+</body>
+</html>

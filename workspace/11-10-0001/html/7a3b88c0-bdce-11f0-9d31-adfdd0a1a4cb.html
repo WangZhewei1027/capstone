@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Red-Black Tree — Insertion & Fix-up</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --muted: #94a3b8;
+      --accent: #60a5fa;
+      --white: #e6eef8;
+      --red: #ef4444;
+      --black: #111827;
+      --node-size: 36px;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071028 0%, #071b2a 100%);
+      color:var(--white);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    /* Safe area */
+    .app {
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height: calc(100vh - calc(var(--safe-margin) * 2));
+      display:flex;
+      gap: var(--gap);
+    }
+
+    /* Left column: info & controls */
+    .panel {
+      min-width: 320px;
+      max-width: 420px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 20px;
+      box-sizing: border-box;
+      display:flex;
+      flex-direction:column;
+      gap: 16px;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .title{
+      font-size:20px;
+      font-weight:600;
+      margin:0 0 4px 0;
+      color:var(--white);
+    }
+    .subtitle{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .section{
+      background: rgba(255,255,255,0.01);
+      border-radius:8px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      box-sizing:border-box;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    label{ font-size:13px; color:var(--muted); }
+    .controls{
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    input[type="number"]{
+      width:120px;
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.04);
+      background:transparent;
+      color:var(--white);
+      font-size:15px;
+      outline:none;
+    }
+    .btn{
+      padding:8px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.04);
+      background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color:var(--white);
+      cursor:pointer;
+      font-weight:600;
+      font-size:14px;
+    }
+    .btn:active{ transform:translateY(1px); }
+    .btn.primary{
+      background: linear-gradient(90deg, rgba(96,165,250,0.18), rgba(96,165,250,0.12));
+      border-color: rgba(96,165,250,0.2);
+      color:var(--white);
+    }
+    .btn.ghost{
+      background:transparent;
+      border:1px dashed rgba(255,255,255,0.03);
+      color:var(--muted);
+    }
+
+    .legend{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .legend .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .node-dot{
+      width:14px;
+      height:14px;
+      border-radius:50%;
+      display:inline-block;
+      border:1px solid rgba(255,255,255,0.06);
+    }
+
+    /* Right: visualization panel */
+    .viz {
+      flex:1 1 0%;
+      min-width:240px;
+      border-radius:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+      padding:12px;
+      box-sizing:border-box;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .canvas-wrap{
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+      border-radius:8px;
+      padding:12px;
+      box-sizing:border-box;
+      display:flex;
+      gap:12px;
+      min-height:420px;
+      align-items:stretch;
+      justify-content:stretch;
+      position:relative;
+    }
+    /* SVG occupies full area */
+    svg {
+      width:100%;
+      height:100%;
+      overflow:visible;
+    }
+
+    /* Node style */
+    .node {
+      transition: transform 450ms cubic-bezier(.22,.9,.22,1), opacity 250ms ease;
+      transform-origin:center center;
+      cursor:default;
+    }
+    .node circle{
+      r:18;
+      fill:var(--black);
+      stroke: rgba(255,255,255,0.06);
+      stroke-width:2;
+      transition: fill 300ms ease, stroke 200ms ease;
+    }
+    .node .label{
+      font-size:13px;
+      fill:var(--white);
+      text-anchor:middle;
+      dominant-baseline:central;
+      pointer-events:none;
+    }
+    .node.red circle{ fill: var(--red); color:var(--red); }
+    .node.black circle{ fill: var(--black); color:var(--black); }
+
+    .edge{
+      stroke: rgba(255,255,255,0.08);
+      stroke-width:2;
+      fill:none;
+      transition: stroke 300ms ease, opacity 300ms ease;
+    }
+
+    .highlight{
+      filter: drop-shadow(0 6px 18px rgba(96,165,250,0.08));
+      transform: scale(1.08);
+    }
+
+    .log{
+      background: rgba(255,255,255,0.01);
+      border-radius:8px;
+      padding:10px;
+      font-size:13px;
+      color:var(--muted);
+      max-height:160px;
+      overflow:auto;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    .status{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    /* Accessibility focus */
+    .btn:focus, input:focus { outline: 3px solid rgba(96,165,250,0.12); outline-offset:2px; }
+
+    /* Responsive */
+    @media (max-width: 900px){
+      .app{ flex-direction:column; }
+      .panel{ max-width:100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Red-Black Tree interactive module">
+    <aside class="panel" aria-labelledby="title">
+      <div>
+        <h1 id="title" class="title">Red-Black Tree — Insertion & Fix-up</h1>
+        <p class="subtitle">Concrete step-through of inserting values and restoring red-black properties</p>
+      </div>
+
+      <div class="section" aria-live="polite">
+        <strong style="font-size:14px;">Learning objective</strong>
+        <p style="margin:0;color:var(--muted);font-size:13px;">
+          After interacting with this module you will understand how a red-black tree inserts a node,
+          why newly inserted nodes are red, and how rotations and recoloring restore the tree's invariants.
+        </p>
+      </div>
+
+      <div class="section" aria-label="Interaction design">
+        <strong style="font-size:14px;">Interaction design</strong>
+        <p style="margin:0;color:var(--muted);font-size:13px;">
+          You can type a number and click Add (or press Enter) to insert. Use Step to advance a recorded
+          fix-up operation, or Auto to animate the full sequence. Watch nodes recolor and move during rotations;
+          explanations appear below the canvas.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <label for="keyInput">Insert value (integer)</label>
+          <div class="controls">
+            <input id="keyInput" type="number" aria-label="Value to insert" placeholder="e.g. 10" />
+            <button id="addBtn" class="btn primary" aria-label="Add value">Add</button>
+            <button id="stepBtn" class="btn ghost" aria-label="Step">Step</button>
+            <button id="autoBtn" class="btn ghost" aria-label="Auto play">Auto</button>
+            <button id="resetBtn" class="btn" aria-label="Reset tree">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" aria-label="Legend & rules">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <strong style="font-size:14px;">Legend & core rule</strong>
+          <div class="legend" aria-hidden="true">
+            <span class="badge"><span class="node-dot" style="background:var(--red)"></span> Red</span>
+            <span class="badge"><span class="node-dot" style="background:var(--black)"></span> Black</span>
+          </div>
+        </div>
+        <p style="margin:0;color:var(--muted);font-size:13px;">
+          Key invariants:
+        </p>
+        <ul style="margin:8px 0 0 18px;color:var(--muted);font-size:13px;">
+          <li>Every node is red or black.</li>
+          <li>Root is always black.</li>
+          <li>No red node has a red child.</li>
+          <li>Every path has the same number of black nodes.</li>
+        </ul>
+      </div>
+
+      <div class="section" aria-label="Layout description">
+        <strong style="font-size:14px;">Layout description</strong>
+        <p style="margin:0;color:var(--muted);font-size:13px;">
+          The UI has a left column for controls and explanations and a right column for the SVG tree.
+          Minimum spacing between interactive elements is 16px, safe margins are 24px.
+          The SVG scales to available space; node labels remain readable and controls are keyboard accessible.
+        </p>
+      </div>
+
+    </aside>
+
+    <main class="viz" aria-live="polite">
+      <div class="canvas-wrap" role="region" aria-label="Tree visualization">
+        <svg id="svgCanvas" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet" tabindex="0">
+          <!-- edges and nodes added dynamically -->
+        </svg>
+      </div>
+
+      <div class="status">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div style="font-size:13px;color:var(--muted);">Logs</div>
+        </div>
+        <div style="font-size:13px;color:var(--muted);">Use Step / Auto to advance fix-up steps</div>
+      </div>
+
+      <div class="log" id="log" aria-live="polite" aria-atomic="true"></div>
+    </main>
+  </div>
+
+  <script>
+    /********************************************************************
+     * Red-Black Tree Interactive Module
+     * - Vanilla JS implementation
+     * - Step-by-step action queue with animation feedback
+     ********************************************************************/
+
+    // Utility & DOM
+    const svg = document.getElementById('svgCanvas');
+    const keyInput = document.getElementById('keyInput');
+    const addBtn = document.getElementById('addBtn');
+    const stepBtn = document.getElementById('stepBtn');
+    const autoBtn = document.getElementById('autoBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const logEl = document.getElementById('log');
+
+    // Configuration
+    const nodeRadius = 18;
+    const levelHeight = 90;
+    const minNodeSep = 36; // used to compute horizontal spacing
+    const transitionMs = 450;
+
+    // Tree model
+    let nodeIdCounter = 1;
+    function makeNode(key){
+      return {
+        id: nodeIdCounter++,
+        key: key,
+        color: 'red', // default new node red
+        left: null,
+        right: null,
+        parent: null,
+        x: 0, y: 0, // layout positions
+      };
+    }
+
+    let root = null;
+
+    // Action queue for UI steps
+    let actions = [];
+    let autoPlay = false;
+    let autoTimer = null;
+
+    // Map from node id to SVG group element
+    const nodeElements = new Map();
+    const edgeElements = new Map();
+
+    // Logging utility
+    function log(msg){
+      const line = document.createElement('div');
+      line.textContent = msg;
+      logEl.prepend(line);
+    }
+
+    // Reset UI & data
+    function resetAll(){
+      root = null;
+      actions = [];
+      nodeElements.forEach(el => el.remove());
+      edgeElements.forEach(el => el.remove());
+      nodeElements.clear();
+      edgeElements.clear();
+      nodeIdCounter = 1;
+      logEl.innerHTML = '';
+      log('Tree reset. Insert a value to begin.');
+      stopAuto();
+    }
+
+    // BST insert (returns inserted node)
+    function bstInsert(node){
+      if(!root){
+        root = node;
+        return node;
+      }
+      let cur = root;
+      while(true){
+        if(node.key < cur.key){
+          if(!cur.left){
+            cur.left = node;
+            node.parent = cur;
+            return node;
+          }
+          cur = cur.left;
+        } else if(node.key > cur.key){
+          if(!cur.right){
+            cur.right = node;
+            node.parent = cur;
+            return node;
+          }
+          cur = cur.right;
+        } else {
+          // duplicate - ignore insertion
+          return null;
+        }
+      }
+    }
+
+    // Rotate left at node x
+    function rotateLeft(x){
+      const y = x.right;
+      if(!y) return;
+      x.right = y.left;
+      if(y.left) y.left.parent = x;
+      y.parent = x.parent;
+      if(!x.parent) root = y;
+      else if(x === x.parent.left) x.parent.left = y;
+      else x.parent.right = y;
+      y.left = x;
+      x.parent = y;
+    }
+
+    // Rotate right at node x
+    function rotateRight(x){
+      const y = x.left;
+      if(!y) return;
+      x.left = y.right;
+      if(y.right) y.right.parent = x;
+      y.parent = x.parent;
+      if(!x.parent) root = y;
+      else if(x === x.parent.right) x.parent.right = y;
+      else x.parent.left = y;
+      y.right = x;
+      x.parent = y;
+    }
+
+    // Helper to push action objects
+    // action types: create, highlight, unhighlight, recolor, rotateLeft, rotateRight, setRootBlack, message
+    function pushAction(action){
+      actions.push(action);
+    }
+
+    // Main insertion with fix-up: operations are applied to tree immediately,
+    // and corresponding UI actions are recorded to visualize the steps.
+    function insertAndRecord(key){
+      const node = makeNode(key);
+      const inserted = bstInsert(node);
+      if(!inserted){
+        pushAction({type:'message', text:`Value ${key} already present — ignored.`});
+        return;
+      }
+      // Record create action
+      pushAction({type:'create', nodeId: node.id, text:`Inserted ${key} as red leaf.`});
+
+      // Fix-up
+      let z = node;
+      while(z.parent && z.parent.color === 'red'){
+        const p = z.parent;
+        const g = p.parent;
+        if(!g) break;
+        if(p === g.left){
+          const y = g.right; // uncle
+          if(y && y.color === 'red'){
+            // case 1: recolor parent and uncle black, grandparent red; continue at grandparent
+            p.color = 'black';
+            y.color = 'black';
+            g.color = 'red';
+            pushAction({type:'highlight', nodeId: p.id});
+            pushAction({type:'highlight', nodeId: y.id});
+            pushAction({type:'recolor', nodeId: p.id, color:'black', text:`Parent ${p.key} -> black`});
+            pushAction({type:'recolor', nodeId: y.id, color:'black', text:`Uncle ${y.key} -> black`});
+            pushAction({type:'recolor', nodeId: g.id, color:'red', text:`Grandparent ${g.key} -> red`});
+            pushAction({type:'unhighlight', nodeId: p.id});
+            pushAction({type:'unhighlight', nodeId: y.id});
+            z = g;
+            continue;
+          } else {
+            if(z === p.right){
+              // case 2: left-rotate parent
+              pushAction({type:'highlight', nodeId: p.id});
+              rotateLeft(p);
+              pushAction({type:'rotateLeft', nodeId: p.id, text:`Rotate left at ${p.key}`});
+              pushAction({type:'unhighlight', nodeId: p.id});
+              // after rotation, z becomes p
+              z = p;
+            }
+            // case 3: right-rotate grandparent
+            const p2 = z.parent;
+            const g2 = p2.parent;
+            p2.color = 'black';
+            g2.color = 'red';
+            pushAction({type:'highlight', nodeId: p2.id});
+            pushAction({type:'highlight', nodeId: g2.id});
+            pushAction({type:'recolor', nodeId: p2.id, color:'black', text:`Parent ${p2.key} -> black`});
+            pushAction({type:'recolor', nodeId: g2.id, color:'red', text:`Grandparent ${g2.key} -> red`});
+            rotateRight(g2);
+            pushAction({type:'rotateRight', nodeId: g2.id, text:`Rotate right at ${g2.key}`});
+            pushAction({type:'unhighlight', nodeId: p2.id});
+            pushAction({type:'unhighlight', nodeId: g2.id});
+            break;
+          }
+        } else {
+          // mirror cases: p is right child
+          const y = g.left;
+          if(y && y.color === 'red'){
+            p.color = 'black';
+            y.color = 'black';
+            g.color = 'red';
+            pushAction({type:'highlight', nodeId: p.id});
+            pushAction({type:'highlight', nodeId: y.id});
+            pushAction({type:'recolor', nodeId: p.id, color:'black', text:`Parent ${p.key} -> black`});
+            pushAction({type:'recolor', nodeId: y.id, color:'black', text:`Uncle ${y.key} -> black`});
+            pushAction({type:'recolor', nodeId: g.id, color:'red', text:`Grandparent ${g.key} -> red`});
+            pushAction({type:'unhighlight', nodeId: p.id});
+            pushAction({type:'unhighlight', nodeId: y.id});
+            z = g;
+            continue;
+          } else {
+            if(z === p.left){
+              // case 2 mirror
+              pushAction({type:'highlight', nodeId: p.id});
+              rotateRight(p);
+              pushAction({type:'rotateRight', nodeId: p.id, text:`Rotate right at ${p.key}`});
+              pushAction({type:'unhighlight', nodeId: p.id});
+              z = p;
+            }
+            // case 3 mirror
+            const p2 = z.parent;
+            const g2 = p2.parent;
+            p2.color = 'black';
+            g2.color = 'red';
+            pushAction({type:'highlight', nodeId: p2.id});
+            pushAction({type:'highlight', nodeId: g2.id});
+            pushAction({type:'recolor', nodeId: p2.id, color:'black', text:`Parent ${p2.key} -> black`});
+            pushAction({type:'recolor', nodeId: g2.id, color:'red', text:`Grandparent ${g2.key} -> red`});
+            rotateLeft(g2);
+            pushAction({type:'rotateLeft', nodeId: g2.id, text:`Rotate left at ${g2.key}`});
+            pushAction({type:'unhighlight', nodeId: p2.id});
+            pushAction({type:'unhighlight', nodeId: g2.id});
+            break;
+          }
+        }
+      }
+      // ensure root black
+      if(root.color !== 'black'){
+        root.color = 'black';
+        pushAction({type:'recolor', nodeId: root.id, color:'black', text:`Root ${root.key} -> black`});
+      }
+      pushAction({type:'message', text:`Insertion of ${key} complete.`});
+    }
+
+    // Layout computation: assign x,y to nodes
+    function computeLayout(){
+      const positions = [];
+      let index = 0;
+      function inorder(n, depth){
+        if(!n) return;
+        inorder(n.left, depth+1);
+        positions.push({node:n, idx: index++});
+        inorder(n.right, depth+1);
+      }
+      index = 0;
+      // We need depths to compute y, and in-order index to compute x spacing
+      const depthMap = new Map();
+      function recordDepths(n, d){
+        if(!n) return;
+        depthMap.set(n.id, d);
+        recordDepths(n.left, d+1);
+        recordDepths(n.right, d+1);
+      }
+      recordDepths(root, 0);
+      // Now in-order to set x order
+      const inorderList = [];
+      function inorder2(n){
+        if(!n) return;
+        inorder2(n.left);
+        inorderList.push(n);
+        inorder2(n.right);
+      }
+      inorder2(root);
+      const nCount = Math.max(1, inorderList.length);
+      const width = 1000; // corresponds to SVG viewBox width
+      const margin = 40;
+      const availableW = width - margin*2;
+      const hSpacing = Math.max(minNodeSep + nodeRadius*2, availableW / (nCount + 1));
+      const mappingX = new Map();
+      inorderList.forEach((nd, i) => {
+        mappingX.set(nd.id, margin + (i+1) * hSpacing);
+      });
+      // assign coords
+      function assign(n){
+        if(!n) return;
+        n.x = mappingX.get(n.id) || 50;
+        n.y = (depthMap.get(n.id) || 0) * levelHeight + 60;
+        assign(n.left);
+        assign(n.right);
+      }
+      assign(root);
+    }
+
+    // Rendering: create node SVG group if not exists
+    function createNodeElement(node){
+      if(nodeElements.has(node.id)) return;
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.classList.add('node');
+      g.setAttribute('data-id', node.id);
+      g.setAttribute('tabindex','0');
+      g.setAttribute('role','img');
+      g.setAttribute('aria-label', `node ${node.key} ${node.color}`);
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('r', nodeRadius);
+      const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+      text.classList.add('label');
+      text.textContent = node.key;
+      g.appendChild(circle);
+      g.appendChild(text);
+      // initial placement off-screen for effect
+      g.style.transform = `translate(${node.x}px, ${-40}px)`;
+      if(node.color === 'red') g.classList.add('red');
+      else g.classList.add('black');
+      svg.appendChild(g);
+      nodeElements.set(node.id, g);
+
+      // simple click to highlight explanation
+      g.addEventListener('click', () => {
+        const id = node.id;
+        pushAction({type:'highlight', nodeId:id});
+        pushAction({type:'unhighlight', nodeId:id});
+        processNextAction();
+      });
+    }
+
+    // Create edge element for parent-child
+    function createEdgeElement(parent, child){
+      const key = `${parent.id}-${child.id}`;
+      if(edgeElements.has(key)) return;
+      const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+      line.classList.add('edge');
+      line.setAttribute('data-from', parent.id);
+      line.setAttribute('data-to', child.id);
+      svg.insertBefore(line, svg.firstChild); // edges under nodes
+      edgeElements.set(key, line);
+    }
+
+    // Helper to update all node visuals & edges positions
+    function updateAllVisuals(animate=true){
+      computeLayout();
+      // Create elements for nodes that do not have them yet
+      (function traverse(n){
+        if(!n) return;
+        createNodeElement(n);
+        traverse(n.left);
+        traverse(n.right);
+      })(root);
+
+      // create edges
+      edgeElements.forEach((el) => {
+        // we'll remove later if dangling
+        el.setAttribute('data-kept','false');
+      });
+      (function traverse2(n){
+        if(!n) return;
+        if(n.left){
+          createEdgeElement(n, n.left);
+        }
+        if(n.right){
+          createEdgeElement(n, n.right);
+        }
+        traverse2(n.left);
+        traverse2(n.right);
+      })(root);
+
+      // remove edges that are no longer valid
+      edgeElements.forEach((el, key) => {
+        const from = parseInt(el.getAttribute('data-from'));
+        const to = parseInt(el.getAttribute('data-to'));
+        // verify connection still exists
+        const fromNode = findNodeById(root, from);
+        const toNode = findNodeById(root, to);
+        let valid = false;
+        if(fromNode && fromNode.left && fromNode.left.id === to) valid = true;
+        if(fromNode && fromNode.right && fromNode.right.id === to) valid = true;
+        if(!valid){
+          el.remove();
+          edgeElements.delete(key);
+        }
+      });
+
+      // Position nodes (with CSS transform transitions)
+      nodeElements.forEach((g, id) => {
+        const node = findNodeById(root, id);
+        if(!node){
+          // node removed (shouldn't happen in this demo)
+          g.remove();
+          nodeElements.delete(id);
+          return;
+        }
+        const prev = g.__pos || {x: node.x, y: node.y};
+        const tx = node.x;
+        const ty = node.y;
+        g.__pos = {x: tx, y: ty};
+        // update color class & aria label
+        if(node.color === 'red') { g.classList.remove('black'); g.classList.add('red'); }
+        else { g.classList.remove('red'); g.classList.add('black'); }
+        g.setAttribute('aria-label', `node ${node.key} ${node.color}`);
+
+        if(animate){
+          // apply transform with transition in CSS
+          g.style.transition = `transform ${transitionMs}ms cubic-bezier(.22,.9,.22,1), opacity 200ms ease`;
+          g.style.transform = `translate(${tx}px, ${ty}px)`;
+        } else {
+          g.style.transition = 'none';
+          g.style.transform = `translate(${tx}px, ${ty}px)`;
+        }
+      });
+
+      // Update edges paths to connect node centers.
+      // We'll compute endpoints from node positions.
+      edgeElements.forEach((path) => {
+        const from = parseInt(path.getAttribute('data-from'));
+        const to = parseInt(path.getAttribute('data-to'));
+        const fNode = findNodeById(root, from);
+        const tNode = findNodeById(root, to);
+        if(!fNode || !tNode) return;
+        const x1 = fNode.x;
+        const y1 = fNode.y;
+        const x2 = tNode.x;
+        const y2 = tNode.y;
+        // Simple curved path
+        const dx = (x2 - x1) * 0.5;
+        const d = `M ${x1} ${y1+nodeRadius-2} C ${x1+dx} ${y1+20}, ${x2-dx} ${y2-20}, ${x2} ${y2-nodeRadius+2}`;
+        path.setAttribute('d', d);
+      });
+    }
+
+    // Find node by id
+    function findNodeById(n, id){
+      if(!n) return null;
+      if(n.id === id) return n;
+      return findNodeById(n.left, id) || findNodeById(n.right, id);
+    }
+
+    // Process next action in queue
+    function processNextAction(){
+      if(actions.length === 0){
+        log('No actions queued.');
+        stopAuto();
+        return;
+      }
+      const act = actions.shift();
+      switch(act.type){
+        case 'create': {
+          const node = findNodeById(root, act.nodeId);
+          if(node){
+            updateAllVisuals(false);
+            // Ensure node element created and animate it from top
+            const g = nodeElements.get(node.id);
+            if(g){
+              // start slightly above and fade/slide into place
+              g.style.transition = 'none';
+              g.style.transform = `translate(${node.x}px, ${-40}px)`;
+              g.style.opacity = '0';
+              // Force reflow
+              void g.offsetWidth;
+              // then animate
+              setTimeout(()=>{
+                g.style.transition = `transform ${transitionMs}ms cubic-bezier(.22,.9,.22,1), opacity 250ms ease`;
+                g.style.transform = `translate(${node.x}px, ${node.y}px)`;
+                g.style.opacity = '1';
+              }, 20);
+            }
+          }
+          log(act.text || `Inserted ${act.nodeId}`);
+          break;
+        }
+        case 'highlight': {
+          const g = nodeElements.get(act.nodeId);
+          if(g){
+            g.classList.add('highlight');
+          }
+          break;
+        }
+        case 'unhighlight': {
+          const g = nodeElements.get(act.nodeId);
+          if(g){
+            g.classList.remove('highlight');
+          }
+          break;
+        }
+        case 'recolor': {
+          const node = findNodeById(root, act.nodeId);
+          if(node){
+            node.color = act.color;
+            updateAllVisuals(true);
+            log(act.text || `Node ${node.key} -> ${act.color}`);
+          }
+          break;
+        }
+        case 'rotateLeft': {
+          // At this point, tree structure already updated during generation; just animate movement
+          updateAllVisuals(true);
+          log(act.text || `Rotate left`);
+          break;
+        }
+        case 'rotateRight': {
+          updateAllVisuals(true);
+          log(act.text || `Rotate right`);
+          break;
+        }
+        case 'message': {
+          log(act.text || '');
+          break;
+        }
+        default:
+          console.warn('Unknown action', act);
+      }
+    }
+
+    // Auto-play actions sequentially
+    function startAuto(){
+      if(autoPlay) return;
+      autoPlay = true;
+      autoBtn.classList.add('primary');
+      autoBtn.textContent = 'Auto (on)';
+      autoTimer = setInterval(()=>{
+        if(actions.length === 0){
+          stopAuto();
+          return;
+        }
+        processNextAction();
+      }, Math.max(350, transitionMs + 120));
+    }
+    function stopAuto(){
+      autoPlay = false;
+      if(autoTimer) clearInterval(autoTimer);
+      autoTimer = null;
+      autoBtn.classList.remove('primary');
+      autoBtn.textContent = 'Auto';
+    }
+
+    // Event handlers
+    addBtn.addEventListener('click', () => {
+      const val = parseInt(keyInput.value, 10);
+      if(Number.isNaN(val)){
+        log('Please enter an integer to insert.');
+        return;
+      }
+      insertAndRecord(val);
+      // prepare initial visuals for nodes created (but animation begins with actions when processed)
+      updateAllVisuals(false);
+      // Immediately process first action (the create) so user sees the insertion
+      processNextAction();
+      keyInput.value = '';
+      keyInput.focus();
+    });
+
+    stepBtn.addEventListener('click', () => {
+      if(actions.length === 0){
+        log('No more steps.');
+        return;
+      }
+      processNextAction();
+    });
+
+    autoBtn.addEventListener('click', () => {
+      if(autoPlay) stopAuto();
+      else startAuto();
+    });
+
+    resetBtn.addEventListener('click', () => {
+      resetAll();
+    });
+
+    // Keyboard: Enter triggers add
+    keyInput.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter') { addBtn.click(); e.preventDefault(); }
+    });
+
+    // Initialize
+    resetAll();
+
+    // Pre-seed with a few values for demonstration (optional)
+    (function preloadDemo(){
+      const demo = [10, 5, 15, 1, 7, 12, 18];
+      demo.forEach(v => insertAndRecord(v));
+      // Apply all actions quickly to set initial tree
+      while(actions.length) processNextAction();
+      log('Demo tree loaded. Try inserting new values to see fix-up steps.');
+    })();
+
+  </script>
+</body>
+</html>

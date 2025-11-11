@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Topological Sort — Interactive Module</title>
+  <style>
+    :root{
+      --safe-margin:24px;
+      --gap:16px;
+      --bg:#0f1720;
+      --panel:#0b1220;
+      --accent:#4f46e5;
+      --muted:#93c5fd;
+      --text:#e6eef8;
+      --card:#071025;
+      --danger:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#07142a 0%, #041827 100%);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
+    .app{
+      padding:var(--safe-margin);
+      min-height:100vh;
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+      color:var(--text);
+      user-select:none;
+    }
+
+    /* Left: Interactive Area */
+    .canvas-wrap{
+      flex:1 1 65%;
+      min-width:320px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:16px;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      box-shadow:0 6px 20px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+      min-height:560px;
+    }
+    .title-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:16px;
+    }
+    h1{
+      font-size:18px;margin:0;
+      letter-spacing:0.2px;
+    }
+    .subtitle{font-size:12px;color:var(--muted)}
+    .viewport{
+      flex:1 1 auto;
+      min-height:420px;
+      background:transparent;
+      border-radius:8px;
+      position:relative;
+      overflow:hidden;
+      border:1px dashed rgba(255,255,255,0.04);
+      display:flex;
+    }
+    svg{
+      width:100%;height:100%;
+      touch-action:none;
+    }
+    .toolbar{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      padding-top:4px;
+    }
+    .btn{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color:var(--text);
+      border:1px solid rgba(255,255,255,0.04);
+      padding:8px 12px;
+      border-radius:8px;
+      font-size:13px;
+      cursor:pointer;
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+    }
+    .btn.primary{
+      background:linear-gradient(180deg,var(--accent),#3b33d8);
+      border: none;
+      box-shadow: 0 8px 24px rgba(79,70,229,0.18);
+      font-weight:600;
+    }
+    .btn.ghost{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+    }
+    .btn.toggle.active{
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+      outline:2px solid rgba(99,102,241,0.12);
+    }
+
+    /* Right: Controls & Info */
+    .side{
+      width:360px;
+      min-width:280px;
+      max-width:420px;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.006));
+      border-radius:12px;
+      padding:14px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .info h2{margin:0;font-size:15px}
+    .info p{margin:8px 0 0 0;font-size:13px;color:var(--muted);line-height:1.4}
+    .controls{display:flex;flex-direction:column;gap:12px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .small{font-size:13px;color:var(--muted)}
+
+    /* Output Order Area */
+    .output{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      min-height:46px;
+    }
+    .out-node{
+      width:36px;height:36px;border-radius:8px;
+      display:inline-flex;align-items:center;justify-content:center;
+      background:rgba(255,255,255,0.03);
+      color:var(--text);font-weight:600;
+      border:1px solid rgba(255,255,255,0.02);
+      transform:translateY(0);
+      transition:transform 360ms cubic-bezier(.2,.9,.2,1),opacity 260ms;
+    }
+
+    /* Node & Edge Styling (SVG) */
+    .node { cursor:grab; transition: transform 160ms ease, filter 200ms ease; }
+    .node:active{ cursor:grabbing; }
+    .circle { fill:#06233a; stroke:rgba(255,255,255,0.06); stroke-width:1.8; transition:fill 260ms, stroke 260ms, r 160ms; }
+    .label { fill:var(--text); font-size:12px; pointer-events:none; font-weight:600; text-anchor:middle; dominant-baseline:central; }
+    .degree { fill:var(--muted); font-size:11px; text-anchor:middle; dominant-baseline:central; }
+    .edge { stroke:rgba(255,255,255,0.06); stroke-width:2; marker-end:url(#arrowhead); transition:stroke 200ms,opacity 200ms; }
+    .edge.highlight { stroke: #60a5fa; opacity:1; stroke-width:2.4 }
+    .node.zero { filter: drop-shadow(0 6px 14px rgba(79,70,229,0.12)); }
+    .node.removed .circle { fill:rgba(255,255,255,0.03); opacity:0.5; }
+    .node.highlight .circle { fill: #20304b; stroke: #60a5fa; stroke-width:2.6; }
+    .node.selected .circle { stroke: #94a3b8; stroke-width:2.2; }
+
+    /* Cycle Banner */
+    .banner{
+      display:flex;gap:12px;align-items:center;padding:10px;border-radius:10px;
+      background:linear-gradient(90deg, rgba(239,68,68,0.12), rgba(239,68,68,0.06));
+      color:var(--danger);
+      font-weight:600;
+    }
+
+    /* Footer log */
+    .log{
+      max-height:160px;overflow:auto;padding:10px;border-radius:8px;background:transparent;border:1px dashed rgba(255,255,255,0.02);
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:var(--muted);
+    }
+
+    /* responsive */
+    @media (max-width:960px){
+      .app{flex-direction:column;}
+      .side{width:100%}
+      .canvas-wrap{min-height:420px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Topological Sort interactive module">
+    <!-- Left interactive canvas -->
+    <div class="canvas-wrap" style="min-width:320px;">
+      <div class="title-row">
+        <div>
+          <h1>Topological Sort — Interactive Visualizer</h1>
+          <div class="subtitle">Create a directed acyclic graph (DAG) and step through Kahn's algorithm.</div>
+        </div>
+        <div class="toolbar" role="toolbar" aria-label="Graph controls">
+          <button class="btn" id="helpBtn" title="Show information">Info</button>
+          <button class="btn toggle" id="edgeModeBtn" title="Edge Mode: click source then target to add directed edge" aria-pressed="false">Edge Mode</button>
+          <button class="btn" id="presetBtn" title="Load example graphs">Example</button>
+          <button class="btn ghost" id="clearBtn" title="Clear graph">Clear</button>
+        </div>
+      </div>
+
+      <div class="viewport" id="viewport" aria-label="Graph drawing area">
+        <svg id="svg" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet" tabindex="0" aria-describedby="howto">
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+              <path d="M0,0 L10,4 L0,8 z" fill="#9fbaf0"></path>
+            </marker>
+          </defs>
+          <g id="edges"></g>
+          <g id="nodes"></g>
+        </svg>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <button class="btn primary" id="runBtn" title="Start Kahn's topological sort">Run</button>
+          <button class="btn" id="stepBtn" title="Step forward one removal">Step</button>
+          <button class="btn" id="playBtn" title="Auto play/pause">Play</button>
+          <button class="btn ghost" id="resetBtn" title="Reset algorithm (graph preserved)">Reset</button>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="small">Queue: <span id="queueCount">0</span></div>
+          <div class="small">Remaining: <span id="remainCount">0</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: info and controls -->
+    <div class="side">
+      <div class="card info" id="infoCard" role="region" aria-label="Module details">
+        <h2>Concept Title</h2>
+        <p style="margin-top:6px;"><strong>Topological Sort (Kahn's algorithm)</strong></p>
+
+        <h2 style="margin-top:12px;">Learning Objective</h2>
+        <p>After interacting you will be able to:
+          identify nodes with zero in-degree, observe how removing them updates neighbors' in-degrees,
+          and understand how an ordering is produced or why a cycle prevents a topo order.</p>
+
+        <h2 style="margin-top:12px;">Interaction Design</h2>
+        <p>
+          - Add nodes: click empty space in the drawing area (nodes labeled A, B, C...).<br>
+          - Move nodes: drag nodes to reorganize layout.<br>
+          - Add edges: enable <em>Edge Mode</em>, then click a source and a target node (directed).<br>
+          - Run algorithm: press <em>Run</em> to initialize Kahn's algorithm; use <em>Step</em> to advance one removal.
+          <em>Play</em> animates steps. Visual feedback highlights zero in-degree nodes (queue),
+          removed nodes, and updated in-degree counters. If the queue empties while nodes remain, a cycle banner appears.
+        </p>
+
+        <h2 style="margin-top:12px;">Layout Description</h2>
+        <p>
+          The page uses a two-column layout: the left side is the interactive canvas (graph drawing and controls),
+          and the right side contains descriptive information, algorithm controls, and the output order.
+          A safe area margin of 24px is applied and spacing between interactive elements is at least 16px to maintain clarity.
+          Controls have clear labels and keyboard focusability for accessibility.
+        </p>
+      </div>
+
+      <div class="card controls" role="region" aria-label="Controls">
+        <div class="row">
+          <label class="small" for="speedRange">Animation speed</label>
+          <input id="speedRange" type="range" min="200" max="1800" value="900" style="flex:1" aria-label="Animation speed"/>
+        </div>
+        <div class="row">
+          <button class="btn" id="loadDagBtn">Load DAG (example)</button>
+          <button class="btn" id="loadMultipleBtn">Load Multi-order</button>
+          <button class="btn ghost" id="loadCycleBtn">Load Cycle (shows detection)</button>
+        </div>
+        <div style="margin-top:8px;">
+          <div class="small" style="margin-bottom:6px">Output order (nodes removed, left → right):</div>
+          <div class="output card" id="outputList" aria-live="polite" aria-atomic="true"></div>
+        </div>
+      </div>
+
+      <div class="card" role="region" aria-label="Logs and messages">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div style="width:10px;height:10px;border-radius:50%;background:var(--accent)"></div>
+            <div class="small">Algorithm log</div>
+          </div>
+          <div class="small">Keyboard: Delete (remove selection)</div>
+        </div>
+        <div class="log" id="logArea" tabindex="0" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Topological Sort interactive module (vanilla JS)
+    (function(){
+      // Utilities
+      const svg = document.getElementById('svg');
+      const nodesGroup = document.getElementById('nodes');
+      const edgesGroup = document.getElementById('edges');
+      const viewport = document.getElementById('viewport');
+      const runBtn = document.getElementById('runBtn');
+      const stepBtn = document.getElementById('stepBtn');
+      const playBtn = document.getElementById('playBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const edgeModeBtn = document.getElementById('edgeModeBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const helpBtn = document.getElementById('helpBtn');
+      const presetBtn = document.getElementById('presetBtn');
+      const queueCount = document.getElementById('queueCount');
+      const remainCount = document.getElementById('remainCount');
+      const outputList = document.getElementById('outputList');
+      const logArea = document.getElementById('logArea');
+      const speedRange = document.getElementById('speedRange');
+      const loadDagBtn = document.getElementById('loadDagBtn');
+      const loadMultipleBtn = document.getElementById('loadMultipleBtn');
+      const loadCycleBtn = document.getElementById('loadCycleBtn');
+
+      let state = {
+        nodes: [], // {id,label,x,y}
+        edges: [], // {id,src,tgt}
+        nextId: 0,
+        selectedNode: null,
+        selectedEdge: null,
+        dragging: null,
+        edgeMode: false,
+        edgeSource: null,
+        algorithm: {
+          running: false,
+          inDegree: {},
+          queue: [],
+          output: [],
+          removed: new Set(),
+          timer: null,
+          speed: 900
+        }
+      };
+
+      // constants for layout
+      const NODE_R = 22;
+      const SVG_W = 1200, SVG_H = 700;
+
+      // helper: log
+      function log(msg){
+        const time = new Date().toLocaleTimeString();
+        const el = document.createElement('div');
+        el.textContent = `[${time}] ${msg}`;
+        logArea.prepend(el);
+      }
+
+      // add node
+      function addNodeAt(px,py,label){
+        const id = state.nextId++;
+        const node = { id, label: label || String.fromCharCode(65 + (id % 26)), x:px, y:py };
+        state.nodes.push(node);
+        render();
+        log(`Added node ${node.label}`);
+        return node;
+      }
+
+      // add edge
+      function addEdge(srcId,tgtId){
+        if(srcId === tgtId) {
+          log('Cannot add self-loop (topological sort requires a DAG).');
+        }
+        // prevent duplicates
+        const exists = state.edges.find(e=> e.src===srcId && e.tgt===tgtId);
+        if(exists) return;
+        const id = 'e' + state.edges.length;
+        state.edges.push({id, src: srcId, tgt: tgtId});
+        render();
+        log(`Added edge ${labelOf(srcId)} → ${labelOf(tgtId)}`);
+      }
+
+      function removeNodeById(id){
+        const node = state.nodes.find(n=>n.id===id);
+        if(!node) return;
+        state.edges = state.edges.filter(e=> e.src!==id && e.tgt!==id);
+        state.nodes = state.nodes.filter(n=>n.id!==id);
+        if(state.selectedNode === id) state.selectedNode = null;
+        render();
+        log(`Removed node ${node.label}`);
+      }
+
+      function removeEdgeById(eid){
+        const e = state.edges.find(x=>x.id===eid);
+        if(!e) return;
+        state.edges = state.edges.filter(x=>x.id!==eid);
+        render();
+        log(`Removed edge ${labelOf(e.src)} → ${labelOf(e.tgt)}`);
+      }
+
+      function labelOf(id){
+        const n = state.nodes.find(x=>x.id===id);
+        return n? n.label : '?';
+      }
+
+      // Graph rendering
+      function render(){
+        // clear
+        nodesGroup.innerHTML='';
+        edgesGroup.innerHTML='';
+        // draw edges first
+        state.edges.forEach(e=>{
+          const src = state.nodes.find(n=>n.id===e.src);
+          const tgt = state.nodes.find(n=>n.id===e.tgt);
+          if(!src || !tgt) return;
+          // simple straight line with arrow
+          const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+          line.setAttribute('class','edge');
+          const dx = tgt.x - src.x, dy = tgt.y - src.y;
+          const dist = Math.hypot(dx,dy) || 1;
+          const ox = (dx/dist)*NODE_R, oy = (dy/dist)*NODE_R;
+          const sx = src.x + ox, sy = src.y + oy;
+          const tx = tgt.x - ox, ty = tgt.y - oy;
+          const d = `M ${sx} ${sy} L ${tx} ${ty}`;
+          line.setAttribute('d',d);
+          line.dataset.id = e.id;
+          line.addEventListener('click', (ev)=>{
+            ev.stopPropagation();
+            // select edge
+            clearSelection();
+            state.selectedEdge = e.id;
+            line.classList.add('highlight');
+            log(`Selected edge ${labelOf(e.src)} → ${labelOf(e.tgt)}`);
+          });
+          edgesGroup.appendChild(line);
+        });
+
+        // draw nodes
+        state.nodes.forEach(n=>{
+          const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+          g.setAttribute('class','node');
+          g.setAttribute('transform', `translate(${n.x} ${n.y})`);
+          g.dataset.id = n.id;
+
+          const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          circle.setAttribute('r', NODE_R);
+          circle.setAttribute('class','circle');
+          circle.setAttribute('cx',0);
+          circle.setAttribute('cy',0);
+          g.appendChild(circle);
+
+          const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+          label.setAttribute('class','label');
+          label.textContent = n.label;
+          label.setAttribute('x',0);
+          label.setAttribute('y',-2);
+          g.appendChild(label);
+
+          const degree = document.createElementNS('http://www.w3.org/2000/svg','text');
+          degree.setAttribute('class','degree');
+          degree.setAttribute('x',0);
+          degree.setAttribute('y',18);
+          degree.textContent = inDegreeOf(n.id);
+          g.appendChild(degree);
+
+          // classes
+          if(state.algorithm.removed && state.algorithm.removed.has(n.id)){
+            g.classList.add('removed');
+          }
+          if(state.selectedNode === n.id){
+            g.classList.add('selected');
+          }
+          if(state.edgeMode && state.edgeSource === n.id){
+            g.classList.add('highlight');
+          }
+          // zero-degree highlight when algorithm running
+          if(state.algorithm.running && state.algorithm.queue.indexOf(n.id) !== -1 && !state.algorithm.removed.has(n.id)){
+            g.classList.add('zero');
+          }
+
+          // mouse events
+          g.addEventListener('pointerdown', pointerDownNode);
+          g.addEventListener('click', (ev)=>{
+            ev.stopPropagation();
+            if(state.edgeMode){
+              handleEdgeModeClick(n.id);
+            } else {
+              // select node
+              state.selectedNode = n.id;
+              state.selectedEdge = null;
+              render();
+            }
+          });
+
+          nodesGroup.appendChild(g);
+        });
+
+        // update info counters
+        queueCount.textContent = state.algorithm.queue ? state.algorithm.queue.length : 0;
+        remainCount.textContent = state.nodes.length - (state.algorithm.removed ? state.algorithm.removed.size : 0);
+
+        // update output list rendering
+        outputList.innerHTML = '';
+        state.algorithm.output && state.algorithm.output.forEach(id=>{
+          const nd = document.createElement('div');
+          nd.className = 'out-node';
+          nd.textContent = labelOf(id);
+          outputList.appendChild(nd);
+        });
+      }
+
+      // compute in-degrees
+      function computeInDegrees(){
+        const indeg = {};
+        state.nodes.forEach(n=> indeg[n.id]=0);
+        state.edges.forEach(e=>{
+          if(indeg[e.tgt] !== undefined) indeg[e.tgt]++;
+        });
+        return indeg;
+      }
+
+      function inDegreeOf(id){
+        const indeg = computeInDegrees();
+        return indeg[id] !== undefined ? indeg[id] : 0;
+      }
+
+      // Kahn algorithm control
+      function startKahn(){
+        state.algorithm.inDegree = computeInDegrees();
+        state.algorithm.queue = state.nodes.map(n=>n.id).filter(id=> state.algorithm.inDegree[id]===0);
+        // stable order by label for deterministic behavior
+        state.algorithm.queue.sort((a,b)=> labelOf(a).localeCompare(labelOf(b)));
+        state.algorithm.output = [];
+        state.algorithm.removed = new Set();
+        state.algorithm.running = true;
+        log('Kahn: initialized. Queue: ' + state.algorithm.queue.map(id=>labelOf(id)).join(', '));
+        render();
+      }
+
+      function stepKahn(){
+        if(!state.algorithm.running) {
+          log('Run the algorithm first (click Run).');
+          return;
+        }
+        if(state.algorithm.timer){ // if auto-playing, stepping manually clears timer
+          clearInterval(state.algorithm.timer); state.algorithm.timer = null; playBtn.textContent='Play';
+        }
+        if(state.algorithm.queue.length === 0){
+          // if all nodes removed => finished; else cycle detected
+          if(state.algorithm.removed.size === state.nodes.length){
+            log('Topological order complete: ' + state.algorithm.output.map(id=>labelOf(id)).join(' → '));
+          } else {
+            // cycle
+            log('Cycle detected — queue empty but nodes remain. No topological ordering exists.');
+            showCycleBanner();
+          }
+          state.algorithm.running = false;
+          render();
+          return;
+        }
+        // remove first node from queue
+        const nid = state.algorithm.queue.shift();
+        state.algorithm.removed.add(nid);
+        state.algorithm.output.push(nid);
+        // animate highlight and then update neighbors
+        highlightNodeRemoval(nid).then(()=>{
+          // for each outgoing edge, decrement indegree and add to queue if becomes 0
+          const outEdges = state.edges.filter(e=> e.src === nid && !state.algorithm.removed.has(e.tgt));
+          outEdges.forEach(e=>{
+            const tgt = e.tgt;
+            state.algorithm.inDegree[tgt]--;
+            log(`Decrement in-degree of ${labelOf(tgt)} → ${state.algorithm.inDegree[tgt]}`);
+            if(state.algorithm.inDegree[tgt] === 0){
+              state.algorithm.queue.push(tgt);
+              // keep queue stable by label
+              state.algorithm.queue.sort((a,b)=> labelOf(a).localeCompare(labelOf(b)));
+              log(`Enqueued ${labelOf(tgt)} (in-degree 0)`);
+            }
+          });
+          render();
+        });
+      }
+
+      function highlightNodeRemoval(nid){
+        return new Promise(resolve=>{
+          // add highlight class to node element
+          const g = nodesGroup.querySelector(`g[data-id='${nid}']`);
+          if(g){
+            g.classList.add('highlight');
+            setTimeout(()=>{
+              g.classList.remove('highlight');
+              g.classList.add('removed');
+              // show node in output list (render will place it)
+              render();
+              setTimeout(()=> resolve(), Math.max(200, state.algorithm.speed/3));
+            }, Math.max(300, state.algorithm.speed/2));
+          } else {
+            resolve();
+          }
+        });
+      }
+
+      function showCycleBanner(){
+        const existing = document.querySelector('.banner');
+        if(existing) return;
+        const card = document.createElement('div');
+        card.className = 'banner';
+        card.textContent = 'Cycle detected — remaining nodes cannot be ordered.';
+        // insert banner at top of canvas-wrap
+        const canvasWrap = document.querySelector('.canvas-wrap');
+        canvasWrap.insertBefore(card, canvasWrap.children[0].nextSibling);
+        setTimeout(()=> card.remove(), 6000);
+      }
+
+      // controls
+      runBtn.addEventListener('click', ()=>{
+        startKahn();
+      });
+
+      stepBtn.addEventListener('click', stepKahn);
+
+      playBtn.addEventListener('click', ()=>{
+        if(state.algorithm.timer){
+          clearInterval(state.algorithm.timer);
+          state.algorithm.timer = null;
+          playBtn.textContent = 'Play';
+          log('Auto-play paused.');
+        } else {
+          if(!state.algorithm.running) startKahn();
+          state.algorithm.timer = setInterval(()=> {
+            if(!state.algorithm.running) {
+              clearInterval(state.algorithm.timer);
+              state.algorithm.timer = null;
+              playBtn.textContent = 'Play';
+              return;
+            }
+            stepKahn();
+          }, state.algorithm.speed);
+          playBtn.textContent = 'Pause';
+          log('Auto-play started.');
+        }
+      });
+
+      resetBtn.addEventListener('click', ()=>{
+        // keep graph, reset algorithm state
+        state.algorithm = { running:false, inDegree:{}, queue:[], output:[], removed:new Set(), timer:null, speed:state.algorithm.speed || 900 };
+        outputList.innerHTML='';
+        log('Algorithm reset.');
+        render();
+      });
+
+      // Edge mode toggle
+      edgeModeBtn.addEventListener('click', ()=>{
+        state.edgeMode = !state.edgeMode;
+        state.edgeSource = null;
+        edgeModeBtn.classList.toggle('active', state.edgeMode);
+        edgeModeBtn.setAttribute('aria-pressed', String(state.edgeMode));
+        if(state.edgeMode){
+          log('Edge mode: click a source node then target node to create directed edge.');
+        } else {
+          log('Edge mode disabled.');
+        }
+        render();
+      });
+
+      // Clear graph
+      clearBtn.addEventListener('click', ()=>{
+        state.nodes = [];
+        state.edges = [];
+        state.nextId = 0;
+        state.selectedNode = null;
+        state.selectedEdge = null;
+        state.edgeMode = false;
+        state.edgeSource = null;
+        state.algorithm = { running:false, inDegree:{}, queue:[], output:[], removed:new Set(), timer:null, speed:900 };
+        outputList.innerHTML='';
+        log('Graph cleared.');
+        render();
+      });
+
+      // presets
+      loadDagBtn.addEventListener('click', ()=>{
+        loadExampleDAG();
+      });
+      loadMultipleBtn.addEventListener('click', ()=>{
+        loadExampleMultiple();
+      });
+      loadCycleBtn.addEventListener('click', ()=>{
+        loadExampleCycle();
+      });
+
+      presetBtn.addEventListener('click', ()=>{
+        // simple modal-like prompt using built-in choices
+        const choice = prompt("Choose example: 1) Simple DAG  2) Multi-order  3) Cycle\nEnter 1, 2, or 3", "1");
+        if(choice==='1') loadExampleDAG();
+        else if(choice==='2') loadExampleMultiple();
+        else if(choice==='3') loadExampleCycle();
+      });
+
+      helpBtn.addEventListener('click', ()=>{
+        const help = `Interactions:
+- Click empty space to add nodes.
+- Drag nodes to move them.
+- Toggle "Edge Mode", click a source then a target to add a directed edge.
+- Run -> initializes Kahn's algorithm.
+- Step -> remove one node from the queue.
+- Play -> animate steps.
+- Reset -> stops algorithm and preserves graph.
+- Clear -> remove entire graph.`;
+        alert(help);
+      });
+
+      // example loaders
+      function loadExampleDAG(){
+        clearBtn.click();
+        // simple DAG
+        const A = addNodeAt(180,120,'A');
+        const B = addNodeAt(420,80,'B');
+        const C = addNodeAt(420,200,'C');
+        const D = addNodeAt(660,140,'D');
+        const E = addNodeAt(900,120,'E');
+        setTimeout(()=> {
+          addEdge(A.id,B.id);
+          addEdge(A.id,C.id);
+          addEdge(B.id,D.id);
+          addEdge(C.id,D.id);
+          addEdge(D.id,E.id);
+        },50);
+      }
+      function loadExampleMultiple(){
+        clearBtn.click();
+        const A = addNodeAt(160,120,'A');
+        const B = addNodeAt(320,60,'B');
+        const C = addNodeAt(320,180,'C');
+        const D = addNodeAt(480,120,'D');
+        const E = addNodeAt(640,120,'E');
+        setTimeout(()=>{
+          addEdge(A.id,B.id);
+          addEdge(A.id,C.id);
+          addEdge(B.id,D.id);
+          addEdge(C.id,D.id);
+          addEdge(D.id,E.id);
+        },50);
+      }
+      function loadExampleCycle(){
+        clearBtn.click();
+        const A = addNodeAt(200,150,'A');
+        const B = addNodeAt(400,120,'B');
+        const C = addNodeAt(600,150,'C');
+        const D = addNodeAt(400,260,'D');
+        setTimeout(()=>{
+          addEdge(A.id,B.id);
+          addEdge(B.id,C.id);
+          addEdge(C.id,D.id);
+          addEdge(D.id,B.id); // back edge creates cycle
+        },50);
+      }
+
+      // Pointer events for adding and dragging nodes
+      function getSvgPoint(evt){
+        const CTM = svg.getScreenCTM();
+        const point = svg.createSVGPoint();
+        point.x = evt.clientX;
+        point.y = evt.clientY;
+        const transformed = point.matrixTransform(CTM.inverse());
+        return {x: transformed.x, y: transformed.y};
+      }
+
+      // Add node on background click
+      svg.addEventListener('click', (ev)=>{
+        // only add if click landed on svg background (not on node)
+        const target = ev.target;
+        if(target.closest('g')) return;
+        const p = getSvgPoint(ev);
+        addNodeAt(p.x, p.y);
+      });
+
+      // dragging logic
+      function pointerDownNode(ev){
+        ev.stopPropagation();
+        const g = ev.currentTarget;
+        const id = parseInt(g.dataset.id,10);
+        const p = getSvgPoint(ev);
+        state.dragging = { id, offsetX: p.x - state.nodes.find(n=>n.id===id).x, offsetY: p.y - state.nodes.find(n=>n.id===id).y };
+        svg.setPointerCapture(ev.pointerId);
+        function moveHandler(e){
+          const pos = getSvgPoint(e);
+          const node = state.nodes.find(n=>n.id===state.dragging.id);
+          node.x = pos.x - state.dragging.offsetX;
+          node.y = pos.y - state.dragging.offsetY;
+          render();
+        }
+        function upHandler(e){
+          svg.removeEventListener('pointermove', moveHandler);
+          svg.removeEventListener('pointerup', upHandler);
+          svg.releasePointerCapture(ev.pointerId);
+          state.dragging = null;
+        }
+        svg.addEventListener('pointermove', moveHandler);
+        svg.addEventListener('pointerup', upHandler);
+      }
+
+      // edge mode handling
+      function handleEdgeModeClick(nodeId){
+        if(state.edgeSource == null){
+          state.edgeSource = nodeId;
+          log(`Edge source selected: ${labelOf(nodeId)}. Now click target.`);
+          render();
+        } else {
+          const src = state.edgeSource;
+          const tgt = nodeId;
+          if(src === tgt){
+            log('Cannot add edge to same node.');
+          } else {
+            addEdge(src,tgt);
+          }
+          state.edgeSource = null;
+          render();
+        }
+      }
+
+      // selection delete key
+      window.addEventListener('keydown', (ev)=>{
+        if(ev.key === 'Delete' || ev.key === 'Backspace'){
+          if(state.selectedNode != null){
+            removeNodeById(state.selectedNode);
+          } else if(state.selectedEdge != null){
+            removeEdgeById(state.selectedEdge);
+          }
+        }
+      });
+
+      // clear selections on background click
+      svg.addEventListener('click', (ev)=>{
+        // handled earlier for add node; but also clear selection when clicking on empty area
+        if(ev.target === svg || ev.target === svg.querySelector('g') || ev.target === svg.querySelector('path')){
+          // nothing
+        }
+      });
+      viewport.addEventListener('click', (ev)=>{
+        // clear selection if clicked outside nodes
+        if(ev.target === viewport || ev.target === svg){
+          clearSelection();
+        }
+      });
+
+      function clearSelection(){
+        state.selectedNode = null;
+        state.selectedEdge = null;
+        render();
+      }
+
+      // animation speed
+      speedRange.addEventListener('input', ()=>{
+        state.algorithm.speed = parseInt(speedRange.value,10);
+        log('Animation speed set to '+state.algorithm.speed+'ms.');
+        if(state.algorithm.timer){
+          clearInterval(state.algorithm.timer);
+          state.algorithm.timer = setInterval(()=> stepKahn(), state.algorithm.speed);
+        }
+      });
+
+      // helper: initial render and sample nodes to show
+      (function init(){
+        // start with a small example
+        addNodeAt(300,180,'A');
+        addNodeAt(520,140,'B');
+        addNodeAt(520,260,'C');
+        addNodeAt(740,200,'D');
+        setTimeout(()=> {
+          addEdge(0,1);
+          addEdge(0,2);
+          addEdge(1,3);
+          addEdge(2,3);
+        },120);
+        render();
+        log('Module ready. Click the canvas to add nodes. Toggle Edge Mode to draw edges.');
+      })();
+
+    })();
+  </script>
+</body>
+</html>

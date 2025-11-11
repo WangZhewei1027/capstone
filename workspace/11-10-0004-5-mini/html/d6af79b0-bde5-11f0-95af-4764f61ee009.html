@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive BST Explorer</title>
+  <style>
+    :root{
+      --safe-pad:24px;
+      --gap:16px;
+      --panel-width:320px;
+      --node-radius:22;
+      --node-diameter:44px;
+      --depth-gap:80px;
+      --h-gap:20px;
+      --accent:#2b7cff;
+      --success:#16a34a;
+      --danger:#dc2626;
+      --muted:#666;
+      --bg:#f6f8fb;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      background:linear-gradient(180deg,#ffffff,#f7fbff);
+      color:#0f172a;
+    }
+    .app{
+      padding:var(--safe-pad);
+      box-sizing:border-box;
+      min-height:100vh;
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+    }
+
+    /* Left panel (controls) */
+    .panel{
+      flex:0 0 var(--panel-width);
+      min-width:250px;
+      background:white;
+      border-radius:12px;
+      padding:18px;
+      box-shadow:0 6px 18px rgba(19,38,63,0.06);
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+    .title{
+      margin:0;
+      font-size:18px;
+      font-weight:700;
+      color:#07203b;
+    }
+    .subtitle{
+      margin:0;
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.3;
+    }
+    .controls{
+      display:flex;
+      gap:var(--gap);
+      flex-direction:column;
+    }
+    label{font-size:13px;color:#16324f}
+    .row{
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+    }
+    input[type="number"]{
+      padding:10px 12px;
+      font-size:14px;
+      border:1px solid #d1dbe8;
+      border-radius:8px;
+      width:100%;
+      box-sizing:border-box;
+    }
+    button{
+      background:var(--accent);
+      color:white;
+      border:0;
+      padding:10px 12px;
+      border-radius:8px;
+      font-size:14px;
+      cursor:pointer;
+      transition:transform .12s ease, box-shadow .12s ease;
+    }
+    button.secondary{
+      background:#f0f6ff;
+      color:var(--accent);
+      border:1px solid rgba(43,124,255,0.12);
+    }
+    button.warn{
+      background:var(--danger);
+      color:white;
+    }
+    button:active{transform:translateY(1px)}
+    .controls .actions{
+      display:flex;
+      gap:var(--gap);
+      flex-wrap:wrap;
+    }
+    .status{
+      background:#fbfdff;
+      border:1px solid #eef6ff;
+      padding:12px;
+      border-radius:8px;
+      font-size:13px;
+      color:#15324b;
+      min-height:54px;
+    }
+    .status p{margin:0 0 8px 0;font-size:13px}
+    .status .trail{font-weight:600;color:var(--accent);}
+    .result-list{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:8px;
+    }
+    .chip{
+      background:#eef6ff;
+      color:var(--accent);
+      padding:6px 8px;
+      font-size:13px;
+      border-radius:6px;
+      min-width:28px;
+      text-align:center;
+    }
+
+    /* Canvas area */
+    .canvas-wrap{
+      flex:1 1 auto;
+      min-height:420px;
+      background:linear-gradient(180deg,#ffffff,#fbfdff);
+      border-radius:12px;
+      padding:12px;
+      box-shadow:0 6px 20px rgba(13,30,54,0.04);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      overflow:hidden;
+    }
+    .canvas-toolbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:var(--gap);
+      padding:8px 12px;
+    }
+    .canvas-area{
+      flex:1 1 auto;
+      min-height:360px;
+      background:linear-gradient(90deg,#fbfdff,#f6f9ff);
+      border-radius:10px;
+      position:relative;
+      overflow:auto;
+      padding:24px 12px;
+    }
+
+    /* SVG tree */
+    svg{
+      width:100%;
+      height:100%;
+      overflow:visible;
+    }
+    .edge{
+      stroke:#b6c7de;
+      stroke-width:2;
+      stroke-linecap:round;
+    }
+    .node{
+      transform-origin:center;
+      transition:transform 450ms cubic-bezier(.22,.9,.27,1), opacity 350ms ease;
+      cursor:default;
+    }
+    .node circle{
+      fill:white;
+      stroke:#2b7cff;
+      stroke-width:2.5;
+      transition:stroke 180ms ease, fill 180ms ease;
+    }
+    .node text{
+      fill:#07203b;
+      font-weight:700;
+      font-size:13px;
+      pointer-events:none;
+    }
+    .node .small{
+      font-weight:600;
+      font-size:11px;
+      fill:#12406b;
+    }
+    .node.highlight circle{
+      box-shadow:0 6px 12px rgba(43,124,255,0.12);
+      stroke-width:3.5;
+      stroke:var(--accent);
+      transform:scale(1.08);
+      transition:transform 260ms ease, stroke 260ms ease;
+    }
+    .node.found circle{ fill:var(--success); stroke:var(--success); }
+    .node.notfound circle{ fill:var(--danger); stroke:var(--danger); }
+    .node.found text, .node.notfound text{ fill:white }
+
+    .fade-out{ opacity:0; transform:scale(0.6); }
+
+    /* Accessibility & small screen */
+    @media (max-width:720px){
+      .app{flex-direction:column}
+      .panel{width:100%; order:0}
+      .canvas-wrap{order:1}
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-labelledby="title">
+    <aside class="panel" aria-label="Controls">
+      <div>
+        <h1 class="title" id="title">BST Explorer</h1>
+        <p class="subtitle">Interactive build, search, and delete in a Binary Search Tree. Watch comparisons and structural changes animate.</p>
+      </div>
+
+      <div class="controls" aria-live="polite">
+        <div>
+          <label for="valueInput">Value (integer)</label>
+          <input id="valueInput" type="number" aria-label="value input" placeholder="e.g. 42" />
+        </div>
+
+        <div class="actions" role="group" aria-label="Actions">
+          <button id="insertBtn" title="Insert value">Insert</button>
+          <button id="searchBtn" class="secondary" title="Search for value">Search</button>
+          <button id="deleteBtn" class="secondary" title="Delete value">Delete</button>
+          <button id="inorderBtn" class="secondary" title="Inorder traversal">Inorder</button>
+        </div>
+
+        <div class="row">
+          <label for="randomCount">Random</label>
+          <input id="randomCount" type="number" min="1" max="30" value="7" style="width:80px" />
+          <button id="randomBtn" class="secondary">Build</button>
+          <button id="clearBtn" class="secondary">Clear</button>
+        </div>
+      </div>
+
+      <div class="status" aria-live="polite" id="status">
+        <p id="statusText">Status: Ready</p>
+        <div><strong>Trail:</strong> <span class="trail" id="trail">—</span></div>
+        <div style="margin-top:8px"><strong>Inorder result:</strong></div>
+        <div class="result-list" id="resultList" aria-live="polite"></div>
+      </div>
+    </aside>
+
+    <main class="canvas-wrap" aria-label="Tree visualization">
+      <div class="canvas-toolbar">
+        <div style="font-size:14px;color:#16324f">Visualization</div>
+        <div style="font-size:13px;color:var(--muted)">Tip: use numbers 0–999. Repeated inserts are ignored.</div>
+      </div>
+
+      <div class="canvas-area" id="canvasArea" tabindex="0" aria-label="Binary search tree canvas">
+        <svg id="svgRoot" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BST visualization"></svg>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    (function(){
+      // Configuration
+      const NODE_RADIUS = 22;
+      const DEPTH_GAP = 80;
+      const H_GAP = 32; // minimum horizontal gap
+      const TRANSITION_MS = 450;
+
+      // DOM elements
+      const svg = document.getElementById('svgRoot');
+      const valueInput = document.getElementById('valueInput');
+      const insertBtn = document.getElementById('insertBtn');
+      const searchBtn = document.getElementById('searchBtn');
+      const deleteBtn = document.getElementById('deleteBtn');
+      const randomBtn = document.getElementById('randomBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const randomCount = document.getElementById('randomCount');
+      const statusText = document.getElementById('statusText');
+      const trailEl = document.getElementById('trail');
+      const resultList = document.getElementById('resultList');
+      const inorderBtn = document.getElementById('inorderBtn');
+
+      // Simple BST data structure
+      class Node {
+        constructor(value){
+          this.value = value;
+          this.left = null;
+          this.right = null;
+          this.parent = null;
+          // UI state
+          this.id = Node.nextId++;
+          this.x = 0;
+          this.y = 0;
+        }
+      }
+      Node.nextId = 1;
+
+      class BST {
+        constructor(){
+          this.root = null;
+          this.nodes = new Map(); // id -> node
+        }
+        insert(value){
+          if(this.root === null){
+            const n = new Node(value);
+            this.root = n;
+            this.nodes.set(n.id, n);
+            return {node:n, created:true, path:[n]};
+          }
+          let cur = this.root;
+          let path = [cur];
+          while(true){
+            if(value === cur.value) return {node:cur, created:false, path};
+            if(value < cur.value){
+              if(cur.left){
+                cur = cur.left; path.push(cur);
+              } else {
+                const n = new Node(value);
+                cur.left = n; n.parent = cur; this.nodes.set(n.id,n);
+                path.push(n);
+                return {node:n, created:true, path};
+              }
+            } else {
+              if(cur.right){
+                cur = cur.right; path.push(cur);
+              } else {
+                const n = new Node(value);
+                cur.right = n; n.parent = cur; this.nodes.set(n.id,n);
+                path.push(n);
+                return {node:n, created:true, path};
+              }
+            }
+          }
+        }
+
+        searchPath(value){
+          let cur = this.root;
+          const path = [];
+          while(cur){
+            path.push(cur);
+            if(value === cur.value) break;
+            cur = value < cur.value ? cur.left : cur.right;
+          }
+          return path;
+        }
+
+        find(value){
+          let cur = this.root;
+          while(cur){
+            if(value === cur.value) return cur;
+            cur = value < cur.value ? cur.left : cur.right;
+          }
+          return null;
+        }
+
+        transplant(u,v){
+          // replace subtree rooted at u with v
+          if(!u.parent) this.root = v;
+          else if(u === u.parent.left) u.parent.left = v;
+          else u.parent.right = v;
+          if(v) v.parent = u.parent;
+        }
+
+        minimum(node){
+          let cur = node;
+          while(cur.left) cur = cur.left;
+          return cur;
+        }
+
+        delete(value){
+          const node = this.find(value);
+          if(!node) return {deleted:false, node:null};
+          // Cases animatable: leaf, one child, two children
+          if(!node.left && !node.right){
+            this.transplant(node,null);
+            this.nodes.delete(node.id);
+            return {deleted:true, node, case:'leaf'};
+          } else if(!node.left){
+            this.transplant(node,node.right);
+            this.nodes.delete(node.id);
+            return {deleted:true, node, case:'one-right', child:node.right};
+          } else if(!node.right){
+            this.transplant(node,node.left);
+            this.nodes.delete(node.id);
+            return {deleted:true, node, case:'one-left', child:node.left};
+          } else {
+            const succ = this.minimum(node.right);
+            if(succ.parent !== node){
+              this.transplant(succ, succ.right);
+              succ.right = node.right; if(succ.right) succ.right.parent = succ;
+            }
+            this.transplant(node, succ);
+            succ.left = node.left; if(succ.left) succ.left.parent = succ;
+            // keep succ node id, remove old node
+            this.nodes.delete(node.id);
+            return {deleted:true, node, case:'two-children', successor:succ};
+          }
+        }
+
+        inorderList(){
+          const out = [];
+          (function rec(n){
+            if(!n) return;
+            rec(n.left); out.push(n.value); rec(n.right);
+          })(this.root);
+          return out;
+        }
+
+        // utility to traverse nodes stored
+        allNodes(){
+          return Array.from(this.nodes.values());
+        }
+      }
+
+      // UI rendering & layout
+      const tree = new BST();
+
+      function computeLayout(){
+        // Use inorder numbering to compute x positions to avoid overlap.
+        let index = 0;
+        function dfs(node, depth){
+          if(!node) return;
+          dfs(node.left, depth+1);
+          node.x = (index++ ) * (NODE_RADIUS*2 + H_GAP);
+          node.y = depth * DEPTH_GAP;
+          dfs(node.right, depth+1);
+        }
+        index = 0;
+        dfs(tree.root, 0);
+
+        // If empty, nothing to draw.
+      }
+
+      function render(){
+        // compute layout, set svg viewbox, draw edges and nodes
+        computeLayout();
+        const nodes = tree.allNodes();
+        if(nodes.length === 0){
+          svg.innerHTML = '<text x="20" y="40" fill="#4b5563" font-size="14">The tree is empty. Insert some values to begin.</text>';
+          return;
+        }
+
+        // Determine bounds
+        let minX = Infinity, maxX = -Infinity, maxY = 0;
+        nodes.forEach(n=>{
+          if(n.x < minX) minX = n.x;
+          if(n.x > maxX) maxX = n.x;
+          if(n.y > maxY) maxY = n.y;
+        });
+        minX = Math.min(minX,0);
+        maxX = Math.max(maxX, NODE_RADIUS*2);
+        const width = (maxX - minX) + NODE_RADIUS*4;
+        const height = maxY + NODE_RADIUS*4;
+
+        svg.setAttribute('viewBox', `${minX - NODE_RADIUS*2} -20 ${width} ${height + 40}`);
+
+        // Draw edges and nodes as single pass for consistent order
+        // Build elements and preserve existing ones for transition
+        const existing = {};
+        svg.querySelectorAll('[data-id]').forEach(el=>{
+          existing[el.dataset.id] = el;
+        });
+
+        const frag = document.createDocumentFragment();
+
+        // draw edges first
+        nodes.forEach(n=>{
+          if(n.left){
+            const id = `e-${n.id}-${n.left.id}`;
+            const existingEl = existing[id];
+            const x1 = n.x, y1 = n.y;
+            const x2 = n.left.x, y2 = n.left.y;
+            let line;
+            if(existingEl && existingEl.tagName === 'line'){
+              line = existingEl;
+              line.setAttribute('x1', x1);
+              line.setAttribute('y1', y1);
+              line.setAttribute('x2', x2);
+              line.setAttribute('y2', y2);
+              delete existing[id];
+            } else {
+              line = document.createElementNS('http://www.w3.org/2000/svg','line');
+              line.setAttribute('class','edge');
+              line.setAttribute('data-id',id);
+              line.setAttribute('x1',x1);
+              line.setAttribute('y1',y1);
+              line.setAttribute('x2',x2);
+              line.setAttribute('y2',y2);
+            }
+            frag.appendChild(line);
+          }
+          if(n.right){
+            const id = `e-${n.id}-${n.right.id}`;
+            const existingEl = existing[id];
+            const x1 = n.x, y1 = n.y;
+            const x2 = n.right.x, y2 = n.right.y;
+            let line;
+            if(existingEl && existingEl.tagName === 'line'){
+              line = existingEl;
+              line.setAttribute('x1', x1);
+              line.setAttribute('y1', y1);
+              line.setAttribute('x2', x2);
+              line.setAttribute('y2', y2);
+              delete existing[id];
+            } else {
+              line = document.createElementNS('http://www.w3.org/2000/svg','line');
+              line.setAttribute('class','edge');
+              line.setAttribute('data-id',id);
+              line.setAttribute('x1',x1);
+              line.setAttribute('y1',y1);
+              line.setAttribute('x2',x2);
+              line.setAttribute('y2',y2);
+            }
+            frag.appendChild(line);
+          }
+        });
+
+        // draw nodes
+        nodes.forEach(n=>{
+          const id = `n-${n.id}`;
+          let g;
+          const existingEl = existing[id];
+          if(existingEl && existingEl.tagName === 'g'){
+            g = existingEl;
+            delete existing[id];
+          } else {
+            g = document.createElementNS('http://www.w3.org/2000/svg','g');
+            g.setAttribute('class','node');
+            g.setAttribute('data-id', id);
+            g.setAttribute('role','img');
+            // circle
+            const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+            c.setAttribute('r', NODE_RADIUS);
+            c.setAttribute('cx',0);
+            c.setAttribute('cy',0);
+            g.appendChild(c);
+            // text
+            const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+            t.setAttribute('x',0);
+            t.setAttribute('y',6);
+            t.setAttribute('text-anchor','middle');
+            t.textContent = String(n.value);
+            g.appendChild(t);
+          }
+          // update transform
+          g.style.transform = `translate(${n.x}px, ${n.y}px)`;
+          frag.appendChild(g);
+        });
+
+        // append remaining existing nodes (to remove)
+        Object.keys(existing).forEach(k=>{
+          const el = existing[k];
+          el.classList.add('fade-out');
+          // schedule removal after transition
+          setTimeout(()=>{ if(el.parentNode) el.parentNode.removeChild(el); }, TRANSITION_MS + 80);
+        });
+
+        // clear svg and append fragment
+        // We can't simply replace entire svg contents for smooth transitions, but here we reconstruct.
+        // Remove edges/nodes that are not in frag (already scheduled). Append or replace as needed.
+        // For simplicity, clear and append everything (transitions on transform will still animate if elements are re-used)
+        svg.innerHTML = '';
+        svg.appendChild(frag);
+      }
+
+      // Animation helpers
+      function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+      async function animatePath(path, highlightFound=false){
+        // path: array of nodes visited order (includes target if found)
+        trailEl.textContent = path.map(n=>n.value).join(' → ');
+        for(let i=0;i<path.length;i++){
+          const n = path[i];
+          const nid = `n-${n.id}`;
+          const el = svg.querySelector(`[data-id="${nid}"]`);
+          if(!el) continue;
+          el.classList.add('highlight');
+          statusText.textContent = `Visiting ${n.value}`;
+          await sleep(520);
+          el.classList.remove('highlight');
+        }
+        if(highlightFound){
+          const last = path[path.length-1];
+          if(last && last.value === path[path.length-1].value){
+            const nid = `n-${last.id}`;
+            const el = svg.querySelector(`[data-id="${nid}"]`);
+            if(el){
+              el.classList.add('found');
+              statusText.textContent = `Found ${last.value}`;
+              await sleep(800);
+              el.classList.remove('found');
+            }
+          }
+        }
+      }
+
+      async function animateSearch(value){
+        if(!tree.root){
+          statusText.textContent = 'Tree is empty.';
+          trailEl.textContent = '—';
+          return;
+        }
+        const path = tree.searchPath(value);
+        trailEl.textContent = path.map(n=>n.value).join(' → ');
+        for(let i=0;i<path.length;i++){
+          const n = path[i];
+          const el = svg.querySelector(`[data-id="n-${n.id}"]`);
+          if(!el) continue;
+          el.classList.add('highlight');
+          statusText.textContent = `${value} ${value === n.value ? '==' : (value < n.value ? '<' : '>')} ${n.value} → ${value === n.value ? 'match' : (value < n.value ? 'go left' : 'go right')}`;
+          await sleep(600);
+          el.classList.remove('highlight');
+          if(value === n.value){
+            el.classList.add('found');
+            await sleep(700);
+            el.classList.remove('found');
+            statusText.textContent = `Value ${value} found.`;
+            return;
+          }
+        }
+        // not found
+        const last = path[path.length-1];
+        const lastEl = svg.querySelector(`[data-id="n-${last.id}"]`);
+        if(lastEl){
+          lastEl.classList.add('notfound');
+          statusText.textContent = `Value ${value} not found.`;
+          await sleep(700);
+          lastEl.classList.remove('notfound');
+        }
+      }
+
+      async function animateInsert(value){
+        // Insert operation with animated comparisons and final placement
+        if(!tree.root){
+          const res = tree.insert(value);
+          render();
+          statusText.textContent = `Inserted ${value} as root.`;
+          trailEl.textContent = String(value);
+          return;
+        }
+        let cur = tree.root;
+        const path = [];
+        while(true){
+          path.push(cur);
+          const curEl = svg.querySelector(`[data-id="n-${cur.id}"]`);
+          if(curEl){
+            curEl.classList.add('highlight');
+            statusText.textContent = `Compare ${value} with ${cur.value}`;
+            await sleep(520);
+            curEl.classList.remove('highlight');
+          }
+          if(value === cur.value){
+            statusText.textContent = `${value} already exists — no insert.`;
+            trailEl.textContent = path.map(n=>n.value).join(' → ');
+            return;
+          } else if(value < cur.value){
+            if(cur.left){
+              cur = cur.left;
+            } else {
+              // create node visually near parent and animate to position
+              const res = tree.insert(value);
+              // render will create node at its final transform (but we want to drop it in)
+              render();
+              const newNode = res.node;
+              const newEl = svg.querySelector(`[data-id="n-${newNode.id}"]`);
+              if(newEl){
+                // start it scaled down and translated above
+                newEl.style.transform = `translate(${newNode.x}px, ${newNode.y - 40}px) scale(0.6)`;
+                newEl.style.opacity = '0';
+                await sleep(50);
+                newEl.style.transition = `transform ${TRANSITION_MS}ms cubic-bezier(.22,.9,.27,1), opacity 260ms ease`;
+                newEl.style.opacity = '1';
+                newEl.style.transform = `translate(${newNode.x}px, ${newNode.y}px)`;
+                statusText.textContent = `Inserted ${value} to the left of ${cur.value}.`;
+                trailEl.textContent = path.map(n=>n.value).concat([value]).join(' → ');
+                await sleep(TRANSITION_MS+60);
+              }
+              return;
+            }
+          } else {
+            if(cur.right){
+              cur = cur.right;
+            } else {
+              const res = tree.insert(value);
+              render();
+              const newNode = res.node;
+              const newEl = svg.querySelector(`[data-id="n-${newNode.id}"]`);
+              if(newEl){
+                newEl.style.transform = `translate(${newNode.x}px, ${newNode.y - 40}px) scale(0.6)`;
+                newEl.style.opacity = '0';
+                await sleep(50);
+                newEl.style.transition = `transform ${TRANSITION_MS}ms cubic-bezier(.22,.9,.27,1), opacity 260ms ease`;
+                newEl.style.opacity = '1';
+                newEl.style.transform = `translate(${newNode.x}px, ${newNode.y}px)`;
+                statusText.textContent = `Inserted ${value} to the right of ${cur.value}.`;
+                trailEl.textContent = path.map(n=>n.value).concat([value]).join(' → ');
+                await sleep(TRANSITION_MS+60);
+              }
+              return;
+            }
+          }
+        }
+      }
+
+      async function animateDelete(value){
+        if(!tree.root){
+          statusText.textContent = 'Tree is empty.';
+          return;
+        }
+        const path = tree.searchPath(value);
+        trailEl.textContent = path.map(n=>n.value).join(' → ');
+        // search animation
+        for(let i=0;i<path.length;i++){
+          const n = path[i];
+          const el = svg.querySelector(`[data-id="n-${n.id}"]`);
+          if(!el) continue;
+          el.classList.add('highlight');
+          statusText.textContent = `Compare ${value} with ${n.value}`;
+          await sleep(520);
+          el.classList.remove('highlight');
+          if(value === n.value) break;
+        }
+        const target = tree.find(value);
+        if(!target){
+          statusText.textContent = `${value} not found — nothing to delete.`;
+          return;
+        }
+        // highlight target
+        const tEl = svg.querySelector(`[data-id="n-${target.id}"]`);
+        if(tEl){
+          tEl.classList.add('highlight');
+          statusText.textContent = `Deleting ${value} ...`;
+          await sleep(600);
+          tEl.classList.remove('highlight');
+        }
+
+        // Determine deletion case visually
+        if(!target.left && !target.right){
+          // leaf
+          if(tEl){
+            tEl.classList.add('fade-out');
+            await sleep(180);
+            // perform delete in data then re-render
+            tree.delete(value);
+            render();
+            statusText.textContent = `Deleted leaf ${value}.`;
+            await sleep(300);
+          } else {
+            tree.delete(value);
+            render();
+            statusText.textContent = `Deleted ${value}.`;
+          }
+        } else if(!target.left || !target.right){
+          // one child
+          // animate child moving up
+          const child = target.left || target.right;
+          const cEl = svg.querySelector(`[data-id="n-${child.id}"]`);
+          if(cEl && tEl){
+            // move child to target pos while fading target
+            cEl.style.transition = `transform ${TRANSITION_MS}ms cubic-bezier(.22,.9,.27,1)`;
+            cEl.style.transform = `translate(${target.x}px, ${target.y}px)`;
+            tEl.classList.add('fade-out');
+            await sleep(TRANSITION_MS+50);
+            tree.delete(value);
+            render();
+            statusText.textContent = `Deleted ${value}; child moved up.`;
+            await sleep(200);
+          } else {
+            tree.delete(value);
+            render();
+            statusText.textContent = `Deleted ${value}.`;
+          }
+        } else {
+          // two children: show successor, copy value, then delete successor
+          const succ = tree.minimum(target.right);
+          const succEl = svg.querySelector(`[data-id="n-${succ.id}"]`);
+          const targetEl = svg.querySelector(`[data-id="n-${target.id}"]`);
+          if(succEl && targetEl){
+            // highlight successor
+            succEl.classList.add('highlight');
+            statusText.textContent = `Successor ${succ.value} found; will replace ${target.value}`;
+            await sleep(700);
+            succEl.classList.remove('highlight');
+            // animate "copy" of value: create temporary text that moves
+            const tempText = document.createElementNS('http://www.w3.org/2000/svg','text');
+            tempText.setAttribute('x',0);
+            tempText.setAttribute('y',6);
+            tempText.setAttribute('text-anchor','middle');
+            tempText.setAttribute('fill','#07203b');
+            tempText.setAttribute('font-weight','700');
+            tempText.textContent = String(succ.value);
+            tempText.style.transition = `transform ${TRANSITION_MS}ms cubic-bezier(.22,.9,.27,1), opacity 260ms ease`;
+            // position temp at succ position (absolute in svg)
+            const succPosX = succ.x, succPosY = succ.y;
+            tempText.style.transform = `translate(${succPosX}px, ${succPosY}px)`;
+            tempText.style.opacity = '0.0001';
+            svg.appendChild(tempText);
+            await sleep(20);
+            tempText.style.opacity = '1';
+            // move to target pos
+            tempText.style.transform = `translate(${target.x}px, ${target.y}px)`;
+            await sleep(TRANSITION_MS+30);
+            // update target node's value in data structure
+            const oldValue = target.value;
+            target.value = succ.value;
+            // remove temp
+            svg.removeChild(tempText);
+            // visually update target
+            render();
+            statusText.textContent = `Replaced ${oldValue} with ${target.value}. Now removing successor ${succ.value}.`;
+            await sleep(300);
+            // delete successor node
+            tree.delete(succ.value);
+            render();
+            statusText.textContent = `Deleted ${oldValue}.`;
+            await sleep(300);
+          } else {
+            tree.delete(value);
+            render();
+            statusText.textContent = `Deleted ${value}.`;
+          }
+        }
+      }
+
+      // Wire up controls
+      insertBtn.addEventListener('click', async ()=>{
+        const v = parseInt(valueInput.value,10);
+        if(isNaN(v)){ statusText.textContent = 'Enter a valid integer.'; valueInput.focus(); return; }
+        insertBtn.disabled = true;
+        await animateInsert(v);
+        insertBtn.disabled = false;
+        valueInput.select();
+      });
+
+      searchBtn.addEventListener('click', async ()=>{
+        const v = parseInt(valueInput.value,10);
+        if(isNaN(v)){ statusText.textContent = 'Enter a valid integer.'; valueInput.focus(); return; }
+        searchBtn.disabled = true;
+        await animateSearch(v);
+        searchBtn.disabled = false;
+      });
+
+      deleteBtn.addEventListener('click', async ()=>{
+        const v = parseInt(valueInput.value,10);
+        if(isNaN(v)){ statusText.textContent = 'Enter a valid integer.'; valueInput.focus(); return; }
+        deleteBtn.disabled = true;
+        await animateDelete(v);
+        deleteBtn.disabled = false;
+      });
+
+      inorderBtn.addEventListener('click', async ()=>{
+        if(!tree.root){ statusText.textContent = 'Tree is empty.'; resultList.innerHTML = ''; return; }
+        statusText.textContent = 'Animating inorder traversal...';
+        const list = [];
+        // inorder traversal with animation
+        async function rec(n){
+          if(!n) return;
+          await rec(n.left);
+          const el = svg.querySelector(`[data-id="n-${n.id}"]`);
+          if(el){
+            el.classList.add('highlight');
+            await sleep(460);
+            el.classList.remove('highlight');
+          }
+          list.push(n.value);
+          updateResultList(list);
+          await sleep(100);
+          await rec(n.right);
+        }
+        updateResultList([]);
+        await rec(tree.root);
+        statusText.textContent = 'Inorder traversal complete.';
+      });
+
+      randomBtn.addEventListener('click', ()=>{
+        const count = Math.max(1, Math.min(30, parseInt(randomCount.value,10) || 7));
+        // clear and insert random unique numbers
+        tree.root = null; tree.nodes.clear(); Node.nextId = 1;
+        const vals = new Set();
+        while(vals.size < count){
+          vals.add(Math.floor(Math.random()*100));
+        }
+        Array.from(vals).forEach(v=>tree.insert(v));
+        render();
+        statusText.textContent = `Built random tree (${count} nodes).`;
+        updateResultList([]);
+      });
+
+      clearBtn.addEventListener('click', ()=>{
+        tree.root = null; tree.nodes.clear(); Node.nextId = 1;
+        render();
+        statusText.textContent = 'Cleared tree.';
+        trailEl.textContent = '—';
+        updateResultList([]);
+      });
+
+      function updateResultList(arr){
+        resultList.innerHTML = '';
+        for(const v of arr){
+          const c = document.createElement('div');
+          c.className = 'chip';
+          c.textContent = String(v);
+          resultList.appendChild(c);
+        }
+      }
+
+      // initial render
+      render();
+
+      // keyboard: Enter to insert, Shift+Enter to search
+      valueInput.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter'){
+          if(e.shiftKey) searchBtn.click();
+          else insertBtn.click();
+        }
+      });
+
+      // resize observer for canvas scaling
+      window.addEventListener('resize', ()=>{ render(); });
+
+      // initial hint values
+      valueInput.value = '';
+    })();
+  </script>
+</body>
+</html>

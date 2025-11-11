@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Weighted Graph — Interactive Module</title>
+  <style>
+    /* Safe area margin 24px on all sides */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px;
+      --panel-width: 340px;
+      --bg: #0f1724;
+      --card: #0b1220;
+      --accent: #58a6ff;
+      --accent-2: #7ee787;
+      --muted: #94a3b8;
+      --danger: #ff6b6b;
+    }
+    html,body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg,var(--bg) 0%, #09101a 100%);
+      color: #e6eef8;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    .app {
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height: calc(100vh - calc(var(--safe-margin) * 2));
+      display: flex;
+      gap: var(--gap);
+      align-items: stretch;
+    }
+
+    /* Left panel: info + controls */
+    .panel {
+      width: var(--panel-width);
+      max-width: 40%;
+      min-width: 240px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 18px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    }
+    .title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f8fafc;
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .section {
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .section h3 {
+      margin: 0;
+      font-size: 13px;
+      color: #cfe8ff;
+      font-weight: 600;
+    }
+    .section p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.3;
+    }
+
+    /* Controls */
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    button, select, input[type="number"] {
+      appearance: none;
+      border: none;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color: #e8f3ff;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+    button:hover { transform: translateY(-1px); }
+    .btn-primary {
+      background: linear-gradient(180deg, #1e6fe9, #155bc9);
+      color: white;
+      grid-column: span 2;
+    }
+    .btn-ghost {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+    .muted-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Right: canvas area */
+    .canvas-wrap {
+      flex: 1;
+      min-height: 420px;
+      background: radial-gradient(1200px 600px at 20% 10%, rgba(88,166,255,0.04), transparent 6%), linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border-radius: 12px;
+      padding: 12px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .canvas-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      margin-left: 8px;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    /* Node and Edge styling derived from classes */
+    .node {
+      cursor: pointer;
+    }
+    .node .node-circle {
+      fill: #071a2b;
+      stroke: #2b6fd6;
+      stroke-width: 2;
+      transition: transform 120ms ease, stroke 120ms ease;
+      filter: drop-shadow(0 6px 12px rgba(2,6,23,0.6));
+    }
+    .node.selected .node-circle {
+      stroke: #ffd166;
+      stroke-width: 3.2;
+      transform: scale(1.04);
+    }
+    .node.visiting .node-circle { stroke: #ffb020; }
+    .node.settled .node-circle { stroke: #34d399; }
+    .node.final .node-circle { stroke: #9b5cff; stroke-width: 3.6; }
+    .node-label {
+      fill: #e6f0ff;
+      font-size: 12px;
+      pointer-events: none;
+    }
+    .node-dist {
+      fill: #94a3b8;
+      font-size: 11px;
+      pointer-events: none;
+    }
+    .edge-line {
+      stroke: rgba(255,255,255,0.06);
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: stroke 200ms ease;
+    }
+    .edge-line.consider { stroke: #ffb020; stroke-width: 4.4; }
+    .edge-line.updated { stroke: #34d399; stroke-width: 4.4; }
+    .edge-line.final { stroke: #9b5cff; stroke-width: 4.6; }
+    .edge-weight {
+      fill: #dbeafe;
+      font-size: 12px;
+      pointer-events: none;
+      background: transparent;
+      text-anchor: middle;
+    }
+
+    /* Modal for weight input */
+    .modal {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%);
+      background: linear-gradient(180deg, rgba(12,20,30,0.98), rgba(8,12,18,0.98));
+      padding: 14px;
+      border-radius: 10px;
+      box-shadow: 0 12px 36px rgba(2,6,23,0.75);
+      z-index: 40;
+      min-width: 260px;
+    }
+    .modal h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #e8f4ff;
+    }
+    .modal .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .modal input[type="number"] {
+      width: 100%;
+      padding: 8px;
+      font-size: 13px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255,255,255,0.02);
+      color: #e6f0ff;
+    }
+    .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Responsive: stack panels on narrow screens */
+    @media (max-width: 900px) {
+      .app { flex-direction: column; padding: 18px; }
+      .panel { width: 100%; max-width: none; order: 2; }
+      .canvas-wrap { order: 1; min-height: 360px; }
+    }
+
+    /* tiny helper link style */
+    a.doclink {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    /* keyboard hint */
+    .kbd {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.03);
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Weighted Graph interactive module">
+    <!-- Left panel: Plan / Controls -->
+    <aside class="panel" aria-labelledby="module-title">
+      <div>
+        <div class="title" id="module-title">Weighted Graph — Shortest Path Explorer</div>
+        <div class="subtitle">Interactive module: create nodes and weighted edges, then visualize how weights affect shortest path (Dijkstra)</div>
+      </div>
+
+      <div class="section" aria-labelledby="learning-objective">
+        <h3 id="learning-objective">Learning Objective</h3>
+        <p>After using this module you should understand how edge weights influence shortest-path selection: how exploring nodes, relaxing edges, and updating tentative distances leads to the final shortest path from a chosen source to a target.</p>
+      </div>
+
+      <div class="section" aria-labelledby="interaction-design">
+        <h3 id="interaction-design">Interaction Design</h3>
+        <p>How you interact:</p>
+        <ul style="margin:0 0 0 18px; color:var(--muted); font-size:13px;">
+          <li>Click anywhere on canvas to add a node (auto-labeled).</li>
+          <li>Drag nodes to reposition them — edges update in real-time.</li>
+          <li>Click a node once to select, then click another node to create an undirected edge; set or edit its weight in the popup.</li>
+          <li>Click an edge to edit its weight; select a node and press Delete to remove it and its edges.</li>
+          <li>Choose source and target from controls, then press "Run Dijkstra" to animate the algorithm step-by-step.</li>
+        </ul>
+        <p class="small">Visual feedback: nodes and edges change color during exploration; tentative distances appear next to nodes; final shortest path is highlighted.</p>
+      </div>
+
+      <div class="section" aria-labelledby="layout-description">
+        <h3 id="layout-description">Layout Description & Accessibility</h3>
+        <p>The module uses a two-column layout: left for text and controls, right for the interactive SVG canvas. Safe area margins are 24px; spacing between controls is at least 16px. Elements are keyboard-focusable and labels provided for assistive tech. The canvas is responsive and stacks above controls on narrow screens.</p>
+      </div>
+
+      <div class="section" aria-labelledby="controls-title" style="margin-top:4px;">
+        <h3 id="controls-title">Controls</h3>
+        <div class="controls" role="region" aria-label="controls">
+          <button id="btn-clear" class="btn-ghost" title="Clear graph">Clear Graph</button>
+          <button id="btn-random" class="btn-ghost" title="Generate random graph">Random Graph</button>
+
+          <select id="select-source" aria-label="Source node">
+            <option value="">Source</option>
+          </select>
+          <select id="select-target" aria-label="Target node">
+            <option value="">Target</option>
+          </select>
+
+          <button id="btn-run" class="btn-primary" style="grid-column: span 2;">Run Dijkstra</button>
+
+          <button id="btn-step" class="btn-ghost">Step</button>
+          <button id="btn-stop" class="btn-ghost">Stop</button>
+        </div>
+
+        <p class="muted-note">Tips: Click a node to select it for edge creation. Press Delete to remove selected node. "Step" runs the next algorithm step when animation is paused.</p>
+      </div>
+
+      <div style="margin-top:auto;" class="small">Made with vanilla HTML/CSS/JS — no external libraries. Colors show state: orange = considering, green = updated/settled, purple = final path.</div>
+    </aside>
+
+    <!-- Right: Interactive Canvas -->
+    <main class="canvas-wrap" id="canvas-wrap">
+      <div class="canvas-top" role="toolbar" aria-label="Canvas controls">
+        <div style="display:flex;flex-direction:column;">
+          <div class="hint">Canvas: Click to add node · Drag to move</div>
+          <div class="hint" style="margin-top:6px;font-size:12px;color:var(--muted)">Select a node then click another to make an edge. Click edge to edit weight.</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="kbd">Selected: <span id="selected-info" style="color:#e6f0ff;margin-left:8px">None</span></div>
+        </div>
+      </div>
+
+      <div style="flex:1; min-height:220px; position:relative;">
+        <svg id="svg-canvas" tabindex="0" role="img" aria-label="Graph canvas"></svg>
+        <!-- Modal (hidden until needed) -->
+        <div id="modal" class="modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+          <h4 id="modal-title">Set edge weight</h4>
+          <div class="row">
+            <input id="modal-weight" type="number" step="0.1" min="0" value="1" aria-label="Edge weight" />
+          </div>
+          <div class="actions">
+            <button id="modal-cancel" class="btn-ghost">Cancel</button>
+            <button id="modal-save" class="btn-primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    /******************************************************************
+     * Weighted Graph Interactive Module
+     * - No external libraries
+     * - Implements node creation, drag, edge creation, weight editing
+     * - Runs Dijkstra with step-by-step animation
+     ******************************************************************/
+
+    (function() {
+      // Basic state
+      let nodes = [];     // {id,label,x,y,dist,prev}
+      let edges = [];     // {id,u,v,w}
+      let nodeId = 0;
+      let edgeId = 0;
+
+      // Selected state
+      let selectedNode = null; // id
+      let hoverElement = null;
+      let dragging = null; // {id,offsetX,offsetY}
+
+      // Animation / algorithm state
+      let animSteps = []; // sequence of actions for animation
+      let animIndex = 0;
+      let animTimer = null;
+      let animPaused = true;
+
+      // DOM refs
+      const svg = document.getElementById('svg-canvas');
+      const wrap = document.getElementById('canvas-wrap');
+      const selectedInfo = document.getElementById('selected-info');
+      const btnClear = document.getElementById('btn-clear');
+      const btnRandom = document.getElementById('btn-random');
+      const btnRun = document.getElementById('btn-run');
+      const btnStep = document.getElementById('btn-step');
+      const btnStop = document.getElementById('btn-stop');
+      const selectSource = document.getElementById('select-source');
+      const selectTarget = document.getElementById('select-target');
+      const modal = document.getElementById('modal');
+      const modalWeight = document.getElementById('modal-weight');
+      const modalSave = document.getElementById('modal-save');
+      const modalCancel = document.getElementById('modal-cancel');
+
+      // SVG groups
+      const gEdges = document.createElementNS('http://www.w3.org/2000/svg','g');
+      const gEdgeLabels = document.createElementNS('http://www.w3.org/2000/svg','g');
+      const gNodes = document.createElementNS('http://www.w3.org/2000/svg','g');
+      svg.appendChild(gEdges);
+      svg.appendChild(gEdgeLabels);
+      svg.appendChild(gNodes);
+
+      // Utility functions
+      function createNode(x,y) {
+        const id = 'n' + (++nodeId);
+        const label = String(nodeId);
+        const node = { id, label, x, y, dist: Infinity, prev: null };
+        nodes.push(node);
+        drawNode(node);
+        updateSelectors();
+        return node;
+      }
+
+      function createEdge(uId, vId, weight) {
+        // prevent self-loop or duplicates
+        if (uId === vId) return null;
+        const existing = edges.find(e => (e.u===uId && e.v===vId) || (e.u===vId && e.v===uId));
+        if (existing) return null;
+        const id = 'e' + (++edgeId);
+        const edge = { id, u: uId, v: vId, w: Number(weight) };
+        edges.push(edge);
+        drawEdge(edge);
+        return edge;
+      }
+
+      function removeNode(nodeIdToRemove) {
+        nodes = nodes.filter(n => n.id !== nodeIdToRemove);
+        edges = edges.filter(e => e.u !== nodeIdToRemove && e.v !== nodeIdToRemove);
+        selectedNode = null;
+        redraw();
+        updateSelectors();
+      }
+
+      function setEdgeWeight(edgeIdToEdit, weight) {
+        const e = edges.find(ed => ed.id === edgeIdToEdit);
+        if (e) { e.w = Number(weight); redraw(); }
+      }
+
+      function updateSelectors() {
+        // rebuild source/target selects
+        [selectSource, selectTarget].forEach(sel => {
+          const val = sel.value;
+          while (sel.firstChild) sel.removeChild(sel.firstChild);
+          const op0 = document.createElement('option');
+          op0.value = '';
+          op0.textContent = sel===selectSource ? 'Source' : 'Target';
+          sel.appendChild(op0);
+          nodes.forEach(n=>{
+            const op = document.createElement('option');
+            op.value = n.id;
+            op.textContent = n.label;
+            sel.appendChild(op);
+          });
+          sel.value = nodes.some(nn=>nn.id===val) ? val : '';
+        });
+      }
+
+      // Drawing
+      function drawNode(node) {
+        const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+        nodeGroup.classList.add('node');
+        nodeGroup.setAttribute('data-id', node.id);
+        nodeGroup.setAttribute('transform', `translate(${node.x},${node.y})`);
+        nodeGroup.innerHTML = `
+          <circle class="node-circle" r="18"></circle>
+          <text class="node-label" y="-4" text-anchor="middle">${node.label}</text>
+          <text class="node-dist" y="18" text-anchor="middle">${displayDist(node.dist)}</text>
+        `;
+        // event listeners
+        nodeGroup.addEventListener('pointerdown', onNodePointerDown);
+        nodeGroup.addEventListener('pointerup', onNodePointerUp);
+        nodeGroup.addEventListener('click', onNodeClick);
+        nodeGroup.addEventListener('contextmenu', (e)=>{ e.preventDefault(); removeNode(node.id); });
+        gNodes.appendChild(nodeGroup);
+      }
+
+      function drawEdge(edge) {
+        const u = nodes.find(n => n.id === edge.u);
+        const v = nodes.find(n => n.id === edge.v);
+        if (!u || !v) return;
+
+        // line
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.classList.add('edge-line');
+        line.setAttribute('data-id', edge.id);
+        line.setAttribute('x1', u.x);
+        line.setAttribute('y1', u.y);
+        line.setAttribute('x2', v.x);
+        line.setAttribute('y2', v.y);
+        line.addEventListener('click', onEdgeClick);
+        gEdges.appendChild(line);
+
+        // label
+        const mid = midpoint(u,v);
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.classList.add('edge-weight');
+        label.setAttribute('data-id', edge.id);
+        label.setAttribute('x', mid.x);
+        label.setAttribute('y', mid.y - 6);
+        label.textContent = edge.w;
+        gEdgeLabels.appendChild(label);
+      }
+
+      function redraw() {
+        // clear groups
+        while (gNodes.firstChild) gNodes.removeChild(gNodes.firstChild);
+        while (gEdges.firstChild) gEdges.removeChild(gEdges.firstChild);
+        while (gEdgeLabels.firstChild) gEdgeLabels.removeChild(gEdgeLabels.firstChild);
+        // redraw edges then nodes
+        edges.forEach(drawEdge);
+        nodes.forEach(drawNode);
+        updateSelectedDisplay();
+      }
+
+      function updatePositions() {
+        // update edge positions and node transforms
+        gNodes.querySelectorAll('.node').forEach(g => {
+          const id = g.getAttribute('data-id');
+          const n = nodes.find(x=>x.id===id);
+          if (n) g.setAttribute('transform', `translate(${n.x},${n.y})`);
+          const distElem = g.querySelector('.node-dist');
+          if (distElem) distElem.textContent = displayDist(n.dist);
+        });
+        gEdges.querySelectorAll('.edge-line').forEach(line => {
+          const id = line.getAttribute('data-id');
+          const e = edges.find(x=>x.id===id);
+          if (!e) return;
+          const u = nodes.find(n=>n.id===e.u);
+          const v = nodes.find(n=>n.id===e.v);
+          if (u && v) {
+            line.setAttribute('x1', u.x);
+            line.setAttribute('y1', u.y);
+            line.setAttribute('x2', v.x);
+            line.setAttribute('y2', v.y);
+          }
+        });
+        gEdgeLabels.querySelectorAll('.edge-weight').forEach(label => {
+          const id = label.getAttribute('data-id');
+          const e = edges.find(x=>x.id===id);
+          if (!e) return;
+          const u = nodes.find(n=>n.id===e.u);
+          const v = nodes.find(n=>n.id===e.v);
+          if (u && v) {
+            const mid = midpoint(u,v);
+            label.setAttribute('x', mid.x);
+            label.setAttribute('y', mid.y - 6);
+            label.textContent = e.w;
+          }
+        });
+      }
+
+      function midpoint(a,b) {
+        return { x: (a.x+b.x)/2, y: (a.y+b.y)/2 };
+      }
+
+      function displayDist(d) {
+        if (d === Infinity) return '∞';
+        return (Math.round(d*100)/100).toString();
+      }
+
+      // Event handlers for canvas interactions
+      svg.addEventListener('click', function(evt) {
+        // If click on svg background (not on node or edge)
+        if (evt.target === svg) {
+          const pt = getSvgPoint(evt.clientX, evt.clientY);
+          const rect = svg.getBoundingClientRect();
+          createNode(pt.x, pt.y);
+          updatePositions();
+        }
+      });
+
+      function getSvgPoint(clientX, clientY) {
+        const rect = svg.getBoundingClientRect();
+        // Simple mapping: use client coords relative to svg top-left
+        return { x: clientX - rect.left, y: clientY - rect.top };
+      }
+
+      // Node pointer events for dragging
+      function onNodePointerDown(evt) {
+        evt.stopPropagation();
+        const target = evt.currentTarget;
+        const id = target.getAttribute('data-id');
+        const n = nodes.find(x=>x.id===id);
+        if (!n) return;
+        dragging = { id, startX: evt.clientX, startY: evt.clientY, origX: n.x, origY: n.y };
+        target.setPointerCapture(evt.pointerId);
+      }
+
+      function onNodePointerUp(evt) {
+        if (!dragging) return;
+        const target = evt.currentTarget;
+        try { target.releasePointerCapture(evt.pointerId); } catch(e){}
+        dragging = null;
+      }
+
+      window.addEventListener('pointermove', function(evt) {
+        if (!dragging) return;
+        const n = nodes.find(x=>x.id===dragging.id);
+        if (!n) return;
+        const dx = evt.clientX - dragging.startX;
+        const dy = evt.clientY - dragging.startY;
+        n.x = dragging.origX + dx;
+        n.y = dragging.origY + dy;
+        updatePositions();
+      });
+
+      // Node click: select or create edge
+      function onNodeClick(evt) {
+        evt.stopPropagation();
+        const target = evt.currentTarget;
+        const id = target.getAttribute('data-id');
+        if (!selectedNode) {
+          selectedNode = id;
+          updateSelectedDisplay();
+        } else if (selectedNode === id) {
+          // Deselect
+          selectedNode = null;
+          updateSelectedDisplay();
+        } else {
+          // Create edge between selectedNode and id
+          openWeightModal(1, function(weight){
+            const e = createEdge(selectedNode, id, weight);
+            if (e) {
+              redraw();
+            } else {
+              // maybe show message; omitted for brevity
+            }
+            selectedNode = null;
+            updateSelectedDisplay();
+          });
+        }
+      }
+
+      // Edge click: edit weight
+      function onEdgeClick(evt) {
+        evt.stopPropagation();
+        const line = evt.currentTarget;
+        const id = line.getAttribute('data-id');
+        const e = edges.find(x=>x.id===id);
+        if (!e) return;
+        openWeightModal(e.w, function(w){
+          setEdgeWeight(id, w);
+        });
+      }
+
+      function updateSelectedDisplay() {
+        selectedInfo.textContent = selectedNode ? (nodes.find(n=>n.id===selectedNode)?.label || '—') : 'None';
+        // update node visuals
+        gNodes.querySelectorAll('.node').forEach(g => {
+          const id = g.getAttribute('data-id');
+          g.classList.toggle('selected', id === selectedNode);
+        });
+      }
+
+      // Modal for weight input
+      let modalCallback = null;
+      function openWeightModal(defaultValue, callback) {
+        modal.style.display = 'block';
+        modalWeight.value = defaultValue;
+        modalCallback = callback;
+        modalWeight.focus();
+      }
+      function closeModal() {
+        modal.style.display = 'none';
+        modalCallback = null;
+      }
+      modalCancel.addEventListener('click', function(){ closeModal(); });
+      modalSave.addEventListener('click', function(){
+        const val = parseFloat(modalWeight.value);
+        if (!isFinite(val) || val < 0) {
+          modalWeight.focus();
+          return;
+        }
+        if (modalCallback) modalCallback(val);
+        closeModal();
+      });
+
+      // Keyboard: Delete to remove selected node
+      window.addEventListener('keydown', function(evt) {
+        if (evt.key === 'Delete' || evt.key === 'Backspace') {
+          if (selectedNode) {
+            removeNode(selectedNode);
+            selectedNode = null;
+            updateSelectedDisplay();
+          }
+        }
+      });
+
+      // Clear / Random
+      btnClear.addEventListener('click', function(){
+        nodes = []; edges = []; nodeId = 0; edgeId = 0; selectedNode = null;
+        redraw();
+        updateSelectors();
+      });
+
+      btnRandom.addEventListener('click', function(){
+        nodes = []; edges = []; nodeId = 0; edgeId = 0;
+        // generate 6-9 nodes
+        const count = 6 + Math.floor(Math.random()*4);
+        const rect = svg.getBoundingClientRect();
+        for (let i=0;i<count;i++){
+          const x = 80 + Math.random()*(rect.width-160);
+          const y = 40 + Math.random()*(rect.height-120);
+          createNode(x,y);
+        }
+        // create some random edges
+        const allIds = nodes.map(n=>n.id);
+        for (let i=0;i<allIds.length;i++){
+          const u = allIds[i];
+          // add 1-3 edges per node
+          const deg = 1 + Math.floor(Math.random()*3);
+          for (let j=0;j<deg;j++){
+            const v = allIds[Math.floor(Math.random()*allIds.length)];
+            if (u === v) continue;
+            const w = Math.round((1 + Math.random()*9)*10)/10;
+            createEdge(u,v,w);
+          }
+        }
+        redraw();
+        updateSelectors();
+      });
+
+      // Dijkstra algorithm — produce steps for animation
+      function buildDijkstraSteps(sourceId, targetId) {
+        // Reset distances
+        nodes.forEach(n => { n.dist = Infinity; n.prev = null; });
+        const nodeMap = new Map(nodes.map(n=>[n.id, n]));
+        const adj = new Map();
+        nodes.forEach(n => adj.set(n.id,[]));
+        edges.forEach(e => {
+          adj.get(e.u).push({ to: e.v, w: e.w, id: e.id });
+          adj.get(e.v).push({ to: e.u, w: e.w, id: e.id });
+        });
+        const steps = [];
+        // min-heap simulated with array; we'll use simple array for clarity
+        nodes.forEach(n => { n.dist = Infinity; n.prev = null; });
+        const source = sourceId;
+        nodeMap.get(source).dist = 0;
+        // initial push
+        const pq = [{id: source, dist: 0}];
+
+        const visited = new Set();
+
+        while (pq.length) {
+          // pop smallest
+          pq.sort((a,b)=>a.dist-b.dist);
+          const cur = pq.shift();
+          const u = cur.id;
+          if (visited.has(u)) continue;
+          visited.add(u);
+          // record visiting node
+          steps.push({ type: 'visitNode', nodeId: u });
+          if (u === targetId) {
+            // we can break early after visiting target (Dijkstra guarantee)
+            break;
+          }
+          const neighbors = adj.get(u) || [];
+          for (const nb of neighbors) {
+            // consider edge u->v
+            steps.push({ type: 'considerEdge', edgeId: nb.id, from: u, to: nb.to, w: nb.w });
+            const alt = nodeMap.get(u).dist + nb.w;
+            if (alt < nodeMap.get(nb.to).dist) {
+              nodeMap.get(nb.to).dist = alt;
+              nodeMap.get(nb.to).prev = u;
+              // record update
+              steps.push({ type: 'updateNode', nodeId: nb.to, newDist: alt, via: u, edgeId: nb.id });
+              pq.push({ id: nb.to, dist: alt });
+            }
+          }
+          // settled
+          steps.push({ type: 'settleNode', nodeId: u });
+        }
+
+        // build final path events by following prev pointers from target to source
+        const finalPath = [];
+        let curId = targetId;
+        if (nodeMap.get(curId).prev !== null || curId === sourceId) {
+          while (curId) {
+            finalPath.push(curId);
+            if (curId === sourceId) break;
+            curId = nodeMap.get(curId).prev;
+            if (!curId) break;
+          }
+          // set final path edges
+          for (let i=0;i<finalPath.length-1;i++) {
+            const a = finalPath[i], b = finalPath[i+1];
+            // find edge id between a and b
+            const e = edges.find(ed => (ed.u===a && ed.v===b) || (ed.u===b && ed.v===a));
+            if (e) steps.push({ type: 'finalEdge', edgeId: e.id });
+          }
+          // highlight nodes of final path
+          finalPath.forEach(nid => steps.push({ type: 'finalNode', nodeId: nid }));
+        }
+
+        return steps;
+      }
+
+      // Animation runner
+      function resetNodeEdgeVisuals() {
+        // clear classes
+        gNodes.querySelectorAll('.node').forEach(g => {
+          g.classList.remove('visiting','settled','final');
+        });
+        gEdges.querySelectorAll('.edge-line').forEach(l => {
+          l.classList.remove('consider','updated','final');
+        });
+      }
+
+      function runAnimation(steps) {
+        if (!steps || !steps.length) return;
+        animSteps = steps;
+        animIndex = 0;
+        animPaused = false;
+        resetNodeEdgeVisuals();
+        // also reset distances display to current node state saved in nodes (we will update them as updates occur)
+        nodes.forEach(n => n.dist = Infinity);
+        updatePositions();
+
+        // start timer
+        if (animTimer) clearInterval(animTimer);
+        animTimer = setInterval(()=> {
+          if (animIndex >= animSteps.length) {
+            clearInterval(animTimer);
+            animTimer = null;
+            animPaused = true;
+            return;
+          }
+          stepAnimation();
+        }, 700);
+      }
+
+      function stepAnimation() {
+        if (animIndex >= animSteps.length) return;
+        const s = animSteps[animIndex++];
+        switch (s.type) {
+          case 'visitNode':
+            { // highlight node as visiting
+              const g = gNodes.querySelector(`.node[data-id="${s.nodeId}"]`);
+              if (g) {
+                g.classList.add('visiting');
+              }
+            }
+            break;
+          case 'considerEdge':
+            {
+              const line = gEdges.querySelector(`.edge-line[data-id="${s.edgeId}"]`);
+              if (line) {
+                line.classList.add('consider');
+                // remove after short time
+                setTimeout(()=>{ line.classList.remove('consider'); }, 500);
+              }
+            }
+            break;
+          case 'updateNode':
+            {
+              // update tentative distance
+              const node = nodes.find(n=>n.id===s.nodeId);
+              if (node) {
+                node.dist = s.newDist;
+                node.prev = s.via;
+                updatePositions();
+                const line = gEdges.querySelector(`.edge-line[data-id="${s.edgeId}"]`);
+                if (line) {
+                  line.classList.add('updated');
+                  setTimeout(()=>{ line.classList.remove('updated'); }, 800);
+                }
+              }
+            }
+            break;
+          case 'settleNode':
+            {
+              const g = gNodes.querySelector(`.node[data-id="${s.nodeId}"]`);
+              if (g) {
+                g.classList.remove('visiting');
+                g.classList.add('settled');
+              }
+            }
+            break;
+          case 'finalEdge':
+            {
+              const line = gEdges.querySelector(`.edge-line[data-id="${s.edgeId}"]`);
+              if (line) line.classList.add('final');
+            }
+            break;
+          case 'finalNode':
+            {
+              const g = gNodes.querySelector(`.node[data-id="${s.nodeId}"]`);
+              if (g) g.classList.add('final');
+            }
+            break;
+        }
+      }
+
+      // Run / Step / Stop controls
+      btnRun.addEventListener('click', function(){
+        const src = selectSource.value;
+        const tgt = selectTarget.value;
+        if (!src || !tgt) {
+          alert('Please choose both source and target nodes.');
+          return;
+        }
+        animSteps = buildDijkstraSteps(src,tgt);
+        runAnimation(animSteps);
+      });
+
+      btnStep.addEventListener('click', function(){
+        if (!animSteps || !animSteps.length) {
+          const src = selectSource.value;
+          const tgt = selectTarget.value;
+          if (!src || !tgt) {
+            alert('Please choose both source and target nodes, then press Step.');
+            return;
+          }
+          animSteps = buildDijkstraSteps(src,tgt);
+          animIndex = 0;
+          resetNodeEdgeVisuals();
+          // reset distances
+          nodes.forEach(n => n.dist = Infinity);
+          updatePositions();
+        }
+        if (animIndex >= animSteps.length) return;
+        stepAnimation();
+      });
+
+      btnStop.addEventListener('click', function(){
+        if (animTimer) clearInterval(animTimer);
+        animTimer = null;
+        animPaused = true;
+      });
+
+      // Dbl click on edge to open weight edit (some clients)
+      svg.addEventListener('dblclick', function(evt){ evt.preventDefault(); });
+
+      // Initialization: add a starter graph
+      function initDefault() {
+        // create a small sample graph
+        nodes = []; edges = []; nodeId = 0; edgeId = 0;
+        const W = svg.clientWidth || 800;
+        const H = svg.clientHeight || 480;
+        const nA = createNode(W*0.22, H*0.28);
+        const nB = createNode(W*0.46, H*0.18);
+        const nC = createNode(W*0.7, H*0.3);
+        const nD = createNode(W*0.28, H*0.58);
+        const nE = createNode(W*0.56, H*0.6);
+
+        createEdge(nA.id, nB.id, 4);
+        createEdge(nB.id, nC.id, 2.5);
+        createEdge(nA.id, nD.id, 6);
+        createEdge(nD.id, nE.id, 3);
+        createEdge(nE.id, nC.id, 2);
+        createEdge(nB.id, nE.id, 5);
+
+        redraw();
+        updateSelectors();
+      }
+
+      initDefault();
+
+      // Keep svg responsive on resize
+      window.addEventListener('resize', function(){ updatePositions(); });
+
+    })();
+  </script>
+</body>
+</html>

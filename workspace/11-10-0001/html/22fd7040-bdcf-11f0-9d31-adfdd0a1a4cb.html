@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dijkstra’s Algorithm — Interactive Module</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #0ea5a4;
+      --muted: #94a3b8;
+      --success: #10b981;
+      --danger: #ef4444;
+      --glass: rgba(255,255,255,0.03);
+      --node-radius: 22;
+      --node-font: 13px/1 "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071124 0%, #0b1220 100%);
+      color:#e6eef8;
+      font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    .app{
+      box-sizing:border-box;
+      padding:var(--safe-margin);
+      min-height:100%;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+
+    header{
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap:var(--gap);
+    }
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .title h1{
+      margin:0;
+      font-size:20px;
+    }
+    .subtitle{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    main{
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+    }
+
+    /* left: interactive canvas */
+    .canvas-panel{
+      flex:1 1 0%;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+      border-radius:12px;
+      padding:16px;
+      min-height:520px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .top-controls{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .controls-group{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background:var(--glass);
+      padding:8px;
+      border-radius:8px;
+    }
+
+    button, .control-btn{
+      background:transparent;
+      color:var(--accent);
+      border:1px solid rgba(14,165,164,0.12);
+      padding:8px 10px;
+      border-radius:8px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    button:hover, .control-btn:hover{ filter:brightness(1.2); }
+    button:active{ transform:translateY(1px); }
+    .control-btn[aria-pressed="true"]{
+      background:linear-gradient(90deg, rgba(14,165,164,0.12), rgba(16,185,129,0.04));
+      border-color:rgba(14,165,164,0.3);
+      color:var(--success);
+    }
+
+    .small{
+      padding:6px 8px;
+      font-size:13px;
+    }
+
+    .canvas-wrap{
+      position:relative;
+      flex:1;
+      border-radius:8px;
+      background:linear-gradient(180deg,#071428 0%, rgba(10,16,26,0.55) 100%);
+      min-height:420px;
+      overflow:hidden;
+      display:flex;
+      gap:12px;
+    }
+    /* svg fills available space */
+    svg#graph {
+      width:100%;
+      height:100%;
+      display:block;
+      touch-action:none;
+      cursor:default;
+    }
+
+    /* right: controls and explanation */
+    .side-panel{
+      width:320px;
+      max-width:40%;
+      min-width:260px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+      border-radius:12px;
+      padding:16px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    label{ font-size:13px; color:var(--muted); }
+
+    .kv-row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+      font-size:13px;
+    }
+
+    .pq{
+      background:rgba(255,255,255,0.02);
+      padding:8px;
+      border-radius:8px;
+      min-height:48px;
+      max-height:180px;
+      overflow:auto;
+      font-size:13px;
+    }
+    .pq-item{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      padding:6px 8px;
+      border-radius:8px;
+    }
+    .pq-item.seen{ opacity:0.6;}
+    .hint{ font-size:13px; color:var(--muted); }
+
+    footer.note{
+      color:var(--muted);
+      font-size:13px;
+      background:transparent;
+    }
+
+    /* node and edge styles in SVG classes */
+    .edge-line{ stroke:#2b6b86; stroke-width:2; transition:stroke 220ms, stroke-width 220ms; }
+    .edge-label{ fill:#bfe8e6; font-size:12px; pointer-events:none; }
+    .node-circle{ fill:#071a2a; stroke:#17868a; stroke-width:2; cursor:pointer; transition:transform 160ms; }
+    .node-label{ fill:#dff7f6; font:var(--node-font); text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+    .node-dist{ fill:#9fe0dd; font-size:12px; text-anchor:middle; pointer-events:none; }
+    .node-start{ stroke:#60a5fa; stroke-width:3; }
+    .node-visited{ fill:#0b2b1e; stroke:#10b981; }
+    .node-frontier{ fill:#092f3a; stroke:#f59e0b; }
+    .edge-relax{ stroke:#f8b4a6; stroke-width:3.5; }
+
+    .pulse {
+      animation: pulseEdge 520ms ease-out;
+    }
+    @keyframes pulseEdge {
+      0%{ stroke-width:4; opacity:1; }
+      100%{ stroke-width:2; opacity:0.9; }
+    }
+
+    /* responsive */
+    @media (max-width: 900px){
+      main{ flex-direction:column; }
+      .side-panel{ width:100%; max-width:100%; }
+    }
+
+    /* focus styles */
+    button:focus, .control-btn:focus{ outline:2px solid rgba(14,165,164,0.16); outline-offset:2px; }
+
+    /* small helper */
+    .muted{ color:var(--muted); font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-labelledby="main-title">
+    <header>
+      <div class="title">
+        <h1 id="main-title">Dijkstra’s Algorithm — Step-by-step Visualizer</h1>
+        <p class="subtitle">Interactive exploration: build a weighted graph, run Dijkstra, and observe relaxations and shortest paths.</p>
+      </div>
+      <div class="kv-row">
+        <div class="muted">Safe margins: 24px • Min spacing: 16px</div>
+      </div>
+    </header>
+
+    <main>
+      <!-- Left: Canvas and Controls -->
+      <section class="canvas-panel" aria-label="Visualizer area">
+        <div class="top-controls" role="toolbar" aria-label="Graph actions">
+          <div class="controls-group" role="group" aria-label="Edit modes">
+            <button id="mode-add-node" class="control-btn" aria-pressed="false" title="Add node: click on canvas">Add node</button>
+            <button id="mode-add-edge" class="control-btn" aria-pressed="false" title="Add edge: click source then target">Add edge</button>
+            <button id="mode-set-start" class="control-btn" aria-pressed="false" title="Set start node">Set start</button>
+            <button id="mode-delete" class="control-btn" aria-pressed="false" title="Delete node/edge">Delete</button>
+          </div>
+
+          <div class="controls-group" role="group" aria-label="Edge options">
+            <label for="edge-weight" class="muted">Weight</label>
+            <input id="edge-weight" type="number" min="0" value="1" style="width:72px; padding:6px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit;">
+          </div>
+
+          <div class="controls-group" role="group" aria-label="Run controls">
+            <button id="step-btn" class="control-btn small">Step</button>
+            <button id="autorun-btn" class="control-btn small" aria-pressed="false">Auto-run</button>
+            <button id="reset-btn" class="control-btn small">Reset</button>
+          </div>
+
+          <div class="controls-group" role="group" aria-label="Speed control">
+            <label class="muted">Speed</label>
+            <input id="speed" type="range" min="200" max="1500" value="700" step="50" title="Animation speed">
+          </div>
+        </div>
+
+        <div class="canvas-wrap" aria-hidden="false">
+          <svg id="graph" role="img" aria-label="Graph drawing area" tabindex="0"></svg>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+          <div class="hint">Tip: Toggle modes then click nodes. Drag nodes to reposition. After running, click a target node to show the shortest path from start.</div>
+          <div class="muted">Nodes: <span id="count-nodes">0</span> • Edges: <span id="count-edges">0</span></div>
+        </div>
+      </section>
+
+      <!-- Right: Controls, PQ, Explanations -->
+      <aside class="side-panel" aria-label="Controls and explanation">
+        <div>
+          <label class="muted">Priority Queue (frontier)</label>
+          <div id="pq" class="pq" aria-live="polite" aria-atomic="true"></div>
+        </div>
+
+        <div>
+          <label class="muted">Algorithm state</label>
+          <div style="display:flex;gap:8px;flex-direction:column;margin-top:8px;">
+            <div class="kv-row"><span>Start node</span><strong id="start-node">—</strong></div>
+            <div class="kv-row"><span>Current node</span><strong id="current-node">—</strong></div>
+            <div class="kv-row"><span>Visited count</span><strong id="visited-count">0</strong></div>
+          </div>
+        </div>
+
+        <div>
+          <label class="muted">Concept Title</label>
+          <div style="padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;margin-top:8px;">
+            Dijkstra’s algorithm: find shortest paths from a start node to all others in a weighted graph with non-negative edge weights.
+          </div>
+        </div>
+
+        <div>
+          <label class="muted">Learning Objective</label>
+          <div style="padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;margin-top:8px;">
+            After interacting you will understand how tentative distances are updated by edge relaxations, how the priority queue (frontier) selects the next node, and how the shortest path tree is built.
+          </div>
+        </div>
+
+        <div>
+          <label class="muted">Interaction Design</label>
+          <div style="padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;margin-top:8px;font-size:13px;color:var(--muted);">
+            - Add nodes by toggling "Add node" and clicking the canvas (or drag to reposition).<br>
+            - Add an edge by toggling "Add edge", selecting two nodes; specify its weight in the weight field.<br>
+            - Set the start node with "Set start".<br>
+            - Use "Step" to advance one operation of Dijkstra: the smallest-distance node is popped, marked visited, and its incident edges are relaxed with an animation (edge pulse and distance update).<br>
+            - "Auto-run" animates steps automatically. After the algorithm runs, click any node to highlight the shortest path from the start.
+          </div>
+        </div>
+
+        <div>
+          <label class="muted">Layout Description</label>
+          <div style="padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;margin-top:8px;font-size:13px;color:var(--muted);">
+            The viewport uses a two-column layout: left is the interactive SVG canvas with the editing and run controls above, right is a vertical panel showing the priority queue, algorithm state, and explanatory text. The entire layout uses 24px safe area padding and a minimum spacing of 16px between interactive elements. It is responsive: on smaller screens the side panel stacks beneath the canvas.
+          </div>
+        </div>
+
+        <footer class="note" style="margin-top:8px;">
+          Accessibility: all controls are keyboard-focusable; the priority queue region updates live for screen readers.
+        </footer>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    /*****************************************************************************
+     * Dijkstra Interactive Visualizer
+     * - Vanilla JS, single-file
+     * - Modes: add node, add edge, set start, delete
+     * - Step-by-step Dijkstra with animated relaxations
+     *****************************************************************************/
+
+    // Basic graph data structures
+    const svg = document.getElementById('graph');
+    const pqEl = document.getElementById('pq');
+    const countNodesEl = document.getElementById('count-nodes');
+    const countEdgesEl = document.getElementById('count-edges');
+    const startNodeEl = document.getElementById('start-node');
+    const currentNodeEl = document.getElementById('current-node');
+    const visitedCountEl = document.getElementById('visited-count');
+
+    const NS = "http://www.w3.org/2000/svg";
+
+    let nodes = []; // {id, x, y, elementRefs..., dist, prev, visited, inPQ}
+    let edges = []; // {id, a, b, w, elements...}
+    let nodeIdCounter = 0;
+    let edgeIdCounter = 0;
+
+    // Modes
+    const modeButtons = {
+      addNode: document.getElementById('mode-add-node'),
+      addEdge: document.getElementById('mode-add-edge'),
+      setStart: document.getElementById('mode-set-start'),
+      delete: document.getElementById('mode-delete')
+    };
+    let mode = null;
+
+    function setMode(newMode){
+      mode = newMode;
+      for(const [k,btn] of Object.entries(modeButtons)){
+        btn.setAttribute('aria-pressed', k===newMode ? 'true' : 'false');
+      }
+      svg.style.cursor = (newMode === 'addNode') ? 'crosshair' : 'default';
+      // clearing any partial edge selection
+      pendingEdgeSource = null;
+      updateHints();
+    }
+
+    for(const [k,btn] of Object.entries(modeButtons)){
+      btn.addEventListener('click', () => {
+        setMode(mode === k ? null : k);
+      });
+    }
+
+    // Controls
+    const edgeWeightInput = document.getElementById('edge-weight');
+    const stepBtn = document.getElementById('step-btn');
+    const autorunBtn = document.getElementById('autorun-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const speedInput = document.getElementById('speed');
+
+    stepBtn.addEventListener('click', stepOnce);
+    autorunBtn.addEventListener('click', toggleAutoRun);
+    resetBtn.addEventListener('click', resetAlgorithm);
+
+    let autoRunInterval = null;
+    function toggleAutoRun(){
+      const pressed = autorunBtn.getAttribute('aria-pressed') === 'true';
+      if(pressed){
+        autorunBtn.setAttribute('aria-pressed', 'false');
+        stopAutoRun();
+      } else {
+        autorunBtn.setAttribute('aria-pressed', 'true');
+        startAutoRun();
+      }
+    }
+    function startAutoRun(){
+      stopAutoRun();
+      autoRunInterval = setInterval(() => {
+        if(!stepOnce()) stopAutoRun();
+      }, parseInt(speedInput.value,10) || 700);
+    }
+    function stopAutoRun(){
+      autorunBtn.setAttribute('aria-pressed', 'false');
+      if(autoRunInterval) { clearInterval(autoRunInterval); autoRunInterval = null; }
+    }
+
+    // SVG setup to fit parent
+    function resizeSVG(){
+      const r = svg.getBoundingClientRect();
+      svg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+    }
+    window.addEventListener('resize', resizeSVG);
+    setTimeout(resizeSVG, 100);
+
+    // Helper: create SVG elements
+    function svgEl(tag, attrs = {}){
+      const el = document.createElementNS(NS, tag);
+      for(const k in attrs) el.setAttribute(k, attrs[k]);
+      return el;
+    }
+
+    // Add node at position
+    function addNodeAt(x,y){
+      const id = nodeIdCounter++;
+      const g = svgEl('g', { 'data-id': id, tabindex: 0 });
+      const circle = svgEl('circle', {
+        cx: x, cy: y, r: 22, class: 'node-circle'
+      });
+      const label = svgEl('text', { x, y: y-8, class: 'node-label' });
+      label.textContent = String(id);
+      const distText = svgEl('text', { x, y: y+12, class: 'node-dist' });
+      distText.textContent = '∞';
+
+      g.appendChild(circle);
+      g.appendChild(label);
+      g.appendChild(distText);
+      svg.appendChild(g);
+
+      const node = {
+        id,
+        x, y,
+        g, circle, label, distText,
+        dist: Infinity,
+        prev: null,
+        visited: false,
+        inPQ: false
+      };
+      nodes.push(node);
+      attachNodeHandlers(node);
+      updateCounts();
+      return node;
+    }
+
+    function attachNodeHandlers(node){
+      // dragging
+      let dragging = false;
+      let start = null;
+
+      function pointerDown(e){
+        if(e.pointerType) e.target.setPointerCapture(e.pointerId);
+        const pt = getSvgPoint(e);
+        start = { x: pt.x - node.x, y: pt.y - node.y };
+        dragging = true;
+        e.preventDefault();
+      }
+      function pointerMove(e){
+        if(!dragging) return;
+        const pt = getSvgPoint(e);
+        node.x = pt.x - start.x;
+        node.y = pt.y - start.y;
+        updateNodePosition(node);
+        updateEdgePositionsConnected(node);
+      }
+      function pointerUp(e){
+        dragging = false;
+        if(e.pointerType) try{ e.target.releasePointerCapture(e.pointerId); }catch(_){}
+        // If modes: handle click actions (but ignore small drags)
+        // We'll differentiate click based on mode by checking e.detail && no drag
+      }
+
+      node.g.addEventListener('pointerdown', pointerDown);
+      window.addEventListener('pointermove', pointerMove);
+      window.addEventListener('pointerup', pointerUp);
+
+      // Click / keyboard activation
+      node.g.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleNodeClick(node);
+      });
+
+      node.g.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleNodeClick(node);
+        }
+      });
+    }
+
+    function handleNodeClick(node){
+      if(mode === 'addEdge'){
+        if(!pendingEdgeSource){
+          pendingEdgeSource = node;
+          highlightNode(node, 'frontier');
+        } else if(pendingEdgeSource.id === node.id){
+          // cancel
+          highlightNode(node, null);
+          pendingEdgeSource = null;
+        } else {
+          // create edge between pendingEdgeSource and this node
+          const w = Math.max(0, parseFloat(edgeWeightInput.value) || 1);
+          addEdge(pendingEdgeSource, node, w);
+          highlightNode(pendingEdgeSource, null);
+          pendingEdgeSource = null;
+        }
+      } else if(mode === 'setStart'){
+        setStartNode(node);
+      } else if(mode === 'delete'){
+        deleteNode(node);
+      } else {
+        // If algorithm finished or running: allow clicking a node to display shortest path
+        if(algorithmFinished){
+          showShortestPathTo(node);
+        }
+      }
+    }
+
+    // Edge creation
+    function addEdge(aNode, bNode, weight){
+      // undirected edge
+      const id = edgeIdCounter++;
+      // draw line
+      const line = svgEl('line', {
+        x1: aNode.x, y1: aNode.y, x2: bNode.x, y2: bNode.y, class: 'edge-line', 'data-id': id
+      });
+      // weight label at midpoint
+      const midx = (aNode.x + bNode.x)/2;
+      const midy = (aNode.y + bNode.y)/2;
+      const label = svgEl('text', { x: midx, y: midy-6, class: 'edge-label' });
+      label.textContent = String(weight);
+      svg.insertBefore(line, svg.firstChild); // place under nodes
+      svg.insertBefore(label, line.nextSibling);
+
+      const edge = {
+        id, a: aNode.id, b: bNode.id, w: weight, line, label
+      };
+      edges.push(edge);
+      updateCounts();
+      attachEdgeHandlers(edge);
+      return edge;
+    }
+
+    function attachEdgeHandlers(edge){
+      const onClick = (e) => {
+        e.stopPropagation();
+        if(mode === 'delete'){
+          deleteEdge(edge);
+        } else {
+          // maybe select or highlight
+          flashEdge(edge);
+        }
+      };
+      edge.line.addEventListener('click', onClick);
+      edge.line.addEventListener('pointerdown', (e)=> e.stopPropagation());
+      edge.label.addEventListener('click', onClick);
+    }
+
+    function deleteNode(node){
+      // Remove connected edges
+      const conn = edges.filter(ed => ed.a === node.id || ed.b === node.id);
+      for(const ed of conn) deleteEdge(ed);
+      // remove svg
+      node.g.remove();
+      nodes = nodes.filter(n => n.id !== node.id);
+      updateCounts();
+    }
+
+    function deleteEdge(edge){
+      edge.line.remove();
+      edge.label.remove();
+      edges = edges.filter(e => e.id !== edge.id);
+      updateCounts();
+    }
+
+    function updateCounts(){
+      countNodesEl.textContent = nodes.length;
+      countEdgesEl.textContent = edges.length;
+    }
+
+    function highlightNode(node, kind){
+      node.circle.classList.remove('node-start','node-visited','node-frontier');
+      if(kind === 'start') node.circle.classList.add('node-start');
+      if(kind === 'visited') node.circle.classList.add('node-visited');
+      if(kind === 'frontier') node.circle.classList.add('node-frontier');
+    }
+
+    function updateNodePosition(node){
+      node.circle.setAttribute('cx', node.x);
+      node.circle.setAttribute('cy', node.y);
+      node.label.setAttribute('x', node.x);
+      node.label.setAttribute('y', node.y - 8);
+      node.distText.setAttribute('x', node.x);
+      node.distText.setAttribute('y', node.y + 12);
+    }
+
+    function updateEdgePositionsConnected(node){
+      for(const ed of edges){
+        if(ed.a === node.id || ed.b === node.id){
+          const a = nodes.find(n => n.id === ed.a);
+          const b = nodes.find(n => n.id === ed.b);
+          if(!a || !b) continue;
+          ed.line.setAttribute('x1', a.x);
+          ed.line.setAttribute('y1', a.y);
+          ed.line.setAttribute('x2', b.x);
+          ed.line.setAttribute('y2', b.y);
+          const midx = (a.x + b.x)/2;
+          const midy = (a.y + b.y)/2;
+          ed.label.setAttribute('x', midx);
+          ed.label.setAttribute('y', midy - 6);
+        }
+      }
+    }
+
+    function flashEdge(edge){
+      edge.line.classList.add('pulse');
+      setTimeout(()=> edge.line.classList.remove('pulse'), 520);
+    }
+
+    // Canvas click to add node when in addNode mode
+    svg.addEventListener('click', (e) => {
+      const pt = getSvgPoint(e);
+      if(mode === 'addNode'){
+        addNodeAt(pt.x, pt.y);
+      } else {
+        // cancel pending edge selection when clicking empty space
+        if(pendingEdgeSource){
+          highlightNode(pendingEdgeSource, null);
+          pendingEdgeSource = null;
+        }
+      }
+    });
+
+    // Utility: get SVG coordinate
+    function getSvgPoint(evt){
+      const r = svg.getBoundingClientRect();
+      return { x: evt.clientX - r.left, y: evt.clientY - r.top };
+    }
+
+    // --- Dijkstra algorithm implementation and UI wiring ---
+
+    let startNode = null;
+    let pq = []; // simple array as min-queue by dist
+    let algorithmStarted = false;
+    let algorithmFinished = false;
+    let pendingEdgeSource = null;
+
+    function setStartNode(node){
+      // clear previous
+      if(startNode) highlightNode(startNode, null);
+      startNode = node;
+      highlightNode(node, 'start');
+      startNodeEl.textContent = String(node.id);
+      resetAlgorithm();
+    }
+
+    function resetAlgorithm(){
+      // Reset node distances, prev, visited, colors
+      for(const n of nodes){
+        n.dist = Infinity;
+        n.prev = null;
+        n.visited = false;
+        n.inPQ = false;
+        n.distText.textContent = '∞';
+        n.circle.classList.remove('node-visited','node-frontier');
+      }
+      pq = [];
+      algorithmStarted = false;
+      algorithmFinished = false;
+      currentNodeEl.textContent = '—';
+      visitedCountEl.textContent = '0';
+      renderPQ();
+      stopAutoRun();
+      // keep start node visually marked
+      if(startNode) highlightNode(startNode, 'start');
+    }
+
+    function stepOnce(){
+      // If no start defined -> nothing
+      if(!startNode){ alert('Please set a start node.'); return false; }
+
+      if(!algorithmStarted){
+        // Initialize
+        for(const n of nodes){
+          n.dist = Infinity;
+          n.prev = null;
+          n.visited = false;
+          n.inPQ = false;
+          n.distText.textContent = '∞';
+          n.circle.classList.remove('node-visited','node-frontier');
+        }
+        startNode.dist = 0;
+        startNode.distText.textContent = '0';
+        startNode.inPQ = true;
+        pq = [startNode];
+        algorithmStarted = true;
+        currentNodeEl.textContent = '—';
+        renderPQ();
+      }
+
+      // If PQ empty -> finished
+      if(pq.length === 0){
+        algorithmFinished = true;
+        currentNodeEl.textContent = '—';
+        return false;
+      }
+
+      // Pop min
+      pq.sort((a,b) => a.dist - b.dist);
+      const u = pq.shift();
+      u.inPQ = false;
+      if(u.visited){
+        // skip already visited (shouldn't normally happen)
+        return true;
+      }
+      // Mark visited
+      u.visited = true;
+      highlightNode(u, 'visited');
+      currentNodeEl.textContent = String(u.id);
+      visitedCountEl.textContent = nodes.filter(n => n.visited).length;
+      renderPQ();
+
+      // Relax all neighbors
+      const neighbors = getNeighbors(u);
+      let relaxPromises = [];
+      for(const {edge, other} of neighbors){
+        if(other.visited) continue;
+        relaxPromises.push(relaxEdgeAnimation(edge, u, other));
+      }
+
+      // After all relaxations done, return true to indicate step done
+      Promise.all(relaxPromises).then(() => {
+        // finished step; check if PQ empty to set finished flag
+        if(pq.length === 0){
+          algorithmFinished = true;
+        }
+      });
+
+      return true;
+    }
+
+    function getNeighbors(node){
+      // returns array of {edge, other}
+      const out = [];
+      for(const e of edges){
+        if(e.a === node.id){
+          const other = nodes.find(n => n.id === e.b);
+          if(other) out.push({edge:e, other});
+        } else if(e.b === node.id){
+          const other = nodes.find(n => n.id === e.a);
+          if(other) out.push({edge:e, other});
+        }
+      }
+      return out;
+    }
+
+    async function relaxEdgeAnimation(edge, u, v){
+      // animate edge highlight
+      pulseEdgeVisual(edge);
+      // show potential new dist
+      const newDist = u.dist + edge.w;
+      // small delay to let animation be visible
+      await sleep(180);
+      if(newDist < v.dist){
+        // update v
+        v.dist = newDist;
+        v.prev = u.id;
+        v.distText.textContent = String(Number(newDist.toFixed(2)));
+        // add to PQ if not in
+        if(!v.inPQ && !v.visited){
+          v.inPQ = true;
+          pq.push(v);
+        }
+        // animate node color change
+        highlightNode(v, 'frontier');
+      } else {
+        // brief visual indicating no change
+        // pulse the edge differently
+        await sleep(120);
+      }
+      renderPQ();
+      return;
+    }
+
+    function pulseEdgeVisual(edge){
+      edge.line.classList.add('edge-relax');
+      setTimeout(()=> edge.line.classList.remove('edge-relax'), 420);
+    }
+
+    function renderPQ(){
+      pqEl.innerHTML = '';
+      // show sorted view
+      const view = pq.slice().sort((a,b)=>a.dist-b.dist);
+      if(view.length === 0){
+        pqEl.textContent = '(empty)';
+        return;
+      }
+      for(const n of view){
+        const div = document.createElement('div');
+        div.className = 'pq-item' + (n.visited ? ' seen' : '');
+        div.innerHTML = `<div>Node ${n.id}</div><div>${n.dist===Infinity? '∞': String(Number(n.dist.toFixed(2)))}</div>`;
+        pqEl.appendChild(div);
+      }
+    }
+
+    // Show shortest path from start to target (assumes prev pointers set)
+    function showShortestPathTo(target){
+      // Clear previous path highlights
+      for(const e of edges) e.line.style.stroke = '';
+      if(!startNode) return;
+      if(target.dist === Infinity){
+        alert('Target unreachable from start.');
+        return;
+      }
+      // reconstruct path
+      const path = [];
+      let cur = target;
+      while(cur && cur.id !== startNode.id){
+        if(cur.prev === null) break;
+        path.push(cur.id);
+        cur = nodes.find(n=>n.id===cur.prev);
+      }
+      path.push(startNode.id);
+      path.reverse();
+      // highlight edges along path
+      for(let i=0;i<path.length-1;i++){
+        const a = path[i], b = path[i+1];
+        const edge = edges.find(e => (e.a===a && e.b===b) || (e.a===b && e.b===a));
+        if(edge){
+          edge.line.style.stroke = 'rgba(255,215,115,0.95)';
+          edge.line.style.strokeWidth = 4;
+        }
+      }
+    }
+
+    // Utility sleep
+    function sleep(ms){ return new Promise(resolve=>setTimeout(resolve, ms)); }
+
+    // Simple helper to show update hints
+    function updateHints(){
+      // if pending edge selection present, show visually
+      if(pendingEdgeSource){
+        // ensure it's highlighted
+        highlightNode(pendingEdgeSource, 'frontier');
+      }
+    }
+
+    // Keyboard: press Escape to clear modes
+    window.addEventListener('keydown', (e) => {
+      if(e.key === 'Escape'){
+        setMode(null);
+      }
+    });
+
+    // Initialize with a small sample graph for convenience
+    function seedSampleGraph(){
+      // Place 6 nodes
+      const w = svg.getBoundingClientRect().width || 800;
+      const h = svg.getBoundingClientRect().height || 480;
+      const positions = [
+        {x: w*0.2, y: h*0.25},
+        {x: w*0.5, y: h*0.16},
+        {x: w*0.78, y: h*0.28},
+        {x: w*0.22, y: h*0.66},
+        {x: w*0.48, y: h*0.6},
+        {x: w*0.78, y: h*0.64}
+      ];
+      for(const p of positions) addNodeAt(p.x, p.y);
+      // Add sample edges (undirected)
+      addEdge(nodes[0], nodes[1], 7);
+      addEdge(nodes[0], nodes[3], 9);
+      addEdge(nodes[0], nodes[4], 14);
+      addEdge(nodes[1], nodes[2], 10);
+      addEdge(nodes[1], nodes[3], 15);
+      addEdge(nodes[2], nodes[4], 2);
+      addEdge(nodes[3], nodes[4], 11);
+      addEdge(nodes[4], nodes[5], 9);
+      // set a default start
+      setStartNode(nodes[0]);
+      resizeSVG();
+    }
+
+    // Remove all and seed sample
+    function clearAll(){
+      // remove elements
+      for(const n of nodes) n.g.remove();
+      for(const e of edges){
+        e.line.remove();
+        e.label.remove();
+      }
+      nodes = [];
+      edges = [];
+      nodeIdCounter = 0;
+      edgeIdCounter = 0;
+      startNode = null;
+      pendingEdgeSource = null;
+      updateCounts();
+    }
+
+    // Initialize
+    seedSampleGraph();
+
+    // Helper: for clicking blank space, deselect
+    svg.addEventListener('pointerdown', (e) => {
+      // nothing for now
+    });
+
+    // helper: when user clicks on edge label or line weight editing not implemented for simplicity
+    // but allow deletion mode for edges via clicking
+
+    // expose some functions for console debugging (optional)
+    window._dijkstra = {
+      nodes, edges, addNodeAt, addEdge, resetAlgorithm, stepOnce, startAutoRun, stopAutoRun
+    };
+
+  </script>
+</body>
+</html>

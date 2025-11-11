@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>K-Nearest Neighbors (KNN) Interactive Module</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --panel-bg: #fafafa;
+      --accent: #0b74de;
+      --success: #2d9f6f;
+      --danger: #e04e4e;
+      --muted: #64748b;
+      --card-radius: 10px;
+      --shadow: 0 4px 16px rgba(12,17,24,0.06);
+      --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      padding:var(--safe-margin);
+      font-family:var(--font-sans);
+      background:linear-gradient(180deg,#ffffff,#f7fbff);
+      color:#0b1120;
+      box-sizing:border-box;
+    }
+    *{box-sizing:inherit}
+
+    /* Layout: two-column responsive */
+    .container{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap: var(--gap);
+      height: calc(100% - (var(--safe-margin) * 0)); /* leave room for padding already */
+    }
+    @media (max-width:900px){
+      .container{
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left panel: text and controls */
+    .panel{
+      background:var(--panel-bg);
+      border-radius:var(--card-radius);
+      padding:20px;
+      box-shadow:var(--shadow);
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      align-self:start;
+    }
+
+    h1{
+      margin:0;
+      font-size:20px;
+      letter-spacing:0.2px;
+    }
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.4;
+    }
+
+    .section{
+      background:white;
+      border-radius:8px;
+      padding:12px;
+      box-shadow:0 2px 6px rgba(11,17,32,0.04);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    /* Controls */
+    .controls{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    label{font-size:13px;color:#223;}
+    .row{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    input[type="range"]{
+      width:100%;
+    }
+    .btn{
+      background:var(--accent);
+      color:white;
+      border:none;
+      padding:8px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .btn.secondary{
+      background:#f3f6fb;
+      color:#042b55;
+      border:1px solid rgba(4,43,85,0.06);
+    }
+    .mode-toggle{
+      display:flex;
+      gap:8px;
+    }
+    .mode-toggle button{
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid rgba(2,8,23,0.06);
+      background:white;
+      cursor:pointer;
+      flex:1;
+    }
+    .mode-toggle button.active{
+      background:linear-gradient(180deg,#0b74de,#0960b8);
+      color:white;
+      border-color:transparent;
+    }
+    .legend{
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    .swatch{
+      width:14px;height:14px;border-radius:12px;
+      display:inline-block;
+    }
+
+    /* Right: canvas area */
+    .canvas-card{
+      background:white;
+      border-radius:var(--card-radius);
+      padding:12px;
+      box-shadow:var(--shadow);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      min-height:360px;
+    }
+    .toolbar{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .canvas-wrap{
+      position:relative;
+      flex:1;
+      min-height:420px;
+      border-radius:8px;
+      overflow:hidden;
+      background:linear-gradient(180deg,#ffffff,#f7fbff);
+      border:1px solid rgba(2,8,23,0.04);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+      touch-action:none;
+    }
+
+    /* Info pill */
+    .info-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:8px 12px;
+      border-radius:999px;
+      background:rgba(8,12,23,0.04);
+      font-weight:600;
+    }
+
+    .stat-block{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .stat-value{
+      font-size:18px;
+      font-weight:700;
+    }
+    .muted-small{color:var(--muted);font-size:13px}
+
+    /* Point highlighting pulse animation */
+    @keyframes pulse {
+      0%{ box-shadow:0 0 0 0 rgba(11,74,222,0.35) }
+      70%{ box-shadow:0 0 0 10px rgba(11,74,222,0) }
+      100%{ box-shadow:0 0 0 0 rgba(11,74,222,0) }
+    }
+
+    /* Footer instructions */
+    .instructions{
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+
+    /* Accessibility focus */
+    button:focus, input:focus{
+      outline:3px solid rgba(11,116,222,0.18);
+      outline-offset:3px;
+    }
+
+    /* ensure spacing minimum */
+    .panel > * { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="K-Nearest Neighbors interactive module">
+    <!-- Left column: Title, objectives, controls -->
+    <aside class="panel" aria-labelledby="module-title">
+      <div>
+        <h1 id="module-title">K-Nearest Neighbors (KNN) — Interactive Explorer</h1>
+        <p class="muted">Experiment with labeled points, K, and distance metrics to observe how KNN classifies a query.</p>
+      </div>
+
+      <div class="section" aria-labelledby="objective-heading">
+        <strong id="objective-heading">Learning Objective</strong>
+        <p class="muted">
+          After interacting you should understand how the number of neighbors (K), the distance metric,
+          and weighting affect classification decisions and local decision boundaries in KNN.
+        </p>
+      </div>
+
+      <div class="section" aria-labelledby="interaction-heading">
+        <strong id="interaction-heading">Interaction Design</strong>
+        <p class="muted">
+          - Click on the canvas to add training points for Class A (blue) or Class B (red).<br>
+          - Place the query point by selecting "Place Query" then clicking the canvas (black ring).<br>
+          - Drag points to move them. Click a point and press Delete to remove it.<br>
+          - Adjust K with the slider, switch distance metric, and toggle inverse-distance weighting.<br>
+          - Press "Animate Neighbors" to visually step through nearest neighbors (animated highlight),
+            then see the predicted class and class probabilities.
+        </p>
+      </div>
+
+      <div class="section" aria-labelledby="layout-heading">
+        <strong id="layout-heading">Layout Description</strong>
+        <p class="muted">
+          The module uses a two-column responsive layout: controls and explanations on the left (fixed,
+          360px minimum), and an interactive canvas on the right. Safe margins of 24px are applied to the viewport,
+          and 16px minimum spacing is used between interactive elements to maintain clarity. Controls are grouped
+          and keyboard-accessible; the canvas is responsive and supports pointer and touch input.
+        </p>
+      </div>
+
+      <div class="section" aria-labelledby="controls-heading">
+        <strong id="controls-heading">Controls</strong>
+        <div class="controls" role="region" aria-label="KNN controls">
+          <div>
+            <label for="kRange">K (neighbors): <span id="kValue">3</span></label>
+            <input id="kRange" type="range" min="1" max="25" value="3" />
+          </div>
+
+          <div class="row">
+            <div style="flex:1">
+              <label for="metric">Distance Metric</label>
+              <select id="metric" style="width:100%;padding:8px;border-radius:8px;">
+                <option value="euclidean">Euclidean (L2)</option>
+                <option value="manhattan">Manhattan (L1)</option>
+              </select>
+            </div>
+            <div style="min-width:140px">
+              <label for="weighted">Weighted</label>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input id="weighted" type="checkbox" />
+                <span class="muted-small">Inverse-distance weighting</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label>Mode</label>
+            <div class="mode-toggle" role="tablist" aria-label="mode selection">
+              <button id="modeA" class="active" aria-pressed="true">Place Class A</button>
+              <button id="modeB" aria-pressed="false">Place Class B</button>
+              <button id="modeQ" aria-pressed="false">Place Query</button>
+              <button id="modeMove" aria-pressed="false">Move / Delete</button>
+            </div>
+          </div>
+
+          <div class="row" style="justify-content:space-between;">
+            <button id="animateBtn" class="btn secondary" aria-live="polite">Animate Neighbors</button>
+            <button id="clearBtn" class="btn">Clear All</button>
+          </div>
+
+          <div class="legend" aria-hidden="false">
+            <span class="swatch" style="background:#2b7de9"></span><span class="muted-small">Class A</span>
+            <span class="swatch" style="background:#e04e4e"></span><span class="muted-small">Class B</span>
+            <span style="width:8px;"></span>
+            <span class="muted-small">Tip: Click a point then press Delete to remove it.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" aria-label="instructions">
+        <strong>Quick Tips</strong>
+        <p class="instructions">
+          Add a few points for each class, then place the query. Try small and large K values to see how local vs.
+          global structure affects classification. Use Manhattan metric to see axis-aligned influence.
+        </p>
+      </div>
+    </aside>
+
+    <!-- Right column: Interactive canvas -->
+    <main class="canvas-card" aria-labelledby="canvas-heading">
+      <div class="toolbar">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="info-pill" aria-hidden="true">
+            <span id="predictedBadge" style="width:12px;height:12px;border-radius:999px;display:inline-block;background:#999;"></span>
+            <div style="display:flex;flex-direction:column;line-height:1">
+              <span style="font-weight:700" id="predictionText">No query</span>
+              <span class="muted-small" id="probText"></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center">
+          <div class="stat-block" aria-live="polite">
+            <span class="muted-small">Class A</span>
+            <span class="stat-value" id="countA">0</span>
+          </div>
+          <div class="stat-block" aria-live="polite">
+            <span class="muted-small">Class B</span>
+            <span class="stat-value" id="countB">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="plotCanvas" role="img" aria-label="KNN plot area"></canvas>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="muted-small">Canvas interactions: click to add, drag to move, select Move mode to edit.</div>
+        <div class="muted-small">Decision surface approximated for visualization only.</div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    /**************************************************
+     * K-Nearest Neighbors Interactive Module
+     * Self-contained: vanilla JS, CSS, HTML.
+     *
+     * Features:
+     * - Add/drag/remove training points (Class A / B).
+     * - Place query point.
+     * - Adjust K, metric (Euclidean/Manhattan), weighted/inverse-distance.
+     * - Animated neighbor highlighting.
+     * - Decision surface shading (grid approximation).
+     *
+     * Accessibility:
+     * - Controls keyboard focusable; button states indicate active mode.
+     **************************************************/
+
+    (function(){
+      // DOM elements
+      const canvas = document.getElementById('plotCanvas');
+      const wrap = document.getElementById('canvasWrap');
+      const kRange = document.getElementById('kRange');
+      const kValue = document.getElementById('kValue');
+      const metricSelect = document.getElementById('metric');
+      const weightedCheckbox = document.getElementById('weighted');
+      const modeButtons = {
+        A: document.getElementById('modeA'),
+        B: document.getElementById('modeB'),
+        Q: document.getElementById('modeQ'),
+        Move: document.getElementById('modeMove')
+      };
+      const animateBtn = document.getElementById('animateBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const countA = document.getElementById('countA');
+      const countB = document.getElementById('countB');
+      const predictionText = document.getElementById('predictionText');
+      const probText = document.getElementById('probText');
+      const predictedBadge = document.getElementById('predictedBadge');
+
+      // Canvas context and sizing
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      function resizeCanvas(){
+        const rect = wrap.getBoundingClientRect();
+        // Use devicePixelRatio for crispness
+        const dpr = Math.max(window.devicePixelRatio || 1, 1);
+        canvas.width = Math.floor(rect.width * dpr);
+        canvas.height = Math.floor(rect.height * dpr);
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        draw();
+      }
+      window.addEventListener('resize', resizeCanvas);
+      // initial resize after DOM loaded
+      setTimeout(resizeCanvas, 50);
+
+      // Data model
+      let points = []; // {x:0..1, y:0..1, label: 'A'|'B'}
+      let query = null; // {x,y}
+      let mode = 'A'; // A/B/Q/Move
+      let dragging = null; // {type:'point'|'query', idx}
+      let highlightedNeighbors = []; // indices of neighbors currently highlighted during animation
+      let animating = false;
+
+      // Styling
+      const styles = {
+        A: '#2b7de9',
+        B: '#e04e4e',
+        queryStroke: '#111827',
+        gridSteps: 60, // decision surface resolution
+        pointRadius: 8,
+        queryRadius: 10
+      };
+
+      // Utility: convert canvas pixel to normalized coordinates (0..1)
+      function toNorm(px, py){
+        const r = canvas.getBoundingClientRect();
+        // use CSS width/height for pointer coordinates
+        const cw = r.width;
+        const ch = r.height;
+        return { x: Math.min(1, Math.max(0, px / cw)), y: Math.min(1, Math.max(0, 1 - py / ch)) };
+      }
+      function fromNorm(nx, ny){
+        const r = canvas.getBoundingClientRect();
+        const cw = r.width;
+        const ch = r.height;
+        return { x: nx * cw, y: (1 - ny) * ch };
+      }
+
+      // Distance metrics
+      function distance(a, b, metric){
+        if(metric === 'manhattan'){
+          return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+        }
+        // euclidean
+        const dx = a.x - b.x, dy = a.y - b.y;
+        return Math.sqrt(dx*dx + dy*dy);
+      }
+
+      // Core KNN prediction
+      function knnPredict(pt, K, metric, weighted){
+        if(points.length === 0) return null;
+        // compute distances
+        const dists = points.map((p, i) => ({i, label: p.label, d: distance(pt, p, metric)}));
+        dists.sort((a,b) => a.d - b.d);
+        const kNeighbors = dists.slice(0, Math.min(K, dists.length));
+        // handle zero distance (exact overlap) -> immediate class
+        const zero = kNeighbors.find(n => n.d === 0);
+        if(zero) {
+          return {pred: zero.label, prob: (zero.label === 'A') ? 1 : 0, neighbors: kNeighbors, raw: kNeighbors};
+        }
+        // aggregate
+        let scoreA = 0, scoreB = 0;
+        for(const n of kNeighbors){
+          const w = weighted ? 1 / (n.d + 1e-6) : 1;
+          if(n.label === 'A') scoreA += w; else scoreB += w;
+        }
+        const total = scoreA + scoreB;
+        const probA = total === 0 ? 0.5 : scoreA / total;
+        const pred = probA >= 0.5 ? 'A' : 'B';
+        return { pred, prob: probA, neighbors: kNeighbors, raw: kNeighbors };
+      }
+
+      // Drawing utilities
+      function clearCanvas(){
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      function drawDecisionSurface(){
+        // approximate classification at grid points and shade background
+        const steps = styles.gridSteps;
+        const {width, height} = canvas.getBoundingClientRect();
+        const cellW = width / steps;
+        const cellH = height / steps;
+        const metric = metricSelect.value;
+        const weighted = weightedCheckbox.checked;
+        if(points.length === 0 || !query) {
+          // lighten surface only if there are points
+          if(points.length === 0) return;
+        }
+        // For performance, draw rectangles directly
+        for(let xi=0; xi<steps; xi++){
+          for(let yi=0; yi<steps; yi++){
+            const nx = (xi + 0.5) / steps;
+            const ny = (yi + 0.5) / steps;
+            const pred = knnPredict({x:nx,y:ny}, parseInt(kRange.value,10), metric, weighted);
+            let color;
+            if(!pred) color = 'rgba(220,220,220,0.02)';
+            else {
+              const a = Math.abs(pred.prob - 0.5) * 0.6 + 0.15; // opacity based on confidence
+              if(pred.pred === 'A') color = `rgba(43,125,233,${a})`;
+              else color = `rgba(224,78,78,${a})`;
+            }
+            ctx.fillStyle = color;
+            ctx.fillRect(Math.round(xi*cellW), Math.round(yi*cellH), Math.ceil(cellW)+1, Math.ceil(cellH)+1);
+          }
+        }
+      }
+
+      function drawPoints(){
+        // draw training points
+        const r = canvas.getBoundingClientRect();
+        for(let i=0;i<points.length;i++){
+          const p = points[i];
+          const screen = fromNorm(p.x, p.y);
+          // shadow
+          ctx.beginPath();
+          ctx.fillStyle = 'rgba(0,0,0,0.06)';
+          ctx.arc(screen.x+1, screen.y+2, styles.pointRadius+1.2, 0, Math.PI*2);
+          ctx.fill();
+
+          // fill
+          ctx.beginPath();
+          ctx.fillStyle = (p.label === 'A') ? styles.A : styles.B;
+          ctx.arc(screen.x, screen.y, styles.pointRadius, 0, Math.PI*2);
+          ctx.fill();
+
+          // border for selected neighbor highlight
+          if(highlightedNeighbors.includes(i)){
+            ctx.beginPath();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+            ctx.arc(screen.x, screen.y, styles.pointRadius+3, 0, Math.PI*2);
+            ctx.stroke();
+            // colored ring
+            ctx.beginPath();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(255,255,255,0.0)';
+            ctx.arc(screen.x, screen.y, styles.pointRadius+6, 0, Math.PI*2);
+            ctx.stroke();
+            // subtle external ring matching class
+            ctx.beginPath();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'rgba(11,116,222,0.18)';
+            ctx.arc(screen.x, screen.y, styles.pointRadius+8, 0, Math.PI*2);
+            ctx.stroke();
+          }
+        }
+        // draw query
+        if(query){
+          const qScreen = fromNorm(query.x, query.y);
+          // outer ring
+          ctx.beginPath();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = styles.queryStroke;
+          ctx.arc(qScreen.x, qScreen.y, styles.queryRadius, 0, Math.PI*2);
+          ctx.stroke();
+
+          // inner hollow
+          ctx.beginPath();
+          ctx.fillStyle = '#ffffff';
+          ctx.arc(qScreen.x, qScreen.y, styles.queryRadius-4, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+
+      function drawNeighborsOverlay(neighborList){
+        // visually connect query to neighbors with lines
+        if(!query || !neighborList || neighborList.length===0) return;
+        const qScreen = fromNorm(query.x, query.y);
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        neighborList.forEach((n, idx) => {
+          const p = points[n.i];
+          const pScreen = fromNorm(p.x, p.y);
+          // line
+          ctx.beginPath();
+          ctx.moveTo(qScreen.x, qScreen.y);
+          ctx.lineTo(pScreen.x, pScreen.y);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = (p.label==='A') ? 'rgba(43,125,233,0.9)' : 'rgba(224,78,78,0.9)';
+          ctx.stroke();
+
+          // neighbor index label
+          ctx.fillStyle = '#ffffff';
+          ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(pScreen.x, pScreen.y-18, 10, 0, Math.PI*2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#0b1120';
+          ctx.font = '11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(idx+1), pScreen.x, pScreen.y-18);
+        });
+        ctx.restore();
+      }
+
+      function draw(){
+        clearCanvas();
+        // draw decision surface first
+        drawDecisionSurface();
+        // then points & overlays
+        drawPoints();
+        // draw neighbor connections if query exists
+        if(query){
+          const pred = knnPredict(query, parseInt(kRange.value,10), metricSelect.value, weightedCheckbox.checked);
+          if(pred && pred.neighbors){
+            drawNeighborsOverlay(pred.neighbors.slice(0, highlightedNeighbors.length));
+          }
+        }
+        // update stats UI
+        updateStatsUI();
+      }
+
+      // Update counts and prediction text
+      function updateStatsUI(){
+        const aCount = points.filter(p => p.label === 'A').length;
+        const bCount = points.filter(p => p.label === 'B').length;
+        countA.textContent = aCount;
+        countB.textContent = bCount;
+
+        if(query){
+          const pred = knnPredict(query, parseInt(kRange.value,10), metricSelect.value, weightedCheckbox.checked);
+          if(pred){
+            predictionText.textContent = `Predicted: Class ${pred.pred}`;
+            pred.prob = pred.prob !== undefined ? pred.prob : (pred.pred === 'A' ? 1 : 0);
+            probText.textContent = `P(A) = ${(pred.prob*100).toFixed(1)}%`;
+            predictedBadge.style.background = pred.pred === 'A' ? styles.A : styles.B;
+          } else {
+            predictionText.textContent = 'No prediction';
+            probText.textContent = '';
+            predictedBadge.style.background = '#999';
+          }
+        } else {
+          predictionText.textContent = 'No query';
+          probText.textContent = '';
+          predictedBadge.style.background = '#999';
+        }
+      }
+
+      // Interaction handlers
+      function setMode(newMode){
+        mode = newMode;
+        // update button visuals and aria-pressed
+        Object.entries(modeButtons).forEach(([k,btn])=>{
+          if(k === newMode) { btn.classList.add('active'); btn.setAttribute('aria-pressed','true'); }
+          else { btn.classList.remove('active'); btn.setAttribute('aria-pressed','false'); }
+        });
+      }
+
+      // pointer events
+      let isPointerDown = false;
+      canvas.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const y = ev.clientY - rect.top;
+        const norm = toNorm(x, y);
+
+        if(mode === 'A' || mode === 'B'){
+          // add training point of selected label
+          points.push({x: norm.x, y: norm.y, label: mode});
+          highlightedNeighbors = [];
+          draw();
+          isPointerDown = false;
+        } else if(mode === 'Q'){
+          // place query
+          query = {x: norm.x, y: norm.y};
+          highlightedNeighbors = [];
+          draw();
+        } else if(mode === 'Move'){
+          // find nearest point within radius or query
+          const pick = pickPointAt(norm);
+          if(pick){
+            dragging = pick;
+            isPointerDown = true;
+          } else {
+            // perhaps picking the query
+            if(query){
+              const qDist = distance(norm, query, 'euclidean');
+              const qThresh = 0.04;
+              if(qDist < qThresh){
+                dragging = { type: 'query' };
+                isPointerDown = true;
+              }
+            }
+          }
+        }
+      });
+
+      canvas.addEventListener('pointermove', (ev) => {
+        if(!isPointerDown || !dragging) return;
+        ev.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const y = ev.clientY - rect.top;
+        const norm = toNorm(x, y);
+        if(dragging.type === 'point'){
+          points[dragging.idx].x = norm.x;
+          points[dragging.idx].y = norm.y;
+          draw();
+        } else if(dragging.type === 'query'){
+          query.x = norm.x;
+          query.y = norm.y;
+          draw();
+        }
+      });
+
+      window.addEventListener('pointerup', (ev) => {
+        if(isPointerDown) {
+          isPointerDown = false;
+          dragging = null;
+        }
+      });
+
+      // pick nearest training point within threshold
+      function pickPointAt(norm) {
+        let nearest = null;
+        let bestD = 1e9;
+        for(let i=0;i<points.length;i++){
+          const d = distance(norm, points[i], 'euclidean');
+          if(d < bestD){
+            nearest = i; bestD = d;
+          }
+        }
+        // threshold in normalized coords (approx)
+        if(bestD < 0.03) return { type: 'point', idx: nearest };
+        return null;
+      }
+
+      // allow clicking on a point to select then delete with Delete key
+      canvas.addEventListener('click', (ev) => {
+        if(mode !== 'Move') return;
+        const rect = canvas.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const y = ev.clientY - rect.top;
+        const norm = toNorm(x, y);
+        const picked = pickPointAt(norm);
+        if(picked){
+          // toggle selection by setting dragging to that point temporarily
+          dragging = picked;
+          draw();
+        } else {
+          dragging = null;
+        }
+      });
+
+      window.addEventListener('keydown', (ev) => {
+        if(ev.key === 'Delete' || ev.key === 'Backspace'){
+          if(dragging && dragging.type === 'point'){
+            // remove point
+            points.splice(dragging.idx, 1);
+            dragging = null;
+            draw();
+          }
+        }
+      });
+
+      // control events
+      kRange.addEventListener('input', () => {
+        kValue.textContent = kRange.value;
+        highlightedNeighbors = [];
+        draw();
+      });
+      metricSelect.addEventListener('change', () => { highlightedNeighbors = []; draw(); });
+      weightedCheckbox.addEventListener('change', () => { highlightedNeighbors = []; draw(); });
+
+      Object.entries(modeButtons).forEach(([k,btn])=>{
+        btn.addEventListener('click', ()=> setMode(k));
+      });
+
+      clearBtn.addEventListener('click', ()=>{
+        points = [];
+        query = null;
+        highlightedNeighbors = [];
+        draw();
+      });
+
+      animateBtn.addEventListener('click', async ()=>{
+        if(animating) return;
+        if(!query || points.length===0) return;
+        animating = true;
+        const K = Math.min(parseInt(kRange.value,10), points.length);
+        const metric = metricSelect.value;
+        const weighted = weightedCheckbox.checked;
+        const pred = knnPredict(query, K, metric, weighted);
+        if(!pred) { animating=false; return; }
+        highlightedNeighbors = [];
+        draw();
+        // sequentially highlight neighbors
+        for(let i=0;i<pred.neighbors.length;i++){
+          highlightedNeighbors.push(pred.neighbors[i].i);
+          draw();
+          // animate pause (shorter for larger K)
+          await new Promise(r => setTimeout(r, 350));
+        }
+        // final highlight stays
+        animating = false;
+        // set UI to reflect final prediction
+        updateStatsUI();
+      });
+
+      // initial sample points for exploration
+      function seedPoints(){
+        points = [
+          {x:0.18,y:0.78,label:'A'},
+          {x:0.22,y:0.62,label:'A'},
+          {x:0.14,y:0.48,label:'A'},
+          {x:0.3,y:0.35,label:'A'},
+          {x:0.7,y:0.25,label:'B'},
+          {x:0.81,y:0.42,label:'B'},
+          {x:0.6,y:0.6,label:'B'},
+          {x:0.78,y:0.78,label:'B'}
+        ];
+        query = {x:0.5, y:0.5};
+        draw();
+      }
+      seedPoints();
+
+      // expose draw on demand
+      window.addEventListener('resize', () => { highlightedNeighbors=[]; draw(); });
+
+      // initial UI states
+      setMode('A');
+      kValue.textContent = kRange.value;
+      updateStatsUI();
+    })();
+  </script>
+</body>
+</html>

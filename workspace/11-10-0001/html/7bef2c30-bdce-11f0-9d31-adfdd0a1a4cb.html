@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Module: Stack (LIFO)</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --card: #0b1220;
+      --accent: #38bdf8;
+      --muted: #94a3b8;
+      --success: #34d399;
+      --danger: #fb7185;
+      --glass: rgba(255,255,255,0.03);
+      --max-width: 1100px;
+    }
+
+    /* Safe area margins on all sides */
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg, #071023 0%, #071428 60%);
+      color: #e6eef8;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      box-sizing:border-box;
+      padding: var(--safe-margin);
+    }
+    *,*::before,*::after{box-sizing:inherit}
+
+    .wrapper{
+      max-width: var(--max-width);
+      margin: 0 auto;
+    }
+
+    header{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:var(--gap);
+      margin-bottom:calc(var(--gap) + 8px);
+    }
+
+    .title-block{
+      flex:1 1 auto;
+    }
+    h1{
+      font-size:1.5rem;
+      margin:0 0 6px 0;
+      color: #fff;
+      line-height:1.1;
+    }
+    p.lead{
+      margin:0;
+      color:var(--muted);
+      font-size:0.95rem;
+    }
+
+    /* Layout: two-column responsive */
+    .module{
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:var(--gap);
+      align-items:start;
+    }
+    @media (max-width:900px){
+      .module{
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left: interactive area */
+    .interactive{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:18px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+      min-height:420px;
+    }
+
+    /* Right: controls and docs */
+    .sidebar{
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
+      border-radius:12px;
+      padding:18px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.5);
+    }
+
+    /* Info panel (concept plan) */
+    .info{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:10px;
+      padding:12px;
+      margin-bottom:var(--gap);
+      color:var(--muted);
+      font-size:0.95rem;
+      line-height:1.3;
+    }
+    .info h3{margin:0 0 6px 0;color:#fff;font-size:1rem}
+
+    /* Visual stack area */
+    .vis-area{
+      display:flex;
+      gap:var(--gap);
+      flex-wrap:wrap;
+      align-items:flex-start;
+      justify-content:flex-start;
+    }
+
+    .stack-column{
+      width:320px;
+      min-height:320px;
+      border-radius:10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      padding:18px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+      position:relative;
+    }
+    @media (max-width:900px){
+      .stack-column{width:100%}
+    }
+
+    .stack-frame{
+      width:160px;
+      min-height:240px;
+      border:2px dashed rgba(255,255,255,0.06);
+      border-radius:8px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      padding:12px;
+      display:flex;
+      flex-direction:column-reverse; /* stack grows downward in DOM but visually bottom-first */
+      align-items:center;
+      gap:10px;
+      position:relative;
+      overflow:visible;
+    }
+
+    .stack-slot{
+      width:100%;
+      height:40px;
+      border-radius:6px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,0.03);
+      color:var(--muted);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:600;
+      font-size:0.95rem;
+      position:relative;
+      box-shadow: inset 0 -4px 8px rgba(2,6,23,0.3);
+    }
+
+    /* Actual element when pushed */
+    .elem{
+      width:100%;
+      height:40px;
+      border-radius:6px;
+      background:linear-gradient(180deg, #052434 0%, rgba(3,91,108,0.25) 100%);
+      border:1px solid rgba(56,189,248,0.15);
+      color:var(--accent);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      font-size:0.95rem;
+      transform-origin:center;
+      box-shadow: 0 4px 20px rgba(3,91,108,0.08);
+    }
+
+    .elem.top{
+      background: linear-gradient(180deg,#0ea5e9,#036172);
+      color:white;
+      box-shadow:0 8px 30px rgba(3,91,108,0.25);
+    }
+
+    /* Top pointer */
+    .top-pointer{
+      position:absolute;
+      top:8px;
+      right:16px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:0.85rem;
+    }
+    .arrow{
+      width:10px;height:10px;
+      transform:rotate(90deg);
+      border-right:2px solid var(--muted);
+      border-top:2px solid var(--muted);
+      display:inline-block;
+    }
+
+    /* Array view (mirror) */
+    .array-view{
+      flex:1;
+      min-width:260px;
+      border-radius:10px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      align-items:stretch;
+    }
+    .array-title{color:var(--muted);font-size:0.88rem}
+    .array-row{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .array-cell{
+      min-width:48px;
+      height:44px;
+      border-radius:8px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border:1px solid rgba(255,255,255,0.03);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      color:var(--muted);
+      font-size:0.9rem;
+      position:relative;
+    }
+    .array-cell.active{
+      background: linear-gradient(180deg,#062d3a,#08333d);
+      color:var(--accent);
+      border-color: rgba(56,189,248,0.18);
+      box-shadow:0 6px 24px rgba(3,91,108,0.08);
+    }
+    .cell-index{
+      position:absolute;
+      bottom:4px;
+      right:6px;
+      font-size:0.68rem;
+      color: #98a8b8;
+      font-weight:500;
+    }
+
+    /* Controls */
+    .controls{
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      margin-bottom:var(--gap);
+    }
+    .controls-row{
+      display:flex;
+      gap:var(--gap);
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    input[type="text"], input[type="number"]{
+      height:40px;
+      padding:8px 12px;
+      background:var(--glass);
+      border:1px solid rgba(255,255,255,0.04);
+      color: #e6eef8;
+      border-radius:8px;
+      outline:none;
+      min-width:120px;
+    }
+    input[type="number"]{width:120px}
+    input:focus{box-shadow:0 0 0 3px rgba(56,189,248,0.08); border-color: rgba(56,189,248,0.2)}
+
+    button{
+      height:40px;
+      border-radius:8px;
+      border:0;
+      background: linear-gradient(180deg,#0ea5e9,#036172);
+      color:white;
+      padding:0 14px;
+      font-weight:700;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms;
+    }
+    button.secondary{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      color:var(--muted);
+      font-weight:600;
+    }
+    button.ghost{
+      background:transparent;
+      border:1px dashed rgba(255,255,255,0.04);
+      color:var(--muted);
+      font-weight:600;
+    }
+    button:active{transform:translateY(1px)}
+    button:focus{outline:none; box-shadow:0 0 0 3px rgba(56,189,248,0.08)}
+
+    /* Operation log */
+    .log{
+      margin-top:8px;
+      padding:10px;
+      border-radius:8px;
+      background: rgba(255,255,255,0.01);
+      color:var(--muted);
+      font-size:0.9rem;
+      max-height:140px;
+      overflow:auto;
+    }
+    .log .entry{
+      padding:6px 0;
+      border-bottom:1px dashed rgba(255,255,255,0.02);
+    }
+    .log .entry:last-child{border-bottom:0}
+
+    /* Animations for push/pop */
+    @keyframes slideDownIn {
+      0%{ transform: translateY(-60px) scale(0.98); opacity:0 }
+      60%{ transform: translateY(8px) scale(1.02); opacity:1 }
+      100%{ transform: translateY(0) scale(1) }
+    }
+    @keyframes popUpOut {
+      0%{ transform: translateY(0) scale(1); opacity:1 }
+      100%{ transform: translateY(-70px) scale(0.92); opacity:0 }
+    }
+    @keyframes shake {
+      0%{ transform: translateX(0) }
+      25%{ transform: translateX(-6px) }
+      50%{ transform: translateX(6px) }
+      75%{ transform: translateX(-4px) }
+      100%{ transform: translateX(0) }
+    }
+
+    .animate-in{ animation: slideDownIn 420ms cubic-bezier(.2,.9,.2,1) both; }
+    .animate-out{ animation: popUpOut 380ms cubic-bezier(.2,.9,.2,1) both; }
+    .shake{ animation: shake 420ms ease both; }
+
+    /* Small helpers */
+    .muted{ color:var(--muted); font-size:0.9rem }
+    .kbd{ background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:6px; font-weight:700; color:#dbeafe; font-size:0.86rem; border:1px solid rgba(255,255,255,0.02) }
+    footer{ margin-top:var(--gap); color:var(--muted); font-size:0.86rem; }
+  </style>
+</head>
+<body>
+  <div class="wrapper" role="main">
+    <header>
+      <div class="title-block">
+        <h1>Stack — LIFO (Last In, First Out)</h1>
+        <p class="lead">Interactive module: push, pop, peek, and observe how a stack operates visually and as an array.</p>
+      </div>
+      <div style="min-width:220px; text-align:right;">
+        <div class="muted">Safe margins: 24px • Min spacing: 16px</div>
+        <div style="margin-top:8px"><span class="kbd">Enter</span> to Push • <span class="kbd">P</span> Pop • <span class="kbd">Space</span> Peek</div>
+      </div>
+    </header>
+
+    <div class="module" aria-label="Stack interactive module">
+      <!-- Left: Visual + controls -->
+      <section class="interactive" aria-labelledby="concept">
+        <div class="info" id="concept">
+          <h3>Concept Title</h3>
+          <div><strong>Stack (LIFO)</strong> — a collection that follows Last In, First Out ordering. Only the top element is accessible for removal or inspection.</div>
+          <hr style="opacity:0.06;margin:12px 0">
+          <h3>Learning Objective</h3>
+          <div>After interacting you'll be able to: <ul style="margin:6px 0 0 18px;color:var(--muted)"><li>Understand push/pop effects and LIFO ordering</li><li>See how a stack maps to array indices</li><li>Recognize underflow/overflow situations in bounded stacks</li></ul></div>
+        </div>
+
+        <div class="vis-area" aria-hidden="false">
+          <div class="stack-column" aria-label="Stack visual">
+            <div class="top-pointer" id="topPointer" aria-hidden="true">
+              <span class="arrow" aria-hidden="true"></span>
+              <span id="topLabel">top: -1</span>
+            </div>
+
+            <div style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:6px;">
+              <div style="font-weight:700; color:var(--muted);">Stack Frame</div>
+            </div>
+
+            <div class="stack-frame" id="stackFrame" role="list" aria-label="Stack slots">
+              <!-- Stack elements will be injected here (bottom-first) -->
+              <div id="emptyHint" class="muted" style="padding:8px;text-align:center;">Stack is empty — push values to begin</div>
+            </div>
+
+            <div style="margin-top:12px; color:var(--muted); font-size:0.9rem;">
+              Top element highlighted in blue. New elements animate into place.
+            </div>
+          </div>
+
+          <div class="array-view" aria-label="Array mirror">
+            <div class="array-title">Array representation (index 0 at bottom)</div>
+            <div class="array-row" id="arrayRow" role="list" aria-label="Array cells">
+              <!-- array cells injected here -->
+            </div>
+
+            <div style="margin-top:8px; color:var(--muted); font-size:0.88rem;">
+              The stack maps to contiguous array indices. top points to the highest used index.
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;">
+          <div class="controls" aria-label="Stack controls">
+            <div class="controls-row" role="group" aria-label="Push controls">
+              <label for="valueInput" class="muted" style="display:block; margin-right:8px;">Value</label>
+              <input id="valueInput" type="text" inputmode="text" aria-label="Value to push" placeholder="e.g. 42" />
+              <button id="pushBtn" aria-label="Push value">Push</button>
+
+              <label for="capacityInput" class="muted" style="margin-left:12px;">Capacity</label>
+              <input id="capacityInput" type="number" min="1" value="6" aria-label="Set stack capacity" />
+              <button id="setCapBtn" class="secondary" aria-label="Set capacity">Set</button>
+            </div>
+
+            <div class="controls-row" role="group" aria-label="Pop and Peek controls">
+              <button id="popBtn" class="secondary" aria-label="Pop top">Pop</button>
+              <button id="peekBtn" class="ghost" aria-label="Peek top">Peek</button>
+              <button id="clearBtn" class="secondary" aria-label="Clear stack">Clear</button>
+              <button id="fillBtn" class="secondary" aria-label="Fill with sample values">Sample Fill</button>
+              <div style="flex:1"></div>
+              <div class="muted" aria-live="polite" id="statusAnnounce" style="text-align:right">top = -1</div>
+            </div>
+
+            <div class="controls-row" role="group" aria-label="Machine controls">
+              <button id="replayBtn" class="ghost" aria-label="Auto-play example">Auto-play Example</button>
+              <div style="flex:1"></div>
+              <div class="muted">Shortcuts: <span class="kbd">Enter</span> Push • <span class="kbd">P</span> Pop • <span class="kbd">Space</span> Peek</div>
+            </div>
+
+            <div>
+              <div class="log" id="log" aria-live="polite" aria-label="Operation log"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Sidebar docs, interaction design, layout description -->
+      <aside class="sidebar" aria-labelledby="sidebarTitle">
+        <h2 id="sidebarTitle" style="margin:0 0 8px 0; font-size:1.05rem; color:#fff">Interaction Design & Layout</h2>
+
+        <div class="info" style="margin-bottom:var(--gap);">
+          <h3>Interaction Design</h3>
+          <div style="color:var(--muted)">
+            - Users type a value and click "Push" (or press Enter). The element animates into the stack (slide-down), becomes the top, and the array mirror updates.<br><br>
+            - Clicking "Pop" removes the top element with an upward pop animation and shows the popped value in the log. If empty, the stack frame gently shakes to indicate underflow.<br><br>
+            - "Peek" briefly highlights the top and announces its value without removing it.<br><br>
+            - "Capacity" sets a bounded size. Pushing beyond capacity triggers an overflow warning and prevents the push.<br><br>
+            - "Auto-play Example" runs a short scripted sequence (push, push, pop, peek) to reinforce LIFO behavior.
+          </div>
+        </div>
+
+        <div class="info" style="margin-bottom:var(--gap);">
+          <h3>Layout Description</h3>
+          <div style="color:var(--muted)">
+            - Two-column responsive layout: left column contains the interactive visualization; right column contains controls and explanatory text.<br><br>
+            - Safe area margins: 24px (applied to body). Minimum spacing between interactive elements: 16px (CSS gap and margins).<br><br>
+            - Accessibility: controls have labels, keyboard shortcuts, aria-live announcements for the top and operation log, and focus styles. The module is responsive: columns stack on narrow screens.
+          </div>
+        </div>
+
+        <div class="info">
+          <h3>What you'll see</h3>
+          <div style="color:var(--muted)">
+            - Visual stack frame with element animation to show push/pop order.<br>
+            - Array mirror that shows indices (0 at bottom) and highlights the active cells.<br>
+            - A live operation log documenting actions (push X, pop -> Y).
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer>
+      Tip: Try pushing multiple values then popping them to confirm that the last pushed is the first popped.
+    </footer>
+  </div>
+
+  <script>
+    /*
+      Interactive Stack Module (vanilla JS)
+      - Implements push, pop, peek, clear, capacity
+      - Visual animations for push/pop
+      - Array mirror updates with indices (0 at bottom)
+      - Accessibility: aria-live updates and keyboard shortcuts
+    */
+
+    (function(){
+      // DOM refs
+      const stackFrame = document.getElementById('stackFrame');
+      const arrayRow = document.getElementById('arrayRow');
+      const logEl = document.getElementById('log');
+      const topLabel = document.getElementById('topLabel');
+      const statusAnnounce = document.getElementById('statusAnnounce');
+      const emptyHint = document.getElementById('emptyHint');
+
+      const valueInput = document.getElementById('valueInput');
+      const pushBtn = document.getElementById('pushBtn');
+      const popBtn = document.getElementById('popBtn');
+      const peekBtn = document.getElementById('peekBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const fillBtn = document.getElementById('fillBtn');
+      const replayBtn = document.getElementById('replayBtn');
+      const capacityInput = document.getElementById('capacityInput');
+      const setCapBtn = document.getElementById('setCapBtn');
+
+      let capacity = parseInt(capacityInput.value, 10) || 6;
+      let stack = []; // bottom at index 0, top = stack.length - 1
+
+      // Utility: log message
+      function log(msg){
+        const entry = document.createElement('div');
+        entry.className = 'entry';
+        entry.textContent = `${timestamp()} — ${msg}`;
+        logEl.prepend(entry);
+      }
+      function timestamp(){
+        const d = new Date();
+        return d.toLocaleTimeString();
+      }
+
+      // Update top label and status
+      function updateTop(){
+        const topIndex = stack.length - 1;
+        topLabel.textContent = `top: ${topIndex}`;
+        statusAnnounce.textContent = `top = ${topIndex}`;
+      }
+
+      // Render stack visual (rebuild)
+      function render(){
+        // Clear frame
+        while (stackFrame.firstChild) stackFrame.removeChild(stackFrame.firstChild);
+
+        if(stack.length === 0){
+          stackFrame.appendChild(emptyHint);
+          emptyHint.style.display = 'block';
+        } else {
+          emptyHint.style.display = 'none';
+          // Render from bottom (index 0) to top (last)
+          for(let i=0;i<stack.length;i++){
+            const val = stack[i];
+            const el = document.createElement('div');
+            el.className = 'elem' + (i === stack.length-1 ? ' top' : '');
+            el.setAttribute('role','listitem');
+            el.setAttribute('aria-label', `Stack element ${i} value ${val}`);
+            el.textContent = val;
+            // Place elements bottom-first: stack-frame is column-reverse, so append in increasing index
+            stackFrame.appendChild(el);
+          }
+        }
+
+        renderArray();
+        updateTop();
+      }
+
+      // Render array mirror
+      function renderArray(){
+        arrayRow.innerHTML = '';
+        // We'll show capacity cells: capacity may be larger than current stack length
+        for(let i=0;i<capacity;i++){
+          const cell = document.createElement('div');
+          cell.className = 'array-cell' + (i < stack.length ? ' active' : '');
+          const idx = document.createElement('div');
+          idx.className = 'cell-index';
+          idx.textContent = i;
+          cell.appendChild(idx);
+
+          if(i < stack.length){
+            cell.textContent = stack[i];
+            cell.appendChild(idx);
+          } else {
+            // placeholder
+            const placeholder = document.createElement('div');
+            placeholder.style.color = 'rgba(255,255,255,0.06)';
+            placeholder.style.fontWeight = '600';
+            placeholder.style.fontSize = '0.78rem';
+            placeholder.textContent = '-';
+            cell.appendChild(placeholder);
+            cell.appendChild(idx);
+          }
+          arrayRow.appendChild(cell);
+        }
+      }
+
+      // Animate push: create element then animate-in
+      function push(value){
+        if(stack.length >= capacity){
+          // overflow: flash stack frame
+          stackFrame.classList.add('shake');
+          setTimeout(()=>stackFrame.classList.remove('shake'),420);
+          log(`Overflow prevented when trying to push "${value}"`);
+          return;
+        }
+        // Update model first
+        stack.push(value);
+
+        // Visual: create a new elem at the end and animate in
+        const el = document.createElement('div');
+        el.className = 'elem top animate-in';
+        el.textContent = value;
+        el.setAttribute('role','listitem');
+        el.setAttribute('aria-label', `Stack element ${stack.length-1} value ${value}`);
+
+        // If emptyHint present, hide it
+        if(emptyHint && emptyHint.parentNode === stackFrame){
+          // We'll rebuild to ensure order and not duplicate nodes
+          render();
+          const last = stackFrame.lastElementChild;
+          if(last) last.classList.add('animate-in');
+        } else {
+          // Append to frame
+          stackFrame.appendChild(el);
+          // remove top class from previous top if exists
+          const others = stackFrame.querySelectorAll('.elem');
+          if(others.length > 1){
+            others[others.length - 2].classList.remove('top');
+          }
+        }
+
+        // Update array and UI
+        renderArray();
+        updateTop();
+
+        log(`push("${value}")`);
+        announce(`Pushed ${value}`);
+      }
+
+      // Animate pop
+      function pop(){
+        if(stack.length === 0){
+          // underflow: shake and announce
+          stackFrame.classList.add('shake');
+          setTimeout(()=>stackFrame.classList.remove('shake'),420);
+          log('pop() attempted on empty stack (underflow)');
+          announce('Stack underflow: cannot pop, stack is empty');
+          return;
+        }
+        const popped = stack.pop();
+
+        // Visual: animate-out the top visual element
+        const elems = stackFrame.querySelectorAll('.elem');
+        const topEl = elems[elems.length - 1];
+        if(topEl){
+          topEl.classList.add('animate-out');
+          // on animation end, remove and update remaining top
+          topEl.addEventListener('animationend', ()=>{
+            if(topEl && topEl.parentNode === stackFrame) stackFrame.removeChild(topEl);
+            // mark new top
+            const remain = stackFrame.querySelectorAll('.elem');
+            if(remain.length > 0){
+              remain[remain.length -1].classList.add('top');
+            } else {
+              // show empty hint
+              if(emptyHint) stackFrame.appendChild(emptyHint);
+            }
+            renderArray();
+            updateTop();
+          }, {once:true});
+        } else {
+          // if no visual element found fallback to render
+          render();
+        }
+
+        log(`pop() -> "${popped}"`);
+        announce(`Popped ${popped}`);
+        return popped;
+      }
+
+      function peek(){
+        if(stack.length === 0){
+          log('peek() -> null (empty)');
+          announce('Stack is empty');
+          // brief shake to indicate empty
+          stackFrame.classList.add('shake');
+          setTimeout(()=>stackFrame.classList.remove('shake'),380);
+          return null;
+        }
+        const top = stack[stack.length - 1];
+
+        // Visual highlight: briefly pulse top element
+        const elems = stackFrame.querySelectorAll('.elem');
+        const topEl = elems[elems.length -1];
+        if(topEl){
+          topEl.style.transition = 'box-shadow 200ms, transform 200ms';
+          topEl.style.transform = 'translateY(-4px) scale(1.02)';
+          setTimeout(()=>{ topEl.style.transform=''; }, 280);
+        }
+
+        log(`peek() -> "${top}"`);
+        announce(`Top is ${top}`);
+        return top;
+      }
+
+      function clearStack(){
+        if(stack.length === 0){
+          log('clear() — stack already empty');
+          announce('Stack already empty');
+          return;
+        }
+        stack = [];
+        // Clear visuals
+        render();
+        log('clear() — stack cleared');
+        announce('Stack cleared');
+      }
+
+      // Helper to announce via aria-live
+      function announce(msg){
+        statusAnnounce.textContent = msg;
+        // also set a timeout to show top after short delay
+        setTimeout(updateTop, 600);
+      }
+
+      // Event bindings
+      pushBtn.addEventListener('click', ()=>{
+        const val = valueInput.value.trim();
+        if(val === '') { valueInput.focus(); return; }
+        push(val);
+        valueInput.value = '';
+        valueInput.focus();
+      });
+
+      popBtn.addEventListener('click', ()=>{
+        pop();
+      });
+
+      peekBtn.addEventListener('click', ()=>{
+        peek();
+      });
+
+      clearBtn.addEventListener('click', ()=>{
+        clearStack();
+      });
+
+      fillBtn.addEventListener('click', ()=>{
+        // sample fill with unique values until capacity or 4 items
+        const samples = ['A','B','C','D','E','F','G','H'];
+        clearStack();
+        const take = Math.min(4, capacity);
+        for(let i=0;i<take;i++){
+          push(samples[i]);
+        }
+        log('sample fill completed');
+      });
+
+      setCapBtn.addEventListener('click', ()=>{
+        const v = parseInt(capacityInput.value,10);
+        if(Number.isNaN(v) || v < 1) {
+          capacityInput.value = capacity;
+          return;
+        }
+        capacity = v;
+        // if stack longer than capacity, truncate and log overflow effect
+        if(stack.length > capacity){
+          const removed = stack.splice(capacity);
+          log(`capacity reduced to ${capacity}, trimmed ${removed.length} elements`);
+        } else {
+          log(`capacity set to ${capacity}`);
+        }
+        render();
+      });
+
+      capacityInput.addEventListener('keyup', (e)=>{
+        if(e.key === 'Enter'){ setCapBtn.click(); }
+      });
+
+      // Replay scripted example
+      replayBtn.addEventListener('click', async ()=>{
+        // Disable controls during replay
+        disableControls(true);
+        clearStack();
+        await delay(300);
+        push('1'); await delay(500);
+        push('2'); await delay(500);
+        push('3'); await delay(500);
+        await delay(300);
+        pop(); await delay(500);
+        peek(); await delay(600);
+        disableControls(false);
+      });
+
+      function disableControls(v){
+        const all = [pushBtn,popBtn,peekBtn,clearBtn,fillBtn,replayBtn,setCapBtn];
+        all.forEach(btn=>btn.disabled = v);
+      }
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown',(e)=>{
+        if(e.key === 'Enter' && document.activeElement === valueInput){
+          e.preventDefault();
+          pushBtn.click();
+        } else if(e.key === 'p' || e.key === 'P'){
+          // Only when not focused on input
+          if(document.activeElement !== valueInput){
+            popBtn.click();
+          }
+        } else if(e.code === 'Space'){
+          // If not focused on an input, prevent scrolling and peek
+          if(document.activeElement !== valueInput && document.activeElement.tagName !== 'BUTTON'){
+            e.preventDefault();
+            peekBtn.click();
+          }
+        }
+      });
+
+      // Small helper delay
+      function delay(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
+
+      // Initialize visuals
+      render();
+      log('Module ready. Capacity: ' + capacity);
+
+      // Accessibility: focus management
+      valueInput.setAttribute('aria-describedby','statusAnnounce');
+
+      // Expose some functions for debugging (in console)
+      window._stackModule = { push, pop, peek, clear: clearStack, getStack: ()=>stack, setCapacity: (c)=>{ capacity=c; render(); } };
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive BST — Insert & Search Visualization</title>
+  <style>
+    :root{
+      --safe-padding: 24px;
+      --gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --card: #071021;
+      --accent: #4fd1c5;
+      --accent-2: #63b3ed;
+      --muted: #94a3b8;
+      --success: #16a34a;
+      --danger: #ef4444;
+      --node-fill: #0ea5a1;
+      --node-stroke: #08333a;
+      --text: #e6eef6;
+      --transition: 600ms;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg,#071021 0%, #031027 100%);
+      color:var(--text);
+      font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    }
+
+    /* Safe area */
+    .app {
+      box-sizing:border-box;
+      padding:var(--safe-padding);
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+
+    header {
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    h1 {
+      margin:0;
+      font-size:1.25rem;
+      letter-spacing:0.2px;
+    }
+    p.lead {
+      margin:0;
+      color:var(--muted);
+      font-size:0.95rem;
+    }
+
+    main {
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+      width:100%;
+      flex:1 1 auto;
+    }
+
+    /* Controls panel */
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);
+      padding:16px;
+      border-radius:10px;
+      width:320px;
+      min-width:240px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+    }
+
+    .controls {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    input[type="number"]{
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.06);
+      background:rgba(255,255,255,0.02);
+      color:var(--text);
+      width:120px;
+      font-size:1rem;
+      outline:none;
+    }
+    input[type="number"]::placeholder{ color: #8aa0b6; }
+
+    button {
+      background: linear-gradient(180deg, var(--accent) 0%, var(--accent-2) 100%);
+      color: #022;
+      border: none;
+      padding:10px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:600;
+      box-shadow: 0 6px 14px rgba(6,20,33,0.6);
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    button.secondary {
+      background: transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      color:var(--text);
+      box-shadow:none;
+    }
+    button:active { transform:translateY(1px); }
+
+    .small {
+      padding:8px 10px;
+      font-size:0.95rem;
+    }
+
+    .status {
+      font-size:0.95rem;
+      color:var(--muted);
+      background:rgba(0,0,0,0.04);
+      padding:10px;
+      border-radius:8px;
+      min-height:48px;
+    }
+
+    /* Visualization area */
+    .vis-card {
+      flex:1 1 auto;
+      min-height:420px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      border:1px solid rgba(255,255,255,0.03);
+      border-radius:10px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    }
+
+    .vis-top {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+    }
+    .legend {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      color:var(--muted);
+      font-size:0.9rem;
+    }
+    .legend .chip {
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      background:rgba(255,255,255,0.02);
+      padding:6px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    /* SVG area */
+    .stage {
+      background:linear-gradient(180deg, rgba(10,14,20,0.6), rgba(8,10,16,0.6));
+      border-radius:8px;
+      flex:1 1 auto;
+      position:relative;
+      overflow:hidden;
+      min-height:320px;
+    }
+
+    svg {
+      width:100%;
+      height:100%;
+      display:block;
+    }
+
+    /* Node styles */
+    .node {
+      cursor:pointer;
+      transition: transform var(--transition) ease, opacity var(--transition) ease;
+      transform-origin: center center;
+    }
+    .node circle {
+      fill:var(--node-fill);
+      stroke:var(--node-stroke);
+      stroke-width:2px;
+    }
+    .node text {
+      fill: #022;
+      font-weight:700;
+      font-size:13px;
+      text-anchor:middle;
+      dominant-baseline:middle;
+    }
+
+    .edge {
+      stroke:rgba(255,255,255,0.12);
+      stroke-width:2px;
+      transition: opacity var(--transition) ease;
+      stroke-linecap:round;
+    }
+
+    /* Visiting highlight */
+    @keyframes pulse {
+      0%{ filter: drop-shadow(0 0 0 rgba(79,209,197,0.0)); transform:scale(1); }
+      50%{ filter: drop-shadow(0 8px 14px rgba(79,209,197,0.18)); transform:scale(1.06); }
+      100%{ filter: drop-shadow(0 0 0 rgba(79,209,197,0.0)); transform:scale(1); }
+    }
+    .visiting circle {
+      stroke: #d8fdf8;
+      stroke-width:3px;
+      animation: pulse 700ms ease-in-out infinite;
+    }
+    .found circle {
+      stroke: var(--success);
+      stroke-width:4px;
+      animation: pulse 800ms ease-in-out 3;
+    }
+    .notfound circle {
+      stroke: var(--danger);
+      stroke-width:4px;
+      animation: pulse 800ms ease-in-out 2;
+    }
+
+    /* small screens: stack panels */
+    @media (max-width:880px){
+      main { flex-direction:column; }
+      .panel { width:100%; min-width:unset; }
+    }
+
+    /* Accessibility focus outlines */
+    button:focus, input:focus {
+      outline: 3px solid rgba(99,179,255,0.16);
+      outline-offset:2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Binary Search Tree interactive visualization">
+    <header>
+      <h1>Interactive Binary Search Tree — Insert & Search</h1>
+      <p class="lead">Type a number and Insert to see how a Binary Search Tree places values. Search highlights comparison path.</p>
+    </header>
+
+    <main>
+      <aside class="panel" aria-label="controls">
+        <div>
+          <label for="valueInput" style="display:block;margin-bottom:6px;font-weight:600;">Value (0–999)</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="valueInput" type="number" min="0" max="999" placeholder="e.g., 42" aria-label="Value to insert or search" />
+            <button id="insertBtn" class="small" aria-label="Insert value">Insert</button>
+            <button id="searchBtn" class="small secondary" aria-label="Search value">Search</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;">
+          <button id="randomBtn" class="small" aria-label="Insert random values">Insert Random</button>
+          <button id="clearBtn" class="small secondary" aria-label="Clear tree">Clear</button>
+        </div>
+
+        <div class="status" id="message" role="status" aria-live="polite">Tip: Use Insert to add nodes. Search to trace comparisons.</div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <strong style="font-size:0.95rem;">Legend</strong>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="chip" style="background:rgba(79,209,197,0.12);padding:6px 8px;border-radius:8px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" style="margin-right:6px"><circle cx="12" cy="12" r="7" fill="#0ea5a1" stroke="#08333a" stroke-width="1.6"/></svg><span style="color:var(--muted)">Node</span>
+            </div>
+            <div class="chip" style="background:rgba(79,209,197,0.06);padding:6px 8px;border-radius:8px;">
+              <span style="width:14px;height:14px;border-radius:3px;background:var(--accent);display:inline-block;margin-right:6px;"></span><span style="color:var(--muted)">Visited</span>
+            </div>
+            <div class="chip" style="background:rgba(22,163,74,0.06);padding:6px 8px;border-radius:8px;">
+              <span style="width:14px;height:14px;border-radius:3px;background:var(--success);display:inline-block;margin-right:6px;"></span><span style="color:var(--muted)">Found</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="vis-card" aria-label="visualization">
+        <div class="vis-top">
+          <div style="color:var(--muted);font-size:0.95rem;">Tree Visualization</div>
+          <div class="legend" aria-hidden="true">
+            <div class="chip">Nodes animate into position</div>
+            <div class="chip">Traversal highlights decisions</div>
+          </div>
+        </div>
+
+        <div class="stage" id="stage" role="region" aria-label="Binary search tree stage">
+          <svg id="svgRoot" viewBox="0 0 1200 640" preserveAspectRatio="xMidYMid meet" aria-hidden="false"></svg>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // Simple BST visualization for Insert & Search (vanilla JS)
+    (function(){
+      const svg = document.getElementById('svgRoot');
+      const insertBtn = document.getElementById('insertBtn');
+      const searchBtn = document.getElementById('searchBtn');
+      const randomBtn = document.getElementById('randomBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const input = document.getElementById('valueInput');
+      const message = document.getElementById('message');
+      const stage = document.getElementById('stage');
+
+      // Layout settings
+      const WIDTH = 1200;
+      const HEIGHT = 640;
+      const V_SPACING = 92;   // vertical distance between levels
+      const NODE_RADIUS = 22;
+      const H_GAP = 56;       // minimum horizontal gap
+
+      svg.setAttribute('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
+
+      // Data model
+      let root = null;
+      let nodes = []; // flat array of node objects for easy DOM mapping
+      let idCounter = 1;
+      const TRANSITION_MS = 600;
+
+      // Create groups for edges and nodes
+      const edgesGroup = createSVG('g', {class:'edges'});
+      const nodesGroup = createSVG('g', {class:'nodes'});
+      svg.appendChild(edgesGroup);
+      svg.appendChild(nodesGroup);
+
+      // Utility helpers
+      function createSVG(tag, attrs = {}) {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for (const k in attrs) el.setAttribute(k, attrs[k]);
+        return el;
+      }
+
+      function log(msg, type='info') {
+        message.textContent = msg;
+        if (type === 'error') message.style.color = 'var(--danger)';
+        else if (type === 'success') message.style.color = 'var(--success)';
+        else message.style.color = 'var(--muted)';
+      }
+
+      function clampVal(v) {
+        if (Number.isFinite(v)) return Math.max(0, Math.min(999, Math.trunc(v)));
+        return null;
+      }
+
+      // BST node creation
+      function makeNode(value) {
+        return {
+          id: idCounter++,
+          value: value,
+          left: null,
+          right: null,
+          parent: null,
+          x: WIDTH/2,
+          y: 40,
+          gx: WIDTH/2,
+          gy: 40
+        };
+      }
+
+      // Insert value into model (no DOM animation here)
+      function insertValueModel(val) {
+        const node = makeNode(val);
+        if (!root) { root = node; nodes.push(node); return {node, path: [node]}; }
+        let cur = root;
+        const path = [cur];
+        while (true) {
+          if (val === cur.value) {
+            return {duplicate: true, node: cur, path};
+          } else if (val < cur.value) {
+            if (cur.left) {
+              cur = cur.left;
+              path.push(cur);
+            } else {
+              cur.left = node;
+              node.parent = cur;
+              nodes.push(node);
+              path.push(node);
+              break;
+            }
+          } else {
+            if (cur.right) {
+              cur = cur.right;
+              path.push(cur);
+            } else {
+              cur.right = node;
+              node.parent = cur;
+              nodes.push(node);
+              path.push(node);
+              break;
+            }
+          }
+        }
+        return {node, path};
+      }
+
+      // Clear everything
+      function clearAll() {
+        root = null;
+        nodes = [];
+        idCounter = 1;
+        while (nodesGroup.firstChild) nodesGroup.removeChild(nodesGroup.firstChild);
+        while (edgesGroup.firstChild) edgesGroup.removeChild(edgesGroup.firstChild);
+        log('Tree cleared. Insert a value to begin.');
+      }
+
+      // Compute positions using inorder traversal to assign x
+      function layoutTree() {
+        let xpos = 60; // left padding
+        function inorder(n, depth=0) {
+          if (!n) return;
+          inorder(n.left, depth+1);
+          n.gx = xpos;
+          n.gy = 60 + depth * V_SPACING;
+          xpos += Math.max(H_GAP, NODE_RADIUS*2 + 10);
+          inorder(n.right, depth+1);
+        }
+        inorder(root);
+        // ensure nodes are within bounds: scale if exceed width
+        const maxX = Math.max(...nodes.map(n => n.gx), WIDTH);
+        const scale = Math.min(1, (WIDTH - 80) / Math.max(maxX, WIDTH));
+        if (scale < 1) {
+          nodes.forEach(n => { n.gx = 60 + (n.gx - 60) * scale; });
+        }
+      }
+
+      // Draw or update DOM nodes and edges
+      function syncDOM() {
+        // Ensure layout updated
+        layoutTree();
+
+        // Map nodes by id to DOM elements
+        const existing = {};
+        for (const g of Array.from(nodesGroup.children)) {
+          const id = Number(g.getAttribute('data-id'));
+          existing[id] = g;
+        }
+
+        // Create/Update node elements
+        nodes.forEach(n => {
+          let g = existing[n.id];
+          if (!g) {
+            g = createSVG('g', {class:'node', 'data-id': n.id});
+            const circle = createSVG('circle', {r: NODE_RADIUS});
+            const text = createSVG('text', {});
+            text.textContent = n.value;
+            g.appendChild(circle);
+            g.appendChild(text);
+
+            // initial at top center (for animated insertion)
+            g.setAttribute('transform', `translate(${WIDTH/2},40)`);
+            g.style.opacity = '0';
+            nodesGroup.appendChild(g);
+          } else {
+            // update text in case values change (shouldn't)
+            const txt = g.querySelector('text');
+            if (txt) txt.textContent = n.value;
+          }
+        });
+
+        // Remove DOM nodes that no longer exist
+        Array.from(nodesGroup.children).forEach(g => {
+          const id = Number(g.getAttribute('data-id'));
+          if (!nodes.find(n => n.id === id)) {
+            g.remove();
+          }
+        });
+
+        // Update edges
+        while (edgesGroup.firstChild) edgesGroup.removeChild(edgesGroup.firstChild);
+        nodes.forEach(n => {
+          if (n.left) {
+            const l = createSVG('line', {class:'edge'});
+            edgesGroup.appendChild(l);
+            // set will be updated below
+          }
+          if (n.right) {
+            const r = createSVG('line', {class:'edge'});
+            edgesGroup.appendChild(r);
+          }
+        });
+
+        // After creation, set transforms/positions with transitions
+        // Delay slightly to allow initial insertion position to be visible
+        requestAnimationFrame(() => {
+          nodes.forEach(n => {
+            const g = nodesGroup.querySelector(`g[data-id="${n.id}"]`);
+            if (g) {
+              g.style.opacity = '1';
+              g.style.transition = `transform ${TRANSITION_MS}ms cubic-bezier(.2,.9,.2,1), opacity ${TRANSITION_MS}ms`;
+              g.setAttribute('transform', `translate(${n.gx},${n.gy})`);
+              // store logical coords for edges
+              n.x = n.gx;
+              n.y = n.gy;
+            }
+          });
+
+          // update edges lines
+          const edgeLines = Array.from(edgesGroup.querySelectorAll('line'));
+          let idx = 0;
+          nodes.forEach(n => {
+            if (n.left) {
+              const ln = edgeLines[idx++];
+              ln.setAttribute('x1', n.x);
+              ln.setAttribute('y1', n.y);
+              ln.setAttribute('x2', n.left.x);
+              ln.setAttribute('y2', n.left.y);
+              ln.style.opacity = '1';
+            }
+            if (n.right) {
+              const ln = edgeLines[idx++];
+              ln.setAttribute('x1', n.x);
+              ln.setAttribute('y1', n.y);
+              ln.setAttribute('x2', n.right.x);
+              ln.setAttribute('y2', n.right.y);
+              ln.style.opacity = '1';
+            }
+          });
+        });
+      }
+
+      // Traversal animation helpers
+      function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+      async function animateInsert(val) {
+        const v = clampVal(Number(val));
+        if (v === null || Number.isNaN(v)) { log('Enter a number between 0 and 999.', 'error'); return; }
+        log('Inserting ' + v + '...');
+
+        // Prepare a temp DOM node at top center to animate along the path
+        const {node, duplicate, path} = insertValueModel(v);
+
+        if (duplicate) {
+          // animate a quick visit highlight path to show where duplicate was found
+          await animateTraversalPath(path, /*highlightFinal*/ true, /*messageOnComplete*/ `Value ${v} already exists — BST does not allow duplicates.`);
+          // remove the duplicate node we added to nodes array in model function
+          // (insertValueModel returns existing node when duplicate; our nodes array didn't gain new element)
+          return;
+        }
+
+        // Create DOM elements for all nodes (new one included) — initial pos set in syncDOM
+        syncDOM();
+
+        // Animate traversal: highlight nodes in path sequentially (excluding final placement)
+        // For insertion visualize: highlight parent nodes until the spot
+        const animPath = path.slice(0, path.length - 1); // nodes visited before placing new one
+        await animateTraversalPath(animPath, /*highlightFinal*/ false);
+
+        // Move the new node from top center to its position (transform already set in syncDOM)
+        // The element already exists at top center; setting transform in syncDOM animates it to final spot
+        // Wait for transition completion
+        await sleep(TRANSITION_MS + 40);
+
+        log(`Inserted ${v}.`);
+      }
+
+      async function animateSearch(val) {
+        const v = clampVal(Number(val));
+        if (v === null || Number.isNaN(v)) { log('Enter a number between 0 and 999.', 'error'); return; }
+        if (!root) { log('The tree is empty. Insert a value first.', 'error'); return; }
+        log(`Searching for ${v}...`);
+
+        const path = [];
+        let cur = root;
+        while (cur) {
+          path.push(cur);
+          if (v === cur.value) break;
+          cur = (v < cur.value) ? cur.left : cur.right;
+        }
+        const found = path.length && path[path.length-1].value === v;
+
+        await animateTraversalPath(path, /*highlightFinal*/ true, found ? `Found ${v}.` : `Value ${v} not found.`);
+      }
+
+      // Animate a sequence of nodes being visited (pulsing), optionally highlight final node found/duplicate
+      async function animateTraversalPath(path, highlightFinal=true, finalMessage=null) {
+        // clear any previous classes
+        nodesGroup.querySelectorAll('g.node').forEach(g => {
+          g.classList.remove('visiting','found','notfound');
+        });
+
+        for (let i=0;i<path.length;i++) {
+          const n = path[i];
+          const g = nodesGroup.querySelector(`g[data-id="${n.id}"]`);
+          if (!g) continue;
+          g.classList.add('visiting');
+          // message describing decision
+          if (i < path.length - 1) {
+            const next = path[i+1];
+            const dir = (next.value < n.value) ? 'left' : 'right';
+            log(`Visiting ${n.value} — ${dir} child (comparing ${next.value}).`);
+          } else {
+            log(`Visiting ${n.value} — reached end of path.`);
+          }
+          await sleep(560);
+          g.classList.remove('visiting');
+        }
+
+        if (path.length === 0) return;
+
+        const last = path[path.length-1];
+        const lastG = nodesGroup.querySelector(`g[data-id="${last.id}"]`);
+        if (highlightFinal && lastG) {
+          // Determine if it's a success (found) or failure
+          // Found when the last node value equals target; otherwise last visited is where we'd insert -> failure
+          // We'll observe class externally: caller may supply finalMessage to indicate found or not
+          const isFound = (finalMessage && finalMessage.startsWith('Found')) || false;
+          if (isFound) {
+            lastG.classList.add('found');
+            log(finalMessage || `Found ${last.value}.`, 'success');
+          } else {
+            lastG.classList.add('notfound');
+            log(finalMessage || `Not found.`, 'error');
+          }
+          await sleep(900);
+          lastG.classList.remove('found','notfound');
+        } else if (finalMessage) {
+          log(finalMessage);
+        }
+      }
+
+      // UI bindings
+      insertBtn.addEventListener('click', async () => {
+        insertBtn.disabled = true;
+        searchBtn.disabled = true;
+        randomBtn.disabled = true;
+        clearBtn.disabled = true;
+        await animateInsert(input.value);
+        syncDOM();
+        insertBtn.disabled = false;
+        searchBtn.disabled = false;
+        randomBtn.disabled = false;
+        clearBtn.disabled = false;
+      });
+
+      searchBtn.addEventListener('click', async () => {
+        insertBtn.disabled = true;
+        searchBtn.disabled = true;
+        randomBtn.disabled = true;
+        clearBtn.disabled = true;
+        await animateSearch(input.value);
+        insertBtn.disabled = false;
+        searchBtn.disabled = false;
+        randomBtn.disabled = false;
+        clearBtn.disabled = false;
+      });
+
+      clearBtn.addEventListener('click', () => {
+        clearAll();
+      });
+
+      randomBtn.addEventListener('click', async () => {
+        // Insert a few random numbers sequentially to build tree
+        const count = 6;
+        const values = [];
+        while (values.length < count) {
+          const n = Math.floor(Math.random() * 200);
+          if (!values.includes(n)) values.push(n);
+        }
+        insertBtn.disabled = true;
+        searchBtn.disabled = true;
+        randomBtn.disabled = true;
+        clearBtn.disabled = true;
+        for (const v of values) {
+          input.value = v;
+          await animateInsert(v);
+        }
+        syncDOM();
+        insertBtn.disabled = false;
+        searchBtn.disabled = false;
+        randomBtn.disabled = false;
+        clearBtn.disabled = false;
+        log('Inserted random values.');
+      });
+
+      // Keyboard: Enter in input triggers Insert
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          insertBtn.click();
+        }
+      });
+
+      // Initialize with a small hint
+      log('Tip: Enter a number and press Insert. Try Insert Random to see a tree build.');
+      // Ensure stage resizes nicely on window changes
+      window.addEventListener('resize', () => {
+        // nothing needed; SVG scales with viewBox, but we still re-sync for crispness
+        syncDOM();
+      });
+
+      // Expose some helpers for debugging (optional)
+      window.bstviz = { syncDOM, clearAll };
+
+    })();
+  </script>
+</body>
+</html>

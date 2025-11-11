@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Hash Map Explorer</title>
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --muted:#98a0b3;
+      --accent:#46c3ff;
+      --accent-2:#7af59a;
+      --danger:#ff6b6b;
+      --glass: rgba(255,255,255,0.03);
+      --card:#0b1220;
+      --gap:16px;
+    }
+
+    /* Safe area margins: 24px on all sides */
+    html,body{height:100%}
+    body{
+      margin:0;
+      padding:24px;
+      background:linear-gradient(180deg,#071021 0%, #051424 100%);
+      color:#e6eef8;
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      box-sizing:border-box;
+      min-height:100vh;
+      display:flex;
+      align-items:flex-start;
+    }
+    *{box-sizing:inherit}
+    a{color:var(--accent)}
+
+    .module {
+      width:100%;
+      max-width:1200px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:var(--gap);
+      align-items:start;
+    }
+
+    /* Responsive: stack on narrow screens */
+    @media (max-width:980px){
+      .module{grid-template-columns: 1fr; padding-bottom:40px}
+    }
+
+    /* Left panel: plan and explanations */
+    .info {
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:20px;
+      min-width:0;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .title {
+      font-size:20px;
+      font-weight:700;
+      color:#eaffff;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .subtitle{ color:var(--muted); font-size:13px; margin-top:-4px }
+
+    .section{
+      background:var(--glass);
+      padding:12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.02);
+      font-size:13px;
+      color:var(--muted);
+    }
+    .section h4{
+      margin:0 0 8px 0;
+      color:#dff6ff;
+      font-size:13px;
+    }
+    .klist{display:flex;flex-direction:column;gap:8px}
+    .small{
+      font-size:12px;color:var(--muted)
+    }
+
+    /* Right: interactive workspace */
+    .work {
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:18px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      min-height:380px;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .controls{
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .input {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background:rgba(255,255,255,0.02);
+      padding:8px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+    label{font-size:13px;color:var(--muted);margin-right:8px}
+
+    input[type="text"], select, input[type="number"]{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.04);
+      color:inherit;
+      padding:8px 10px;
+      border-radius:8px;
+      outline:none;
+      min-width:160px;
+      font-size:14px;
+    }
+    input[type="number"]{width:100px}
+    input[type="text"]::placeholder{color:#94a2b8}
+
+    button{
+      background:linear-gradient(180deg,var(--accent) 0%, #24a7d6 100%);
+      color:#022034;
+      border:none;
+      padding:8px 12px;
+      border-radius:10px;
+      font-weight:600;
+      cursor:pointer;
+      box-shadow: 0 6px 12px rgba(40,160,190,0.12);
+      transition:transform .12s ease;
+    }
+    button.secondary{
+      background:transparent;
+      color:var(--accent);
+      border:1px solid rgba(70,195,255,0.12);
+      box-shadow:none;
+    }
+    button:active{transform:translateY(1px)}
+    .danger{background:linear-gradient(180deg,var(--danger),#e04b4b); color:white}
+
+    /* Visualization area */
+    .visual {
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+      flex-wrap:wrap;
+    }
+
+    .canvas {
+      flex:1 1 680px;
+      min-width:280px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.015), transparent);
+      border-radius:12px;
+      padding:16px;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+    .sidebar {
+      width:260px;
+      min-width:200px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    @media (max-width:980px){
+      .sidebar{width:100%}
+    }
+
+    .table-wrap{
+      padding:8px;
+      border-radius:10px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border:1px dashed rgba(255,255,255,0.02);
+    }
+
+    /* table of buckets */
+    .bucket-grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap:12px;
+      align-items:start;
+    }
+    .bucket{
+      min-height:120px;
+      background:rgba(255,255,255,0.02);
+      border-radius:10px;
+      padding:10px;
+      position:relative;
+      border:1px solid rgba(255,255,255,0.02);
+      transition:box-shadow .18s ease, transform .18s ease;
+      overflow:visible;
+    }
+    .bucket.highlight{ box-shadow:0 8px 30px rgba(70,195,255,0.08); transform:translateY(-4px) }
+    .bucket-header{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      align-items:center;
+      margin-bottom:10px;
+    }
+    .bucket-index{
+      font-size:12px;
+      color:var(--muted);
+      background:rgba(255,255,255,0.02);
+      padding:4px 8px;
+      border-radius:8px;
+    }
+    .bucket-body{
+      min-height:60px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    /* nodes for chaining */
+    .node {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border-radius:999px;
+      background:linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,0.02);
+      color:var(--muted);
+      font-weight:600;
+      font-size:13px;
+      transition:transform .22s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .node.found{
+      background:linear-gradient(90deg, #e6fffa, #d7fff7);
+      color:#002420;
+      box-shadow:0 8px 20px rgba(122,245,154,0.08);
+    }
+    .node.adding{
+      box-shadow:0 16px 30px rgba(70,195,255,0.08);
+      transform:scale(1.03);
+    }
+    .node.removing{
+      opacity:0.12;
+      transform:scale(.88) rotate(-6deg);
+    }
+
+    /* floating animated mover (absolute) */
+    .mover {
+      position:fixed;
+      pointer-events:none;
+      z-index:1200;
+      transition:transform .6s cubic-bezier(.22,.9,.32,1), opacity .4s ease;
+      will-change:transform, opacity;
+    }
+
+    .meta {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .stat {
+      background:rgba(255,255,255,0.02);
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.02);
+      min-width:110px;
+      text-align:center;
+    }
+
+    .log {
+      background:transparent;
+      color:var(--muted);
+      font-size:13px;
+      padding:8px;
+      border-radius:8px;
+      border:1px dashed rgba(255,255,255,0.02);
+      min-height:80px;
+      max-height:160px;
+      overflow:auto;
+    }
+
+    /* tiny visual of hash computation */
+    .hashline{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .chip{
+      background:rgba(255,255,255,0.02);
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.02);
+      color:var(--muted);
+      font-weight:700;
+    }
+
+    /* subtle helper text */
+    .hint{font-size:12px;color:var(--muted);margin-top:4px}
+
+    /* accessibility focus */
+    button:focus, input:focus, select:focus { outline:2px solid rgba(70,195,255,0.14); outline-offset:2px; }
+
+  </style>
+</head>
+<body>
+  <main class="module" aria-labelledby="concept-title">
+    <!-- Info Panel -->
+    <aside class="info" aria-label="Lesson Plan">
+      <div>
+        <div class="title" id="concept-title">Hash Map — Visual Explorer</div>
+        <div class="subtitle">Interactive demonstration of hashing, buckets, and collision handling (separate chaining).</div>
+      </div>
+
+      <div class="section" aria-labelledby="objective-heading">
+        <h4 id="objective-heading">Learning Objective</h4>
+        <div class="klist">
+          <div>After interacting you will be able to:</div>
+          <ul style="margin:8px 0 0 18px; color:var(--muted)">
+            <li>Compute a simple hash (sum of char codes mod table size).</li>
+            <li>Insert, search, and delete keys while observing bucket mapping.</li>
+            <li>See how collisions are handled via separate chaining (linked lists).</li>
+            <li>Understand how table size affects distribution and load factor.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="section" aria-labelledby="interaction-heading">
+        <h4 id="interaction-heading">Interaction Design</h4>
+        <div class="small">
+          - Type a key (text) then choose Insert, Search, or Delete.<br>
+          - Use "Visualize Hash" to see character-by-character computation.<br>
+          - Change bucket count to observe distribution (resets table).<br>
+          - Click a bucket to highlight its chain and focus animation.<br>
+          - Animated mover will travel from input to target bucket showing placement; searching highlights nodes sequentially.
+        </div>
+      </div>
+
+      <div class="section" aria-labelledby="layout-heading">
+        <h4 id="layout-heading">Layout Description</h4>
+        <div class="small">
+          - Left column: this descriptive plan and controls overview.<br>
+          - Right column: workspace containing controls (top), visualization canvas (center), and sidebar (right) with stats & log.<br>
+          - Safe margins: 24px padding on page; 16px minimum gaps between interactive elements; responsive stack on small screens.<br>
+          - Accessibility: labeled inputs, keyboard focus states, color contrast and text alternatives for animation.
+        </div>
+      </div>
+
+      <div class="section" style="display:flex;flex-direction:column;gap:8px">
+        <h4>Tips</h4>
+        <div class="small">Try keys with similar characters (e.g. "ab", "ba") and observe where collisions occur. Increase or decrease buckets to see distribution change.</div>
+      </div>
+    </aside>
+
+    <!-- Interactive Workspace -->
+    <section class="work" aria-label="Hash Map Workspace">
+      <div class="controls" role="region" aria-label="Controls">
+        <div class="input" style="flex:1 1 420px; min-width:260px;">
+          <label for="key-input">Key</label>
+          <input id="key-input" type="text" placeholder="Enter key (e.g., 'apple')" aria-label="Key input" />
+          <button id="visualize-hash" title="Show hash computation">Visualize Hash</button>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button id="insert-btn">Insert</button>
+          <button class="secondary" id="search-btn">Search</button>
+          <button class="danger" id="delete-btn">Delete</button>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;">
+          <label for="buckets-count">Buckets</label>
+          <input aria-label="Buckets count" id="buckets-count" type="number" min="3" max="32" value="8" />
+          <button class="secondary" id="reset-btn" title="Reset table">Reset</button>
+        </div>
+      </div>
+
+      <div class="visual" aria-live="polite">
+        <div class="canvas" role="application" aria-label="Hash table visualization">
+          <div class="table-wrap" id="table-wrap">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div style="display:flex;flex-direction:column">
+                <div style="font-weight:700;color:#dff6ff;font-size:15px">Hash Table (Separate Chaining)</div>
+                <div class="hint">Buckets are indexed 0 .. N-1. Click any bucket to highlight it.</div>
+              </div>
+              <div class="meta" aria-hidden="true">
+                <div class="stat" id="stat-buckets">Buckets: 8</div>
+                <div class="stat" id="stat-nodes">Keys: 0</div>
+                <div class="stat" id="stat-load">Load: 0.00</div>
+              </div>
+            </div>
+
+            <div id="bucket-grid" class="bucket-grid" aria-label="Buckets container">
+              <!-- buckets will be injected here -->
+            </div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap">
+            <div style="flex:1 1 320px">
+              <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Hash Function (sum of char codes mod buckets)</div>
+              <div class="hashline" id="hash-line" aria-live="polite">
+                <div class="chip" id="hash-sum">sum: 0</div>
+                <div class="chip" id="hash-mod">mod: 0</div>
+                <div class="chip" id="hash-index">index: 0</div>
+              </div>
+            </div>
+
+            <div style="flex:1 1 240px">
+              <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Last action</div>
+              <div id="action-result" class="hint">No actions yet</div>
+            </div>
+          </div>
+
+        </div>
+
+        <aside class="sidebar" aria-label="Sidebar">
+          <div class="log" id="log" aria-live="polite" role="log">Event log...</div>
+          <div style="display:flex;gap:8px;">
+            <button class="secondary" id="fill-sample">Fill sample keys</button>
+            <button id="clear-btn" class="secondary">Clear table</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Hash Map Visual Explorer - vanilla JS
+    (function(){
+      // DOM references
+      const bucketsCountInput = document.getElementById('buckets-count');
+      const bucketGrid = document.getElementById('bucket-grid');
+      const statBuckets = document.getElementById('stat-buckets');
+      const statNodes = document.getElementById('stat-nodes');
+      const statLoad = document.getElementById('stat-load');
+      const keyInput = document.getElementById('key-input');
+      const insertBtn = document.getElementById('insert-btn');
+      const searchBtn = document.getElementById('search-btn');
+      const deleteBtn = document.getElementById('delete-btn');
+      const resetBtn = document.getElementById('reset-btn');
+      const clearBtn = document.getElementById('clear-btn');
+      const fillSampleBtn = document.getElementById('fill-sample');
+      const visualizeHashBtn = document.getElementById('visualize-hash');
+      const hashSumChip = document.getElementById('hash-sum');
+      const hashModChip = document.getElementById('hash-mod');
+      const hashIndexChip = document.getElementById('hash-index');
+      const actionResult = document.getElementById('action-result');
+      const logBox = document.getElementById('log');
+      const tableWrap = document.getElementById('table-wrap');
+
+      let buckets = [];
+      let bucketCount = parseInt(bucketsCountInput.value,10) || 8;
+      let totalKeys = 0;
+
+      // Create initial table
+      function makeBuckets(n){
+        buckets = Array.from({length:n}, ()=>[]);
+        bucketCount = n;
+        renderBuckets();
+        updateStats();
+      }
+
+      // Render bucket grid
+      function renderBuckets(){
+        bucketGrid.innerHTML = '';
+        bucketGrid.style.gridTemplateColumns = computeGridColumns(bucketCount);
+        for(let i=0;i<bucketCount;i++){
+          const b = document.createElement('div');
+          b.className = 'bucket';
+          b.tabIndex = 0;
+          b.setAttribute('role','group');
+          b.setAttribute('aria-label','Bucket '+i);
+          b.dataset.index = String(i);
+          b.innerHTML = `
+            <div class="bucket-header">
+              <div class="bucket-index">#${i}</div>
+              <div class="hint" style="font-size:12px;color:var(--muted)">len: <span data-len>${buckets[i].length}</span></div>
+            </div>
+            <div class="bucket-body" aria-live="polite"></div>
+          `;
+          bucketGrid.appendChild(b);
+
+          // click to highlight
+          b.addEventListener('click', ()=>highlightBucket(i));
+          b.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); highlightBucket(i) }});
+          populateBucketBody(i);
+        }
+      }
+
+      function computeGridColumns(n){
+        // show reasonable columns for layout
+        if(window.innerWidth < 980) return 'repeat(2, 1fr)';
+        if(n <= 4) return 'repeat('+n+', minmax(120px,1fr))';
+        if(n <= 8) return 'repeat(4, minmax(120px,1fr))';
+        return 'repeat(6, minmax(120px,1fr))';
+      }
+
+      function populateBucketBody(index){
+        const b = bucketGrid.querySelector('[data-index="'+index+'"]');
+        if(!b) return;
+        const body = b.querySelector('.bucket-body');
+        body.innerHTML = '';
+        buckets[index].forEach(nodeKey => {
+          const nodeEl = makeNodeElement(nodeKey);
+          body.appendChild(nodeEl);
+        });
+        b.querySelector('[data-len]').textContent = String(buckets[index].length);
+      }
+
+      function makeNodeElement(key){
+        const el = document.createElement('div');
+        el.className = 'node';
+        el.textContent = key;
+        el.tabIndex = 0;
+        el.setAttribute('aria-label','Key '+key);
+        return el;
+      }
+
+      // Hash function: sum of char codes mod buckets
+      function computeHash(key){
+        let sum = 0;
+        for(let ch of key){
+          sum += ch.codePointAt(0);
+        }
+        const idx = bucketCount > 0 ? (sum % bucketCount) : 0;
+        return {sum, idx};
+      }
+
+      // Animation: move floating node from an element to bucket body
+      function animateMove(text, fromRect, toRect, onDone){
+        // create mover element
+        const mover = document.createElement('div');
+        mover.className = 'mover node adding';
+        mover.style.left = (fromRect.left) + 'px';
+        mover.style.top = (fromRect.top) + 'px';
+        mover.style.opacity = '0';
+        mover.style.transform = 'translate(0,0) scale(1)';
+        mover.textContent = text;
+        document.body.appendChild(mover);
+        // compute translation
+        const startX = fromRect.left;
+        const startY = fromRect.top;
+        const endX = toRect.left + (toRect.width/2) - (mover.offsetWidth/2);
+        const endY = toRect.top + (toRect.height/2) - (mover.offsetHeight/2);
+        // set initial position with transform for smooth anim
+        mover.style.transform = `translate(${startX - startX}px, ${startY - startY}px)`;
+        requestAnimationFrame(()=>{
+          mover.style.opacity = '1';
+          mover.style.left = startX + 'px';
+          mover.style.top = startY + 'px';
+          mover.style.transform = `translate(${endX - startX}px, ${endY - startY}px)`;
+        });
+        // cleanup after transition
+        mover.addEventListener('transitionend', ()=>{
+          mover.style.opacity = '0';
+          setTimeout(()=>{ mover.remove(); if(onDone) onDone(); }, 120);
+        }, {once:true});
+        // safety fallback
+        setTimeout(()=>{ if(document.body.contains(mover)){ mover.remove(); if(onDone) onDone(); }}, 1200);
+      }
+
+      function log(msg){
+        const time = new Date().toLocaleTimeString();
+        const line = `[${time}] ${msg}\n`;
+        logBox.textContent = line + logBox.textContent;
+      }
+
+      function updateStats(){
+        statBuckets.textContent = 'Buckets: ' + bucketCount;
+        statNodes.textContent = 'Keys: ' + totalKeys;
+        const load = bucketCount>0 ? (totalKeys / bucketCount) : 0;
+        statLoad.textContent = 'Load: ' + load.toFixed(2);
+      }
+
+      // Public operations
+      function insertKey(key){
+        if(!key || typeof key !== 'string') return;
+        const k = key.trim();
+        if(k.length === 0) return;
+        const {sum, idx} = computeHash(k);
+        // anim: mover from input to bucket
+        const inputRect = keyInput.getBoundingClientRect();
+        const bucketEl = bucketGrid.querySelector('[data-index="'+idx+'"]');
+        const bucketBody = bucketEl.querySelector('.bucket-body');
+        const targetRect = bucketBody.getBoundingClientRect();
+
+        actionResult.textContent = `Inserting "${k}" -> bucket ${idx}`;
+        log(`Insert: "${k}" hashed to ${idx} (sum ${sum})`);
+
+        animateMove(k, inputRect, targetRect, ()=>{
+          // if duplicate, avoid adding duplicate keys
+          if(buckets[idx].includes(k)){
+            actionResult.textContent = `Duplicate key "${k}" already present in bucket ${idx}.`;
+            log(`Insert aborted: duplicate "${k}" at ${idx}`);
+            return;
+          }
+          buckets[idx].push(k);
+          totalKeys++;
+          populateBucketBody(idx);
+          updateStats();
+          actionResult.textContent = `Inserted "${k}" into bucket ${idx}.`;
+        });
+
+        // show hash chips
+        showHashChips({sum,idx});
+      }
+
+      function searchKey(key){
+        const k = (key||'').trim();
+        if(k.length === 0) return;
+        const {sum, idx} = computeHash(k);
+        actionResult.textContent = `Searching "${k}" in bucket ${idx}...`;
+        log(`Search: "${k}" -> bucket ${idx}`);
+        showHashChips({sum, idx});
+
+        const bucketEl = bucketGrid.querySelector('[data-index="'+idx+'"]');
+        const body = bucketEl.querySelector('.bucket-body');
+        const nodes = Array.from(body.children);
+        // sequential highlight with delay
+        let foundIndex = -1;
+        const highlightNext = (i)=>{
+          if(i >= nodes.length){
+            actionResult.textContent = `Not found: "${k}"`;
+            log(`Result: "${k}" not found in bucket ${idx}`);
+            clearHighlights(bucketEl);
+            return;
+          }
+          clearHighlights(bucketEl);
+          nodes[i].classList.add('adding');
+          nodes[i].style.background = 'linear-gradient(90deg, rgba(70,195,255,0.08), rgba(255,255,255,0.02))';
+          // compare
+          setTimeout(()=>{
+            const nodeKey = buckets[idx][i];
+            if(nodeKey === k){
+              nodes[i].classList.remove('adding');
+              nodes[i].classList.add('found');
+              actionResult.textContent = `Found "${k}" in bucket ${idx} (position ${i}).`;
+              log(`Result: Found "${k}" in bucket ${idx} at position ${i}`);
+              foundIndex = i;
+              // keep highlight for a bit then clear
+              setTimeout(()=> clearHighlights(bucketEl), 1200);
+            } else {
+              nodes[i].classList.remove('adding');
+              setTimeout(()=> highlightNext(i+1), 180);
+            }
+          }, 450);
+        };
+        highlightNext(0);
+      }
+
+      function deleteKey(key){
+        const k = (key||'').trim();
+        if(k.length === 0) return;
+        const {sum, idx} = computeHash(k);
+        actionResult.textContent = `Deleting "${k}" from bucket ${idx}...`;
+        log(`Delete: "${k}" -> bucket ${idx}`);
+        showHashChips({sum, idx});
+
+        const bucketEl = bucketGrid.querySelector('[data-index="'+idx+'"]');
+        const body = bucketEl.querySelector('.bucket-body');
+        const nodes = Array.from(body.children);
+        for(let i=0;i<nodes.length;i++){
+          const nodeKey = buckets[idx][i];
+          if(nodeKey === k){
+            // animate removal
+            nodes[i].classList.add('removing');
+            nodes[i].style.transform = 'translateX(20px) scale(.92) rotate(6deg)';
+            setTimeout(()=>{
+              buckets[idx].splice(i,1);
+              totalKeys--;
+              populateBucketBody(idx);
+              updateStats();
+              actionResult.textContent = `Deleted "${k}" from bucket ${idx}.`;
+              log(`Deleted "${k}" from bucket ${idx}`);
+            }, 420);
+            return;
+          }
+        }
+        actionResult.textContent = `Key "${k}" not found in bucket ${idx}.`;
+        log(`Delete failed: "${k}" not in bucket ${idx}`);
+      }
+
+      function clearHighlights(bucketEl){
+        const nodes = bucketEl.querySelectorAll('.node');
+        nodes.forEach(n=>{
+          n.classList.remove('adding','found');
+          n.style.background = '';
+        });
+        bucketEl.classList.remove('highlight');
+      }
+
+      function highlightBucket(index){
+        // remove other highlights
+        bucketGrid.querySelectorAll('.bucket').forEach(b=>b.classList.remove('highlight'));
+        const b = bucketGrid.querySelector('[data-index="'+index+'"]');
+        b.classList.add('highlight');
+        actionResult.textContent = `Bucket ${index} highlighted (len ${buckets[index].length}).`;
+        log(`Bucket ${index} highlighted`);
+        // animate a small pulse on nodes
+        const nodes = b.querySelectorAll('.node');
+        nodes.forEach((n,i)=>{
+          n.classList.add('adding');
+          setTimeout(()=>n.classList.remove('adding'), 500 + i*80);
+        });
+        // scroll into view if needed
+        b.scrollIntoView({behavior:'smooth', block:'center'});
+      }
+
+      function showHashChips({sum, idx}){
+        hashSumChip.textContent = 'sum: ' + sum;
+        hashModChip.textContent = 'mod: ' + bucketCount;
+        hashIndexChip.textContent = 'index: ' + idx;
+      }
+
+      // Event handlers
+      insertBtn.addEventListener('click', ()=>{
+        const key = keyInput.value;
+        if(!key.trim()){ actionResult.textContent = 'Please enter a key to insert.'; return; }
+        insertKey(key);
+      });
+      searchBtn.addEventListener('click', ()=>{
+        const key = keyInput.value;
+        if(!key.trim()){ actionResult.textContent = 'Please enter a key to search.'; return; }
+        searchKey(key);
+      });
+      deleteBtn.addEventListener('click', ()=>{
+        const key = keyInput.value;
+        if(!key.trim()){ actionResult.textContent = 'Please enter a key to delete.'; return; }
+        deleteKey(key);
+      });
+      resetBtn.addEventListener('click', ()=>{
+        const n = parseInt(bucketsCountInput.value,10);
+        if(!n || n < 3){ actionResult.textContent = 'Buckets must be at least 3.'; return; }
+        if(n > 32){ actionResult.textContent = 'Buckets max 32.'; bucketsCountInput.value = 32; return; }
+        makeBuckets(n);
+        totalKeys = 0;
+        log(`Reset table with ${n} buckets`);
+        actionResult.textContent = `Table reset to ${n} buckets.`;
+      });
+      clearBtn.addEventListener('click', ()=>{
+        makeBuckets(bucketCount);
+        totalKeys = 0;
+        log('Cleared table');
+        actionResult.textContent = 'Table cleared.';
+      });
+
+      fillSampleBtn.addEventListener('click', ()=>{
+        const sample = ['apple','banana','grape','pear','peach','plum','apricot','berry','melon','mango','kiwi','orange'];
+        // insert sequentially with slight delay to show animation
+        let i=0;
+        (function next(){
+          if(i>=sample.length) return;
+          const k = sample[i++];
+          keyInput.value = k;
+          insertKey(k);
+          setTimeout(next, 280);
+        })();
+      });
+
+      visualizeHashBtn.addEventListener('click', ()=>{
+        const key = keyInput.value || '';
+        if(!key.trim()){ actionResult.textContent = 'Enter a key to visualize hashing.'; return; }
+        const k = key.trim();
+        // show step-by-step calculation
+        let sum = 0;
+        hashSumChip.textContent = 'sum: 0';
+        hashModChip.textContent = 'mod: ' + bucketCount;
+        hashIndexChip.textContent = 'index: -';
+        actionResult.textContent = `Visualizing hash for "${k}"...`;
+        log(`Visualize hash for "${k}"`);
+        // create small sequence near input
+        const inputRect = keyInput.getBoundingClientRect();
+        // show each char's code and accumulate
+        let idx=0;
+        const steps = Array.from(k);
+        function step(){
+          if(idx >= steps.length){
+            const final = computeHash(k);
+            hashIndexChip.textContent = 'index: ' + final.idx;
+            actionResult.textContent = `Hash computed: sum ${final.sum}, index ${final.idx}`;
+            log(`Hash computed: sum ${final.sum}, index ${final.idx}`);
+            // briefly highlight bucket
+            const bEl = bucketGrid.querySelector('[data-index="'+final.idx+'"]');
+            if(bEl){
+              bEl.classList.add('highlight');
+              setTimeout(()=>bEl.classList.remove('highlight'), 900);
+            }
+            return;
+          }
+          const ch = steps[idx];
+          const code = ch.codePointAt(0);
+          sum += code;
+          hashSumChip.textContent = 'sum: ' + sum;
+          // show ephemeral mover with char->code
+          const moverLabel = `${ch}→${code}`;
+          // position mover near input and animate small upward then fade
+          const mover = document.createElement('div');
+          mover.className = 'mover chip';
+          mover.textContent = moverLabel;
+          mover.style.left = (inputRect.left + 10 + (idx*8)) + 'px';
+          mover.style.top = (inputRect.top - 40) + 'px';
+          mover.style.opacity = '0';
+          document.body.appendChild(mover);
+          requestAnimationFrame(()=>{ mover.style.opacity='1'; mover.style.transform = 'translateY(-20px)'; });
+          setTimeout(()=>{ mover.style.opacity='0'; mover.remove(); }, 700);
+          idx++;
+          setTimeout(step, 420);
+        }
+        step();
+      });
+
+      // keyboard shortcut: Enter to insert, Shift+Enter to search
+      keyInput.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter' && !e.shiftKey){
+          insertBtn.click();
+        } else if(e.key === 'Enter' && e.shiftKey){
+          searchBtn.click();
+        }
+      });
+
+      // init
+      makeBuckets(bucketCount);
+
+      // Accessibility: announcer for log
+      log('Interactive Hash Map Explorer ready. Use the controls to insert, search, and delete keys.');
+
+      // expose for debugging (not necessary)
+      window.__hashviz = {buckets, insertKey, searchKey, deleteKey, computeHash};
+
+      // ensure grid updates on resize
+      window.addEventListener('resize', ()=>{ bucketGrid.style.gridTemplateColumns = computeGridColumns(bucketCount); });
+
+    })();
+  </script>
+</body>
+</html>

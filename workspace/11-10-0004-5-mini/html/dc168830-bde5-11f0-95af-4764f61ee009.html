@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>K-Nearest Neighbors (KNN) Interactive Module</title>
+  <style>
+    /* Safe area margins: 24px on all sides */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px;
+      --bg: #0f1720;
+      --panel: #0b1220;
+      --accent1: #3b82f6; /* blue */
+      --accent2: #ef4444; /* red */
+      --muted: #94a3b8;
+      --surface: #0b1220;
+      --glass: rgba(255,255,255,0.03);
+    }
+
+    html,body {
+      height: 100%;
+      margin: 0;
+      padding: var(--safe-margin);
+      background: linear-gradient(180deg,#071021 0%, #04111a 100%);
+      color: #e6eef8;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      box-sizing: border-box;
+    }
+
+    /* Layout */
+    .container {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: var(--gap);
+      align-items: start;
+      height: calc(100vh - (var(--safe-margin) * 2));
+    }
+
+    /* Responsive: stack on small screens */
+    @media (max-width: 880px) {
+      .container {
+        grid-template-columns: 1fr;
+        grid-auto-rows: auto;
+        height: auto;
+      }
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 20px rgba(2,6,23,0.6);
+      min-width: 0;
+    }
+
+    /* Left controls */
+    .left {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      min-height: 0;
+    }
+
+    .title {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      appearance: none;
+      background: var(--glass);
+      color: #e6eef8;
+      border: 1px solid rgba(255,255,255,0.04);
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: transform .12s ease, background .12s ease;
+    }
+
+    .btn:active { transform: translateY(1px); }
+    .btn.secondary { background: transparent; border: 1px dashed rgba(255,255,255,0.04); }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .legend .item {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+      flex-shrink: 0;
+    }
+
+    /* Slider and inputs */
+    .control-group {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #60a5fa;
+    }
+
+    input[type="number"] {
+      width: 64px;
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255,255,255,0.02);
+      color: inherit;
+      text-align: center;
+    }
+
+    select {
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255,255,255,0.02);
+      color: inherit;
+    }
+
+    /* Right visualization area */
+    .viz {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      min-height: 0;
+    }
+
+    .canvas-panel {
+      position: relative;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 12px;
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 320px;
+    }
+
+    .plot {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      border: 1px solid rgba(255,255,255,0.03);
+      height: 560px;
+      max-height: calc(100vh - 320px);
+      min-height: 280px;
+    }
+
+    @media (max-width: 880px) {
+      .plot {
+        height: 360px;
+        max-height: none;
+      }
+    }
+
+    /* Canvas layers: classification field (canvas), svg points on top */
+    .plot canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+      transition: opacity 360ms ease;
+      opacity: 1;
+    }
+
+    .plot canvas.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .plot svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none; /* we use per-element pointer handling */
+    }
+
+    /* Points */
+    .point {
+      cursor: grab;
+      pointer-events: all;
+      transform-origin: center;
+      transition: r 140ms ease, opacity 200ms ease;
+    }
+
+    .point:active { cursor: grabbing; }
+
+    .test-point {
+      stroke: #fff;
+      stroke-width: 2;
+      cursor: move;
+      pointer-events: all;
+    }
+
+    /* Highlight neighbor */
+    .neighbor {
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.6));
+      animation: pulse 1100ms ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.85; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .connector {
+      stroke: rgba(255,255,255,0.12);
+      stroke-width: 1.5;
+    }
+
+    /* Info bar */
+    .info {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--gap);
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.01);
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .info .result {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-weight: 600;
+      color: #e6eef8;
+      font-size: 15px;
+    }
+
+    .dist-list {
+      max-height: 160px;
+      overflow: auto;
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,0.01);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .dist-list table {
+      width: 100%;
+      border-collapse: collapse;
+      color: inherit;
+      font-size: 13px;
+    }
+
+    .dist-list td {
+      padding: 6px 4px;
+      vertical-align: middle;
+    }
+
+    .dist-list .class-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0,0,0,0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="K-Nearest Neighbors interactive module">
+    <!-- Left Panel: Explanation and Controls -->
+    <div class="panel left" aria-hidden="false">
+      <div class="title" aria-hidden="false">
+        <h1>Concept: K-Nearest Neighbors (KNN)</h1>
+        <p class="meta">Interactive exploration of how K affects classification. Drag points, adjust K, and place a test point to see voting and neighbours.</p>
+      </div>
+
+      <!-- Learning Objective -->
+      <div class="panel" style="padding:12px;">
+        <strong style="display:block;margin-bottom:8px;">Learning objective</strong>
+        <div style="color:var(--muted);font-size:13px;line-height:1.4;">
+          After interacting you should be able to:
+          <ul style="margin:8px 0 0 16px;">
+            <li>Explain how K determines which nearby labeled points influence a prediction.</li>
+            <li>See how changing K and distance metric affects the decision region.</li>
+            <li>Observe tie-breaking and how noisy points influence local decisions.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Interaction Design -->
+      <div class="panel" style="padding:12px;">
+        <strong style="display:block;margin-bottom:8px;">Interaction design</strong>
+        <div style="color:var(--muted);font-size:13px;line-height:1.4;">
+          Use the controls below and interact with the plot:
+          <ul style="margin:8px 0 0 16px;">
+            <li>Click Add Point (then click canvas) to add a blue or red labeled point.</li>
+            <li>Drag any training point or the test point to new positions.</li>
+            <li>Slide K to change how many neighbours vote — nearest K are highlighted and animated.</li>
+            <li>Toggle the classification field to compute a colored decision surface (recomputes at a modest resolution).</li>
+            <li>Keyboard: select the test point (click it) then use arrow keys to nudge by small steps.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls" aria-hidden="false">
+        <div>
+          <label for="kRange">K: <span id="kValue">3</span></label>
+          <div class="control-group">
+            <input id="kRange" type="range" min="1" max="15" value="3" aria-label="K neighbors slider">
+            <input id="kNumber" type="number" min="1" max="50" value="3" aria-label="K neighbors number">
+          </div>
+        </div>
+
+        <div>
+          <label>Distance metric</label>
+          <div class="row" role="radiogroup" aria-label="Distance metric">
+            <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+              <input type="radio" name="metric" value="euclidean" checked> Euclidean
+            </label>
+            <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+              <input type="radio" name="metric" value="manhattan"> Manhattan
+            </label>
+            <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+              <input type="radio" name="metric" value="chebyshev"> Chebyshev
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label>Add points</label>
+          <div class="row">
+            <button id="addBlue" class="btn" aria-pressed="false">Add Blue</button>
+            <button id="addRed" class="btn" aria-pressed="false" style="background:transparent;border:1px solid rgba(255,255,255,0.04);">Add Red</button>
+            <button id="randomize" class="btn secondary">Randomize</button>
+            <button id="clear" class="btn secondary">Clear</button>
+          </div>
+          <div style="margin-top:8px;font-size:13px;color:var(--muted);">After clicking Add, click inside the plot to place the new point.</div>
+        </div>
+
+        <div>
+          <label>Decision surface</label>
+          <div class="row">
+            <button id="toggleField" class="btn secondary" aria-pressed="false">Show Field</button>
+            <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-left:8px;">
+              <input id="showConnect" type="checkbox"> Show connector lines
+            </label>
+          </div>
+          <div style="margin-top:8px;color:var(--muted);font-size:13px;">Field is computed at a reduced resolution for speed. Toggled recomputation animates opacity.</div>
+        </div>
+
+        <div>
+          <label>Legend & tips</label>
+          <div class="legend" aria-hidden="true">
+            <div class="item"><span class="swatch" style="background:var(--accent1)"></span> Class A (blue)</div>
+            <div class="item"><span class="swatch" style="background:var(--accent2)"></span> Class B (red)</div>
+            <div class="item" style="color:var(--muted);font-size:12px;">Test point has white border</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Panel: Visualization -->
+    <div class="panel viz" role="region" aria-label="Visualization panel">
+      <div class="canvas-panel" role="region" aria-label="KNN plot area" >
+        <div class="plot" id="plot" tabindex="0" aria-label="Interactive scatter plot. Click to add points.">
+          <!-- classification field canvas (below) -->
+          <canvas id="fieldCanvas"></canvas>
+          <!-- SVG overlay for points and interactions -->
+          <svg id="overlay" xmlns="http://www.w3.org/2000/svg" aria-hidden="false"></svg>
+        </div>
+
+        <div class="info" role="status" aria-live="polite">
+          <div>
+            <div style="color:var(--muted);font-size:12px">Prediction</div>
+            <div class="result" id="prediction">—</div>
+            <div style="font-size:12px;color:var(--muted);margin-left:8px;">(probability shown as fraction of K)</div>
+          </div>
+          <div style="text-align:right">
+            <div style="color:var(--muted);font-size:12px">Distance metric</div>
+            <div id="metricLabel" style="font-weight:600;color:var(--muted)">Euclidean</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:var(--gap);align-items:flex-start;flex-wrap:wrap;">
+          <div style="flex:1 1 320px;min-width:0;">
+            <div style="font-weight:600;margin-bottom:8px;">Neighbors (closest first)</div>
+            <div class="dist-list" id="distList" aria-live="polite">
+              <table id="distTable"><tbody></tbody></table>
+            </div>
+          </div>
+
+          <div style="width:240px;min-width:240px;">
+            <div style="font-weight:600;margin-bottom:8px;">Controls / tips</div>
+            <div style="color:var(--muted);font-size:13px;line-height:1.4">
+              • Click an existing point to select and drag.<br>
+              • Click the test point (white border) then arrow keys to nudge.<br>
+              • Hold Shift while dragging to snap to a grid (coarse).<br>
+              • Use Randomize to place a new dataset.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Accessibility helper -->
+  <div class="sr-only" aria-live="polite" id="ariaStatus"></div>
+
+  <script>
+    /**
+     * KNN Interactive Module (vanilla JS)
+     * - Uses an HTML canvas for the classification field (decision surface).
+     * - Uses SVG overlay for points and interactive elements.
+     * - Points are draggable via pointer events.
+     * - Test point is distinct and can be moved and keyboard-nudged.
+     */
+
+    (function () {
+      // Utilities
+      function $(sel, root=document) { return root.querySelector(sel); }
+      function $all(sel, root=document) { return Array.from(root.querySelectorAll(sel)); }
+      function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+      function distSq(a,b, metric='euclidean') {
+        const dx = a.x - b.x, dy = a.y - b.y;
+        if (metric === 'euclidean') return dx*dx + dy*dy;
+        if (metric === 'manhattan') return Math.abs(dx)+Math.abs(dy);
+        if (metric === 'chebyshev') return Math.max(Math.abs(dx), Math.abs(dy));
+        return dx*dx + dy*dy;
+      }
+      function formatNum(n){ return (Math.round(n*1000)/1000).toString(); }
+
+      // DOM refs
+      const plot = $('#plot');
+      const overlay = $('#overlay');
+      const fieldCanvas = $('#fieldCanvas');
+      const kRange = $('#kRange');
+      const kNumber = $('#kNumber');
+      const kValueLabel = $('#kValue');
+      const toggleField = $('#toggleField');
+      const addBlue = $('#addBlue');
+      const addRed = $('#addRed');
+      const randomize = $('#randomize');
+      const clearBtn = $('#clear');
+      const showConnect = $('#showConnect');
+      const distTableBody = $('#distTable tbody');
+      const predictionLabel = $('#prediction');
+      const metricLabel = $('#metricLabel');
+      const ariaStatus = $('#ariaStatus');
+
+      // Colors
+      const COLORS = {
+        A: getComputedStyle(document.documentElement).getPropertyValue('--accent1').trim() || '#3b82f6',
+        B: getComputedStyle(document.documentElement).getPropertyValue('--accent2').trim() || '#ef4444'
+      };
+
+      // State
+      const state = {
+        width: 800,
+        height: 560,
+        devicePixelRatio: Math.max(1, window.devicePixelRatio || 1),
+        points: [], // training points: {id, x,y (0-1), cls: 'A'|'B'}
+        testPoint: { x: 0.5, y: 0.5 },
+        k: parseInt(kRange.value,10),
+        metric: 'euclidean',
+        showField: false,
+        addingClass: null, // 'A'|'B' when user clicked Add
+        showConnectors: false,
+        neighborIndices: [], // indices of nearest neighbors
+      };
+
+      // ID generation
+      let idSeq = 1;
+      function nextId(){ return idSeq++; }
+
+      // Initialize canvas size & svg
+      function resizePlot() {
+        const rect = plot.getBoundingClientRect();
+        const w = Math.max(120, Math.floor(rect.width));
+        const h = Math.max(120, Math.floor(rect.height));
+        state.width = w;
+        state.height = h;
+        // adjust canvas for DPR but keep logical smaller resolution for field
+        const dpr = state.devicePixelRatio;
+        fieldCanvas.width = w * dpr;
+        fieldCanvas.height = h * dpr;
+        fieldCanvas.style.width = w + 'px';
+        fieldCanvas.style.height = h + 'px';
+        // overlay SVG size
+        overlay.setAttribute('viewBox', `0 0 ${w} ${h}`);
+        overlay.setAttribute('width', w);
+        overlay.setAttribute('height', h);
+        // redraw
+        renderAll();
+      }
+
+      window.addEventListener('resize', () => {
+        // debounce
+        clearTimeout(window.__knn_resize);
+        window.__knn_resize = setTimeout(resizePlot, 80);
+      });
+
+      // Coordinate transforms: normalized <-> pixel
+      function toPx(p) {
+        return { x: p.x * state.width, y: p.y * state.height };
+      }
+      function fromPx(px) {
+        return { x: clamp(px.x / state.width, 0, 1), y: clamp(px.y / state.height, 0, 1) };
+      }
+
+      // Create initial random dataset
+      function seedRandom(n=8) {
+        state.points = [];
+        for (let i=0;i<n;i++){
+          state.points.push({ id: nextId(), x: Math.random()*0.5+0.0, y: Math.random()*0.5+0.0, cls: 'A' });
+          state.points.push({ id: nextId(), x: Math.random()*0.5+0.5, y: Math.random()*0.5+0.5, cls: 'B' });
+        }
+        // add some scattered noise points
+        for (let i=0;i<4;i++){
+          state.points.push({ id: nextId(), x: Math.random(), y: Math.random(), cls: (Math.random()>0.5?'A':'B') });
+        }
+        renderAll();
+      }
+
+      // Render everything: field (maybe), points, connectors, neighbor list, prediction
+      function renderAll() {
+        renderField(); // will compute if showField
+        renderSVGOverlay();
+        computeNeighborsAndUpdateUI();
+      }
+
+      // Field computation: color each pixel by majority vote of K nearest training points.
+      // We'll compute at a reduced resolution for speed and upscale.
+      let lastFieldImage = null;
+      function renderField() {
+        const ctx = fieldCanvas.getContext('2d');
+        if (!state.showField || state.points.length === 0) {
+          fieldCanvas.classList.add('hidden');
+          return;
+        }
+        fieldCanvas.classList.remove('hidden');
+
+        // For speed: compute at a coarse resolution, e.g., 160px on the smaller side
+        const target = Math.min(260, Math.max(120, Math.floor(Math.min(state.width, state.height) * 0.6)));
+        const aspect = state.width / state.height;
+        const w = Math.floor(target * aspect);
+        const h = Math.floor(target);
+        // create an offscreen canvas for computation
+        const off = document.createElement('canvas');
+        off.width = w;
+        off.height = h;
+        const ox = off.getContext('2d');
+        const img = ox.createImageData(w,h);
+        const px = img.data;
+        const pts = state.points;
+        const k = Math.max(1, Math.min(state.k, pts.length));
+        const metric = state.metric;
+
+        // Pixel loop
+        for (let j=0;j<h;j++){
+          for (let i=0;i<w;i++){
+            const nx = (i + 0.5) / w;
+            const ny = (j + 0.5) / h;
+            // compute distances to every point
+            const arr = [];
+            for (let p of pts){
+              const ds = distForPixel(p, nx, ny, metric);
+              arr.push({ cls: p.cls, d: ds });
+            }
+            // sort by distance
+            arr.sort((a,b) => a.d - b.d);
+            // majority vote among top-k
+            const counts = { A: 0, B: 0 };
+            for (let t=0;t<k;t++) counts[arr[t].cls]++;
+            let chosen = counts.A > counts.B ? 'A' : (counts.B > counts.A ? 'B' : null);
+            if (!chosen) {
+              // tie-breaker: choose class with smaller sum of distances among top-k
+              const sums = { A: 0, B: 0 };
+              for (let t=0;t<k;t++) sums[arr[t].cls] += arr[t].d;
+              chosen = sums.A <= sums.B ? 'A' : 'B';
+            }
+            // color blend slightly based on distance of nearest neighbor (local confidence)
+            const nearestD = arr[0].d;
+            const maxConfidence = 0.2; // influence of confidence (lower = more confident)
+            let alpha = clamp(1 - Math.min(1, nearestD / (0.1*0.1)), 0.18, 0.98);
+            const color = chosen === 'A' ? hexToRgb(COLORS.A) : hexToRgb(COLORS.B);
+            const idx = (j*w + i)*4;
+            px[idx] = Math.round(color.r * alpha + 5*(1-alpha));
+            px[idx+1] = Math.round(color.g * alpha + 7*(1-alpha));
+            px[idx+2] = Math.round(color.b * alpha + 9*(1-alpha));
+            px[idx+3] = 220; // alpha
+          }
+        }
+
+        ox.putImageData(img, 0, 0);
+
+        // upscale to main canvas (consider device pixel ratio)
+        const scale = state.devicePixelRatio;
+        ctx.clearRect(0,0, fieldCanvas.width, fieldCanvas.height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(off, 0, 0, fieldCanvas.width, fieldCanvas.height);
+
+        // Animate appearance by toggling opacity (CSS transition)
+        fieldCanvas.classList.remove('hidden');
+      }
+
+      // helper: distance metric for pixel coordinates (normalized)
+      function distForPixel(p, nx, ny, metric) {
+        const dx = p.x - nx, dy = p.y - ny;
+        if (metric === 'euclidean') return Math.sqrt(dx*dx + dy*dy);
+        if (metric === 'manhattan') return Math.abs(dx) + Math.abs(dy);
+        if (metric === 'chebyshev') return Math.max(Math.abs(dx), Math.abs(dy));
+        return Math.sqrt(dx*dx + dy*dy);
+      }
+
+      // Convert hex color to rgb object
+      function hexToRgb(hex) {
+        const h = hex.replace('#','').trim();
+        const bigint = parseInt(h,16);
+        if (h.length === 3) {
+          const r = parseInt(h[0]+h[0],16);
+          const g = parseInt(h[1]+h[1],16);
+          const b = parseInt(h[2]+h[2],16);
+          return {r,g,b};
+        }
+        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+      }
+
+      // Render SVG overlay: points, test point, connectors
+      function renderSVGOverlay() {
+        // Clear overlay
+        while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
+
+        // draw connectors for neighbors if enabled
+        if (state.showConnectors && state.neighborIndices.length > 0) {
+          for (let i=0;i<state.neighborIndices.length;i++){
+            const pi = state.points[state.neighborIndices[i]];
+            if (!pi) continue;
+            const ppx = toPx(pi);
+            const tpx = toPx(state.testPoint);
+            const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+            line.setAttribute('x1', ppx.x);
+            line.setAttribute('y1', ppx.y);
+            line.setAttribute('x2', tpx.x);
+            line.setAttribute('y2', tpx.y);
+            line.setAttribute('class','connector');
+            line.setAttribute('stroke', 'rgba(255,255,255,0.08)');
+            overlay.appendChild(line);
+          }
+        }
+
+        // draw training points
+        for (let i=0;i<state.points.length;i++){
+          const p = state.points[i];
+          const px = toPx(p);
+          const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+          g.setAttribute('transform', `translate(${px.x},${px.y})`);
+          g.style.pointerEvents = 'all';
+          g.dataset.index = i;
+          // Circle
+          const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          circle.setAttribute('r', 8);
+          circle.setAttribute('cx', 0);
+          circle.setAttribute('cy', 0);
+          circle.setAttribute('fill', p.cls === 'A' ? COLORS.A : COLORS.B);
+          circle.setAttribute('class', 'point');
+          circle.setAttribute('data-id', p.id);
+          // If it's a neighbor highlight, mark class
+          if (state.neighborIndices.includes(i)) {
+            circle.classList.add('neighbor');
+            circle.setAttribute('r', 10);
+          }
+          // pointer handling
+          circle.style.cursor = 'grab';
+          circle.addEventListener('pointerdown', onPointPointerDown);
+          // Provide a title for accessibility
+          circle.setAttribute('aria-label', `Training point ${i+1}, class ${p.cls}`);
+          g.appendChild(circle);
+          overlay.appendChild(g);
+        }
+
+        // draw test point on top
+        const tp = state.testPoint;
+        const tpx = toPx(tp);
+        const gtest = document.createElementNS('http://www.w3.org/2000/svg','g');
+        gtest.setAttribute('transform', `translate(${tpx.x},${tpx.y})`);
+        gtest.style.pointerEvents = 'all';
+        // outer halo
+        const halo = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        halo.setAttribute('r', 12);
+        halo.setAttribute('cx', 0);
+        halo.setAttribute('cy', 0);
+        halo.setAttribute('fill', 'none');
+        halo.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+        halo.setAttribute('stroke-width', '2');
+        gtest.appendChild(halo);
+        // main circle
+        const tc = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        tc.setAttribute('r', 9);
+        tc.setAttribute('cx', 0);
+        tc.setAttribute('cy', 0);
+        tc.setAttribute('fill', '#fff0');
+        tc.setAttribute('class','test-point');
+        tc.setAttribute('stroke', '#ffffff');
+        tc.setAttribute('stroke-width', 2.5);
+        tc.setAttribute('fill-opacity', 0.06);
+        tc.style.cursor = 'move';
+        tc.setAttribute('aria-label', 'Test point. Click to select and drag, then use arrow keys to nudge.');
+        tc.addEventListener('pointerdown', onTestPointerDown);
+        gtest.appendChild(tc);
+
+        overlay.appendChild(gtest);
+      }
+
+      // Pointer interactions for training points
+      let dragState = null;
+      function onPointPointerDown(e) {
+        e.preventDefault();
+        const g = e.currentTarget.parentNode;
+        const idx = parseInt(g.dataset.index,10);
+        if (isNaN(idx)) return;
+        const start = { x: e.clientX, y: e.clientY };
+        const p0 = { x: state.points[idx].x, y: state.points[idx].y };
+        dragState = {
+          type: 'point',
+          index: idx,
+          start,
+          p0,
+          pointerId: e.pointerId
+        };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        overlay.addEventListener('pointermove', onPointerMove);
+        overlay.addEventListener('pointerup', onPointerUp, { once: true });
+      }
+
+      // Pointer interactions for test point
+      function onTestPointerDown(e) {
+        e.preventDefault();
+        const start = { x: e.clientX, y: e.clientY };
+        const p0 = { x: state.testPoint.x, y: state.testPoint.y };
+        dragState = {
+          type: 'test',
+          start,
+          p0,
+          pointerId: e.pointerId
+        };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        overlay.addEventListener('pointermove', onPointerMove);
+        overlay.addEventListener('pointerup', onPointerUp, { once: true });
+        // mark selected for keyboard nudging
+        overlay.setAttribute('data-selected', 'test');
+        plot.focus();
+      }
+
+      function onPointerMove(e) {
+        if (!dragState) return;
+        const dx = e.clientX - dragState.start.x;
+        const dy = e.clientY - dragState.start.y;
+        const svgRect = plot.getBoundingClientRect();
+        // map mouse position to normalized coords
+        if (dragState.type === 'point') {
+          // move point relative to initial
+          const px = { x: (dragState.p0.x * state.width) + dx, y: (dragState.p0.y * state.height) + dy };
+          // support Shift snapping
+          if (e.shiftKey) {
+            // snap to 10x10 grid
+            px.x = Math.round(px.x / (state.width/10)) * (state.width/10);
+            px.y = Math.round(px.y / (state.height/10)) * (state.height/10);
+          }
+          const norm = fromPx(px);
+          state.points[dragState.index].x = norm.x;
+          state.points[dragState.index].y = norm.y;
+        } else if (dragState.type === 'test') {
+          const px = { x: (dragState.p0.x * state.width) + dx, y: (dragState.p0.y * state.height) + dy };
+          if (e.shiftKey) {
+            px.x = Math.round(px.x / (state.width/10)) * (state.width/10);
+            px.y = Math.round(px.y / (state.height/10)) * (state.height/10);
+          }
+          const norm = fromPx(px);
+          state.testPoint.x = norm.x;
+          state.testPoint.y = norm.y;
+        }
+        renderAll();
+      }
+
+      function onPointerUp(e) {
+        if (!dragState) return;
+        try {
+          overlay.releasePointerCapture(dragState.pointerId);
+        } catch (err) {}
+        dragState = null;
+        overlay.removeEventListener('pointermove', onPointerMove);
+        // finalize
+        renderAll();
+      }
+
+      // Click in plot to add points when in adding mode
+      plot.addEventListener('pointerdown', (e) => {
+        // ensure clicking on empty area; don't intercept drag events already started on points
+        if (state.addingClass) {
+          const rect = plot.getBoundingClientRect();
+          const px = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+          const norm = fromPx(px);
+          state.points.push({ id: nextId(), x: norm.x, y: norm.y, cls: state.addingClass });
+          // clear adding mode
+          state.addingClass = null;
+          addBlue.setAttribute('aria-pressed','false');
+          addRed.setAttribute('aria-pressed','false');
+          renderAll();
+          ariaStatus.textContent = `Added a ${state.points[state.points.length-1].cls === 'A' ? 'blue' : 'red'} point at (${formatNum(norm.x)}, ${formatNum(norm.y)}).`;
+        }
+      });
+
+      // Keyboard nudging for test point (when overlay is focused)
+      plot.addEventListener('keydown', (e) => {
+        const selected = overlay.getAttribute('data-selected');
+        if (selected !== 'test') return;
+        let handled = false;
+        const step = e.shiftKey ? 0.02 : 0.005;
+        if (e.key === 'ArrowUp') { state.testPoint.y = clamp(state.testPoint.y - step, 0,1); handled=true; }
+        if (e.key === 'ArrowDown') { state.testPoint.y = clamp(state.testPoint.y + step, 0,1); handled=true; }
+        if (e.key === 'ArrowLeft') { state.testPoint.x = clamp(state.testPoint.x - step, 0,1); handled=true; }
+        if (e.key === 'ArrowRight') { state.testPoint.x = clamp(state.testPoint.x + step, 0,1); handled=true; }
+        if (handled) { e.preventDefault(); renderAll(); }
+      });
+
+      // Compute neighbors and update UI list & prediction
+      function computeNeighborsAndUpdateUI() {
+        const pts = state.points;
+        if (pts.length === 0) {
+          state.neighborIndices = [];
+          predictionLabel.textContent = '—';
+          distTableBody.innerHTML = '<tr><td style="color:var(--muted);">Add training points to classify the test point.</td></tr>';
+          return;
+        }
+        // compute distance list
+        const arr = [];
+        for (let i=0;i<pts.length;i++){
+          const p = pts[i];
+          const d = distSq(p, state.testPoint, state.metric);
+          // For sorting: for Manhattan we used non-squared distances earlier; here for uniformity we can use actual metric
+          let dispDistance;
+          if (state.metric === 'euclidean') dispDistance = Math.sqrt(d);
+          else dispDistance = d; // for Manhattan/Chebyshev we set distSq to use direct values in distSq earlier
+          arr.push({ index: i, cls: p.cls, d: dispDistance });
+        }
+        arr.sort((a,b) => a.d - b.d);
+        const k = Math.max(1, Math.min(state.k, arr.length));
+        // store neighbor indices
+        state.neighborIndices = arr.slice(0,k).map(x=>x.index);
+
+        // build table
+        distTableBody.innerHTML = '';
+        for (let i=0;i<arr.length;i++){
+          const row = document.createElement('tr');
+          const td1 = document.createElement('td');
+          td1.innerHTML = `<span class="class-dot" style="background:${arr[i].cls==='A'?COLORS.A:COLORS.B}"></span> #${arr[i].index+1}`;
+          const td2 = document.createElement('td');
+          td2.style.textAlign = 'right';
+          td2.style.color = (i<k) ? '#fff' : 'var(--muted)';
+          td2.textContent = `${formatNum(arr[i].d)}`;
+          row.appendChild(td1);
+          row.appendChild(td2);
+          distTableBody.appendChild(row);
+        }
+
+        // majority vote among top-k
+        const votes = { A: 0, B: 0 };
+        for (let t=0;t<k;t++) votes[arr[t].cls]++;
+        let chosen = votes.A > votes.B ? 'A' : (votes.B > votes.A ? 'B' : null);
+        let reason = '';
+        if (!chosen) {
+          // tie-breaker: choose class with smaller sum of distances among top-k
+          const sums = { A: 0, B: 0 };
+          for (let t=0;t<k;t++) sums[arr[t].cls] += arr[t].d;
+          chosen = sums.A <= sums.B ? 'A' : 'B';
+          reason = ' (tie broken by sum of distances)';
+        }
+        const prob = Math.round((votes[chosen] / k)*100);
+        predictionLabel.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${chosen==='A'?COLORS.A:COLORS.B};margin-right:8px;"></span>Class ${chosen === 'A' ? 'A (blue)' : 'B (red)'} — ${votes[chosen]}/${k} votes${reason}`;
+        metricLabel.textContent = state.metric.charAt(0).toUpperCase() + state.metric.slice(1);
+
+        // announce for screen readers
+        ariaStatus.textContent = `Prediction: class ${chosen === 'A' ? 'A' : 'B'}. ${votes[chosen]} out of ${k} neighbors voted for the chosen class.`;
+
+        // re-render overlay to animate neighbor highlights
+        renderSVGOverlay();
+      }
+
+      // UI event handlers
+      kRange.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value,10);
+        state.k = val;
+        kNumber.value = val;
+        kValueLabel.textContent = val;
+        renderAll();
+      });
+      kNumber.addEventListener('input', (e) => {
+        let val = parseInt(e.target.value,10);
+        if (isNaN(val)) val = state.k;
+        val = clamp(val,1, Math.max(1, state.points.length || 1));
+        state.k = val;
+        kRange.value = val;
+        kValueLabel.textContent = val;
+        renderAll();
+      });
+
+      $all('input[name="metric"]').forEach(r => r.addEventListener('change', (e) => {
+        state.metric = e.target.value;
+        renderAll();
+      }));
+
+      toggleField.addEventListener('click', (e) => {
+        state.showField = !state.showField;
+        toggleField.setAttribute('aria-pressed', String(state.showField));
+        toggleField.textContent = state.showField ? 'Hide Field' : 'Show Field';
+        // animate change via opacity
+        if (state.showField) {
+          fieldCanvas.classList.remove('hidden');
+        } else {
+          fieldCanvas.classList.add('hidden');
+        }
+        renderAll();
+      });
+
+      addBlue.addEventListener('click', () => {
+        state.addingClass = state.addingClass === 'A' ? null : 'A';
+        addBlue.setAttribute('aria-pressed', String(state.addingClass === 'A'));
+        addRed.setAttribute('aria-pressed', 'false');
+      });
+      addRed.addEventListener('click', () => {
+        state.addingClass = state.addingClass === 'B' ? null : 'B';
+        addRed.setAttribute('aria-pressed', String(state.addingClass === 'B'));
+        addBlue.setAttribute('aria-pressed', 'false');
+      });
+
+      randomize.addEventListener('click', () => {
+        seedRandom(7);
+        ariaStatus.textContent = 'Randomized dataset.';
+      });
+
+      clearBtn.addEventListener('click', () => {
+        state.points = [];
+        renderAll();
+        ariaStatus.textContent = 'Cleared all training points.';
+      });
+
+      showConnect.addEventListener('change', (e) => {
+        state.showConnectors = e.target.checked;
+        renderAll();
+      });
+
+      // initial seed
+      seedRandom(5);
+
+      // initial size
+      resizePlot();
+
+      // ensure devicePixelRatio updates on zoom
+      let dprObserver = null;
+      try {
+        // monitor window.devicePixelRatio changes if supported
+        const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+        if (mq && mq.addEventListener) {
+          mq.addEventListener('change', () => {
+            state.devicePixelRatio = Math.max(1, window.devicePixelRatio || 1);
+            resizePlot();
+          });
+        }
+      } catch (err) {}
+
+      // Accessibility: clicking outside deselects test
+      document.addEventListener('pointerdown', (e) => {
+        if (!plot.contains(e.target)) {
+          overlay.removeAttribute('data-selected');
+        }
+      });
+
+      // Expose functions to global for debugging (optional)
+      window.__knn = {
+        state,
+        renderAll,
+        seedRandom
+      };
+
+      // Small initial announcement
+      ariaStatus.textContent = 'K nearest neighbors interactive module loaded. Use controls to explore.';
+    })();
+  </script>
+</body>
+</html>

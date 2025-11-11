@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Stack Module</title>
+  <style>
+    /* Safe area margins: 24px on all sides */
+    :root {
+      --safe-margin: 24px;
+      --gap: 16px; /* minimum spacing between interactive elements */
+      --stack-width: 220px;
+      --card-height: 48px;
+      --card-gap: 8px;
+      --accent: #0b76ef;
+      --muted: #6b6b6b;
+      --bg: #f7f9fc;
+      --card-bg: #ffffff;
+      --danger: #e44;
+    }
+
+    html,body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg,#f9fbff 0%, #f7f9fc 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #111827;
+    }
+
+    .container {
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+
+    header {
+      display: flex;
+      gap: var(--gap);
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    /* Responsive: single column on narrow screens */
+    @media (max-width: 880px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left panel: explanation and controls */
+    .panel {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 1px 4px rgba(16,24,40,0.04), 0 6px 20px rgba(16,24,40,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+
+    .section-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: #0f172a;
+    }
+
+    .text {
+      color: #374151;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .controls {
+      display: flex;
+      gap: var(--gap);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .input {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    input[type="text"], input[type="number"] {
+      padding: 10px 12px;
+      border: 1px solid #e6e9ee;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      min-width: 160px;
+    }
+
+    input[type="number"] {
+      width: 120px;
+    }
+
+    input:focus {
+      box-shadow: 0 0 0 3px rgba(11,118,239,0.12);
+      border-color: var(--accent);
+    }
+
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button.secondary {
+      background: #f3f4f6;
+      color: #111827;
+      border: 1px solid #e6e9ee;
+    }
+
+    button.warn {
+      background: #fff5f5;
+      color: var(--danger);
+      border: 1px solid rgba(228,68,68,0.12);
+    }
+
+    .controls > * { margin: 0; }
+
+    /* Right panel: visualization */
+    .viz {
+      background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.85));
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      align-items: center;
+      min-height: 220px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .stack-frame {
+      width: var(--stack-width);
+      min-height: calc(var(--card-height) * 3 + var(--card-gap) * 2 + 20px);
+      background: linear-gradient(180deg,#fbfdff,#ffffff);
+      border-radius: 10px;
+      border: 1px solid #e6edf9;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--card-gap);
+      align-items: center;
+      position: relative;
+      box-shadow: 0 2px 8px rgba(17,24,39,0.02);
+    }
+
+    .stack-label {
+      position: absolute;
+      top: -12px;
+      left: 12px;
+      background: white;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid #eef4ff;
+    }
+
+    /* The actual stack area (cards are appended here) */
+    .stack-area {
+      display: flex;
+      flex-direction: column; /* top is index 0 */
+      gap: var(--card-gap);
+      width: 100%;
+      align-items: center;
+      min-height: 48px;
+      padding-top: 6px;
+      box-sizing: border-box;
+    }
+
+    .stack-card {
+      width: calc(100% - 28px);
+      height: var(--card-height);
+      background: linear-gradient(180deg,#ffffff,#fbfbff);
+      border: 1px solid #e6e9ee;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      box-sizing: border-box;
+      font-weight: 600;
+      color: #0b1220;
+      box-shadow: 0 1px 0 rgba(2,6,23,0.04);
+      transform-origin: center;
+    }
+
+    .stack-card .index {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      opacity: 0.9;
+    }
+
+    .top-indicator {
+      position: absolute;
+      right: -36px;
+      top: 28px; /* initial, will be updated by JS to match top card */
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #ffffff, #f3f8ff);
+      border: 1px solid #e4f0ff;
+      font-size: 12px;
+      color: var(--accent);
+      box-shadow: 0 2px 6px rgba(11,118,239,0.08);
+      transition: top 300ms cubic-bezier(.2,.9,.2,1);
+    }
+
+    .empty-hint {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 18px 6px;
+    }
+
+    /* History trace area */
+    .trace {
+      width: 100%;
+      background: #f8fafc;
+      border: 1px solid #eef3fa;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #374151;
+      min-height: 80px;
+      overflow: auto;
+    }
+
+    .trace-entry {
+      margin: 6px 0;
+      font-size: 13px;
+    }
+
+    .status {
+      font-size: 13px;
+      color: #111827;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .announce {
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }
+
+    /* Animations */
+    .animate-in {
+      transform: translateX(40px) translateY(-8px) scale(0.98);
+      opacity: 0;
+      transition: transform 380ms cubic-bezier(.2,.9,.2,1), opacity 300ms ease;
+    }
+
+    .animate-in.visible {
+      transform: translateX(0) translateY(0) scale(1);
+      opacity: 1;
+    }
+
+    .animate-out {
+      transform: translateX(0);
+      opacity: 1;
+      transition: transform 340ms cubic-bezier(.25,.8,.25,1), opacity 260ms ease;
+    }
+
+    .animate-out.hidden {
+      transform: translateX(40px);
+      opacity: 0;
+    }
+
+    .pulse {
+      animation: pulse 900ms ease;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(11,118,239,0.18); }
+      70% { box-shadow: 0 0 0 8px rgba(11,118,239,0.02); }
+      100% { box-shadow: 0 0 0 0 rgba(11,118,239,0); }
+    }
+
+    .warning {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    /* control footer for small screens */
+    .controls-row {
+      display: flex;
+      gap: var(--gap);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* accessibility focus outlines */
+    button:focus, input:focus {
+      outline: 3px solid rgba(11,118,239,0.12);
+      outline-offset: 2px;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title" aria-hidden="false">
+        <div>Stack — LIFO Data Structure (Interactive)</div>
+        <div class="subtitle">Push, Pop, Peek, and Visualize Top / Underflow / Overflow</div>
+      </div>
+      <div style="font-size:13px;color:var(--muted);">Accessible. Responsive. Vanilla HTML/CSS/JS.</div>
+    </header>
+
+    <!-- Descriptive panel and interactive module are both included in main -->
+    <main>
+      <!-- Left: Explanations + Controls -->
+      <section class="panel" aria-labelledby="concept-title">
+        <div>
+          <div id="concept-title" class="section-title">Concept Title</div>
+          <p class="text" style="margin-top:8px;">
+            Stack — a linear data structure that follows Last-In, First-Out (LIFO). Elements are added and removed from the "top" of the stack.
+          </p>
+        </div>
+
+        <div>
+          <div class="section-title">Learning Objective</div>
+          <p class="text" style="margin-top:8px;">
+            After interacting with this module you will be able to:
+            identify the top of a stack, perform push and pop operations, recognize underflow and overflow, and observe how operations affect the stack visually and as a sequence of steps.
+          </p>
+        </div>
+
+        <div>
+          <div class="section-title">Interaction Design</div>
+          <p class="text" style="margin-top:8px;">
+            Use the input to push values onto the stack (type then press Enter or click "Push"). Click "Pop" to remove the top value. "Peek" highlights the top without removing it. Adjust capacity to see overflow behavior. Visual animations show items entering (slide+fade) and leaving (slide out). An action trace describes each operation. All controls are keyboard-accessible.
+          </p>
+        </div>
+
+        <div>
+          <div class="section-title">Layout Description</div>
+          <p class="text" style="margin-top:8px;">
+            Left panel (this area) contains explanatory text and interactive controls. Right panel contains the visual stack, a top indicator, and an operation trace. The page uses 24px safe margins and at least 16px spacing between interactive elements. The design is responsive: on narrow screens the visualization stacks below the controls. Visual feedback includes animated transitions for push/pop, a pulsing peek highlight, and aria-live announcements for assistive tech.
+          </p>
+        </div>
+
+        <!-- Controls -->
+        <div>
+          <div class="section-title" style="margin-bottom:8px;">Controls</div>
+
+          <form id="controlsForm" class="controls" onsubmit="return false;" aria-label="Stack controls">
+            <div class="input" style="min-width:0;">
+              <label for="valueInput" style="display:none;">Value</label>
+              <input id="valueInput" type="text" placeholder="Value to push (e.g. 42 or 'A')" aria-label="Value to push" />
+              <button id="pushBtn" type="button">Push</button>
+            </div>
+
+            <div class="controls-row">
+              <button id="popBtn" type="button" class="secondary">Pop</button>
+              <button id="peekBtn" type="button" class="secondary">Peek</button>
+              <button id="clearBtn" type="button" class="warn">Clear</button>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:12px;">
+              <label for="capacity" style="font-size:13px;color:var(--muted);">Capacity</label>
+              <input id="capacity" type="number" min="1" max="20" value="6" aria-label="Stack capacity" />
+            </div>
+          </form>
+        </div>
+
+        <div>
+          <div class="section-title">Tips</div>
+          <ul class="text" style="margin-top:8px; margin-left:16px;">
+            <li>Press Enter in the input to push faster.</li>
+            <li>Observe the top indicator and trace log to understand LIFO ordering.</li>
+            <li>Try to push more than capacity to trigger overflow; pop from empty to see underflow handling.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Right: Visualization -->
+      <aside class="viz" aria-live="polite" aria-atomic="true">
+        <div style="display:flex; width:100%; justify-content:space-between; align-items:center;">
+          <div style="display:flex; flex-direction:column;">
+            <div style="font-weight:700;">Stack Visualization</div>
+            <div style="font-size:13px; color:var(--muted);">Top is indicated on the right</div>
+          </div>
+          <div class="status" aria-hidden="true">
+            <div style="font-size:13px;color:var(--muted);">Size:</div>
+            <div id="sizeBadge" style="font-weight:700;padding:6px 10px;border-radius:8px;background:#f3f7ff;border:1px solid #e6f0ff;">0</div>
+          </div>
+        </div>
+
+        <div class="stack-frame" role="region" aria-label="Stack frame">
+          <div class="stack-label">Stack</div>
+          <div id="topIndicator" class="top-indicator" aria-hidden="true">TOP</div>
+          <div id="stackArea" class="stack-area" aria-live="polite" aria-atomic="false">
+            <div id="emptyHint" class="empty-hint">Stack is empty. Push an item to begin.</div>
+          </div>
+        </div>
+
+        <div style="width:100%;">
+          <div class="section-title" style="margin-bottom:8px;">Operation Trace</div>
+          <div id="trace" class="trace" role="log" aria-live="polite"></div>
+        </div>
+
+        <div style="width:100%; display:flex; justify-content:space-between; gap:12px;">
+          <div style="font-size:13px;color:var(--muted);">Announcements for screen readers:</div>
+          <div id="ariaAnnouncer" class="announce" aria-live="assertive"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    // Self-contained Stack module implementation (vanilla JS)
+    (function () {
+      // DOM references
+      const valueInput = document.getElementById('valueInput');
+      const pushBtn = document.getElementById('pushBtn');
+      const popBtn = document.getElementById('popBtn');
+      const peekBtn = document.getElementById('peekBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const capacityInput = document.getElementById('capacity');
+      const stackArea = document.getElementById('stackArea');
+      const emptyHint = document.getElementById('emptyHint');
+      const trace = document.getElementById('trace');
+      const sizeBadge = document.getElementById('sizeBadge');
+      const topIndicator = document.getElementById('topIndicator');
+      const ariaAnnouncer = document.getElementById('ariaAnnouncer');
+
+      // Internal stack representation
+      let stack = [];
+      const nodeElements = []; // parallel array of DOM elements
+      let capacity = Math.max(1, parseInt(capacityInput.value) || 6);
+
+      // Helpers for announcements and trace
+      function announce(text) {
+        // Use both visual trace and aria-live region
+        const entry = document.createElement('div');
+        entry.className = 'trace-entry';
+        entry.textContent = text;
+        trace.prepend(entry);
+        // Limit trace length
+        if (trace.childElementCount > 50) {
+          trace.removeChild(trace.lastChild);
+        }
+        ariaAnnouncer.textContent = text;
+      }
+
+      function updateSizeBadge() {
+        sizeBadge.textContent = stack.length;
+      }
+
+      function updateTopIndicatorPosition() {
+        // Position the topIndicator next to the top card if any
+        if (nodeElements.length === 0) {
+          topIndicator.style.top = '28px';
+          topIndicator.style.opacity = '0.3';
+          topIndicator.setAttribute('aria-hidden', 'true');
+        } else {
+          const topEl = nodeElements[0];
+          // compute relative position of topEl within stackFrame
+          const frame = topEl.closest('.stack-frame') || topEl.parentElement;
+          // We'll compute top offset relative to frame
+          // Use getBoundingClientRect for accuracy
+          const frameRect = frame.getBoundingClientRect();
+          const topRect = topEl.getBoundingClientRect();
+          const offset = topRect.top - frameRect.top;
+          // Place center-ish
+          const center = offset + (topRect.height / 2) - 14; // 14 = half of indicator height
+          topIndicator.style.top = Math.max(12, center) + 'px';
+          topIndicator.style.opacity = '1';
+          topIndicator.removeAttribute('aria-hidden');
+        }
+      }
+
+      // Create a card DOM element for a value
+      function createCard(value, index) {
+        const el = document.createElement('div');
+        el.className = 'stack-card animate-in';
+        el.setAttribute('role', 'listitem');
+        el.setAttribute('tabindex', '0');
+        el.innerHTML = '<div class="label">' + String(value) + '</div>' +
+                       '<div class="index">idx ' + index + '</div>';
+        return el;
+      }
+
+      // Push operation with animation
+      function push(value) {
+        if (stack.length >= capacity) {
+          announce('Overflow: cannot push, capacity is ' + capacity + '.');
+          flashCapacityWarning();
+          return;
+        }
+
+        // Update internal model
+        stack.unshift(value); // top is at index 0
+        // Create element and insert at top of stackArea
+        const card = createCard(value, 0);
+        // Hide empty hint if present
+        if (emptyHint && emptyHint.parentElement) {
+          emptyHint.remove();
+        }
+
+        // Prepend card to DOM
+        if (stackArea.firstChild) {
+          stackArea.insertBefore(card, stackArea.firstChild);
+        } else {
+          stackArea.appendChild(card);
+        }
+        nodeElements.unshift(card);
+
+        // Force reflow then add visible class to animate in
+        // Use requestAnimationFrame to ensure transition
+        requestAnimationFrame(() => {
+          card.classList.add('visible');
+        });
+
+        // After animation, normalize indexes shown on cards
+        setTimeout(() => {
+          normalizeIndexes();
+        }, 380);
+
+        // Update UI
+        updateSizeBadge();
+        updateTopIndicatorPosition();
+        announce('Pushed "' + String(value) + '" onto stack. Size: ' + stack.length + '.');
+        // Add focus/keyboard affordance
+        card.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            // When Enter or Space pressed on card, peek it
+            highlightTop();
+          }
+        });
+      }
+
+      // Pop operation with animation
+      function pop() {
+        if (stack.length === 0) {
+          announce('Underflow: cannot pop from an empty stack.');
+          flashUnderflow();
+          return;
+        }
+
+        // Remove from model and animate top card out
+        const poppedValue = stack.shift();
+        const card = nodeElements.shift();
+
+        // Animate out to the right
+        card.classList.remove('visible');
+        card.classList.add('animate-out');
+
+        // force reflow then hide
+        requestAnimationFrame(() => {
+          card.classList.add('hidden');
+        });
+
+        // After animation, remove element
+        setTimeout(() => {
+          if (card && card.parentElement) {
+            card.parentElement.removeChild(card);
+          }
+          normalizeIndexes();
+          updateSizeBadge();
+          updateTopIndicatorPosition();
+        }, 380);
+
+        announce('Popped "' + String(poppedValue) + '". Size: ' + stack.length + '.');
+      }
+
+      // Peek: highlight top without removing
+      function peek() {
+        if (stack.length === 0) {
+          announce('Peek: stack is empty.');
+          flashUnderflow();
+          return;
+        }
+        const topValue = stack[0];
+        announce('Peek: top is "' + String(topValue) + '".');
+        highlightTop();
+      }
+
+      // Highlight top card with a pulse
+      function highlightTop() {
+        if (nodeElements.length === 0) return;
+        const topCard = nodeElements[0];
+        topCard.classList.add('pulse');
+        setTimeout(() => {
+          topCard.classList.remove('pulse');
+        }, 900);
+      }
+
+      // Clear the stack
+      function clearStack() {
+        if (stack.length === 0) {
+          announce('Stack is already empty.');
+          return;
+        }
+        // Animate out all cards, stagger slightly
+        const elements = nodeElements.slice();
+        nodeElements.length = 0;
+        stack.length = 0;
+
+        elements.forEach((card, idx) => {
+          setTimeout(() => {
+            card.classList.add('animate-out', 'hidden');
+            if (card.parentElement) {
+              card.parentElement.removeChild(card);
+            }
+            if (idx === elements.length - 1) {
+              // restore empty hint
+              stackArea.appendChild(emptyHint);
+              updateSizeBadge();
+              updateTopIndicatorPosition();
+              announce('Cleared stack.');
+            }
+          }, idx * 50);
+        });
+      }
+
+      function normalizeIndexes() {
+        // Update index labels on the cards to reflect current index
+        for (let i = 0; i < nodeElements.length; i++) {
+          const el = nodeElements[i];
+          const idxLabel = el.querySelector('.index');
+          if (idxLabel) {
+            idxLabel.textContent = 'idx ' + i;
+          }
+        }
+      }
+
+      // Visual warnings
+      function flashUnderflow() {
+        // briefly flash topIndicator and announce
+        topIndicator.style.background = '#fff5f5';
+        topIndicator.style.borderColor = 'rgba(228,68,68,0.16)';
+        topIndicator.style.color = 'var(--danger)';
+        setTimeout(() => {
+          topIndicator.style.background = '';
+          topIndicator.style.borderColor = '';
+          topIndicator.style.color = '';
+        }, 600);
+      }
+
+      function flashCapacityWarning() {
+        // briefly flash capacity input
+        capacityInput.style.boxShadow = '0 0 0 6px rgba(228,68,68,0.06)';
+        capacityInput.style.borderColor = 'rgba(228,68,68,0.5)';
+        setTimeout(() => {
+          capacityInput.style.boxShadow = '';
+          capacityInput.style.borderColor = '';
+        }, 700);
+      }
+
+      // Event handlers
+      pushBtn.addEventListener('click', () => {
+        const val = valueInput.value.trim();
+        if (val === '') {
+          // Do not push empty — but allow "0" or "false", so check trimmed length only
+          announce('Enter a non-empty value to push.');
+          valueInput.focus();
+          return;
+        }
+        push(val);
+        valueInput.value = '';
+        valueInput.focus();
+      });
+
+      valueInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          pushBtn.click();
+        }
+      });
+
+      popBtn.addEventListener('click', () => {
+        pop();
+      });
+
+      peekBtn.addEventListener('click', () => {
+        peek();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        if (confirm('Clear the entire stack?')) {
+          clearStack();
+        }
+      });
+
+      capacityInput.addEventListener('change', () => {
+        const newCap = Math.max(1, Math.min(20, parseInt(capacityInput.value) || 6));
+        capacityInput.value = newCap;
+        capacity = newCap;
+        announce('Capacity set to ' + capacity + '.');
+        // If current size exceeds new capacity, visually indicate overflow and suggest clearing
+        if (stack.length > capacity) {
+          announce('Note: current size exceeds capacity. You may pop items to fit within capacity.');
+          flashCapacityWarning();
+        }
+      });
+
+      // keyboard shortcuts: Alt+P push focus, Alt+O pop
+      document.addEventListener('keydown', (e) => {
+        if (e.altKey && !e.shiftKey && !e.ctrlKey) {
+          if (e.key.toLowerCase() === 'p') {
+            e.preventDefault();
+            valueInput.focus();
+          } else if (e.key.toLowerCase() === 'o') {
+            e.preventDefault();
+            popBtn.focus();
+            pop();
+          } else if (e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            peek();
+          }
+        }
+      });
+
+      // Initial UI setup
+      updateSizeBadge();
+      updateTopIndicatorPosition();
+
+      // A11y: ensure trace region is initially described
+      announce('Stack module ready. Capacity is ' + capacity + '. Use the input to push values.');
+
+      // Expose simple API for potential testing (optional)
+      window._stackModule = {
+        push: (v) => push(String(v)),
+        pop: pop,
+        peek: peek,
+        clear: clearStack,
+        getStack: () => stack.slice()
+      };
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>K-Nearest Neighbors Interactive</title>
+  <style>
+    :root{
+      --safe-pad: 24px;
+      --gap: 16px;
+      --bg: #0f1721;
+      --panel-bg: #0b1220;
+      --card: #0f1727;
+      --muted: #94a3b8;
+      --accent: #10b981;
+      --a-color: #2563eb; /* blue */
+      --b-color: #ef4444; /* red */
+      --query-stroke: #fbbf24; /* yellowish */
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background:linear-gradient(180deg,#071028 0%, #071226 60%);
+      color:#e6eef8;
+      padding:var(--safe-pad);
+      box-sizing:border-box;
+    }
+    main{
+      display:flex;
+      gap:var(--gap);
+      align-items:flex-start;
+      justify-content:space-between;
+    }
+    /* Responsive: stack vertically on narrow screens */
+    @media (max-width:960px){
+      main{flex-direction:column;}
+    }
+    .panel{
+      width:360px;
+      min-width:280px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.03);
+      border-radius:12px;
+      padding:20px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      box-sizing:border-box;
+    }
+    .panel h1{
+      font-size:18px;
+      margin:0 0 8px 0;
+    }
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.4;
+      margin-bottom:12px;
+    }
+    fieldset{
+      border:1px solid rgba(255,255,255,0.03);
+      padding:12px;
+      border-radius:8px;
+      margin:0 0 16px 0;
+    }
+    legend{font-weight:600; font-size:13px; padding:0 6px;}
+    .controls-row{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    label.tool{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background:rgba(255,255,255,0.02);
+      padding:8px 10px;
+      border-radius:8px;
+      cursor:pointer;
+      user-select:none;
+      font-size:13px;
+    }
+    input[type="radio"][name="tool"]{accent-color:var(--accent);}
+    .small{
+      font-size:13px;color:var(--muted);
+    }
+    .slider-row{display:flex;gap:12px;align-items:center;}
+    input[type="range"]{width:160px;}
+    .btn{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);
+      padding:8px 10px;
+      border-radius:8px;
+      cursor:pointer;
+      color:inherit;
+      font-size:13px;
+    }
+    .btn:active{transform:translateY(1px);}
+    .tog {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border-radius:8px;
+      background:rgba(255,255,255,0.01);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .legend{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      margin-top:8px;
+    }
+    .legend .chip{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background:rgba(255,255,255,0.02);
+      padding:6px 8px;border-radius:8px;font-size:13px;
+    }
+    .dotA{width:14px;height:14px;border-radius:50%;background:var(--a-color);}
+    .dotB{width:14px;height:14px;border-radius:50%;background:var(--b-color);}
+    .status{
+      margin-top:12px;
+      padding:10px;
+      background:rgba(255,255,255,0.015);
+      border-radius:8px;
+      font-size:14px;
+    }
+
+    /* Interactive area */
+    .canvas-wrap{
+      flex:1;
+      min-width:280px;
+      max-width:880px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .interactive {
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:18px;
+      box-sizing:border-box;
+      border:1px solid rgba(255,255,255,0.03);
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      width: min(720px, calc(100vw - 2*var(--safe-pad) - 420px));
+    }
+    @media (max-width:960px){
+      .interactive{width:100%;}
+    }
+    .stage {
+      position:relative;
+      width:100%;
+      padding-top:100%; /* square */
+      border-radius:8px;
+      overflow:hidden;
+      background:linear-gradient(180deg,#061024, #041427 60%);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    /* Canvas sits behind, SVG overlay on top */
+    .stage canvas{
+      position:absolute; inset:0; width:100%; height:100%; display:block;
+    }
+    .stage svg{
+      position:absolute; inset:0; width:100%; height:100%; overflow:visible;
+    }
+    /* Points */
+    .pt{
+      cursor:grab;
+      transition:transform 0.12s ease;
+    }
+    .pt:active{cursor:grabbing; transform:scale(1.05);}
+    .label{
+      font-size:11px; fill:#ffffff; pointer-events:none; font-weight:600;
+    }
+
+    /* neighbor highlight pulse */
+    @keyframes pulse {
+      0%{ r:8; opacity:0.9; stroke-width:2; }
+      70%{ r:20; opacity:0.08; stroke-width:1; }
+      100%{ r:28; opacity:0; stroke-width:0; }
+    }
+    .pulse-ring{
+      fill:none;
+      stroke-width:2;
+      opacity:0.8;
+    }
+    /* animated lines (stroke dash animation) */
+    .nn-line{
+      stroke-width:2;
+      stroke-linecap:round;
+      stroke-dasharray:6 6;
+      opacity:0.95;
+      transition:stroke-dashoffset 360ms linear;
+    }
+
+    /* decision map fade */
+    .decision-canvas{ transition:opacity 260ms ease-in-out; }
+
+    /* small helper */
+    .muted-sm{color:var(--muted);font-size:12px;}
+    .kbd{background:rgba(255,255,255,0.02);padding:4px 8px;border-radius:6px;font-size:12px;border:1px solid rgba(255,255,255,0.02);}
+
+    /* Ensure min spacing of interactive elements */
+    .group{margin-bottom:16px;}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel" aria-labelledby="title">
+      <h1 id="title">K-Nearest Neighbors (KNN) — Interactive Module</h1>
+
+      <p class="muted">Place labeled points, add a query, and experiment with K and distance metric to see how KNN classifies and how the decision regions change.</p>
+
+      <fieldset>
+        <legend>Tools</legend>
+
+        <div class="controls-row group" role="radiogroup" aria-label="tool selection">
+          <label class="tool"><input type="radio" name="tool" value="addA" checked> Add Class A</label>
+          <label class="tool"><input type="radio" name="tool" value="addB"> Add Class B</label>
+          <label class="tool"><input type="radio" name="tool" value="query"> Place Query</label>
+          <label class="tool"><input type="radio" name="tool" value="move"> Move / Drag</label>
+        </div>
+
+        <div class="group">
+          <div class="slider-row">
+            <div class="small">K: <span id="kval">3</span></div>
+            <input id="kSlider" type="range" min="1" max="15" value="3" aria-label="K value slider">
+            <div class="small">Metric:</div>
+            <label class="small"><input type="radio" name="metric" value="euclidean" checked> Euclidean</label>
+            <label class="small" style="margin-left:6px;"><input type="radio" name="metric" value="manhattan"> Manhattan</label>
+          </div>
+        </div>
+
+        <div class="group controls-row">
+          <button id="randomizeBtn" class="btn" aria-label="Randomize points">Randomize</button>
+          <button id="clearBtn" class="btn" aria-label="Clear all points">Clear All</button>
+          <label class="tog" title="Show or hide background decision map"><input id="toggleDecision" type="checkbox" checked> Decision Map</label>
+        </div>
+
+        <div class="group legend" aria-hidden="false">
+          <div class="chip">
+            <div class="dotA" aria-hidden="true"></div><div class="muted-sm">Class A</div>
+          </div>
+          <div class="chip">
+            <div class="dotB" aria-hidden="true"></div><div class="muted-sm">Class B</div>
+          </div>
+          <div class="chip"><div class="kbd" id="pointsCount">0 pts</div></div>
+        </div>
+      </fieldset>
+
+      <div class="status" aria-live="polite" id="statusBox">
+        <div><strong>Prediction:</strong> <span id="prediction">Place a query to classify</span></div>
+        <div class="muted-sm" style="margin-top:8px;">Tips: Click to add points. Double-click a point to remove it. Drag to reposition points.</div>
+      </div>
+    </section>
+
+    <section class="interactive" aria-label="KNN interactive stage">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div><strong>Interactive Stage</strong><div class="muted-sm">Click inside to add or place query based on selected tool.</div></div>
+        <div style="font-size:13px;color:var(--muted)"><span id="metricLabel">Euclidean</span> • <span id="kLabel">K=3</span></div>
+      </div>
+
+      <div class="stage" id="stage" role="application" aria-label="KNN stage with canvas and points">
+        <canvas id="decisionCanvas" class="decision-canvas" width="400" height="400" aria-hidden="true"></canvas>
+        <svg id="svgOverlay" viewBox="0 0 400 400" role="img" aria-label="points and neighbor lines"></svg>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // KNN interactive module (vanilla JS)
+    (function(){
+      // Configuration
+      const CANVAS_RES = 200; // resolution used to compute decision map (per axis)
+      const svgNS = "http://www.w3.org/2000/svg";
+
+      // DOM
+      const stage = document.getElementById('stage');
+      const decisionCanvas = document.getElementById('decisionCanvas');
+      const svg = document.getElementById('svgOverlay');
+      const kSlider = document.getElementById('kSlider');
+      const kvalLabel = document.getElementById('kval');
+      const metricRadios = document.querySelectorAll('input[name="metric"]');
+      const toolRadios = document.querySelectorAll('input[name="tool"]');
+      const randomizeBtn = document.getElementById('randomizeBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const toggleDecision = document.getElementById('toggleDecision');
+      const predictionEl = document.getElementById('prediction');
+      const statusBox = document.getElementById('statusBox');
+      const pointsCount = document.getElementById('pointsCount');
+      const metricLabel = document.getElementById('metricLabel');
+      const kLabel = document.getElementById('kLabel');
+
+      // State
+      let points = []; // training points: {id,x,y,class} class: 0(A) or 1(B)
+      let query = null; // {id,x,y} class = null
+      let nextId = 1;
+      let K = parseInt(kSlider.value,10);
+      let metric = 'euclidean';
+      let currentTool = 'addA';
+      let dragging = null;
+      let dragOffset = {x:0,y:0};
+      let decisionVisible = toggleDecision.checked;
+
+      // Canvas & SVG sizing (responsive)
+      function resizeToDisplay() {
+        const rect = stage.getBoundingClientRect();
+        const size = Math.min(rect.width, rect.height);
+        const canvasEl = decisionCanvas;
+        canvasEl.width = CANVAS_RES;
+        canvasEl.height = CANVAS_RES;
+        canvasEl.style.width = '100%';
+        canvasEl.style.height = '100%';
+        svg.setAttribute('viewBox', `0 0 ${CANVAS_RES} ${CANVAS_RES}`);
+        // Scale existing SVG elements by re-rendering
+        renderAll();
+      }
+      window.addEventListener('resize', resizeToDisplay);
+      // initial resize after load
+      setTimeout(resizeToDisplay, 10);
+
+      // Helpers: coordinate transform from event to SVG coords
+      function clientToSVGCoords(clientX, clientY) {
+        const rect = stage.getBoundingClientRect();
+        const px = clientX - rect.left;
+        const py = clientY - rect.top;
+        const size = Math.min(rect.width, rect.height);
+        const scale = CANVAS_RES / size;
+        // center if stage rect not square—use top-left padding to center the square
+        const leftPad = (rect.width - size) / 2;
+        const topPad = (rect.height - size) / 2;
+        const x = (px - leftPad) * scale;
+        const y = (py - topPad) * scale;
+        // clamp
+        return {x: Math.max(0, Math.min(CANVAS_RES, x)), y: Math.max(0, Math.min(CANVAS_RES, y))};
+      }
+
+      // Add & remove point functions
+      function addPoint(x,y,cls){
+        const id = nextId++;
+        points.push({id,x,y,class:cls});
+        renderPoint({id,x,y,class:cls});
+        updateCounts();
+        computeAndRender();
+      }
+      function setQuery(x,y){
+        if(!query){
+          query = {id:'q', x, y};
+          renderQuery();
+        } else {
+          query.x = x; query.y = y;
+        }
+        updateQuery();
+        computeAndRender();
+      }
+      function removePointById(id){
+        // check if id is query
+        if(query && query.id === id){
+          query = null;
+          removeQueryFromSVG();
+          computeAndRender();
+          return;
+        }
+        const idx = points.findIndex(p=>p.id===id);
+        if(idx>=0){
+          points.splice(idx,1);
+          const el = svg.querySelector('[data-id="'+id+'"]');
+          if(el) el.remove();
+          updateCounts();
+          computeAndRender();
+        }
+      }
+
+      // Rendering helpers
+      function clearSVGNeighbors(){
+        const els = svg.querySelectorAll('.nn-line, .pulse-ring');
+        els.forEach(e=>e.remove());
+      }
+
+      function renderAll(){
+        // remove all point elements, then recreate
+        while(svg.firstChild) svg.removeChild(svg.firstChild);
+        points.forEach(renderPoint);
+        if(query) renderQuery();
+        computeAndRender();
+      }
+
+      function renderPoint(pt){
+        // circle group with label
+        const g = document.createElementNS(svgNS,'g');
+        g.setAttribute('transform', `translate(${pt.x},${pt.y})`);
+        g.setAttribute('data-id', pt.id);
+        g.classList.add('pt');
+        g.setAttribute('tabindex','0');
+        g.setAttribute('role','button');
+        g.setAttribute('aria-label', `Class ${pt.class===0?'A':'B'} point at (${Math.round(pt.x)},${Math.round(pt.y)})`);
+        // circle
+        const circle = document.createElementNS(svgNS,'circle');
+        circle.setAttribute('r', 6);
+        circle.setAttribute('fill', pt.class===0?getComputedStyle(document.documentElement).getPropertyValue('--a-color').trim() : getComputedStyle(document.documentElement).getPropertyValue('--b-color').trim());
+        circle.setAttribute('stroke','rgba(255,255,255,0.06)');
+        circle.setAttribute('stroke-width','1.4');
+        circle.setAttribute('pointer-events','auto');
+        g.appendChild(circle);
+        // small label inside for clarity
+        const txt = document.createElementNS(svgNS,'text');
+        txt.setAttribute('x', 0);
+        txt.setAttribute('y', 4);
+        txt.setAttribute('text-anchor','middle');
+        txt.setAttribute('class','label');
+        txt.textContent = pt.class===0?'A':'B';
+        g.appendChild(txt);
+
+        // event listeners for drag / double-click
+        g.addEventListener('pointerdown', onPointerDownPoint);
+        g.addEventListener('dblclick', (e)=>{ e.stopPropagation(); removePointById(pt.id); });
+        g.addEventListener('keydown', (e)=>{
+          if(e.key === 'Delete' || e.key === 'Backspace') removePointById(pt.id);
+        });
+
+        svg.appendChild(g);
+      }
+
+      function renderQuery(){
+        // remove old query if any
+        removeQueryFromSVG();
+        if(!query) return;
+        const g = document.createElementNS(svgNS,'g');
+        g.setAttribute('transform', `translate(${query.x},${query.y})`);
+        g.setAttribute('data-id', query.id);
+        g.classList.add('pt');
+        g.setAttribute('tabindex','0');
+        g.setAttribute('role','button');
+        g.setAttribute('aria-label', `Query point at (${Math.round(query.x)},${Math.round(query.y)})`);
+        // outer ring
+        const ring = document.createElementNS(svgNS,'circle');
+        ring.setAttribute('r', 12);
+        ring.setAttribute('fill','none');
+        ring.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--query-stroke').trim());
+        ring.setAttribute('stroke-width','2');
+        ring.setAttribute('opacity','0.6');
+        g.appendChild(ring);
+        // core
+        const circle = document.createElementNS(svgNS,'circle');
+        circle.setAttribute('r', 7);
+        circle.setAttribute('fill','none');
+        circle.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--query-stroke').trim());
+        circle.setAttribute('stroke-width','2');
+        g.appendChild(circle);
+        // label
+        const txt = document.createElementNS(svgNS,'text');
+        txt.setAttribute('x', 0);
+        txt.setAttribute('y', 4);
+        txt.setAttribute('text-anchor','middle');
+        txt.setAttribute('class','label');
+        txt.textContent = '?';
+        g.appendChild(txt);
+
+        g.addEventListener('pointerdown', onPointerDownPoint);
+        g.addEventListener('dblclick', (e)=>{ e.stopPropagation(); removePointById(query.id); });
+
+        svg.appendChild(g);
+      }
+      function removeQueryFromSVG(){
+        const el = svg.querySelector('[data-id="q"]');
+        if(el) el.remove();
+      }
+
+      // Update the textual indicators
+      function updateCounts(){
+        pointsCount.textContent = `${points.length} pts`;
+      }
+
+      // Distance functions
+      function distance(a,b){
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        if(metric === 'euclidean') return Math.sqrt(dx*dx + dy*dy);
+        return Math.abs(dx) + Math.abs(dy);
+      }
+
+      // KNN compute
+      function computeNeighbors(q){
+        const arr = points.map(p => ({...p, d: distance(p,q)}));
+        arr.sort((p1,p2)=>p1.d - p2.d);
+        return arr.slice(0, Math.min(K, arr.length));
+      }
+
+      // Compute prediction for the query
+      function computePrediction(){
+        if(!query) return null;
+        if(points.length === 0) return {label:null, confidence:0, neighbors:[]};
+        const neighbors = computeNeighbors(query);
+        // majority vote
+        const counts = neighbors.reduce((acc,n)=>{
+          acc[n.class] = (acc[n.class] || 0) + 1;
+          return acc;
+        },{});
+        let label = null;
+        if((counts[0]||0) > (counts[1]||0)) label = 0;
+        else if((counts[1]||0) > (counts[0]||0)) label = 1;
+        else {
+          // tie-break: choose nearest neighbor's class
+          label = neighbors[0] ? neighbors[0].class : null;
+        }
+        const confidence = neighbors.length ? ((counts[label]||0)/neighbors.length) : 0;
+        return {label, confidence, neighbors};
+      }
+
+      // Render neighbor highlights and lines; and update prediction text
+      function renderNeighborsAndPrediction(){
+        clearSVGNeighbors();
+        const pred = computePrediction();
+        if(!query){
+          predictionEl.textContent = 'Place a query to classify';
+          return;
+        }
+        if(points.length === 0){
+          predictionEl.textContent = 'No training points: add some Class A or B points.';
+          return;
+        }
+        const {label, confidence, neighbors} = pred;
+        // show animated connecting lines and pulse rings for each neighbor
+        neighbors.forEach((n, idx)=>{
+          // draw line
+          const line = document.createElementNS(svgNS,'line');
+          line.setAttribute('x1', query.x);
+          line.setAttribute('y1', query.y);
+          line.setAttribute('x2', n.x);
+          line.setAttribute('y2', n.y);
+          line.classList.add('nn-line');
+          line.setAttribute('stroke', n.class===0?getComputedStyle(document.documentElement).getPropertyValue('--a-color').trim() : getComputedStyle(document.documentElement).getPropertyValue('--b-color').trim());
+          // stroke dash animation: set dashoffset high then animate to zero
+          const len = Math.hypot(n.x - query.x, n.y - query.y);
+          line.style.strokeDashoffset = String(len);
+          // force reflow then animate
+          requestAnimationFrame(()=>{ line.style.strokeDashoffset = '0'; });
+          svg.appendChild(line);
+
+          // pulsing ring
+          const ring = document.createElementNS(svgNS,'circle');
+          ring.setAttribute('cx', n.x);
+          ring.setAttribute('cy', n.y);
+          ring.classList.add('pulse-ring');
+          ring.setAttribute('stroke', n.class===0?getComputedStyle(document.documentElement).getPropertyValue('--a-color').trim() : getComputedStyle(document.documentElement).getPropertyValue('--b-color').trim());
+          ring.setAttribute('r', 8);
+          ring.style.animation = `pulse 1100ms ${idx*80}ms linear infinite`;
+          svg.appendChild(ring);
+        });
+
+        // update text
+        const pretty = label === 0 ? 'Class A' : label === 1 ? 'Class B' : 'Undetermined';
+        const pct = Math.round((confidence||0)*100);
+        predictionEl.textContent = `Predicted: ${pretty} (${pct}% of ${Math.min(K, points.length)} nearest)`;
+        // update labels
+        metricLabel.textContent = metric[0].toUpperCase() + metric.slice(1);
+        kLabel.textContent = `K=${K}`;
+      }
+
+      // Decision map computation (color each small cell by predicted class)
+      function renderDecisionMap(){
+        const ctx = decisionCanvas.getContext('2d');
+        const w = decisionCanvas.width;
+        const h = decisionCanvas.height;
+        const img = ctx.createImageData(w, h);
+        // If no points, fill with subtle neutral color
+        if(points.length === 0){
+          for(let i=0;i<img.data.length;i+=4){
+            img.data[i] = 6; img.data[i+1]=18; img.data[i+2]=36; img.data[i+3]=255;
+          }
+          ctx.putImageData(img,0,0);
+          return;
+        }
+        // For each pixel, compute predicted class among K neighbors
+        // Reduce resolution by stepping to keep responsive if needed
+        for(let y=0;y<h;y++){
+          for(let x=0;x<w;x++){
+            const qx = (x + 0.5) * (CANVAS_RES / w);
+            const qy = (y + 0.5) * (CANVAS_RES / h);
+            const q = {x: qx, y: qy};
+            // compute neighbors distances
+            const arr = points.map(p=> ({...p, d: (metric === 'euclidean') ? Math.hypot(p.x - q.x, p.y - q.y) : Math.abs(p.x - q.x) + Math.abs(p.y - q.y)}));
+            arr.sort((a,b)=>a.d - b.d);
+            const top = arr.slice(0, Math.min(K, arr.length));
+            const counts = top.reduce((acc,n)=>{ acc[n.class] = (acc[n.class]||0)+1; return acc; }, {});
+            let lab;
+            if((counts[0]||0) > (counts[1]||0)) lab = 0;
+            else if((counts[1]||0) > (counts[0]||0)) lab = 1;
+            else lab = top[0] ? top[0].class : 0;
+            // compute color: blend towards class color with low alpha
+            let r,g,b;
+            if(lab === 0){ r=37; g=99; b=235; } else { r=239; g=68; b=68; }
+            // low alpha so points are visible and background stays dark
+            const alpha = 28; // out of 255
+            const baseR = 6, baseG = 18, baseB = 36;
+            const finalR = Math.round((r*alpha + baseR*(255-alpha))/255);
+            const finalG = Math.round((g*alpha + baseG*(255-alpha))/255);
+            const finalB = Math.round((b*alpha + baseB*(255-alpha))/255);
+            const idx = (y*w + x)*4;
+            img.data[idx] = finalR;
+            img.data[idx+1] = finalG;
+            img.data[idx+2] = finalB;
+            img.data[idx+3] = 255;
+          }
+        }
+        ctx.putImageData(img, 0, 0);
+      }
+
+      // compute + render everything
+      function computeAndRender(){
+        // decision map
+        if(decisionVisible){
+          renderDecisionMap();
+          decisionCanvas.style.opacity = 1;
+        } else {
+          decisionCanvas.style.opacity = 0;
+        }
+        // neighbors + prediction
+        renderNeighborsAndPrediction();
+      }
+
+      // Event handlers for stage interactions
+      function onStagePointerDown(e){
+        // only left click / touch
+        if(e.button && e.button !== 0) return;
+        const pt = clientToSVGCoords(e.clientX, e.clientY);
+        if(currentTool === 'addA') { addPoint(pt.x, pt.y, 0); }
+        else if(currentTool === 'addB') { addPoint(pt.x, pt.y, 1); }
+        else if(currentTool === 'query') { setQuery(pt.x, pt.y); }
+        // move mode should start drag only if clicked on a point itself (handled by point pointerdown)
+      }
+
+      // Pointer handlers for point elements
+      function onPointerDownPoint(e){
+        e.stopPropagation();
+        const id = this.getAttribute('data-id');
+        const isQuery = id === 'q';
+        const tool = currentTool;
+        if(tool === 'addA' || tool === 'addB'){
+          // clicking a point while in add mode toggles nothing; allow selection for moving instead
+        }
+        // start dragging only if tool is move or if it's the query and tool is query (allow drag)
+        if(tool === 'move' || (isQuery && tool === 'query')){
+          dragging = id;
+          const pt = clientToSVGCoords(e.clientX, e.clientY);
+          const obj = (isQuery ? query : points.find(p=>p.id==id));
+          if(!obj) return;
+          dragOffset.x = obj.x - pt.x;
+          dragOffset.y = obj.y - pt.y;
+          this.setPointerCapture(e.pointerId);
+        }
+      }
+      function onPointerMoveStage(e){
+        if(!dragging) return;
+        const pt = clientToSVGCoords(e.clientX, e.clientY);
+        const id = dragging;
+        if(id === 'q' && query){
+          query.x = Math.max(0,Math.min(CANVAS_RES, pt.x + dragOffset.x));
+          query.y = Math.max(0,Math.min(CANVAS_RES, pt.y + dragOffset.y));
+          const el = svg.querySelector('[data-id="q"]');
+          if(el) el.setAttribute('transform', `translate(${query.x},${query.y})`);
+          computeAndRender();
+        } else {
+          const p = points.find(pp=>pp.id==id);
+          if(p){
+            p.x = Math.max(0,Math.min(CANVAS_RES, pt.x + dragOffset.x));
+            p.y = Math.max(0,Math.min(CANVAS_RES, pt.y + dragOffset.y));
+            const el = svg.querySelector('[data-id="'+id+'"]');
+            if(el) el.setAttribute('transform', `translate(${p.x},${p.y})`);
+            computeAndRender();
+          }
+        }
+      }
+      function onPointerUpStage(e){
+        if(dragging){
+          // release pointer capture
+          const el = svg.querySelector('[data-id="'+dragging+'"]');
+          if(el) try{ el.releasePointerCapture(e.pointerId); }catch(_){}
+        }
+        dragging = null;
+      }
+
+      // UI control bindings
+      kSlider.addEventListener('input', ()=>{
+        K = parseInt(kSlider.value,10);
+        kvalLabel.textContent = K;
+        kLabel.textContent = `K=${K}`;
+        computeAndRender();
+      });
+      metricRadios.forEach(r=>{
+        r.addEventListener('change', ()=>{
+          if(r.checked){
+            metric = r.value;
+            metricLabel.textContent = metric[0].toUpperCase() + metric.slice(1);
+            computeAndRender();
+          }
+        });
+      });
+      toolRadios.forEach(r=>{
+        r.addEventListener('change', ()=>{
+          if(r.checked) currentTool = r.value;
+        });
+      });
+      randomizeBtn.addEventListener('click', ()=>{
+        points = [];
+        nextId = 1;
+        // add 8-14 random points
+        const n = 10 + Math.floor(Math.random()*6);
+        for(let i=0;i<n;i++){
+          const cls = Math.random() < 0.5 ? 0 : 1;
+          const x = 20 + Math.random()*(CANVAS_RES-40);
+          const y = 20 + Math.random()*(CANVAS_RES-40);
+          points.push({id: nextId++, x,y, class:cls});
+        }
+        query = null;
+        renderAll();
+        updateCounts();
+      });
+      clearBtn.addEventListener('click', ()=>{
+        points = []; query = null; nextId = 1;
+        renderAll();
+        updateCounts();
+      });
+      toggleDecision.addEventListener('change', ()=>{
+        decisionVisible = toggleDecision.checked;
+        computeAndRender();
+      });
+
+      // Stage mouse events
+      stage.addEventListener('pointerdown', onStagePointerDown);
+      window.addEventListener('pointermove', onPointerMoveStage);
+      window.addEventListener('pointerup', onPointerUpStage);
+      // For touch devices, reduce delay
+      stage.addEventListener('touchstart', (e)=>{ e.preventDefault(); });
+
+      // keyboard accessibility: allow pressing Enter on the stage to place query at center
+      stage.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter'){
+          const rect = stage.getBoundingClientRect();
+          const centerX = rect.left + rect.width/2;
+          const centerY = rect.top + rect.height/2;
+          if(currentTool === 'addA') addPoint(CANVAS_RES/2, CANVAS_RES/2, 0);
+          else if(currentTool === 'addB') addPoint(CANVAS_RES/2, CANVAS_RES/2, 1);
+          else if(currentTool === 'query') setQuery(CANVAS_RES/2, CANVAS_RES/2);
+        }
+      });
+
+      // Update query visualization after programmatic move
+      function updateQuery(){
+        // move query element if exists
+        const el = svg.querySelector('[data-id="q"]');
+        if(el && query) el.setAttribute('transform', `translate(${query.x},${query.y})`);
+        computeAndRender();
+      }
+
+      // Initialize with a few random points
+      (function init(){
+        // small starter dataset for learning
+        points = [
+          {id:1,x:60,y:80,class:0},
+          {id:2,x:90,y:110,class:0},
+          {id:3,x:70,y:140,class:0},
+          {id:4,x:320,y:260,class:1},
+          {id:5,x:300,y:220,class:1},
+          {id:6,x:260,y:260,class:1}
+        ];
+        nextId = 7;
+        resizeToDisplay();
+        renderAll();
+        updateCounts();
+      })();
+
+      // Click on empty SVG to add points when appropriate
+      svg.addEventListener('pointerdown', (e)=>{
+        // prevent stage handler (handled above) if clicking on point element (handled separately)
+        if(e.target.closest('[data-id]')) return;
+        const pt = clientToSVGCoords(e.clientX, e.clientY);
+        if(currentTool === 'addA') addPoint(pt.x, pt.y, 0);
+        else if(currentTool === 'addB') addPoint(pt.x, pt.y, 1);
+        else if(currentTool === 'query') setQuery(pt.x, pt.y);
+      });
+
+      // initial compute
+      computeAndRender();
+
+      // Expose some helpful keyboard tips in status for screen readers
+      statusBox.setAttribute('aria-hidden','false');
+    })();
+  </script>
+</body>
+</html>

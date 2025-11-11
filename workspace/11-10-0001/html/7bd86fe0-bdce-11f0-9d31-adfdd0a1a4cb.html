@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Array Explorer</title>
+  <style>
+    /* Safe area margins */
+    :root {
+      --safe-margin: 24px;
+      --min-gap: 16px;
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #38bdf8;
+      --muted: #94a3b8;
+      --card: #071023;
+      --success: #16a34a;
+      --danger: #ef4444;
+      --glass: rgba(255,255,255,0.03);
+      font-family: Inter, ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg,#031028 0%, #07102a 100%);
+      color: #e6eef8;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    .app {
+      min-height: 100vh;
+      box-sizing: border-box;
+      padding: var(--safe-margin);
+      display: flex;
+      flex-direction: column;
+      gap: var(--min-gap);
+    }
+
+    /* Header & plan text */
+    .plan {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 10px;
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 600;
+      display: flex;
+      gap: 12px;
+      align-items: baseline;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: -4px;
+    }
+    .plan p {
+      margin: 0;
+      color: #cfe8ff;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .plan .small {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    /* Main interactive panel */
+    .panel {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: var(--min-gap);
+      align-items: start;
+    }
+
+    /* Ensure responsiveness */
+    @media (max-width: 920px) {
+      .panel {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Visual array area */
+    .visual {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 20px;
+      min-height: 220px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .visual .info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .visual h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .status {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .status .badge {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.02);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #dbefff;
+    }
+
+    /* Array strip */
+    .array-wrap {
+      background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      padding: 18px;
+      border-radius: 10px;
+      overflow-x: auto;
+      min-height: 120px;
+    }
+
+    .array {
+      display: inline-flex;
+      gap: 12px;
+      align-items: flex-end;
+      transition: height 200ms ease;
+      padding-bottom: 6px;
+    }
+
+    .cell {
+      --w: 84px;
+      width: var(--w);
+      min-width: var(--w);
+      height: 84px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.03);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      box-sizing: border-box;
+      padding: 8px;
+      position: relative;
+      transition: transform 300ms cubic-bezier(.2,.9,.2,1), opacity 240ms ease, box-shadow 220ms ease;
+    }
+
+    .cell .value {
+      font-size: 18px;
+      font-weight: 600;
+      color: #eaf6ff;
+      max-width: 100%;
+      word-break: break-word;
+      text-align: center;
+    }
+
+    .cell .index {
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.01);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    .cell.highlight {
+      box-shadow: 0 10px 26px rgba(56,189,248,0.12);
+      border-color: rgba(56,189,248,0.45);
+      transform: translateY(-8px) scale(1.02);
+    }
+
+    .cell.removing {
+      opacity: 0;
+      transform: translateY(18px) scale(.95);
+    }
+
+    .cell.adding {
+      opacity: 0;
+      transform: translateY(-18px) scale(0.98);
+    }
+
+    /* Controls panel */
+    .controls {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .controls h3 {
+      margin: 0;
+      font-size: 15px;
+      color: #dff6ff;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    input[type="text"], input[type="number"] {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.04);
+      background: rgba(255,255,255,0.02);
+      color: #e6eef8;
+      outline: none;
+      min-width: 120px;
+      box-sizing: border-box;
+    }
+    input[type="text"]:focus, input[type="number"]:focus {
+      box-shadow: 0 6px 16px rgba(56,189,248,0.08);
+      border-color: rgba(56,189,248,0.45);
+    }
+
+    .btn {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      background: rgba(255,255,255,0.03);
+      color: #dff6ff;
+      font-weight: 600;
+      min-width: 90px;
+      transition: transform 120ms ease, background 140ms ease;
+    }
+
+    .btn:active { transform: translateY(1px); }
+
+    .btn.primary {
+      background: linear-gradient(90deg, rgba(56,189,248,0.12), rgba(56,189,248,0.06));
+      border: 1px solid rgba(56,189,248,0.18);
+      color: #cff8ff;
+    }
+
+    .btn.warn { background: rgba(255,165,0,0.08); color: #ffdca6; border: 1px solid rgba(255,165,0,0.06); }
+
+    .btn.danger { background: rgba(239,68,68,0.06); color: #ffcfcf; border: 1px solid rgba(239,68,68,0.06); }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* Code / trace box */
+    .trace {
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+      font-size: 13px;
+      color: #d9f6ff;
+      max-height: 200px;
+      overflow: auto;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    /* Small helpers */
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .spacer { flex: 1 1 auto; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Footer controls */
+    .ops {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 420px) {
+      .ops { grid-template-columns: 1fr; }
+    }
+
+    /* Accessibility focus */
+    button:focus, input:focus {
+      outline: 3px solid rgba(56,189,248,0.14);
+      outline-offset: 2px;
+    }
+
+    /* Tiny responsive tweak for array cell size on narrow screens */
+    @media (max-width: 420px) {
+      .cell { --w: 72px; height: 72px; min-width: 72px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="main">
+    <!-- Plan / design explanation -->
+    <section class="plan" aria-labelledby="plan-heading">
+      <div id="plan-heading" class="title">Concept Title: Array (Ordered indexed collection)</div>
+      <div class="subtitle">A compact interactive module to explore how arrays store and manipulate ordered elements.</div>
+
+      <p><strong>Learning Objective:</strong> After interacting with this module, you will be able to visualize an array as an ordered list of indexed slots, perform common operations (push, pop, insert, remove, access, set), and observe how elements shift positions — reinforcing how arrays maintain order and index-based access.</p>
+
+      <p class="small"><strong>Interaction Design:</strong> Use the controls to add, insert, remove, access, or set elements. Each operation updates the visual array and the code-like trace. Animations (smooth shifting of items, highlights for accessed elements, and fade for adding/removing) make the internal changes visible: when inserting, we animate existing cells sliding right; when removing, cells slide left. Clicking a cell highlights it and announces the index and value via accessible text. The trace shows the equivalent JavaScript operation and resulting array content.</p>
+
+      <p class="small"><strong>Layout Description:</strong> The module uses a two-column layout: the left side presents the visual array (top) and activity status (length, last operation), while the right side contains controls and a code trace. There is a 24px safe margin on all sides and a minimum 16px spacing between interactive elements. On narrow screens the layout stacks vertically. Controls are accessible via keyboard and labeled, and there is an ARIA live region announcing changes for screen readers.</p>
+    </section>
+
+    <!-- Interactive module -->
+    <section class="panel" aria-labelledby="interactive-heading">
+      <div class="visual" aria-live="polite">
+        <div class="info">
+          <h2 id="interactive-heading">Array Visualizer</h2>
+          <div class="status" aria-hidden="false">
+            <div class="badge" id="lengthBadge" aria-live="polite">length: 0</div>
+            <div class="badge" id="lastOp" aria-live="polite">idle</div>
+          </div>
+        </div>
+
+        <div class="array-wrap" aria-label="Array visualization. Each cell shows value and index. Click a cell to highlight and access it.">
+          <div id="array" class="array" role="list"></div>
+        </div>
+
+        <div class="row">
+          <div class="muted">Tip: Try inserting at index 0 to see elements shift to the right. Click a cell to access it.</div>
+          <div class="spacer"></div>
+          <div id="liveMsg" class="muted" aria-live="polite" aria-atomic="true"></div>
+        </div>
+      </div>
+
+      <aside class="controls" aria-label="Array controls">
+        <h3>Controls</h3>
+
+        <div class="form-row" role="group" aria-label="Add value">
+          <input id="valueInput" type="text" placeholder="value (string or number)" aria-label="Value to insert" />
+          <button id="pushBtn" class="btn primary" title="Push to end">Push</button>
+          <button id="unshiftBtn" class="btn" title="Add to start">Unshift</button>
+        </div>
+
+        <div class="form-row" role="group" aria-label="Remove">
+          <button id="popBtn" class="btn warn" title="Remove last">Pop</button>
+          <button id="shiftBtn" class="btn warn" title="Remove first">Shift</button>
+          <button id="clearBtn" class="btn danger" title="Clear array">Clear</button>
+        </div>
+
+        <div class="form-row" role="group" aria-label="Insert or remove at index">
+          <input id="indexInput" type="number" min="0" placeholder="index" aria-label="Index" />
+          <button id="insertBtn" class="btn primary" title="Insert at index">Insert @ index</button>
+          <button id="removeIndexBtn" class="btn warn" title="Remove at index">Remove @ index</button>
+        </div>
+
+        <div class="form-row" role="group" aria-label="Access and set">
+          <input id="accessIndex" type="number" min="0" placeholder="index to access" aria-label="Index to access" />
+          <button id="accessBtn" class="btn" title="Access index">Access</button>
+          <input id="setValue" type="text" placeholder="new value" aria-label="New value for set" />
+          <button id="setBtn" class="btn primary" title="Set value">Set</button>
+        </div>
+
+        <div class="form-row" role="group" aria-label="Swap or random">
+          <input id="swapA" type="number" min="0" placeholder="i" aria-label="swap index a" />
+          <input id="swapB" type="number" min="0" placeholder="j" aria-label="swap index b" />
+          <button id="swapBtn" class="btn" title="Swap two indices">Swap</button>
+          <button id="randomFillBtn" class="btn" title="Fill with random demo values">Randomize</button>
+        </div>
+
+        <div class="muted">Keyboard: focus inputs and press Enter to submit when appropriate. All operations update the code trace below.</div>
+
+        <div style="margin-top:8px">
+          <div class="trace" id="trace" aria-live="polite" aria-atomic="true">// Operation trace will appear here</div>
+        </div>
+      </aside>
+    </section>
+  </div>
+
+  <script>
+    // Interactive Array Visualizer (vanilla JS)
+    (function () {
+      // Model
+      let arr = [];
+
+      // Elements
+      const arrayEl = document.getElementById('array');
+      const lengthBadge = document.getElementById('lengthBadge');
+      const lastOp = document.getElementById('lastOp');
+      const liveMsg = document.getElementById('liveMsg');
+      const traceEl = document.getElementById('trace');
+
+      const valueInput = document.getElementById('valueInput');
+      const indexInput = document.getElementById('indexInput');
+      const accessIndex = document.getElementById('accessIndex');
+      const setValue = document.getElementById('setValue');
+
+      // Buttons
+      const pushBtn = document.getElementById('pushBtn');
+      const popBtn = document.getElementById('popBtn');
+      const unshiftBtn = document.getElementById('unshiftBtn');
+      const shiftBtn = document.getElementById('shiftBtn');
+      const insertBtn = document.getElementById('insertBtn');
+      const removeIndexBtn = document.getElementById('removeIndexBtn');
+      const accessBtn = document.getElementById('accessBtn');
+      const setBtn = document.getElementById('setBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const swapBtn = document.getElementById('swapBtn');
+      const swapA = document.getElementById('swapA');
+      const swapB = document.getElementById('swapB');
+      const randomFillBtn = document.getElementById('randomFillBtn');
+
+      // Utility: Accessible announcements
+      function announce(text) {
+        liveMsg.textContent = text;
+      }
+
+      // Trace: append an operation with the resulting array
+      function pushTrace(op, details) {
+        const line = document.createElement('div');
+        const now = new Date();
+        const time = now.toLocaleTimeString();
+        line.textContent = `[${time}] ${op} -> ${JSON.stringify(arr)}` + (details ? `  // ${details}` : '');
+        traceEl.prepend(line);
+      }
+
+      // FLIP animation for smooth shifting
+      function renderArray(animate = true) {
+        // record first positions
+        const beforeRects = new Map();
+        Array.from(arrayEl.children).forEach((child) => {
+          beforeRects.set(child.dataset.key, child.getBoundingClientRect());
+        });
+
+        // Clear and rebuild
+        // We'll reuse keys to detect matching nodes
+        const newNodes = arr.map((v, i) => {
+          const key = `${i}:${String(v)}`;
+          const node = document.createElement('div');
+          node.className = 'cell';
+          node.setAttribute('role', 'listitem');
+          node.dataset.index = i;
+          node.dataset.key = key;
+          node.tabIndex = 0;
+          node.setAttribute('aria-label', `Index ${i}, value ${v}`);
+          // inner
+          const val = document.createElement('div');
+          val.className = 'value';
+          val.textContent = v;
+          const idx = document.createElement('div');
+          idx.className = 'index';
+          idx.textContent = i;
+          node.appendChild(val);
+          node.appendChild(idx);
+
+          // Click to access/highlight
+          node.addEventListener('click', () => {
+            accessAt(i);
+          });
+          node.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              accessAt(i);
+            }
+            // Allow inline edit with 'e'
+            if (e.key === 'e' || e.key === 'E') {
+              e.preventDefault();
+              const newVal = prompt(`Set value at index ${i}`, String(arr[i]));
+              if (newVal !== null) {
+                setAt(i, parseInputValue(newVal));
+              }
+            }
+          });
+
+          return node;
+        });
+
+        // Patch DOM: simple replace to simplify FLIP mapping by using dataset.key
+        // Save existing nodes by key
+        const existingByKey = new Map();
+        Array.from(arrayEl.children).forEach((child) => {
+          existingByKey.set(child.dataset.key, child);
+        });
+
+        // Build new fragment, reusing nodes if key matches
+        const fragment = document.createDocumentFragment();
+        newNodes.forEach((node) => {
+          const key = node.dataset.key;
+          if (existingByKey.has(key)) {
+            // reuse existing node to preserve DOM element and animate
+            fragment.appendChild(existingByKey.get(key));
+            existingByKey.delete(key);
+          } else {
+            node.classList.add('adding');
+            fragment.appendChild(node);
+          }
+        });
+
+        // Any nodes left in existingByKey were removed; mark them removing
+        existingByKey.forEach((n) => {
+          n.classList.add('removing');
+        });
+
+        // Replace content
+        arrayEl.innerHTML = '';
+        arrayEl.appendChild(fragment);
+
+        // AFTER DOM updated: compute after rects and animate differences
+        requestAnimationFrame(() => {
+          Array.from(arrayEl.children).forEach((child) => {
+            const key = child.dataset.key;
+            const before = beforeRects.get(key);
+            const after = child.getBoundingClientRect();
+            if (before) {
+              const dx = before.left - after.left;
+              const dy = before.top - after.top;
+              if (dx || dy) {
+                child.style.transition = 'none';
+                child.style.transform = `translate(${dx}px, ${dy}px)`;
+                requestAnimationFrame(() => {
+                  child.style.transition = 'transform 320ms cubic-bezier(.2,.9,.2,1), opacity 220ms ease';
+                  child.style.transform = '';
+                });
+              }
+            } else {
+              // New nodes: animate from adding state to normal
+              if (child.classList.contains('adding')) {
+                // force reflow to ensure animation
+                requestAnimationFrame(() => {
+                  child.classList.remove('adding');
+                  child.style.transition = 'transform 320ms cubic-bezier(.2,.9,.2,1), opacity 220ms ease';
+                  child.style.transform = 'translateY(0)';
+                });
+              }
+            }
+
+            // Removing nodes: animate then remove
+            if (child.classList.contains('removing')) {
+              child.style.transition = 'opacity 260ms ease, transform 280ms ease';
+              child.style.opacity = '0';
+              child.style.transform = 'translateY(18px)';
+              setTimeout(() => {
+                if (child.parentElement) child.remove();
+              }, 300);
+            }
+
+            // cleanup inline styles after animation
+            child.addEventListener('transitionend', function cleanup() {
+              child.style.transition = '';
+              child.style.transform = '';
+              child.removeEventListener('transitionend', cleanup);
+            });
+          });
+        });
+
+        // Update badges
+        lengthBadge.textContent = `length: ${arr.length}`;
+      }
+
+      // Parse input: detect number vs string
+      function parseInputValue(raw) {
+        if (raw === '') return '';
+        // Try number
+        if (!isNaN(raw) && raw.trim() !== '') {
+          // preserve leading zero strings? We'll treat numeric if parseFloat works and no trailing letters
+          if (/^-?\d+(\.\d+)?$/.test(raw.trim())) return Number(raw);
+        }
+        // boolean?
+        if (raw.trim().toLowerCase() === 'true') return true;
+        if (raw.trim().toLowerCase() === 'false') return false;
+        return raw;
+      }
+
+      // Operations
+      function pushVal(value) {
+        const v = parseInputValue(String(value));
+        arr.push(v);
+        lastOp.textContent = 'push';
+        announce(`Pushed value ${v} at index ${arr.length - 1}`);
+        pushTrace(`arr.push(${JSON.stringify(v)})`);
+        renderArray();
+      }
+
+      function popVal() {
+        if (arr.length === 0) {
+          announce('Array is empty. Nothing to pop.');
+          lastOp.textContent = 'pop (empty)';
+          pushTrace('arr.pop()  // empty');
+          return;
+        }
+        const removed = arr.pop();
+        lastOp.textContent = 'pop';
+        announce(`Popped value ${removed} from end`);
+        pushTrace(`arr.pop()  // removed ${JSON.stringify(removed)}`);
+        renderArray();
+      }
+
+      function unshiftVal(value) {
+        const v = parseInputValue(String(value));
+        arr.unshift(v);
+        lastOp.textContent = 'unshift';
+        announce(`Added ${v} at start (index 0)`);
+        pushTrace(`arr.unshift(${JSON.stringify(v)})`);
+        renderArray();
+      }
+
+      function shiftVal() {
+        if (arr.length === 0) {
+          announce('Array is empty. Nothing to shift.');
+          lastOp.textContent = 'shift (empty)';
+          pushTrace('arr.shift()  // empty');
+          return;
+        }
+        const removed = arr.shift();
+        lastOp.textContent = 'shift';
+        announce(`Removed ${removed} from start`);
+        pushTrace(`arr.shift()  // removed ${JSON.stringify(removed)}`);
+        renderArray();
+      }
+
+      function insertAt(index, value) {
+        if (index < 0) index = 0;
+        if (index > arr.length) index = arr.length;
+        const v = parseInputValue(String(value));
+        arr.splice(index, 0, v);
+        lastOp.textContent = `insert @ ${index}`;
+        announce(`Inserted ${v} at index ${index}`);
+        pushTrace(`arr.splice(${index}, 0, ${JSON.stringify(v)})`);
+        renderArray();
+      }
+
+      function removeAt(index) {
+        if (index < 0 || index >= arr.length) {
+          announce('Index out of bounds.');
+          pushTrace(`remove at ${index} // out of bounds`);
+          lastOp.textContent = 'remove (oob)';
+          return;
+        }
+        const removed = arr.splice(index, 1)[0];
+        lastOp.textContent = `remove @ ${index}`;
+        announce(`Removed ${removed} from index ${index}`);
+        pushTrace(`arr.splice(${index}, 1)  // removed ${JSON.stringify(removed)}`);
+        renderArray();
+      }
+
+      function accessAt(index) {
+        if (index < 0 || index >= arr.length) {
+          announce('Index out of bounds.');
+          pushTrace(`access ${index} // out of bounds`);
+          lastOp.textContent = 'access (oob)';
+          return;
+        }
+        const val = arr[index];
+        lastOp.textContent = `access @ ${index}`;
+        announce(`Accessed index ${index}, value ${val}`);
+        pushTrace(`let v = arr[${index}]  // ${JSON.stringify(val)}`);
+        // Highlight cell
+        const cell = Array.from(arrayEl.children).find(c => Number(c.dataset.index) === index);
+        if (cell) {
+          cell.classList.add('highlight');
+          setTimeout(() => cell.classList.remove('highlight'), 800);
+        }
+      }
+
+      function setAt(index, value) {
+        if (index < 0 || index >= arr.length) {
+          announce('Index out of bounds.');
+          pushTrace(`set ${index} = ${JSON.stringify(value)} // out of bounds`);
+          lastOp.textContent = 'set (oob)';
+          return;
+        }
+        const old = arr[index];
+        arr[index] = parseInputValue(String(value));
+        lastOp.textContent = `set @ ${index}`;
+        announce(`Index ${index} changed from ${old} to ${arr[index]}`);
+        pushTrace(`arr[${index}] = ${JSON.stringify(arr[index])}  // was ${JSON.stringify(old)}`);
+        renderArray();
+      }
+
+      function clearAll() {
+        arr = [];
+        lastOp.textContent = 'clear';
+        announce('Cleared array');
+        pushTrace('arr = []');
+        renderArray();
+      }
+
+      function swapIndices(i, j) {
+        if (i < 0 || j < 0 || i >= arr.length || j >= arr.length) {
+          announce('Index out of bounds for swap.');
+          pushTrace(`swap ${i}, ${j} // out of bounds`);
+          lastOp.textContent = 'swap (oob)';
+          return;
+        }
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        lastOp.textContent = `swap ${i}<->${j}`;
+        announce(`Swapped indices ${i} and ${j}`);
+        pushTrace(`temp = arr[${i}]; arr[${i}] = arr[${j}]; arr[${j}] = temp`);
+        renderArray();
+      }
+
+      function randomFill() {
+        arr = [];
+        const sample = ['apple', '42', 7, 'banana', 'true', 'x', 99, 'hello', '🍪', 'node'];
+        const len = Math.floor(Math.random() * 6) + 3;
+        for (let i = 0; i < len; i++) {
+          const pick = sample[Math.floor(Math.random() * sample.length)];
+          arr.push(parseInputValue(String(pick)));
+        }
+        lastOp.textContent = 'randomize';
+        announce('Filled array with demo values');
+        pushTrace('random fill');
+        renderArray();
+      }
+
+      // Event wiring
+      pushBtn.addEventListener('click', () => {
+        const val = valueInput.value;
+        if (val === '') {
+          announce('Please enter a value to push.');
+          return;
+        }
+        pushVal(val);
+        valueInput.value = '';
+        valueInput.focus();
+      });
+
+      unshiftBtn.addEventListener('click', () => {
+        const val = valueInput.value;
+        if (val === '') {
+          announce('Please enter a value to add at start.');
+          return;
+        }
+        unshiftVal(val);
+        valueInput.value = '';
+        valueInput.focus();
+      });
+
+      popBtn.addEventListener('click', () => {
+        popVal();
+      });
+
+      shiftBtn.addEventListener('click', () => {
+        shiftVal();
+      });
+
+      insertBtn.addEventListener('click', () => {
+        const i = parseInt(indexInput.value, 10);
+        if (isNaN(i)) {
+          announce('Please enter a valid index to insert at.');
+          return;
+        }
+        const val = valueInput.value;
+        if (val === '') {
+          announce('Please enter a value to insert.');
+          return;
+        }
+        insertAt(i, val);
+        indexInput.value = '';
+        valueInput.value = '';
+      });
+
+      removeIndexBtn.addEventListener('click', () => {
+        const i = parseInt(indexInput.value, 10);
+        if (isNaN(i)) {
+          announce('Please enter a valid index to remove.');
+          return;
+        }
+        removeAt(i);
+        indexInput.value = '';
+      });
+
+      accessBtn.addEventListener('click', () => {
+        const i = parseInt(accessIndex.value, 10);
+        if (isNaN(i)) {
+          announce('Please enter a valid index to access.');
+          return;
+        }
+        accessAt(i);
+        accessIndex.value = '';
+      });
+
+      setBtn.addEventListener('click', () => {
+        const i = parseInt(accessIndex.value || indexInput.value, 10);
+        if (isNaN(i)) {
+          announce('Please enter a valid index to set.');
+          return;
+        }
+        const v = setValue.value;
+        if (v === '') {
+          announce('Please enter a value to set.');
+          return;
+        }
+        setAt(i, v);
+        setValue.value = '';
+        accessIndex.value = '';
+        indexInput.value = '';
+      });
+
+      clearBtn.addEventListener('click', () => {
+        if (!confirm('Clear the entire array?')) return;
+        clearAll();
+      });
+
+      swapBtn.addEventListener('click', () => {
+        const a = parseInt(swapA.value, 10);
+        const b = parseInt(swapB.value, 10);
+        if (isNaN(a) || isNaN(b)) {
+          announce('Please enter two valid indices to swap.');
+          return;
+        }
+        swapIndices(a, b);
+        swapA.value = '';
+        swapB.value = '';
+      });
+
+      randomFillBtn.addEventListener('click', randomFill);
+
+      // Keyboard: pressing Enter in certain inputs triggers related action
+      valueInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') pushBtn.click();
+      });
+      indexInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') insertBtn.click();
+      });
+      accessIndex.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') accessBtn.click();
+      });
+      setValue.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') setBtn.click();
+      });
+
+      // Initial demo content
+      arr = ['a', 'b', 'c'];
+      pushTrace('initial: ["a","b","c"]');
+      renderArray();
+      announce('Initialized demo array with 3 elements.');
+
+      // Expose some debug to window (safe)
+      window.__arrayVisualizer = {
+        getArray: () => arr,
+        push: (x) => pushVal(x),
+        insert: (i, x) => insertAt(i, x),
+        removeAt: (i) => removeAt(i),
+      };
+    })();
+  </script>
+</body>
+</html>

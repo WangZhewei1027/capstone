@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Queue Explorer</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --slot-size: 64px;
+      --slot-gap: 12px;
+      --accent: #2563eb;
+      --accent-2: #06b6d4;
+      --bg: #0f172a;
+      --card: #0b1220;
+      --muted: #94a3b8;
+      --white: #e6eef8;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+    /* page safe area & base */
+    html,body{height:100%}
+    body{
+      margin:0;
+      padding:var(--safe-margin);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#071029 0%, #07131c 100%);
+      color:var(--white);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      box-sizing:border-box;
+    }
+    *{box-sizing:inherit}
+    a{color:inherit}
+
+    /* container layout */
+    .container{
+      max-width:1100px;
+      margin:0 auto;
+    }
+    header{
+      display:flex;
+      align-items:flex-start;
+      gap:var(--gap);
+      margin-bottom:24px;
+    }
+    .title{
+      flex:1 1 auto;
+    }
+    h1{
+      margin:0 0 8px 0;
+      font-size:20px;
+      letter-spacing: -0.2px;
+    }
+    .sub{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* main module layout */
+    .module{
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:var(--gap);
+      align-items:start;
+    }
+
+    /* responsive fallback */
+    @media (max-width:920px){
+      .module{grid-template-columns: 1fr; }
+    }
+
+    /* left: interactive playground */
+    .playground{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:20px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      min-height:360px;
+    }
+
+    /* info text and controls */
+    .meta{
+      display:flex;
+      gap:var(--gap);
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .meta .desc{
+      flex:1 1 auto;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    /* queue visual area */
+    .queue-area{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:12px;
+      border-radius:10px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      min-height:180px;
+      position:relative;
+      overflow:visible;
+    }
+    .slots{
+      display:flex;
+      gap:var(--slot-gap);
+      align-items:center;
+      justify-content:center;
+      flex-wrap:wrap;
+      padding:16px;
+    }
+    .slot{
+      width:var(--slot-size);
+      height:var(--slot-size);
+      border-radius:8px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.15));
+      border:1px solid rgba(255,255,255,0.04);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      transition: box-shadow .2s, transform .18s;
+      flex: 0 0 var(--slot-size);
+    }
+    .slot.empty{opacity:0.5}
+    .slot-label{
+      position:absolute;
+      bottom:-20px;
+      left:50%;
+      transform:translateX(-50%);
+      font-size:12px;
+      color:var(--muted);
+      pointer-events:none;
+    }
+    .chip{
+      background:linear-gradient(180deg,var(--accent), #1557c9);
+      color:white;
+      padding:8px 10px;
+      border-radius:999px;
+      box-shadow: 0 6px 14px rgba(2,6,23,0.6);
+      font-weight:600;
+      font-size:13px;
+      transform:translateZ(0);
+      transition: transform .3s cubic-bezier(.2,.9,.3,1),opacity .22s;
+      display:inline-block;
+      white-space:nowrap;
+    }
+
+    /* head & tail badges */
+    .pointer{
+      position:absolute;
+      top:-22px;
+      font-size:12px;
+      padding:4px 6px;
+      border-radius:6px;
+      background:rgba(6,182,212,0.12);
+      color:var(--accent-2);
+      border:1px solid rgba(6,182,212,0.14);
+    }
+    .pointer.tail{ background:rgba(37,99,235,0.12); color:var(--accent); border-color:rgba(37,99,235,0.14);}
+
+    /* controls */
+    .controls{
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top:6px;
+    }
+    .input{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex:1 1 380px;
+      min-width:220px;
+    }
+    input[type="text"]{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      padding:10px 12px;
+      border-radius:8px;
+      color:var(--white);
+      min-width:120px;
+      outline:none;
+      transition:box-shadow .12s, border-color .12s;
+    }
+    input[type="text"]:focus{
+      border-color:rgba(37,99,235,0.9);
+      box-shadow: 0 6px 18px rgba(37,99,235,0.06);
+    }
+    button{
+      background:linear-gradient(180deg,var(--accent), #1557c9);
+      color:white;
+      border:0;
+      border-radius:8px;
+      padding:10px 12px;
+      cursor:pointer;
+      font-weight:600;
+      min-height:44px;
+      transition: transform .12s, box-shadow .12s, opacity .12s;
+    }
+    button.secondary{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      color:var(--white);
+      font-weight:600;
+    }
+    button.ghost{
+      background:transparent;
+      color:var(--muted);
+      border:0;
+      padding:8px;
+      min-height:auto;
+    }
+    button:active{transform:translateY(1px)}
+    button[disabled], button[aria-disabled="true"]{opacity:0.45; cursor:not-allowed}
+
+    /* status & logs */
+    .status{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-top:6px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .badges{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .badge{
+      background:rgba(255,255,255,0.02);
+      padding:6px 8px;
+      border-radius:8px;
+      font-weight:600;
+      font-size:13px;
+      color:var(--muted);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .log{
+      margin-top:6px;
+      background:rgba(255,255,255,0.02);
+      border-radius:8px;
+      padding:10px;
+      max-height:120px;
+      overflow:auto;
+      font-size:13px;
+      color:var(--muted);
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    /* right column: explanation & interactive docs */
+    .doc{
+      background:linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:16px;
+      min-height:360px;
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.45;
+    }
+    .doc h3{
+      margin:0 0 8px 0;
+      color:var(--white);
+      font-size:15px;
+    }
+    .controls-row{
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      margin-top:12px;
+      flex-wrap:wrap;
+    }
+
+    /* animations for slot highlight */
+    .slot.pulse{
+      box-shadow:0 8px 26px rgba(37,99,235,0.15);
+      transform:translateY(-6px);
+    }
+    /* ephemeral moving chip (positioned absolute during animation) */
+    .floating{
+      position:fixed;
+      z-index:1000;
+      pointer-events:none;
+      transition: transform .45s cubic-bezier(.2,.9,.3,1), opacity .25s;
+    }
+    /* small helpers for accessibility focus */
+    .sr-only{
+      border:0 !important;
+      clip:rect(1px,1px,1px,1px) !important;
+      -webkit-clip-path: inset(50%) !important;
+      clip-path: inset(50%) !important;
+      height:1px !important;
+      margin:-1px !important;
+      overflow:hidden !important;
+      padding:0 !important;
+      position:absolute !important;
+      width:1px !important;
+      white-space:nowrap !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <header>
+      <div class="title">
+        <h1>Queue — First-In First-Out (FIFO) Interactive Explorer</h1>
+        <p class="sub">Visualize enqueue, dequeue, peek, and observe wrap-around behavior in a bounded queue.</p>
+      </div>
+    </header>
+
+    <div class="module" aria-labelledby="module-heading">
+      <!-- Left: Interactive Playground -->
+      <section class="playground" aria-label="Queue interactive playground">
+        <!-- Concept sections (visible in the UI as required by the design plan) -->
+        <div class="meta" id="module-heading">
+          <div class="desc">
+            <strong>Concept Title:</strong> Queue (FIFO) — linear collection where elements are removed in the order they were added.<br/>
+            <strong>Learning Objective:</strong> After interacting you'll understand enqueue/dequeue operations, how head and tail move, how the queue becomes full/empty, and how indices wrap in a circular buffer.
+          </div>
+          <div style="min-width:160px; text-align:right;">
+            <div style="font-size:13px;color:var(--muted)">Capacity:</div>
+            <div class="badges" aria-hidden="true">
+              <div class="badge" id="cap-badge">8 slots</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Queue visualization -->
+        <div class="queue-area" id="queueArea" aria-live="polite" aria-atomic="true">
+          <div class="slots" id="slots" role="list" aria-label="Queue slots representation"></div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls" role="toolbar" aria-label="Queue controls">
+          <div class="input" role="group" aria-label="Enqueue input">
+            <label class="sr-only" for="valueInput">Value to enqueue</label>
+            <input id="valueInput" type="text" placeholder="Enter a value (press Enter to enqueue)" aria-describedby="inputHint" />
+            <div id="inputHint" class="sr-only">Type a short label and press Enter or click Enqueue.</div>
+            <button id="enqueueBtn" title="Enqueue (add to tail)">Enqueue</button>
+            <button id="dequeueBtn" class="secondary" title="Dequeue (remove from head)">Dequeue</button>
+            <button id="peekBtn" class="secondary" title="Show head value">Peek</button>
+          </div>
+
+          <div style="display:flex;gap:12px;align-items:center;">
+            <button id="clearBtn" class="ghost" title="Clear all">Clear</button>
+            <button id="fillBtn" class="ghost" title="Fill with sample values">Fill</button>
+          </div>
+        </div>
+
+        <!-- Status / Logs -->
+        <div class="status" aria-live="polite">
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <div class="badge">Head: <span id="headIndex">0</span></div>
+            <div class="badge">Tail: <span id="tailIndex">0</span></div>
+            <div class="badge">Size: <span id="size">0</span></div>
+          </div>
+          <div class="log" id="log" aria-live="polite" aria-atomic="false" role="log"></div>
+        </div>
+      </section>
+
+      <!-- Right: Explanation & Interaction Design / Layout Description -->
+      <aside class="doc" aria-label="Design explanation">
+        <h3>Interaction Design</h3>
+        <p>
+          - Enqueue: type a short value and press Enter or click <strong>Enqueue</strong>. The value animates from the input area into the tail slot. If the queue is full, the button disables and you'll see a helpful message. <br/>
+          - Dequeue: click <strong>Dequeue</strong>. The head element lifts and fades out with an animation and the head pointer advances. If empty, the action is disabled. <br/>
+          - Peek: highlight the head element without removing it. <br/>
+          - Fill/Clear: quickly populate or reset the queue for testing.
+        </p>
+
+        <h3>Layout Description</h3>
+        <p>
+          The page uses a two-column layout: the left column is the interactive playground (visualization + controls + live status), while the right column contains concise documentation explaining interactions and layout rationale. Spacing:
+        </p>
+        <ul>
+          <li>Safe area: 24 px padding on all sides of the viewport.</li>
+          <li>Minimum spacing: 16 px gap between interactive elements and layout regions.</li>
+          <li>Controls are grouped and responsive: on narrow screens the right column stacks below the playground.</li>
+        </ul>
+
+        <h3>Accessibility & Keyboard</h3>
+        <p>
+          - Input supports Enter to enqueue. Buttons are keyboard focusable with visible focus outlines. Live status updates (head/tail/size) are accessible to screen readers via aria-live. Buttons are disabled when actions are invalid.
+        </p>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    /*******************************************
+     * Interactive Queue Module — Vanilla JS
+     *******************************************/
+
+    // Configuration
+    const CAPACITY = 8; // visual slot capacity (bounded queue)
+    const slotsContainer = document.getElementById('slots');
+    const enqueueBtn = document.getElementById('enqueueBtn');
+    const dequeueBtn = document.getElementById('dequeueBtn');
+    const peekBtn = document.getElementById('peekBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const fillBtn = document.getElementById('fillBtn');
+    const valueInput = document.getElementById('valueInput');
+    const headIndexEl = document.getElementById('headIndex');
+    const tailIndexEl = document.getElementById('tailIndex');
+    const sizeEl = document.getElementById('size');
+    const logEl = document.getElementById('log');
+    const capBadge = document.getElementById('cap-badge');
+    const queueArea = document.getElementById('queueArea');
+
+    capBadge.textContent = CAPACITY + " slots";
+
+    // Queue state (circular buffer)
+    const queue = new Array(CAPACITY).fill(null);
+    let head = 0;
+    let tail = 0;
+    let count = 0;
+
+    // Build visual slots
+    for (let i = 0; i < CAPACITY; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot empty';
+      slot.setAttribute('role','listitem');
+      slot.setAttribute('data-index', i);
+      slot.innerHTML = '<div class="slot-label">#' + i + '</div>';
+      slotsContainer.appendChild(slot);
+    }
+
+    // Utility to update UI state
+    function refreshStatus(){
+      headIndexEl.textContent = head;
+      tailIndexEl.textContent = tail;
+      sizeEl.textContent = count;
+      // enable/disable controls
+      enqueueBtn.disabled = count >= CAPACITY;
+      dequeueBtn.disabled = count === 0;
+      peekBtn.disabled = count === 0;
+    }
+
+    // Logging helper
+    function log(message, type="info"){
+      const el = document.createElement('div');
+      el.textContent = message;
+      if (type === 'error') el.style.color = 'var(--danger)';
+      else if (type === 'success') el.style.color = 'var(--success)';
+      el.style.padding = '2px 0';
+      logEl.prepend(el);
+      // keep log to a reasonable length
+      while (logEl.children.length > 40) logEl.removeChild(logEl.lastChild);
+    }
+
+    // Create a floating chip element at input position for animation
+    function createFloatingChip(value){
+      const chip = document.createElement('div');
+      chip.className = 'chip floating';
+      chip.textContent = value;
+      document.body.appendChild(chip);
+      return chip;
+    }
+
+    // Get center coordinates of an element (for animation)
+    function centerOf(el){
+      const r = el.getBoundingClientRect();
+      return {x: r.left + (r.width/2), y: r.top + (r.height/2)};
+    }
+
+    // Visualize placing a value in a slot (animated)
+    function animateEnqueue(value, targetIndex){
+      const targetSlot = slotsContainer.querySelector('.slot[data-index="'+targetIndex+'"]');
+      // Create floating from input position
+      const inputRect = valueInput.getBoundingClientRect();
+      const chip = createFloatingChip(value);
+      // place floating chip at input center
+      const start = {x: inputRect.left + inputRect.width/2, y: inputRect.top + inputRect.height/2};
+      chip.style.left = (start.x - chip.offsetWidth/2) + 'px';
+      chip.style.top = (start.y - chip.offsetHeight/2) + 'px';
+      chip.style.opacity = '0.98';
+      // Force layout to apply initial position
+      chip.getBoundingClientRect();
+
+      // compute target center
+      const target = centerOf(targetSlot);
+      // animate by setting transform to move it there
+      const dx = target.x - start.x;
+      const dy = target.y - start.y;
+      chip.style.transform = `translate(${dx}px, ${dy}px) scale(1)`;
+      chip.style.transition = 'transform .45s cubic-bezier(.2,.9,.3,1), opacity .22s';
+
+      // highlight target slot while animating
+      targetSlot.classList.add('pulse');
+      setTimeout(()=>{
+        // after animation completes, put chip into slot DOM and remove floating
+        const placed = document.createElement('div');
+        placed.className = 'chip';
+        placed.textContent = value;
+        // clear slot and append chip
+        targetSlot.querySelectorAll('.chip').forEach(n=>n.remove());
+        targetSlot.appendChild(placed);
+        targetSlot.classList.remove('empty','pulse');
+        // remove floating chip
+        chip.style.opacity = '0';
+        setTimeout(()=>chip.remove(), 180);
+      }, 480);
+    }
+
+    // Visualize dequeuing head (animated)
+    function animateDequeue(fromIndex, callback){
+      const slot = slotsContainer.querySelector('.slot[data-index="'+fromIndex+'"]');
+      const chip = slot.querySelector('.chip');
+      if (!chip){
+        // no chip present — fallback
+        slot.classList.add('pulse');
+        setTimeout(()=>slot.classList.remove('pulse'), 220);
+        callback && callback();
+        return;
+      }
+      // clone to floating, keep original in slot while animating
+      const floating = chip.cloneNode(true);
+      floating.classList.add('floating');
+      const chipPos = centerOf(chip);
+      floating.style.left = (chipPos.x - floating.offsetWidth/2) + 'px';
+      floating.style.top = (chipPos.y - floating.offsetHeight/2) + 'px';
+      document.body.appendChild(floating);
+      // hide chip in slot immediately (gives impression of moving)
+      chip.style.opacity = '0';
+      // animate floating upwards & fade
+      requestAnimationFrame(()=> {
+        floating.style.transform = 'translateY(-60px) scale(.96)';
+        floating.style.opacity = '0';
+      });
+      setTimeout(()=>{
+        // cleanup
+        floating.remove();
+        // remove chip from slot DOM
+        slot.querySelectorAll('.chip').forEach(n=>n.remove());
+        slot.classList.add('empty');
+        callback && callback();
+      }, 420);
+    }
+
+    // Core queue operations (update state + visuals)
+    function enqueue(value){
+      if (!value || count >= CAPACITY) {
+        log('Cannot enqueue — invalid value or queue is full.', 'error');
+        return;
+      }
+      // store in array
+      queue[tail] = value;
+      // animate visual
+      animateEnqueue(value, tail);
+      tail = (tail + 1) % CAPACITY;
+      count++;
+      log('Enqueued "' + value + '".');
+      refreshStatus();
+    }
+
+    function dequeue(){
+      if (count === 0) {
+        log('Cannot dequeue — queue is empty.', 'error');
+        return;
+      }
+      const value = queue[head];
+      queue[head] = null;
+      // animate removal then update head
+      animateDequeue(head, () => {
+        head = (head + 1) % CAPACITY;
+        count--;
+        log('Dequeued "' + value + '".', 'success');
+        refreshStatus();
+      });
+    }
+
+    function peek(){
+      if (count === 0){
+        log('Queue is empty — nothing to peek.', 'error');
+        return;
+      }
+      const value = queue[head];
+      // flash head slot
+      const slot = slotsContainer.querySelector('.slot[data-index="'+head+'"]');
+      if (slot){
+        slot.classList.add('pulse');
+        setTimeout(()=>slot.classList.remove('pulse'), 420);
+      }
+      log('Peek -> "' + value + '".');
+    }
+
+    function clearQueue(){
+      // clear model
+      for (let i=0;i<CAPACITY;i++) queue[i] = null;
+      head = tail = count = 0;
+      // clear visuals
+      slotsContainer.querySelectorAll('.slot').forEach(s=>{
+        s.classList.add('empty');
+        s.querySelectorAll('.chip').forEach(n=>n.remove());
+      });
+      log('Queue cleared.');
+      refreshStatus();
+    }
+
+    function fillSample(){
+      clearQueue();
+      const samples = ['A','B','C','D','E','F','G','H'];
+      // small delay between enqueues to visualize
+      let i = 0;
+      (function step(){
+        if (i >= samples.length) return;
+        enqueue(samples[i]);
+        i++;
+        setTimeout(step, 220);
+      })();
+    }
+
+    // Initialize UI state
+    refreshStatus();
+    log('Interactive Queue ready. Try enqueueing values.');
+
+    // Hook up event listeners
+    enqueueBtn.addEventListener('click', ()=> {
+      const val = valueInput.value.trim();
+      if (!val) {
+        // if empty, create a random sample
+        const generated = Math.random().toString(36).slice(2,6).toUpperCase();
+        valueInput.value = generated;
+      }
+      enqueue(valueInput.value.trim());
+      valueInput.value = '';
+      valueInput.focus();
+    });
+
+    dequeueBtn.addEventListener('click', ()=> dequeue());
+    peekBtn.addEventListener('click', ()=> peek());
+    clearBtn.addEventListener('click', ()=> clearQueue());
+    fillBtn.addEventListener('click', ()=> fillSample());
+
+    // Support Enter key to enqueue, and D to dequeue (accessible)
+    valueInput.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        enqueueBtn.click();
+      }
+    });
+    document.addEventListener('keydown', (e)=>{
+      // avoid interfering when typing
+      if (document.activeElement === valueInput) return;
+      if (e.key === 'd' || e.key === 'D') {
+        dequeueBtn.focus();
+        dequeueBtn.click();
+      }
+      if (e.key === 'p' || e.key === 'P') {
+        peekBtn.click();
+      }
+    });
+
+    // Make sure visual slots reflect the model initially (all empty)
+    // Attach resize observer to keep animations accurate if layout changes
+    window.addEventListener('resize', ()=> { /* no-op placeholder for future adaptations */ });
+
+    // For accessibility: announce updates in logs with polite priority
+    // Already using aria-live region on the log/status elements.
+
+    // Expose for debugging in console (optional)
+    window._queueModule = {
+      enqueue, dequeue, peek, clearQueue, fillSample, get state(){
+        return {queue: queue.slice(), head, tail, count};
+      }
+    };
+  </script>
+</body>
+</html>

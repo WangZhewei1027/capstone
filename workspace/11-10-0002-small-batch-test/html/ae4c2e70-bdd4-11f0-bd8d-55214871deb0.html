@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Linked List Explorer</title>
+  <style>
+    :root{
+      --safe-margin: 24px;
+      --gap: 16px;
+      --node-bg: #ffffff;
+      --accent: #2563eb;
+      --accent-2: #10b981;
+      --muted: #6b7280;
+      --danger: #ef4444;
+      --surface: #f8fafc;
+      --shadow: 0 6px 18px rgba(16,24,40,0.08);
+      --radius: 10px;
+      --node-width: 96px;
+      --node-height: 56px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html,body{
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg,#f1f5f9 0%, #ffffff 100%);
+      color: #0f172a;
+    }
+
+    .app{
+      padding: var(--safe-margin);
+      box-sizing: border-box;
+      min-height: 100%;
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: var(--gap);
+    }
+
+    /* Responsive: stack columns under 880px */
+    @media (max-width: 880px){
+      .app{
+        grid-template-columns: 1fr;
+        padding: 16px; /* still keep comfortable */
+      }
+    }
+
+    /* Left panel: info & plan */
+    .panel{
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .title{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      margin-bottom: 12px;
+    }
+
+    .title h1{
+      margin:0;
+      font-size: 20px;
+      line-height:1;
+    }
+
+    .meta{
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .section{
+      margin-bottom: 18px;
+    }
+
+    .section h3{
+      margin: 0 0 8px 0;
+      font-size: 14px;
+    }
+
+    .section p, .section li{
+      margin: 0;
+      font-size: 13px;
+      color: #0f172a;
+    }
+
+    .list{
+      padding-left: 18px;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* Right: interactive workspace */
+    .workspace{
+      background: white;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      min-height: 420px;
+      overflow: hidden;
+    }
+
+    .controls{
+      display:flex;
+      gap: var(--gap);
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .group{
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      box-shadow: 0 2px 6px rgba(2,6,23,0.04);
+    }
+
+    .group label{
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input[type="text"], input[type="number"]{
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid #e6edf3;
+      padding: 8px 10px;
+      font-size: 14px;
+      min-width: 120px;
+    }
+
+    input[type="number"]{
+      width: 90px;
+    }
+
+    button{
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      height: 36px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+
+    button.ghost{
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(37,99,235,0.12);
+    }
+
+    button.warn{
+      background: var(--danger);
+    }
+
+    button.small{
+      padding: 6px 8px;
+      height: 32px;
+      font-size: 13px;
+    }
+
+    .canvas-wrap{
+      flex:1;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      border: 1px dashed rgba(15,23,42,0.06);
+      padding: 14px;
+      position: relative;
+      overflow: auto;
+    }
+
+    /* Node list area */
+    .list-area{
+      min-height: 160px;
+      display:flex;
+      align-items:flex-start;
+      gap: 32px;
+      padding: 12px;
+      box-sizing: border-box;
+      position: relative;
+      width: max-content;
+      min-width: 100%;
+      transition: height .2s ease;
+    }
+
+    .nodes-row{
+      display:flex;
+      align-items:center;
+      gap: 22px;
+      padding: 12px;
+    }
+
+    .node{
+      width: var(--node-width);
+      height: var(--node-height);
+      background: var(--node-bg);
+      border-radius: 10px;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      padding: 0 10px;
+      box-shadow: 0 2px 8px rgba(2,6,23,0.06);
+      position: relative;
+      transition: transform .35s cubic-bezier(.2,.9,.2,1), opacity .25s ease, box-shadow .15s ease;
+      flex-shrink: 0;
+    }
+
+    .node .value{
+      font-weight: 700;
+      font-size: 15px;
+      color: #0f172a;
+      text-align:left;
+    }
+
+    .node .next-box{
+      width: 30px;
+      height: calc(var(--node-height) - 20px);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-left: 1px dashed rgba(15,23,42,0.06);
+      margin-left: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .node.head{
+      box-shadow: 0 6px 20px rgba(37,99,235,0.08);
+      border: 1px solid rgba(37,99,235,0.08);
+    }
+
+    .node.active{
+      transform: scale(1.05);
+      box-shadow: 0 10px 30px rgba(2,6,23,0.12);
+      outline: 3px solid rgba(16,185,129,0.08);
+    }
+
+    .node.removing{
+      opacity: 0;
+      transform: translateY(18px) scale(.95);
+    }
+
+    .node.incoming{
+      transform: translateY(-16px) scale(.98);
+      opacity: 0;
+    }
+
+    .label-head{
+      position:absolute;
+      top: -18px;
+      left: 10px;
+      font-size: 12px;
+      color: var(--accent);
+      background: rgba(37,99,235,0.06);
+      padding: 4px 8px;
+      border-radius: 8px;
+      font-weight:600;
+    }
+
+    /* SVG overlay for arrows */
+    .svg-overlay{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+    }
+
+    /* status / structure details */
+    .status{
+      display:flex;
+      gap: var(--gap);
+      align-items:center;
+      justify-content: space-between;
+    }
+
+    .structure{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      background: #0f172a;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .vis-help{
+      font-size: 13px;
+      color: var(--muted);
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    .sr-only{
+      position:absolute;
+      width:1px;
+      height:1px;
+      margin:-1px;
+      clip:rect(0 0 0 0);
+      overflow:hidden;
+      border:0;
+      padding:0;
+    }
+
+    footer.note{
+      font-size: 13px;
+      color: var(--muted);
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content: flex-end;
+    }
+
+    /* small responsive tweaks */
+    @media (max-width:480px){
+      .nodes-row{ gap: 14px;}
+      .node{ width: 82px; height:48px; }
+    }
+
+    /* animated stroke class */
+    .arrow-path{
+      stroke: rgba(15,23,42,0.22);
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .arrow-path.draw{
+      transition: stroke-dashoffset .6s cubic-bezier(.2,.9,.2,1);
+    }
+
+    /* live announcer */
+    #liveAnnouncer{
+      position:absolute;
+      left:-9999px;
+      top:auto;
+      width:1px;
+      height:1px;
+      overflow:hidden;
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Linked List Interactive Module">
+    <!-- Left panel: Design Plan -->
+    <aside class="panel" aria-labelledby="conceptTitle">
+      <div class="title">
+        <svg width="36" height="36" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2" y="6" width="8" height="12" rx="2" fill="#10B981"></rect>
+          <rect x="14" y="4" width="8" height="16" rx="2" fill="#2563EB"></rect>
+        </svg>
+        <div>
+          <h1 id="conceptTitle">Linked List — Visual and Interactive</h1>
+          <div class="meta">One concept: Singly Linked List (structure & basic operations)</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Learning Objective</h3>
+        <p>After interacting with this module you will be able to:</p>
+        <ul class="list">
+          <li>Understand how a singly linked list stores nodes with "value" and "next".</li>
+          <li>Visually perform and observe insert (head/tail/after), delete, and traversal operations.</li>
+          <li>See how pointer (head) and node connections change step-by-step.</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <h3>Interaction Design</h3>
+        <p>How to interact:</p>
+        <ul class="list">
+          <li>Use the input and buttons to insert a node at the head, append to tail, or insert after a node index.</li>
+          <li>Delete nodes by index. Visual animations show nodes being added or removed, and arrows redraw to reflect links.</li>
+          <li>Traverse the list step-by-step using "Step" or "Auto" traversal to highlight the current node and the head pointer.</li>
+          <li>Keyboard: press Enter in the value field to submit the most recent action; controls are accessible and labelled.</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <h3>Layout Description</h3>
+        <p>Spatial organization:</p>
+        <ul class="list">
+          <li>Left column (this panel): concise objectives and instructions. Safe area margins of 24px and minimum spacing of 16px maintained.</li>
+          <li>Right column: interactive workspace — controls bar on top, canvas with node visualization and arrow overlay center, status bar below.</li>
+          <li>Controls grouped and separated by at least 16px; visual focus is on the canvas where node boxes and animated arrows appear.</li>
+          <li>Responsive: columns stack on narrow screens and elements wrap while preserving touch targets and accessible labels.</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Right panel: Interactive module -->
+    <main class="workspace" id="workspace" aria-live="polite">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="display:flex;flex-direction:column;">
+          <div style="font-size:16px;font-weight:700">Interactive Linked List</div>
+          <div style="font-size:13px;color:var(--muted)">Singly linked list — values and next pointers visualized</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button id="resetBtn" class="ghost small" title="Reset list to empty">Reset</button>
+          <button id="sampleBtn" class="ghost small" title="Load a sample list">Load Sample</button>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls" role="region" aria-label="Controls">
+        <div class="group" style="min-width:260px;">
+          <label for="valueInput">Value</label>
+          <input id="valueInput" type="text" placeholder="e.g. 42" aria-label="Node value" />
+          <button id="addTailBtn" title="Append to tail">Add Tail</button>
+        </div>
+
+        <div class="group">
+          <label for="valueHead">Head</label>
+          <input id="valueHead" type="text" placeholder="e.g. x" aria-label="Insert at head value" />
+          <button id="addHeadBtn" title="Insert at head">Insert Head</button>
+        </div>
+
+        <div class="group">
+          <label for="afterIndex">Insert After Index</label>
+          <input id="afterIndex" type="number" min="0" placeholder="index" aria-label="Insert after index" />
+          <input id="valueAfter" type="text" placeholder="value" aria-label="Value to insert after index" />
+          <button id="insertAfterBtn" title="Insert after index">Insert</button>
+        </div>
+
+        <div class="group">
+          <label for="delIndex">Delete Index</label>
+          <input id="delIndex" type="number" min="0" placeholder="index" aria-label="Index to delete" />
+          <button id="deleteBtn" class="warn" title="Delete node at index">Delete</button>
+        </div>
+
+        <div class="group" style="margin-left:auto;">
+          <button id="stepBtn" class="small">Step</button>
+          <button id="autoBtn" class="small ghost">Auto</button>
+          <button id="resetTraversal" class="small ghost">Reset Traversal</button>
+        </div>
+      </div>
+
+      <!-- Canvas area -->
+      <div class="canvas-wrap" id="canvasWrap" tabindex="0" aria-label="Linked list visualization">
+        <div class="label-head" id="headLabel" style="display:none">head</div>
+        <div id="listArea" class="list-area" role="list" aria-label="List nodes">
+          <div class="nodes-row" id="nodesRow" aria-live="polite"></div>
+        </div>
+        <svg class="svg-overlay" id="svgOverlay" aria-hidden="true"></svg>
+      </div>
+
+      <!-- Status bar -->
+      <div class="status">
+        <div class="structure" id="structureText" aria-live="polite">[]</div>
+        <div class="vis-help">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:12px;height:12px;border-radius:3px;background:var(--accent)"></div>
+            <div style="font-size:13px;color:var(--muted)">Head</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:12px;height:12px;border-radius:3px;background:var(--accent-2)"></div>
+            <div style="font-size:13px;color:var(--muted)">Active</div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="note">
+        <div style="flex:1;color:var(--muted)">Tip: Use small integer indexes starting at 0 (head) for insertion/deletion reference.</div>
+        <div style="font-size:13px;color:var(--muted)">Singly linked list demo — vanilla JS</div>
+      </footer>
+
+      <div id="liveAnnouncer" aria-live="assertive" aria-atomic="true"></div>
+    </main>
+  </div>
+
+  <script>
+    // Linked List Interactive Module (Singly linked list) - Vanilla JS
+    (function(){
+      // Utility
+      const $ = sel => document.querySelector(sel);
+      const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+      // Elements
+      const nodesRow = $('#nodesRow');
+      const svgOverlay = $('#svgOverlay');
+      const listArea = $('#listArea');
+      const headLabel = $('#headLabel');
+      const structureText = $('#structureText');
+      const liveAnnouncer = $('#liveAnnouncer');
+
+      const valueInput = $('#valueInput');
+      const addTailBtn = $('#addTailBtn');
+      const valueHead = $('#valueHead');
+      const addHeadBtn = $('#addHeadBtn');
+      const afterIndex = $('#afterIndex');
+      const valueAfter = $('#valueAfter');
+      const insertAfterBtn = $('#insertAfterBtn');
+      const delIndex = $('#delIndex');
+      const deleteBtn = $('#deleteBtn');
+      const stepBtn = $('#stepBtn');
+      const autoBtn = $('#autoBtn');
+      const resetTraversal = $('#resetTraversal');
+      const resetBtn = $('#resetBtn');
+      const sampleBtn = $('#sampleBtn');
+
+      // State
+      let nodes = []; // array of {id, value, el}
+      let currentIndex = -1;
+      let autoInterval = null;
+      let nodeIdCounter = 1;
+
+      // Accessibility announcer
+      function announce(msg){
+        liveAnnouncer.textContent = msg;
+      }
+
+      // Render functions
+      function renderNodes(animated=true){
+        // Clear nodesRow and append DOM elements
+        nodesRow.innerHTML = '';
+        nodes.forEach((n, idx) => {
+          const nodeEl = document.createElement('div');
+          nodeEl.className = 'node';
+          nodeEl.setAttribute('role', 'listitem');
+          nodeEl.setAttribute('data-index', idx);
+          nodeEl.setAttribute('data-id', n.id);
+          nodeEl.innerHTML = '<div class="value"></div><div class="next-box">next</div>';
+          nodeEl.querySelector('.value').textContent = n.value;
+          if(idx===0) nodeEl.classList.add('head');
+          if(idx===currentIndex) nodeEl.classList.add('active');
+          nodesRow.appendChild(nodeEl);
+          n.el = nodeEl;
+        });
+
+        // Update head label position
+        updateHeadLabel();
+
+        // Recompute SVG
+        requestAnimationFrame(() => {
+          drawConnections(animated);
+          updateStructureText();
+        });
+      }
+
+      function updateStructureText(){
+        const repr = nodes.map((n, i) => `${n.value}->${i+1<nodes.length?nodes[i+1].value:'null'}`);
+        structureText.textContent = '[' + nodes.map(n=>n.value).join(', ') + ']';
+      }
+
+      function updateHeadLabel(){
+        if(nodes.length===0){
+          headLabel.style.display = 'none';
+          return;
+        }
+        const first = nodes[0].el;
+        const wrapRect = listArea.getBoundingClientRect();
+        const rect = first.getBoundingClientRect();
+        const offsetLeft = rect.left - wrapRect.left + 6;
+        headLabel.style.display = 'block';
+        headLabel.style.left = offsetLeft + 'px';
+        headLabel.style.top = (rect.top - wrapRect.top - 26) + 'px';
+      }
+
+      // SVG connections
+      function drawConnections(animated=true){
+        const overlayRect = listArea.getBoundingClientRect();
+        svgOverlay.setAttribute('width', overlayRect.width);
+        svgOverlay.setAttribute('height', overlayRect.height);
+        svgOverlay.innerHTML = '';
+
+        for(let i=0;i<nodes.length-1;i++){
+          const a = nodes[i].el;
+          const b = nodes[i+1].el;
+          if(!a || !b) continue;
+          const aRect = a.getBoundingClientRect();
+          const bRect = b.getBoundingClientRect();
+          const offsetA = { x: aRect.right - overlayRect.left - 6, y: aRect.top + aRect.height/2 - overlayRect.top };
+          const offsetB = { x: bRect.left - overlayRect.left + 6, y: bRect.top + bRect.height/2 - overlayRect.top };
+
+          const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+          const dx = Math.max(20, offsetB.x - offsetA.x);
+          const cp1x = offsetA.x + dx*0.35;
+          const cp2x = offsetB.x - dx*0.35;
+          const d = `M ${offsetA.x} ${offsetA.y} C ${cp1x} ${offsetA.y} ${cp2x} ${offsetB.y} ${offsetB.x} ${offsetB.y}`;
+          path.setAttribute('d', d);
+          path.setAttribute('class', 'arrow-path');
+          // add arrowhead marker
+          path.setAttribute('marker-end','url(#arrowhead)');
+
+          svgOverlay.appendChild(path);
+        }
+
+        // define arrowhead
+        const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+        defs.innerHTML = '<marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="rgba(15,23,42,0.22)"/></marker>';
+        svgOverlay.insertBefore(defs, svgOverlay.firstChild);
+
+        // Animate paths
+        const paths = svgOverlay.querySelectorAll('path.arrow-path');
+        paths.forEach(p=>{
+          const length = p.getTotalLength();
+          p.style.strokeDasharray = length;
+          if(animated){
+            p.style.strokeDashoffset = length;
+            p.classList.add('draw');
+            // trigger draw
+            requestAnimationFrame(()=> p.style.strokeDashoffset = '0');
+          } else {
+            p.style.strokeDashoffset = '0';
+            p.classList.remove('draw');
+          }
+        });
+      }
+
+      // Operations
+      function addTail(value){
+        if(value===undefined || value==='') { announce('Please provide a value to add.'); return; }
+        const id = nodeIdCounter++;
+        const node = { id, value: String(value), el: null };
+        nodes.push(node);
+        // temporary placeholder for animation: create element with incoming class and then re-render
+        renderNodes(false);
+        if(node.el){
+          node.el.classList.add('incoming');
+          requestAnimationFrame(()=> {
+            node.el.classList.remove('incoming');
+            drawConnections(true);
+          });
+        }
+        announce(`Added node with value ${value} at tail.`);
+      }
+
+      function insertHead(value){
+        if(value===undefined || value==='') { announce('Please provide a value to insert at head.'); return; }
+        const id = nodeIdCounter++;
+        const node = { id, value: String(value), el: null };
+        nodes.unshift(node);
+        renderNodes(false);
+        if(node.el){
+          node.el.classList.add('incoming');
+          requestAnimationFrame(()=> {
+            node.el.classList.remove('incoming');
+            drawConnections(true);
+          });
+        }
+        announce(`Inserted node with value ${value} at head (index 0).`);
+      }
+
+      function insertAfter(index, value){
+        index = Number(index);
+        if(Number.isNaN(index) || index < 0 || index >= nodes.length){
+          announce('Invalid index for insert-after.');
+          return;
+        }
+        if(value===undefined || value===''){
+          announce('Please provide a value to insert.');
+          return;
+        }
+        const id = nodeIdCounter++;
+        const node = { id, value: String(value), el: null };
+        nodes.splice(index+1, 0, node);
+        renderNodes(false);
+        if(node.el){
+          node.el.classList.add('incoming');
+          requestAnimationFrame(()=> {
+            node.el.classList.remove('incoming');
+            drawConnections(true);
+          });
+        }
+        announce(`Inserted ${value} after index ${index}.`);
+      }
+
+      function deleteAt(index){
+        index = Number(index);
+        if(Number.isNaN(index) || index < 0 || index >= nodes.length){
+          announce('Invalid index for deletion.');
+          return;
+        }
+        const removed = nodes.splice(index,1)[0];
+        // animate removal using class on old element if exists
+        if(removed && removed.el){
+          removed.el.classList.add('removing');
+          // wait for animation then re-render
+          setTimeout(()=> {
+            renderNodes(true);
+          }, 220);
+        } else {
+          renderNodes(true);
+        }
+        // adjust currentIndex if needed
+        if(currentIndex >= nodes.length) currentIndex = nodes.length -1;
+        announce(`Deleted node ${removed ? removed.value : ''} at index ${index}.`);
+      }
+
+      function stepTraversal(){
+        if(nodes.length===0){
+          announce('List is empty.');
+          return;
+        }
+        currentIndex = Math.min(currentIndex + 1, nodes.length - 1);
+        renderNodes(true);
+        announce(`Visited node index ${currentIndex} with value ${nodes[currentIndex].value}.`);
+      }
+
+      function resetTraversalState(){
+        currentIndex = -1;
+        renderNodes(true);
+        announce('Traversal reset.');
+      }
+
+      function autoTraverse(){
+        if(autoInterval){
+          clearInterval(autoInterval);
+          autoInterval = null;
+          autoBtn.textContent = 'Auto';
+          autoBtn.classList.remove('ghost');
+          autoBtn.classList.add('ghost'); // stable state
+          announce('Auto traversal stopped.');
+          return;
+        }
+        if(nodes.length===0){
+          announce('List is empty.');
+          return;
+        }
+        announce('Auto traversal started.');
+        currentIndex = -1;
+        autoBtn.textContent = 'Stop';
+        autoInterval = setInterval(()=>{
+          if(currentIndex >= nodes.length - 1){
+            clearInterval(autoInterval);
+            autoInterval = null;
+            autoBtn.textContent = 'Auto';
+            announce('Auto traversal completed.');
+            return;
+          }
+          stepTraversal();
+        }, 700);
+      }
+
+      // Event bindings
+      addTailBtn.addEventListener('click', ()=> {
+        addTail(valueInput.value.trim());
+        valueInput.value = '';
+      });
+
+      addHeadBtn.addEventListener('click', ()=> {
+        insertHead(valueHead.value.trim());
+        valueHead.value = '';
+      });
+
+      insertAfterBtn.addEventListener('click', ()=> {
+        insertAfter(afterIndex.value, valueAfter.value.trim());
+        afterIndex.value = '';
+        valueAfter.value = '';
+      });
+
+      deleteBtn.addEventListener('click', ()=> {
+        deleteAt(delIndex.value);
+        delIndex.value = '';
+      });
+
+      stepBtn.addEventListener('click', ()=> {
+        stepTraversal();
+      });
+
+      resetTraversal.addEventListener('click', ()=> {
+        resetTraversalState();
+      });
+
+      autoBtn.addEventListener('click', ()=> {
+        autoTraverse();
+      });
+
+      resetBtn.addEventListener('click', ()=> {
+        nodes = [];
+        nodeIdCounter = 1;
+        resetTraversalState();
+        renderNodes(false);
+        announce('List reset.');
+      });
+
+      sampleBtn.addEventListener('click', ()=> {
+        nodes = [
+          { id: nodeIdCounter++, value: 'A', el: null },
+          { id: nodeIdCounter++, value: 'B', el: null },
+          { id: nodeIdCounter++, value: 'C', el: null },
+        ];
+        currentIndex = -1;
+        renderNodes(true);
+        announce('Sample list loaded: A, B, C.');
+      });
+
+      // Keyboard: Enter in certain fields triggers relevant action
+      valueInput.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter') { addTailBtn.click(); e.preventDefault(); }
+      });
+      valueHead.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter') { addHeadBtn.click(); e.preventDefault(); }
+      });
+      valueAfter.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter') { insertAfterBtn.click(); e.preventDefault(); }
+      });
+      delIndex.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter') { deleteBtn.click(); e.preventDefault(); }
+      });
+
+      // Resize observer to redraw connections when layout changes
+      const ro = new ResizeObserver(()=> drawConnections(false));
+      ro.observe(listArea);
+      window.addEventListener('resize', ()=> drawConnections(false));
+
+      // Initial render: empty list
+      renderNodes(false);
+      announce('Interactive linked list ready. Add nodes to get started.');
+
+      // Click node to set traversal index to that node (interactive)
+      nodesRow.addEventListener('click', (e)=>{
+        const nodeEl = e.target.closest('.node');
+        if(!nodeEl) return;
+        const idx = Number(nodeEl.getAttribute('data-index'));
+        if(!Number.isNaN(idx)){
+          currentIndex = idx;
+          renderNodes(true);
+          announce(`Selected node index ${idx} with value ${nodes[idx].value}.`);
+        }
+      });
+
+      // Touch: allow pressing and holding to delete (mobile friendly)
+      let touchTimer = null;
+      nodesRow.addEventListener('touchstart', (e)=>{
+        const nodeEl = e.target.closest('.node');
+        if(!nodeEl) return;
+        const idx = Number(nodeEl.getAttribute('data-index'));
+        touchTimer = setTimeout(()=>{
+          // long press => remove
+          deleteAt(idx);
+        }, 800);
+      }, {passive:true});
+      nodesRow.addEventListener('touchend', ()=> { if(touchTimer) clearTimeout(touchTimer); });
+
+    })();
+  </script>
+</body>
+</html>
