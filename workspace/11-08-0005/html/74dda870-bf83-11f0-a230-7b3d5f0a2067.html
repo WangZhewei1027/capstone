@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+# Interactive Bellman-Ford Algorithm Explorer
+
+## Design Plan
+
+### Concept Title
+**Bellman-Ford Shortest Path Algorithm Visualizer**
+
+### Learning Objective
+Users will understand how the Bellman-Ford algorithm finds the shortest paths from a source vertex to all other vertices in a weighted graph, including its ability to handle negative edge weights and detect negative cycles. Through interactive visualization, users will grasp the algorithm's relaxation process and why it requires |V|-1 iterations.
+
+### Interaction Design
+
+**User Interactions:**
+1. **Graph Creation Mode:**
+   - Click on empty canvas area to create vertices
+   - Click and drag from one vertex to another to create edges
+   - Click on edges to set/modify weights (including negative values)
+   - Right-click on vertices/edges to delete them
+
+2. **Algorithm Controls:**
+   - Select source vertex by clicking it in "Run Mode"
+   - "Step Forward" button to advance one relaxation step
+   - "Step Backward" button to undo previous step
+   - "Run" button for automatic animation with adjustable speed
+   - "Reset" button to clear the algorithm state
+
+3. **Visual Feedback:**
+   - Vertices change color based on their distance status (infinity → tentative → final)
+   - Edges highlight during relaxation attempts
+   - Distance labels update with smooth transitions
+   - Edge relaxation animation shows the comparison process
+   - Negative cycle detection with pulsing red highlight
+
+### Layout Description
+
+The interface is divided into three main sections:
+
+1. **Top Control Bar (24px from top, full width minus 48px margins):**
+   - Mode toggle (Create/Run)
+   - Algorithm controls (Step, Run, Reset, Speed slider)
+   - Status display showing current iteration and operation
+
+2. **Main Canvas Area (Center, 60% of viewport height):**
+   - Interactive graph visualization
+   - Vertices displayed as circles with distance labels
+   - Edges as arrows with weight labels
+   - Safe interaction zones around each element
+
+3. **Bottom Information Panel (24px from bottom):**
+   - Distance table showing all vertices and their current distances
+   - Algorithm explanation text that updates with each step
+   - Legend for color coding
+
+**Spacing and Accessibility:**
+- All interactive elements maintain 16px minimum spacing
+- High contrast colors for visibility
+- Keyboard navigation support for controls
+- ARIA labels for screen readers
+- Responsive design scales appropriately
+
+## Implementation
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bellman-Ford Algorithm Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100vw;
+            height: 100vh;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .control-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .mode-toggle {
+            display: flex;
+            background: #e0e0e0;
+            border-radius: 8px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .mode-btn {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .mode-btn.active {
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex: 1;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            background: #007AFF;
+            color: white;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #0051D5;
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .speed-slider {
+            width: 120px;
+            height: 4px;
+            appearance: none;
+            background: #e0e0e0;
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #007AFF;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .canvas-area {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        .info-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 32px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .distance-table {
+            flex: 1;
+        }
+
+        .distance-table h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #666;
+        }
+
+        .distance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 8px;
+        }
+
+        .distance-item {
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .distance-item.updated {
+            background: #e3f2fd;
+            transform: scale(1.05);
+        }
+
+        .distance-item.source {
+            background: #c8e6c9;
+        }
+
+        .explanation {
+            flex: 1;
+            max-width: 400px;
+        }
+
+        .explanation h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #666;
+        }
+
+        .explanation p {
+            line-height: 1.6;
+            color: #666;
+        }
+
+        .legend {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #ddd;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+
+        .weight-input {
+            position: absolute;
+            width: 60px;
+            padding: 4px 8px;
+            border: 2px solid #007AFF;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 14px;
+            z-index: 100;
+            display: none;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .pulsing {
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @media (max-width: 768px) {
+            .info-panel {
+                flex-direction: column;
+                max-height: 300px;
+            }
+            
+            .distance-grid {
+                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="control-bar">
+            <div class="mode-toggle">
+                <button class="mode-btn active" data-mode="create">Create Graph</button>
+                <button class="mode-btn" data-mode="run">Run Algorithm</button>
+            </div>
+            
+            <div class="controls">
+                <button class="btn" id="stepBtn" disabled>Step Forward</button>
+                <button class="btn" id="stepBackBtn" disabled>Step Back</button>
+                <button class="btn" id="runBtn" disabled>Run</button>
+                <button class="btn" id="resetBtn" disabled>Reset</button>
+                
+                <div class="speed-control">
+                    <label for="speedSlider">Speed:</label>
+                    <input type="range" id="speedSlider" class="speed-slider" min="1" max="10" value="5">
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #e0e0e0;"></div>
+                    <span>Unvisited</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffeb3b;"></div>
+                    <span>Processing</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4caf50;"></div>
+                    <span>Visited</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #f44336;"></div>
+                    <span>Negative Cycle</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="canvas-area">
+            <canvas id="canvas"></canvas>
+            <div class="tooltip"></div>
+            <input type="number" class="weight-input" id="weightInput">
+        </div>
+        
+        <div class="info-panel">
+            <div class="distance-table">
+                <h3>Distance Table</h3>
+                <div class="distance-grid" id="distanceGrid"></div>
+            </div>
+            
+            <div class="explanation">
+                <h3>Algorithm Status</h3>
+                <p id="statusText">Create a graph by clicking to add vertices and dragging between them to add edges. Right-click to delete elements.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class BellmanFordVisualizer {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.tooltip = document.querySelector('.tooltip');
+                this.weightInput = document.getElementById('weightInput');
+                this.distanceGrid = document.getElementById('distanceGrid');
+                this.statusText = document.getElementById('statusText');
+                
+                this.mode = 'create';
+                this.vertices = [];
+                this.edges = [];
+                this.selectedVertex = null;
+                this.dragStart = null;
+                this.sourceVertex = null;
+                this.currentStep = 0;
+                this.animationSteps = [];
+                this.isRunning = false;
+                this.speed = 5;
+                
+                this.setupCanvas();
+                this.setupEventListeners();
+                this.draw();
+            }
+            
+            setupCanvas() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+                
+                window.addEventListener('resize', () => {
+                    const rect = this.canvas.parentElement.getBoundingClientRect();
+                    this.canvas.width = rect.width;
+                    this.canvas.height = rect.height;
+                    this.draw();
+                });
+            }
+            
+            setupEventListeners() {
+                // Mode toggle
+                document.querySelectorAll('.mode-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.setMode(btn.dataset.mode);
+                        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                    });
+                });
+                
+                // Canvas events
+                this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+                this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+                this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+                this.canvas.addEventListener('contextmenu', this.handleRightClick.bind(this));
+                
+                // Control buttons
+                document.getElementById('stepBtn').addEventListener('click', () => this.step());
+                document.getElementById('stepBackBtn').addEventListener('click', () => this.stepBack());
+                document.getElementById('runBtn').addEventListener('click', () => this.toggleRun());
+                document.getElementById('resetBtn').addEventListener('click', () => this.reset());
+                document.getElementById('speedSlider').addEventListener('input', (e) => {
+                    this.speed = parseInt(e.target.value);
+                });
+                
+                // Weight input
+                this.weightInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        this.updateEdgeWeight();
+                    } else if (e.key === 'Escape') {
+                        this.weightInput.style.display = 'none';
+                    }
+                });
+                
+                this.weightInput.addEventListener('blur', () => {
+                    this.weightInput.style.display = 'none';
+                });
+            }
+            
+            setMode(mode) {
+                this.mode = mode;
+                if (mode === 'create') {
+                    this.canvas.style.cursor = 'crosshair';
+                    this.reset();
+                    this.updateControls(false);
+                } else {
+                    this.canvas.style.cursor = 'pointer';
+                    this.updateControls(true);
+                }
+            }
+            
+            updateControls(enabled) {
+                document.getElementById('stepBtn').disabled = !enabled || this.vertices.length === 0;
+                document.getElementById('stepBackBtn').disabled = !enabled || this.currentStep === 0;
+                document.getElementById('runBtn').disabled = !enabled || this.vertices.length === 0;
+                document.getElementById('resetBtn').disabled = !enabled || this.currentStep === 0;
+            }
+            
+            handleMouseDown(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                if (this.mode === 'create') {
+                    const clickedVertex = this.getVertexAt(x, y);
+                    const clickedEdge = this.getEdgeAt(x, y);
+                    
+                    if (clickedEdge && !clickedVertex) {
+                        this.showWeightInput(clickedEdge, x + rect.left, y + rect.top);
+                    } else if (clickedVertex) {
+                        this.dragStart = clickedVertex;
+                    } else {
+                        this.addVertex(x, y);
+                    }
+                } else if (this.mode === 'run') {
+                    const clickedVertex = this.getVertexAt(x, y);
+                    if (clickedVertex) {
+                        this.selectSource(clickedVertex);
+                    }
+                }
+            }
+            
+            handleMouseMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                if (this.dragStart) {
+                    this.draw();
+                    this.drawTempEdge(this.dragStart, { x, y });
+                }
+                
+                // Show tooltip
+                const vertex = this.getVertexAt(x, y);
+                const edge = this.getEdgeAt(x, y);
+                
+                if (vertex) {
+                    this.showTooltip(x + rect.left, y + rect.top, `Vertex ${vertex.id}${vertex.distance !== Infinity ? ` (d: ${vertex.distance})` : ''}`);
+                } else if (edge) {
+                    this.showTooltip(x + rect.left, y + rect.top, `Weight: ${edge.weight}`);
+                } else {
+                    this.hideTooltip();
+                }
+            }
+            
+            handleMouseUp(e) {
+                if (!this.dragStart) return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                const targetVertex = this.getVertexAt(x, y);
+                if (targetVertex && targetVertex !== this.dragStart) {
+                    this.addEdge(this.dragStart, targetVertex);
+                }
+                
+                this.dragStart = null;
+                this.draw();
+            }
+            
+            handleRightClick(e) {
+                e.preventDefault();
+                if (this.mode !== 'create') return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                const vertex = this.getVertexAt(x, y);
+                const edge = this.getEdgeAt(x, y);
+                
+                if (vertex) {
+                    this.removeVertex(vertex);
+                } else if (edge) {
+                    this.removeEdge(edge);
+                }
+            }
+            
+            addVertex(x, y) {
+                const id = String.fromCharCode(65 + this.vertices.length);
+                this.vertices.push({
+                    id,
+                    x,
+                    y,
+                    distance: Infinity,
+                    predecessor: null,
+                    color: '#e0e0e0'
+                });
+                this.draw();
+                this.updateDistanceTable();
+            }
+            
+            removeVertex(vertex) {
+                this.vertices = this.vertices.filter(v => v !== vertex);
+                this.edges = this.edges.filter(e => e.from !== vertex && e.to !== vertex);
+                this.draw();
+                this.updateDistanceTable();
+            }
+            
+            addEdge(from, to) {
+                const existing = this.edges.find(e => e.from === from && e.to === to);
+                if (existing) return;
+                
+                this.edges.push({
+                    from,
+                    to,
+                    weight: Math.floor(Math.random() * 20) - 5,
+                    color: '#666'
+                });
+                this.draw();
+            }
+            
+            removeEdge(edge) {
+                this.edges = this.edges.filter(e => e !== edge);
+                this.draw();
+            }
+            
+            showWeightInput(edge, x, y) {
+                this.weightInput.style.left = x + 'px';
+                this.weightInput.style.top = y + 'px';
+                this.weightInput.style.display = 'block';
+                this.weightInput.value = edge.weight;
+                this.weightInput.dataset.edgeIndex = this.edges.indexOf(edge);
+                this.weightInput.focus();
+                this.weightInput.select();
+            }
+            
+            updateEdgeWeight() {
+                const index = parseInt(this.weightInput.dataset.edgeIndex);
+                if (index >= 0 && index < this.edges.length) {
+                    this.edges[index].weight = parseInt(this.weightInput.value) || 0;
+                    this.draw();
+                }
+                this.weightInput.style.display = 'none';
+            }
+            
+            selectSource(vertex) {
+                this.sourceVertex = vertex;
+                this.initializeBellmanFord();
+                this.updateControls(true);
+                this.statusText.textContent = `Source vertex selected: ${vertex.id}. Click "Step Forward" to begin the algorithm.`;
+            }
+            
+            initializeBellmanFord() {
+                this.vertices.forEach(v => {
+                    v.distance = v === this.sourceVertex ? 0 : Infinity;
+                    v.predecessor = null;
+                    v.color = v === this.sourceVertex ? '#4caf50' : '#e0e0e0';
+                });
+                
+                this.currentStep = 0;
+                this.animationSteps = [];
+                this.generateAnimationSteps();
+                this.draw();
+                this.updateDistanceTable();
+            }
+            
+            generateAnimationSteps() {
+                const n = this.vertices.length;
+                
+                // Main relaxation iterations
+                for (let i = 0; i < n - 1; i++) {
+                    this.animationSteps.push({
+                        type: 'iteration',
+                        iteration: i + 1,
+                        description: `Starting iteration ${i + 1} of ${n - 1}`
+                    });
+                    
+                    for (const edge of this.edges) {
+                        const relaxed = edge.from.distance + edge.weight < edge.to.distance;
+                        
+                        this.animationSteps.push({
+                            type: 'relax',
+                            edge,
+                            from: edge.from,
+                            to: edge.to,
+                            oldDistance: edge.to.distance,
+                            newDistance: edge.from.distance + edge.weight,
+                            relaxed,
+                            description: relaxed ? 
+                                `Relaxing edge ${edge.from.id}→${edge.to.id}: ${edge.to.distance} > ${edge.from.distance} + ${edge.weight}` :
+                                `Edge ${edge.from.id}→${edge.to.id}: no improvement`
+                        });
+                    }
+                }
+                
+                // Negative cycle detection
+                this.animationSteps.push({
+                    type: 'cycle-check',
+                    description: 'Checking for negative cycles...'
+                });
+                
+                for (const edge of this.edges) {
+                    if (edge.from.distance + edge.weight < edge.to.distance) {
+                        this.animationSteps.push({
+                            type: 'negative-cycle',
+                            edge,
+                            description: `Negative cycle detected! Edge ${edge.from.id}→${edge.to.id} can still be relaxed.`
+                        });
+                        return;
+                    }
+                }
+                
+                this.animationSteps.push({
+                    type: 'complete',
+                    description: 'Algorithm completed! No negative cycles found.'
+                });
+            }
+            
+            step() {
+                if (this.currentStep >= this.animationSteps.length) return;
+                
+                const step = this.animationSteps[this.currentStep];
+                this.executeStep(step);
+                this.currentStep++;
+                
+                if (this.currentStep < this.animationSteps.length) {
+                    document.getElementById('stepBackBtn').disabled = false;
+                }
+                
+                if (this.currentStep >= this.animationSteps.length) {
+                    document.getElementById('stepBtn').disabled = true;
+                    document.getElementById('runBtn').disabled = true;
+                }
+            }
+            
+            stepBack() {
+                if (this.currentStep <= 0) return;
+                
+                this.currentStep--;
+                this.replayToStep(this.currentStep);
+                
+                document.getElementById('stepBtn').disabled = false;
+                document.getElementById('runBtn').disabled = false;
+                
+                if (this.currentStep === 0) {
+                    document.getElementById('stepBackBtn').disabled = true;
+                }
+            }
+            
+            executeStep(step) {
+                // Reset edge colors
+                this.edges.forEach(e => e.color = '#666');
+                
+                switch (step.type) {
+                    case 'iteration':
+                        this.statusText.textContent = step.description;
+                        break;
+                        
+                    case 'relax':
+                        step.edge.color = step.relaxed ? '#4caf50' : '#f44336';
+                        if (step.relaxed) {
+                            step.to.distance = step.newDistance;
+                            step.to.predecessor = step.from;
+                            step.to.color = '#ffeb3b';
+                            
+                            // Animate distance update
+                            const item = this.distanceGrid.querySelector(`[data-vertex="${step.to.id}"]`);
+                            if (item) {
+                                item.classList.add('updated');
+                                setTimeout(() => item.classList.remove('updated'), 500);
+                            }
+                        }
+                        this.statusText.textContent = step.description;
+                        break;
+                        
+                    case 'cycle-check':
+                        this.statusText.textContent = step.description;
+                        this.vertices.forEach(v => {
+                            if (v !== this.sourceVertex && v.distance !== Infinity) {
+                                v.color = '#4caf50';
+                            }
+                        });
+                        break;
+                        
+                    case 'negative-cycle':
+                        step.edge.color = '#f44336';
+                        this.statusText.textContent = step.description;
+                        break;
+                        
+                    case 'complete':
+                        this.statusText.textContent = step.description;
+                        break;
+                }
+                
+                this.draw();
+                this.updateDistanceTable();
+            }
+            
+            replayToStep(targetStep) {
+                // Reset to initial state
+                this.initializeBellmanFord();
+                
+                // Replay all steps up to target
+                for (let i = 0; i < targetStep; i++) {
+                    const step = this.animationSteps[i];
+                    if (step.type === 'relax' && step.relaxed) {
+                        step.to.distance = step.newDistance;
+                        step.to.predecessor = step.from;
+                    }
+                }
+                
+                // Execute the display of the current step
+                if (targetStep > 0) {
+                    this.executeStep(this.animationSteps[targetStep - 1]);
+                }
+            }
+            
+            async toggleRun() {
+                this.isRunning = !this.isRunning;
+                document.getElementById('runBtn').textContent = this.isRunning ? 'Pause' : 'Run';
+                document.getElementById('stepBtn').disabled = this.isRunning;
+                document.getElementById('stepBackBtn').disabled = this.isRunning;
+                
+                if (this.isRunning) {
+                    await this.runAnimation();
+                }
+            }
+            
+            async runAnimation() {
+                while (this.isRunning && this.currentStep < this.animationSteps.length) {
+                    this.step();
+                    await this.sleep(2000 / this.speed);
+                }
+                
+                if (this.currentStep >= this.animationSteps.length) {
+                    this.isRunning = false;
+                    document.getElementById('runBtn').textContent = 'Run';
+                    document.getElementById('runBtn').disabled = true;
+                }
+            }
+            
+            sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+            
+            reset() {
+                if (this.sourceVertex) {
+                    this.initializeBellmanFord();
+                    this.currentStep = 0;
+                    this.updateControls(true);
+                    this.statusText.textContent = 'Algorithm reset. Click "Step Forward" to begin.';
+                }
+            }
+            
+            getVertexAt(x, y) {
+                return this.vertices.find(v => {
+                    const dx = x - v.x;
+                    const dy = y - v.y;
+                    return Math.sqrt(dx * dx + dy * dy) < 25;
+                });
+            }
+            
+            getEdgeAt(x, y) {
+                return this.edges.find(e => {
+                    const d = this.distanceToLine(x, y, e.from.x, e.from.y, e.to.x, e.to.y);
+                    return d < 10;
+                });
+            }
+            
+            distanceToLine(px, py, x1, y1, x2, y2) {
+                const A = px - x1;
+                const B = py - y1;
+                const C = x2 - x1;
+                const D = y2 - y1;
+                
+                const dot = A * C + B * D;
+                const len = C * C + D * D;
+                let param = -1;
+                
+                if (len !== 0) {
+                    param = dot / len;
+                }
+                
+                let xx, yy;
+                
+                if (param < 0) {
+                    xx = x1;
+                    yy = y1;
+                } else if (param > 1) {
+                    xx = x2;
+                    yy = y2;
+                } else {
+                    xx = x1 + param * C;
+                    yy = y1 + param * D;
+                }
+                
+                const dx = px - xx;
+                const dy = py - yy;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+            
+            showTooltip(x, y, text) {
+                this.tooltip.textContent = text;
+                this.tooltip.style.left = (x + 10) + 'px';
+                this.tooltip.style.top = (y - 30) + 'px';
+                this.tooltip.style.display = 'block';
+            }
+            
+            hideTooltip() {
+                this.tooltip.style.display = 'none';
+            }
+            
+            updateDistanceTable() {
+                this.distanceGrid.innerHTML = '';
+                
+                this.vertices.forEach(v => {
+                    const item = document.createElement('div');
+                    item.className = 'distance-item';
+                    item.dataset.vertex = v.id;
+                    
+                    if (v === this.sourceVertex) {
+                        item.classList.add('source');
+                    }
+                    
+                    item.innerHTML = `
+                        <span>${v.id}</span>
+                        <strong>${v.distance === Infinity ? '∞' : v.distance}</strong>
+                    `;
+                    
+                    this.distanceGrid.appendChild(item);
+                });
+            }
+            
+            draw() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw edges
+                this.edges.forEach(edge => this.drawEdge(edge));
+                
+                

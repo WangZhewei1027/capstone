@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear Regression Interactive</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 18px;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 32px;
+            flex: 1;
+            align-items: flex-start;
+        }
+
+        .canvas-container {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            position: relative;
+        }
+
+        #canvas {
+            cursor: crosshair;
+            display: block;
+            margin: 0 auto;
+            border: 1px solid #e0e0e0;
+        }
+
+        .controls {
+            width: 280px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+        }
+
+        .stats {
+            margin-bottom: 24px;
+        }
+
+        .stat-item {
+            margin-bottom: 16px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            color: #333;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .stat-value.pulse {
+            animation: pulse 0.5s ease;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); color: #007bff; }
+            100% { transform: scale(1); }
+        }
+
+        button {
+            width: 100%;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.secondary:hover {
+            background: #545b62;
+        }
+
+        .instructions {
+            margin-top: 24px;
+            padding: 20px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            text-align: center;
+            color: #1976d2;
+        }
+
+        .point {
+            transition: all 0.2s ease;
+        }
+
+        .point:hover {
+            transform: scale(1.2);
+        }
+
+        .residual {
+            stroke: #999;
+            stroke-width: 1.5;
+            stroke-dasharray: 4, 4;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .residual.show {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .controls {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Understanding Linear Regression</h1>
+            <p class="subtitle">Finding the Best-Fit Line</p>
+        </header>
+        
+        <div class="main-content">
+            <div class="canvas-container">
+                <canvas id="canvas" width="600" height="400"></canvas>
+            </div>
+            
+            <div class="controls">
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-label">Points</div>
+                        <div class="stat-value" id="pointCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Equation</div>
+                        <div class="stat-value" id="equation">y = mx + b</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">R² Value</div>
+                        <div class="stat-value" id="rSquared">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Sum of Squared Errors</div>
+                        <div class="stat-value" id="sse">0</div>
+                    </div>
+                </div>
+                
+                <button id="toggleResiduals">Show Residuals</button>
+                <button id="loadExample">Load Example Data</button>
+                <button id="clearPoints" class="secondary">Clear All Points</button>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <strong>Instructions:</strong> Click on the graph to add points • Drag points to move them • Watch the regression line update in real-time
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        
+        let points = [];
+        let showResiduals = false;
+        let draggedPoint = null;
+        let mousePos = { x: 0, y: 0 };
+        
+        // Transform between canvas and data coordinates
+        const scale = { x: 10, y: 10 };
+        const origin = { x: width / 2, y: height / 2 };
+        
+        function canvasToData(canvasX, canvasY) {
+            return {
+                x: (canvasX - origin.x) / scale.x,
+                y: -(canvasY - origin.y) / scale.y
+            };
+        }
+        
+        function dataToCanvas(dataX, dataY) {
+            return {
+                x: dataX * scale.x + origin.x,
+                y: -dataY * scale.y + origin.y
+            };
+        }
+        
+        function drawGrid() {
+            ctx.strokeStyle = '#f0f0f0';
+            ctx.lineWidth = 1;
+            
+            // Vertical lines
+            for (let x = 0; x <= width; x += scale.x * 2) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            
+            // Horizontal lines
+            for (let y = 0; y <= height; y += scale.y * 2) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+            
+            // Axes
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            
+            // X-axis
+            ctx.beginPath();
+            ctx.moveTo(0, origin.y);
+            ctx.lineTo(width, origin.y);
+            ctx.stroke();
+            
+            // Y-axis
+            ctx.beginPath();
+            ctx.moveTo(origin.x, 0);
+            ctx.lineTo(origin.x, height);
+            ctx.stroke();
+            
+            // Axis labels
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            
+            // X-axis labels
+            for (let i = -20; i <= 20; i += 5) {
+                if (i !== 0) {
+                    const pos = dataToCanvas(i, 0);
+                    ctx.fillText(i, pos.x, pos.y + 20);
+                }
+            }
+            
+            // Y-axis labels
+            ctx.textAlign = 'right';
+            for (let i = -15; i <= 15; i += 5) {
+                if (i !== 0) {
+                    const pos = dataToCanvas(0, i);
+                    ctx.fillText(i, pos.x - 10, pos.y + 5);
+                }
+            }
+        }
+        
+        function calculateRegression() {
+            if (points.length < 2) return null;
+            
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            const n = points.length;
+            
+            points.forEach(p => {
+                sumX += p.x;
+                sumY += p.y;
+                sumXY += p.x * p.y;
+                sumX2 += p.x * p.x;
+            });
+            
+            const meanX = sumX / n;
+            const meanY = sumY / n;
+            
+            const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const intercept = meanY - slope * meanX;
+            
+            // Calculate R-squared
+            let ssTotal = 0, ssResidual = 0;
+            points.forEach(p => {
+                const yPred = slope * p.x + intercept;
+                ssTotal += Math.pow(p.y - meanY, 2);
+                ssResidual += Math.pow(p.y - yPred, 2);
+            });
+            
+            const rSquared = ssTotal > 0 ? 1 - (ssResidual / ssTotal) : 0;
+            
+            return { slope, intercept, rSquared, sse: ssResidual };
+        }
+        
+        function drawRegressionLine() {
+            const regression = calculateRegression();
+            if (!regression) return;
+            
+            ctx.strokeStyle = '#dc3545';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            const x1 = -30;
+            const x2 = 30;
+            const y1 = regression.slope * x1 + regression.intercept;
+            const y2 = regression.slope * x2 + regression.intercept;
+            
+            const p1 = dataToCanvas(x1, y1);
+            const p2 = dataToCanvas(x2, y2);
+            
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+            
+            // Draw residuals
+            if (showResiduals) {
+                ctx.strokeStyle = '#999';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                
+                points.forEach(p => {
+                    const yPred = regression.slope * p.x + regression.intercept;
+                    const canvasPoint = dataToCanvas(p.x, p.y);
+                    const predPoint = dataToCanvas(p.x, yPred);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(canvasPoint.x, canvasPoint.y);
+                    ctx.lineTo(predPoint.x, predPoint.y);
+                    ctx.stroke();
+                });
+                
+                ctx.setLineDash([]);
+            }
+        }
+        
+        function drawPoints() {
+            points.forEach((point, index) => {
+                const canvasPoint = dataToCanvas(point.x, point.y);
+                
+                ctx.fillStyle = draggedPoint === index ? '#0056b3' : '#007bff';
+                ctx.beginPath();
+                ctx.arc(canvasPoint.x, canvasPoint.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+        }
+        
+        function updateStats() {
+            document.getElementById('pointCount').textContent = points.length;
+            
+            const regression = calculateRegression();
+            if (regression) {
+                const equation = `y = ${regression.slope.toFixed(2)}x + ${regression.intercept.toFixed(2)}`;
+                document.getElementById('equation').textContent = equation;
+                document.getElementById('rSquared').textContent = regression.rSquared.toFixed(3);
+                document.getElementById('sse').textContent = regression.sse.toFixed(2);
+                
+                // Add pulse animation
+                ['equation', 'rSquared', 'sse'].forEach(id => {
+                    const elem = document.getElementById(id);
+                    elem.classList.remove('pulse');
+                    void elem.offsetWidth; // Trigger reflow
+                    elem.classList.add('pulse');
+                });
+            } else {
+                document.getElementById('equation').textContent = 'y = mx + b';
+                document.getElementById('rSquared').textContent = '-';
+                document.getElementById('sse').textContent = '0';
+            }
+        }
+        
+        function render() {
+            ctx.clearRect(0, 0, width, height);
+            drawGrid();
+            drawRegressionLine();
+            drawPoints();
+        }
+        
+        // Event handlers
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+            
+            // Check if clicking on existing point
+            for (let i = 0; i < points.length; i++) {
+                const canvasPoint = dataToCanvas(points[i].x, points[i].y);
+                const dist = Math.sqrt(
+                    Math.pow(canvasX - canvasPoint.x, 2) +
+                    Math.pow(canvasY - canvasPoint.y, 2)
+                );
+                
+                if (dist <= 8) {
+                    draggedPoint = i;
+                    canvas.style.cursor = 'move';
+                    return;
+                }
+            }
+            
+            // Add new point
+            const dataPoint = canvasToData(canvasX, canvasY);
+            points.push(dataPoint);
+            updateStats();
+            render();
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+            
+            if (draggedPoint !== null) {
+                const dataPoint = canvasToData(canvasX, canvasY);
+                points[draggedPoint] = dataPoint;
+                updateStats();
+                render();
+            }
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            if (draggedPoint !== null) {
+                draggedPoint = null;
+                canvas.style.cursor = 'crosshair';
+            }
+        });
+        
+        document.getElementById('toggleResiduals').addEventListener('click', () => {
+            showResiduals = !showResiduals;
+            document.getElementById('toggleResiduals').textContent = 
+                showResiduals ? 'Hide Residuals' : 'Show Residuals';
+            render();
+        });
+        
+        document.getElementById('clearPoints').addEventListener('click', () => {
+            points = [];
+            updateStats();
+            render();
+        });
+        
+        document.getElementById('loadExample').addEventListener('click', () => {
+            points = [
+                { x: -8, y: -5 },
+                { x: -6, y: -4 },
+                { x: -4, y: -2 },
+                { x: -2, y: 0 },
+                { x: 0, y: 1 },
+                { x: 2, y: 3 },
+                { x: 4, y: 5 },
+                { x: 6, y: 6 },
+                { x: 8, y: 8 }
+            ];
+            
+            // Add some noise
+            points = points.map(p => ({
+                x: p.x + (Math.random() - 0.5) * 2,
+                y: p.y + (Math.random() - 0.5) * 2
+            }));
+            
+            updateStats();
+            render();
+        });
+        
+        // Initial render
+        render();
+    </script>
+</body>
+</html>

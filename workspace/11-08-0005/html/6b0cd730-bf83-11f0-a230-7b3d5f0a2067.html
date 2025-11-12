@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Graph Explorer: Directed vs Undirected</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            padding: 24px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+        
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .mode-toggle {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background-color: #f0f0f0;
+            padding: 8px 16px;
+            border-radius: 8px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            background-color: #ddd;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .toggle-switch.active {
+            background-color: #3498db;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 24px;
+            height: 24px;
+            background-color: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .toggle-switch.active .toggle-slider {
+            transform: translateX(30px);
+        }
+        
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            margin: 24px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+            min-height: 400px;
+        }
+        
+        #graphCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        
+        .info-panel {
+            padding: 24px;
+            background-color: white;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            gap: 24px;
+        }
+        
+        .instructions {
+            flex: 1;
+        }
+        
+        .instructions h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        
+        .instructions p {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+        }
+        
+        .stats {
+            flex: 1;
+            text-align: right;
+        }
+        
+        .stats h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        
+        .stat-item {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .node {
+            cursor: move;
+        }
+        
+        .node:hover {
+            filter: brightness(1.2);
+        }
+        
+        .edge {
+            cursor: pointer;
+            pointer-events: stroke;
+            stroke-width: 3;
+        }
+        
+        .edge:hover {
+            stroke-width: 5;
+        }
+        
+        .preview-edge {
+            stroke: #999;
+            stroke-width: 2;
+            stroke-dasharray: 5, 5;
+            pointer-events: none;
+        }
+        
+        @keyframes nodeCreate {
+            0% {
+                r: 0;
+                opacity: 0;
+            }
+            50% {
+                r: 30;
+                opacity: 0.5;
+            }
+            100% {
+                r: 20;
+                opacity: 1;
+            }
+        }
+        
+        .node-creating {
+            animation: nodeCreate 0.3s ease-out;
+        }
+        
+        @keyframes arrowPulse {
+            0%, 100% {
+                opacity: 0.6;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+        
+        .arrow-marker {
+            animation: arrowPulse 2s infinite;
+        }
+        
+        .highlight {
+            stroke-width: 5 !important;
+            filter: brightness(1.3);
+        }
+        
+        .context-menu {
+            position: absolute;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            padding: 8px 0;
+            display: none;
+            z-index: 100;
+        }
+        
+        .context-menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .context-menu-item:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Interactive Graph Explorer</h1>
+        <div class="mode-toggle">
+            <span>Undirected</span>
+            <div class="toggle-switch" id="modeToggle">
+                <div class="toggle-slider"></div>
+            </div>
+            <span>Directed</span>
+        </div>
+    </div>
+    
+    <div class="canvas-container">
+        <svg id="graphCanvas">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                        refX="9" refY="3.5" orient="auto" class="arrow-marker">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#3498db" />
+                </marker>
+            </defs>
+            <g id="edges"></g>
+            <g id="nodes"></g>
+        </svg>
+    </div>
+    
+    <div class="info-panel">
+        <div class="instructions">
+            <h3>How to use:</h3>
+            <p>
+                • Click empty space to create a node<br>
+                • Drag from node to node to create an edge<br>
+                • Right-click to delete elements<br>
+                • Drag nodes to rearrange<br>
+                • Toggle between directed/undirected modes
+            </p>
+        </div>
+        <div class="stats">
+            <h3>Graph Statistics:</h3>
+            <div class="stat-item">Nodes: <span id="nodeCount">0</span></div>
+            <div class="stat-item">Edges: <span id="edgeCount">0</span></div>
+            <div class="stat-item">Type: <span id="graphType">Undirected</span></div>
+            <div class="stat-item" id="exampleUse">Example: Social Network</div>
+        </div>
+    </div>
+    
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" id="deleteItem">Delete</div>
+    </div>
+    
+    <script>
+        class GraphExplorer {
+            constructor() {
+                this.svg = document.getElementById('graphCanvas');
+                this.edgesGroup = document.getElementById('edges');
+                this.nodesGroup = document.getElementById('nodes');
+                this.modeToggle = document.getElementById('modeToggle');
+                this.contextMenu = document.getElementById('contextMenu');
+                
+                this.nodes = [];
+                this.edges = [];
+                this.isDirected = false;
+                this.selectedNode = null;
+                this.isDragging = false;
+                this.dragNode = null;
+                this.previewEdge = null;
+                this.nodeIdCounter = 0;
+                
+                this.init();
+            }
+            
+            init() {
+                this.svg.addEventListener('click', this.handleCanvasClick.bind(this));
+                this.svg.addEventListener('mousemove', this.handleMouseMove.bind(this));
+                this.svg.addEventListener('contextmenu', this.handleRightClick.bind(this));
+                this.modeToggle.addEventListener('click', this.toggleMode.bind(this));
+                document.getElementById('deleteItem').addEventListener('click', this.deleteElement.bind(this));
+                document.addEventListener('click', () => this.contextMenu.style.display = 'none');
+                
+                this.updateStats();
+                this.updateExampleUse();
+            }
+            
+            handleCanvasClick(e) {
+                if (e.target === this.svg) {
+                    const rect = this.svg.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    this.createNode(x, y);
+                }
+            }
+            
+            createNode(x, y) {
+                const node = {
+                    id: this.nodeIdCounter++,
+                    x: x,
+                    y: y
+                };
+                this.nodes.push(node);
+                
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('class', 'node');
+                g.setAttribute('data-id', node.id);
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', 20);
+                circle.setAttribute('fill', '#3498db');
+                circle.setAttribute('stroke', '#2980b9');
+                circle.setAttribute('stroke-width', 2);
+                circle.setAttribute('class', 'node-creating');
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', x);
+                text.setAttribute('y', y + 5);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', 'white');
+                text.setAttribute('font-size', '14');
+                text.setAttribute('font-weight', 'bold');
+                text.textContent = node.id;
+                
+                g.appendChild(circle);
+                g.appendChild(text);
+                this.nodesGroup.appendChild(g);
+                
+                g.addEventListener('mousedown', this.handleNodeMouseDown.bind(this));
+                g.addEventListener('mouseup', this.handleNodeMouseUp.bind(this));
+                g.addEventListener('mouseover', this.handleNodeHover.bind(this));
+                g.addEventListener('mouseout', this.handleNodeOut.bind(this));
+                
+                this.updateStats();
+            }
+            
+            handleNodeMouseDown(e) {
+                e.stopPropagation();
+                const nodeG = e.currentTarget;
+                const nodeId = parseInt(nodeG.getAttribute('data-id'));
+                const node = this.nodes.find(n => n.id === nodeId);
+                
+                if (e.shiftKey) {
+                    this.selectedNode = node;
+                    this.createPreviewEdge(node.x, node.y);
+                } else {
+                    this.isDragging = true;
+                    this.dragNode = node;
+                }
+            }
+            
+            handleNodeMouseUp(e) {
+                if (this.selectedNode) {
+                    const nodeG = e.currentTarget;
+                    const targetId = parseInt(nodeG.getAttribute('data-id'));
+                    const targetNode = this.nodes.find(n => n.id === targetId);
+                    
+                    if (this.selectedNode.id !== targetId) {
+                        this.createEdge(this.selectedNode, targetNode);
+                    }
+                    
+                    this.removePreviewEdge();
+                    this.selectedNode = null;
+                }
+                
+                this.isDragging = false;
+                this.dragNode = null;
+            }
+            
+            handleMouseMove(e) {
+                const rect = this.svg.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                if (this.isDragging && this.dragNode) {
+                    this.dragNode.x = x;
+                    this.dragNode.y = y;
+                    this.updateNodePosition(this.dragNode);
+                    this.updateEdgesForNode(this.dragNode);
+                } else if (this.selectedNode && this.previewEdge) {
+                    this.previewEdge.setAttribute('x2', x);
+                    this.previewEdge.setAttribute('y2', y);
+                }
+            }
+            
+            createPreviewEdge(x, y) {
+                this.previewEdge = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                this.previewEdge.setAttribute('x1', x);
+                this.previewEdge.setAttribute('y1', y);
+                this.previewEdge.setAttribute('x2', x);
+                this.previewEdge.setAttribute('y2', y);
+                this.previewEdge.setAttribute('class', 'preview-edge');
+                this.edgesGroup.appendChild(this.previewEdge);
+            }
+            
+            removePreviewEdge() {
+                if (this.previewEdge) {
+                    this.previewEdge.remove();
+                    this.previewEdge = null;
+                }
+            }
+            
+            createEdge(source, target) {
+                const existingEdge = this.edges.find(e => 
+                    (e.source.id === source.id && e.target.id === target.id) ||
+                    (!this.isDirected && e.source.id === target.id && e.target.id === source.id)
+                );
+                
+                if (existingEdge) return;
+                
+                const edge = { source, target };
+                this.edges.push(edge);
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', source.x);
+                line.setAttribute('y1', source.y);
+                line.setAttribute('x2', target.x);
+                line.setAttribute('y2', target.y);
+                line.setAttribute('stroke', '#3498db');
+                line.setAttribute('class', 'edge');
+                line.setAttribute('data-source', source.id);
+                line.setAttribute('data-target', target.id);
+                
+                if (this.isDirected) {
+                    line.setAttribute('marker-end', 'url(#arrowhead)');
+                }
+                
+                this.edgesGroup.appendChild(line);
+                this.updateStats();
+            }
+            
+            updateNodePosition(node) {
+                const nodeG = this.nodesGroup.querySelector(`[data-id="${node.id}"]`);
+                const circle = nodeG.querySelector('circle');
+                const text = nodeG.querySelector('text');
+                
+                circle.setAttribute('cx', node.x);
+                circle.setAttribute('cy', node.y);
+                text.setAttribute('x', node.x);
+                text.setAttribute('y', node.y + 5);
+            }
+            
+            updateEdgesForNode(node) {
+                const edges = this.edgesGroup.querySelectorAll(
+                    `[data-source="${node.id}"], [data-target="${node.id}"]`
+                );
+                
+                edges.forEach(edge => {
+                    const sourceId = parseInt(edge.getAttribute('data-source'));
+                    const targetId = parseInt(edge.getAttribute('data-target'));
+                    const source = this.nodes.find(n => n.id === sourceId);
+                    const target = this.nodes.find(n => n.id === targetId);
+                    
+                    edge.setAttribute('x1', source.x);
+                    edge.setAttribute('y1', source.y);
+                    edge.setAttribute('x2', target.x);
+                    edge.setAttribute('y2', target.y);
+                });
+            }
+            
+            toggleMode() {
+                this.isDirected = !this.isDirected;
+                this.modeToggle.classList.toggle('active');
+                
+                const edges = this.edgesGroup.querySelectorAll('.edge');
+                edges.forEach(edge => {
+                    if (this.isDirected) {
+                        edge.setAttribute('marker-end', 'url(#arrowhead)');
+                    } else {
+                        edge.removeAttribute('marker-end');
+                    }
+                });
+                
+                this.updateStats();
+                this.updateExampleUse();
+            }
+            
+            handleNodeHover(e) {
+                const nodeG = e.currentTarget;
+                const nodeId = parseInt(nodeG.getAttribute('data-id'));
+                
+                const connectedEdges = this.edgesGroup.querySelectorAll(
+                    `[data-source="${nodeId}"], [data-target="${nodeId}"]`
+                );
+                
+                connectedEdges.forEach(edge => {
+                    edge.classList.add('highlight');
+                });
+            }
+            
+            handleNodeOut(e) {
+                const edges = this.edgesGroup.querySelectorAll('.edge');
+                edges.forEach(edge => {
+                    edge.classList.remove('highlight');
+                });
+            }
+            
+            handleRightClick(e) {
+                e.preventDefault();
+                this.contextTarget = e.target;
+                
+                if (e.target.tagName === 'circle' || e.target.tagName === 'line') {
+                    this.contextMenu.style.left = e.pageX + 'px';
+                    this.contextMenu.style.top = e.pageY + 'px';
+                    this.contextMenu.style.display = 'block';
+                }
+            }
+            
+            deleteElement() {
+                if (!this.contextTarget) return;
+                
+                if (this.contextTarget.tagName === 'circle') {
+                    const nodeG = this.contextTarget.parentElement;
+                    const nodeId = parseInt(nodeG.getAttribute('data-id'));
+                    
+                    this.nodes = this.nodes.filter(n => n.id !== nodeId);
+                    this.edges = this.edges.filter(e => 
+                        e.source.id !== nodeId && e.target.id !== nodeId
+                    );
+                    
+                    const edgesToRemove = this.edgesGroup.querySelectorAll(
+                        `[data-source="${nodeId}"], [data-target="${nodeId}"]`
+                    );
+                    edgesToRemove.forEach(edge => edge.remove());
+                    
+                    nodeG.remove();
+                } else if (this.contextTarget.tagName === 'line') {
+                    const sourceId = parseInt(this.contextTarget.getAttribute('data-source'));
+                    const targetId = parseInt(this.contextTarget.getAttribute('data-target'));
+                    
+                    this.edges = this.edges.filter(e => 
+                        !(e.source.id === sourceId && e.target.id === targetId)
+                    );
+                    
+                    this.contextTarget.remove();
+                }
+                
+                this.updateStats();
+                this.contextMenu.style.display = 'none';
+            }
+            
+            updateStats() {
+                document.getElementById('nodeCount').textContent = this.nodes.length;
+                document.getElementById('edgeCount').textContent = this.edges.length;
+                document.getElementById('graphType').textContent = 
+                    this.isDirected ? 'Directed' : 'Undirected';
+            }
+            
+            updateExampleUse() {
+                const examples = {
+                    directed: [
+                        'Web Links',
+                        'Food Chain',
+                        'Task Dependencies',
+                        'Traffic Flow'
+                    ],
+                    undirected: [
+                        'Social Network',
+                        'Road Map',
+                        'Molecule Bonds',
+                        'Computer Network'
+                    ]
+                };
+                
+                const exampleList = this.isDirected ? examples.directed : examples.undirected;
+                const randomExample = exampleList[Math.floor(Math.random() * exampleList.length)];
+                document.getElementById('exampleUse').textContent = `Example: ${randomExample}`;
+            }
+        }
+        
+        const graphExplorer = new GraphExplorer();
+    </script>
+</body>
+</html>
