@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+I'll design an interactive HTML page that teaches Topological Sort through hands-on exploration.
+
+## Interactive Design Plan
+
+### Concept Title
+**Topological Sort: Ordering Tasks with Dependencies**
+
+### Learning Objective
+Users will understand how topological sorting orders directed acyclic graphs (DAGs) by interacting with a visual task dependency system. They'll learn to identify valid orderings, understand why cycles prevent topological sorting, and see how the algorithm works step-by-step through Kahn's algorithm.
+
+### Interaction Design
+The interface presents a graph of tasks with dependencies that users can manipulate:
+
+1. **Graph Manipulation:**
+   - Click and drag nodes to reposition them for clarity
+   - Click "Add Edge" button, then click two nodes to create a dependency
+   - Click edges to remove them
+   - Click "Add Node" to create new tasks
+
+2. **Algorithm Visualization:**
+   - "Run Topological Sort" button executes Kahn's algorithm step-by-step
+   - Nodes highlight as they're processed (green when added to result, gray when completed)
+   - In-degree counts display on each node and update in real-time
+   - Queue visualization shows which nodes are ready for processing
+
+3. **Visual Feedback:**
+   - Hover effects on nodes and edges
+   - Smooth animations when nodes are processed
+   - Red highlighting when cycles are detected
+   - Success/error messages with explanations
+
+4. **Learning Features:**
+   - Preset examples (course prerequisites, build dependencies)
+   - "Create Cycle" button to demonstrate why cycles break topological sort
+   - Speed control for algorithm animation
+   - Step-by-step explanation panel
+
+### Layout Description
+The page uses a three-panel layout:
+
+**Left Panel (300px):**
+- Controls section with buttons for graph manipulation
+- Algorithm controls (Run, Step, Reset, Speed)
+- Preset examples dropdown
+- Safe margin of 24px from viewport edge
+
+**Center Panel (flexible):**
+- Interactive graph canvas with 24px padding
+- Nodes displayed as circles with task labels
+- Directed edges shown as arrows
+- Queue visualization at the bottom
+- Minimum 16px spacing between all nodes
+
+**Right Panel (300px):**
+- Explanation section showing current algorithm state
+- In-degree table for all nodes
+- Topological order result
+- Step-by-step progress log
+
+All interactive elements maintain 16px minimum spacing and use clear visual hierarchy with consistent color coding.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Topological Sort: Interactive Learning</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+            padding: 24px;
+            gap: 24px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            padding: 24px;
+        }
+
+        .left-panel {
+            width: 300px;
+            flex-shrink: 0;
+        }
+
+        .center-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .right-panel {
+            width: 300px;
+            flex-shrink: 0;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 16px;
+            color: #1a1a1a;
+        }
+
+        h2 {
+            font-size: 20px;
+            margin-bottom: 16px;
+            color: #444;
+        }
+
+        .button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .button:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button.secondary {
+            background: #2196F3;
+        }
+
+        .button.secondary:hover {
+            background: #1976D2;
+        }
+
+        .button.danger {
+            background: #f44336;
+        }
+
+        .button.danger:hover {
+            background: #d32f2f;
+        }
+
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .graph-canvas {
+            flex: 1;
+            position: relative;
+            background: #fafafa;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 500px;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .node {
+            cursor: move;
+            transition: all 0.3s ease;
+        }
+
+        .node circle {
+            fill: #2196F3;
+            stroke: #1976D2;
+            stroke-width: 2;
+        }
+
+        .node.processing circle {
+            fill: #4CAF50;
+            stroke: #388E3C;
+        }
+
+        .node.completed circle {
+            fill: #9E9E9E;
+            stroke: #757575;
+        }
+
+        .node.has-cycle circle {
+            fill: #f44336;
+            stroke: #d32f2f;
+        }
+
+        .node text {
+            fill: white;
+            font-size: 14px;
+            font-weight: 500;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .node .indegree {
+            fill: #333;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .edge {
+            fill: none;
+            stroke: #666;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+            cursor: pointer;
+            transition: stroke 0.3s ease;
+        }
+
+        .edge:hover {
+            stroke: #f44336;
+            stroke-width: 3;
+        }
+
+        .edge.cycle {
+            stroke: #f44336;
+            stroke-width: 3;
+        }
+
+        .queue-container {
+            margin-top: 24px;
+            padding: 16px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+
+        .queue-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+
+        .queue-items {
+            display: flex;
+            gap: 12px;
+            min-height: 50px;
+            align-items: center;
+        }
+
+        .queue-item {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 6px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .controls-group {
+            margin-bottom: 24px;
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .speed-control input {
+            flex: 1;
+        }
+
+        .info-section {
+            margin-bottom: 24px;
+        }
+
+        .info-section h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #555;
+        }
+
+        .indegree-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .indegree-table th,
+        .indegree-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .indegree-table th {
+            background: #f5f5f5;
+            font-weight: 500;
+        }
+
+        .result-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 40px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+        }
+
+        .result-item {
+            padding: 6px 12px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .log-container {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .log-entry::before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #666;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .message.success {
+            background: #E8F5E9;
+            color: #2E7D32;
+            border: 1px solid #81C784;
+        }
+
+        .message.error {
+            background: #FFEBEE;
+            color: #C62828;
+            border: 1px solid #EF5350;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .left-panel,
+            .right-panel {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel left-panel">
+            <h2>Controls</h2>
+            
+            <div class="controls-group">
+                <button class="button" id="addNodeBtn">Add Node</button>
+                <button class="button secondary" id="addEdgeBtn">Add Edge</button>
+                <button class="button danger" id="clearBtn">Clear All</button>
+            </div>
+
+            <div class="controls-group">
+                <h3>Examples</h3>
+                <select id="exampleSelect">
+                    <option value="">Select an example...</option>
+                    <option value="courses">Course Prerequisites</option>
+                    <option value="build">Build Dependencies</option>
+                    <option value="tasks">Task Scheduling</option>
+                </select>
+            </div>
+
+            <div class="controls-group">
+                <h3>Algorithm</h3>
+                <button class="button" id="runBtn">Run Topological Sort</button>
+                <button class="button secondary" id="stepBtn">Step</button>
+                <button class="button secondary" id="resetBtn">Reset</button>
+                
+                <div class="speed-control">
+                    <label>Speed:</label>
+                    <input type="range" id="speedSlider" min="1" max="10" value="5">
+                    <span id="speedValue">5</span>
+                </div>
+            </div>
+
+            <div class="controls-group">
+                <button class="button danger" id="createCycleBtn">Create Cycle</button>
+            </div>
+        </div>
+
+        <div class="panel center-panel">
+            <h1>Topological Sort: Ordering Tasks with Dependencies</h1>
+            
+            <div id="messageArea"></div>
+            
+            <div class="graph-canvas" id="graphCanvas">
+                <svg id="graphSvg">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="10" 
+                                refX="25" refY="3" orient="auto">
+                            <polygon points="0 0, 6 3, 0 6" fill="#666"/>
+                        </marker>
+                    </defs>
+                    <g id="edgeGroup"></g>
+                    <g id="nodeGroup"></g>
+                </svg>
+            </div>
+
+            <div class="queue-container">
+                <div class="queue-title">Processing Queue (In-degree = 0)</div>
+                <div class="queue-items" id="queueItems"></div>
+            </div>
+        </div>
+
+        <div class="panel right-panel">
+            <div class="info-section">
+                <h3>In-degree Table</h3>
+                <table class="indegree-table" id="indegreeTable">
+                    <thead>
+                        <tr>
+                            <th>Node</th>
+                            <th>In-degree</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div class="info-section">
+                <h3>Topological Order</h3>
+                <div class="result-list" id="resultList"></div>
+            </div>
+
+            <div class="info-section">
+                <h3>Algorithm Log</h3>
+                <div class="log-container" id="logContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class TopologicalSortVisualizer {
+            constructor() {
+                this.nodes = new Map();
+                this.edges = [];
+                this.nodeCounter = 0;
+                this.isAddingEdge = false;
+                this.selectedNode = null;
+                this.isDragging = false;
+                this.dragNode = null;
+                this.isRunning = false;
+                this.animationSpeed = 5;
+                
+                this.svg = document.getElementById('graphSvg');
+                this.nodeGroup = document.getElementById('nodeGroup');
+                this.edgeGroup = document.getElementById('edgeGroup');
+                
+                this.setupEventListeners();
+                this.loadExample('courses');
+            }
+
+            setupEventListeners() {
+                document.getElementById('addNodeBtn').addEventListener('click', () => this.addNode());
+                document.getElementById('addEdgeBtn').addEventListener('click', () => this.startAddingEdge());
+                document.getElementById('clearBtn').addEventListener('click', () => this.clear());
+                document.getElementById('runBtn').addEventListener('click', () => this.runTopologicalSort());
+                document.getElementById('stepBtn').addEventListener('click', () => this.stepTopologicalSort());
+                document.getElementById('resetBtn').addEventListener('click', () => this.resetAlgorithm());
+                document.getElementById('createCycleBtn').addEventListener('click', () => this.createCycle());
+                document.getElementById('exampleSelect').addEventListener('change', (e) => {
+                    if (e.target.value) this.loadExample(e.target.value);
+                });
+                document.getElementById('speedSlider').addEventListener('input', (e) => {
+                    this.animationSpeed = parseInt(e.target.value);
+                    document.getElementById('speedValue').textContent = e.target.value;
+                });
+                
+                this.svg.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.svg.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.svg.addEventListener('mouseup', () => this.handleMouseUp());
+            }
+
+            addNode(label = null, x = null, y = null) {
+                const id = `node${this.nodeCounter++}`;
+                label = label || `Task ${this.nodeCounter}`;
+                
+                const rect = this.svg.getBoundingClientRect();
+                x = x || Math.random() * (rect.width - 100) + 50;
+                y = y || Math.random() * (rect.height - 200) + 50;
+                
+                this.nodes.set(id, {
+                    id,
+                    label,
+                    x,
+                    y,
+                    indegree: 0,
+                    processed: false
+                });
+                
+                this.render();
+                return id;
+            }
+
+            startAddingEdge() {
+                this.isAddingEdge = true;
+                this.selectedNode = null;
+                this.showMessage('Click two nodes to create a dependency (first → second)', 'success');
+                document.getElementById('addEdgeBtn').textContent = 'Cancel Edge';
+                document.getElementById('addEdgeBtn').onclick = () => this.cancelAddingEdge();
+            }
+
+            cancelAddingEdge() {
+                this.isAddingEdge = false;
+                this.selectedNode = null;
+                document.getElementById('addEdgeBtn').textContent = 'Add Edge';
+                document.getElementById('addEdgeBtn').onclick = () => this.startAddingEdge();
+                this.showMessage('Edge creation cancelled', 'error');
+                this.render();
+            }
+
+            handleNodeClick(nodeId) {
+                if (!this.isAddingEdge) return;
+                
+                if (!this.selectedNode) {
+                    this.selectedNode = nodeId;
+                    this.nodes.get(nodeId).selected = true;
+                    this.render();
+                } else {
+                    if (this.selectedNode !== nodeId) {
+                        this.addEdge(this.selectedNode, nodeId);
+                    }
+                    this.nodes.get(this.selectedNode).selected = false;
+                    this.cancelAddingEdge();
+                }
+            }
+
+            addEdge(from, to) {
+                // Check if edge already exists
+                if (this.edges.some(e => e.from === from && e.to === to)) {
+                    this.showMessage('This dependency already exists', 'error');
+                    return;
+                }
+                
+                this.edges.push({ from, to });
+                this.updateIndegrees();
+                this.render();
+            }
+
+            removeEdge(from, to) {
+                this.edges = this.edges.filter(e => !(e.from === from && e.to === to));
+                this.updateIndegrees();
+                this.render();
+            }
+
+            updateIndegrees() {
+                // Reset all indegrees
+                for (const node of this.nodes.values()) {
+                    node.indegree = 0;
+                }
+                
+                // Calculate indegrees
+                for (const edge of this.edges) {
+                    this.nodes.get(edge.to).indegree++;
+                }
+                
+                this.updateIndegreeTable();
+            }
+
+            updateIndegreeTable() {
+                const tbody = document.querySelector('#indegreeTable tbody');
+                tbody.innerHTML = '';
+                
+                for (const node of this.nodes.values()) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${node.label}</td>
+                        <td>${node.indegree}</td>
+                    `;
+                    tbody.appendChild(row);
+                }
+            }
+
+            clear() {
+                this.nodes.clear();
+                this.edges = [];
+                this.nodeCounter = 0;
+                this.resetAlgorithm();
+                this.render();
+                document.getElementById('exampleSelect').value = '';
+            }
+
+            loadExample(type) {
+                this.clear();
+                
+                const examples = {
+                    courses: {
+                        nodes: [
+                            { label: 'Math 101', x: 150, y: 100 },
+                            { label: 'CS 101', x: 350, y: 100 },
+                            { label: 'Math 201', x: 150, y: 250 },
+                            { label: 'CS 201', x: 350, y: 250 },
+                            { label: 'CS 301', x: 250, y: 400 }
+                        ],
+                        edges: [
+                            [0, 2], // Math 101 -> Math 201
+                            [1, 3], // CS 101 -> CS 201
+                            [0, 3], // Math 101 -> CS 201
+                            [2, 4], // Math 201 -> CS 301
+                            [3, 4]  // CS 201 -> CS 301
+                        ]
+                    },
+                    build: {
+                        nodes: [
+                            { label: 'parser.c', x: 100, y: 100 },
+                            { label: 'lexer.c', x: 300, y: 100 },
+                            { label: 'main.c', x: 200, y: 250 },
+                            { label: 'utils.c', x: 400, y: 250 },
+                            { label: 'app.exe', x: 250, y: 400 }
+                        ],
+                        edges: [
+                            [0, 2], [1, 2], [3, 2], [2, 4],
+                            [0, 4], [1, 4], [3, 4]
+                        ]
+                    },
+                    tasks: {
+                        nodes: [
+                            { label: 'Design', x: 200, y: 100 },
+                            { label: 'Frontend', x: 100, y: 250 },
+                            { label: 'Backend', x: 300, y: 250 },
+                            { label: 'Testing', x: 200, y: 400 },
+                            { label: 'Deploy', x: 200, y: 550 }
+                        ],
+                        edges: [
+                            [0, 1], [0, 2], [1, 3], [2, 3], [3, 4]
+                        ]
+                    }
+                };
+                
+                const example = examples[type];
+                const nodeIds = [];
+                
+                // Add nodes
+                for (const nodeData of example.nodes) {
+                    const id = this.addNode(nodeData.label, nodeData.x, nodeData.y);
+                    nodeIds.push(id);
+                }
+                
+                // Add edges
+                for (const [fromIdx, toIdx] of example.edges) {
+                    this.addEdge(nodeIds[fromIdx], nodeIds[toIdx]);
+                }
+            }
+
+            createCycle() {
+                const nodeArray = Array.from(this.nodes.keys());
+                if (nodeArray.length < 2) {
+                    this.showMessage('Need at least 2 nodes to create a cycle', 'error');
+                    return;
+                }
+                
+                // Find two nodes that would create a cycle
+                for (let i = 0; i < nodeArray.length; i++) {
+                    for (let j = i + 1; j < nodeArray.length; j++) {
+                        const hasPath1 = this.hasPath(nodeArray[i], nodeArray[j]);
+                        const hasPath2 = this.hasPath(nodeArray[j], nodeArray[i]);
+                        
+                        if (hasPath1 && !hasPath2) {
+                            this.addEdge(nodeArray[j], nodeArray[i]);
+                            this.showMessage('Cycle created! Try running topological sort now.', 'error');
+                            return;
+                        } else if (hasPath2 && !hasPath1) {
+                            this.addEdge(nodeArray[i], nodeArray[j]);
+                            this.showMessage('Cycle created! Try running topological sort now.', 'error');
+                            return;
+                        }
+                    }
+                }
+                
+                // If no cycle can be created with existing edges, create a simple one
+                if (nodeArray.length >= 2) {
+                    this.addEdge(nodeArray[0], nodeArray[1]);
+                    this.addEdge(nodeArray[1], nodeArray[0]);
+                    this.showMessage('Cycle created! Try running topological sort now.', 'error');
+                }
+            }
+
+            hasPath(from, to) {
+                const visited = new Set();
+                const queue = [from];
+                
+                while (queue.length > 0) {
+                    const current = queue.shift();
+                    if (current === to) return true;
+                    
+                    if (!visited.has(current)) {
+                        visited.add(current);
+                        
+                        for (const edge of this.edges) {
+                            if (edge.from === current) {
+                                queue.push(edge.to);
+                            }
+                        }
+                    }
+                }
+                
+                return false;
+            }
+
+            detectCycle() {
+                const visited = new Set();
+                const recursionStack = new Set();
+                const cycleNodes = new Set();
+                
+                const dfs = (node) => {
+                    visited.add(node);
+                    recursionStack.add(node);
+                    
+                    for (const edge of this.edges) {
+                        if (edge.from === node) {
+                            if (!visited.has(edge.to)) {
+                                if (dfs(edge.to)) {
+                                    cycleNodes.add(node);
+                                    return true;
+                                }
+                            } else if (recursionStack.has(edge.to)) {
+                                cycleNodes.add(node);
+                                cycleNodes.add(edge.to);
+                                return true;
+                            }
+                        }
+                    }
+                    
+                    recursionStack.delete(node);
+                    return false;
+                };
+                
+                for (const nodeId of this.nodes.keys()) {
+                    if (!visited.has(nodeId)) {
+                        if (dfs(nodeId)) {
+                            // Mark cycle edges
+                            for (const edge of this.edges) {
+                                if (cycleNodes.has(edge.from) && cycleNodes.has(edge.to)) {
+                                    edge.inCycle = true;
+                                }
+                            }
+                            
+                            // Mark cycle nodes
+                            for (const nodeId of cycleNodes) {
+                                this.nodes.get(nodeId).inCycle = true;
+                            }
+                            
+                            return true;
+                        }
+                    }
+                }
+                
+                return false;
+            }
+
+            async runTopologicalSort() {
+                if (this.isRunning) return;
+                
+                this.resetAlgorithm();
+                this.isRunning = true;
+                
+                // Check for cycles
+                if (this.detectCycle()) {
+                    this.showMessage('Cannot perform topological sort: Graph contains a cycle!', 'error');
+                    this.render();
+                    this.isRunning = false;
+                    return;
+                }
+                
+                await this.performKahnsAlgorithm();
+                this.isRunning = false;
+            }
+
+            async performKahnsAlgorithm() {
+                this.log('Starting Kahn\'s Algorithm for Topological Sort');
+                
+                // Create a copy of indegrees
+                const indegrees = new Map();
+                for (const [id, node] of this.nodes) {
+                    indegrees.set(id, node.indegree);
+                }
+                
+                // Find all nodes with indegree 0
+                const queue = [];
+                for (const [id, degree] of indegrees) {
+                    if (degree === 0) {
+                        queue.push(id);
+                        this.log(`Added ${this.nodes.get(id).label} to queue (indegree = 0)`);
+                    }
+                }
+                
+                this.updateQueue(queue);
+                await this.sleep(1000 / this.animationSpeed);
+                
+                const result = [];
+                
+                while (queue.length > 0) {
+                    const current = queue.shift();
+                    const currentNode = this.nodes.get(current);
+                    
+                    this.log(`Processing ${currentNode.label}`);
+                    currentNode.processing = true;
+                    this.updateQueue(queue);
+                    this.render();
+                    await this.sleep(1000 / this.animationSpeed);
+                    
+                    result.push(current);
+                    this.updateResult(result);
+                    
+                    // Reduce indegree of neighbors
+                    for (const edge of this.edges) {
+                        if (edge.from === current) {
+                            const neighborId = edge.to;
+                            const newIndegree = indegrees.get(neighborId) - 1;
+                            indegrees.set(neighborId, newIndegree);
+                            
+                            this.nodes.get(neighborId).indegree = newIndegree;
+                            this.updateIndegreeTable();
+                            
+                            this.log(`Reduced indegree of ${this.nodes.get(neighborId).label} to ${newIndegree}`);
+                            
+                            if (newIndegree === 0) {
+                                queue.push(neighborId);
+                                this.log(`Added ${this.nodes.get(neighborId).label} to queue`);
+                            }
+                        }
+                    }
+                    
+                    currentNode.processing = false;
+                    currentNode.processed = true;
+                    this.updateQueue(queue);
+                    this.render();
+                    await this.sleep(500 / this.animationSpeed);
+                }
+                
+                if (result.length === this.nodes.size) {
+                    this.log('Topological sort completed successfully!');
+                    this.showMessage('Topological sort completed successfully!', 'success');
+                } else {
+                    this.log('Error: Not all nodes were processed (cycle detected)');
+                    this.showMessage('Error: Not all nodes were processed', 'error');
+                }
+            }
+
+            stepTopologicalSort() {
+                // Implementation for step-by-step execution
+                // This would require maintaining state between steps
+                this.showMessage('Step-by-step mode coming soon!', 'success');
+            }
+
+            resetAlgorithm() {
+                for (const node of this.nodes.values()) {
+                    node.processed = false;
+                    node.processing = false;
+                    node.selected = false;
+                    node.inCycle = false;
+                }
+                
+                for (const edge of this.edges) {
+                    edge.inCycle = false;
+                }
+                
+                this.updateIndegrees();
+                this.updateQueue([]);
+                this.updateResult([]);
+                document.getElementById('logContainer').innerHTML = '';
+                this.render();
+            }
+
+            updateQueue(queue) {
+                const queueContainer = document.getElementById('queueItems');
+                queueContainer.innerHTML = '';
+                
+                for (const nodeId of queue) {
+                    const item = document.createElement('div');
+                    item.className = 'queue-item';
+                    item.textContent = this.nodes.get(nodeId).label;
+                    queueContainer.appendChild(item);
+                }
+                
+                if (queue.length === 0) {
+                    queueContainer.innerHTML = '<span style="color: #999;">Empty</span>';
+                }
+            }
+
+            updateResult(result) {
+                const resultContainer = document.getElementById('resultList');
+                resultContainer.innerHTML = '';
+                
+                for (const nodeId of result) {
+                    const item = document.createElement('div');
+                    item.className = 'result-item';
+                    item.textContent = this.nodes.get(nodeId).label;
+                    resultContainer.appendChild(item);
