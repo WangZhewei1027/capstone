@@ -1,4 +1,4 @@
-// universal-fsm-extractor.mjs
+// universal-fsm-extractor-debug.mjs
 import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
@@ -7,323 +7,229 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 修复后的行为探针配置
+// 简化的行为探针配置
 const BEHAVIOR_PROBES = {
-  // 输入相关探针
   input: {
     detect: async (page) => {
-      const inputs = await page.$$('input, textarea, [contenteditable="true"]');
+      const inputs = await page.$$("input, textarea");
       const inputData = [];
 
       for (let i = 0; i < inputs.length; i++) {
         const input = inputs[i];
-        const placeholder = (await input.getAttribute("placeholder")) || "";
-        const valueType = (await input.getAttribute("type")) || "text";
+        try {
+          const placeholder = (await input.getAttribute("placeholder")) || "";
+          const type = (await input.getAttribute("type")) || "text";
+          const id = (await input.getAttribute("id")) || `input_${i}`;
 
-        inputData.push({
-          element: input,
-          type: "input",
-          id: `input_${i}`,
-          placeholder: placeholder,
-          valueType: valueType,
-        });
+          inputData.push({
+            element: input,
+            type: "input",
+            id: id,
+            placeholder: placeholder,
+            inputType: type,
+          });
+        } catch (e) {
+          console.log(`Input ${i} detection failed:`, e.message);
+        }
       }
       return inputData;
     },
-    test: async (page, element, value = "42") => {
-      try {
-        await element.fill("");
-        await element.fill(value);
-        return { success: true, value };
-      } catch (e) {
-        return { success: false, error: e.message };
-      }
-    },
   },
 
-  // 按钮相关探针
   button: {
     detect: async (page) => {
-      const buttons = await page.$$(
-        'button, [role="button"], input[type="button"], input[type="submit"], .btn, [onclick]'
-      );
+      // 首先查找所有可能的按钮
+      const selectors = [
+        "button",
+        'input[type="button"]',
+        'input[type="submit"]',
+        '[role="button"]',
+        ".btn",
+        "[onclick]",
+      ];
 
-      // 检测有指针光标的元素
-      const allElements = await page.$$("div, span, a, p, li");
-      const interactiveDivs = [];
-
-      for (const el of allElements) {
-        const cursor = await el.evaluate((e) => getComputedStyle(e).cursor);
-        if (cursor === "pointer") {
-          interactiveDivs.push(el);
+      let allButtons = [];
+      for (const selector of selectors) {
+        try {
+          const elements = await page.$$(selector);
+          allButtons = [...allButtons, ...elements];
+        } catch (e) {
+          console.log(`Selector ${selector} failed:`, e.message);
         }
       }
 
-      const allButtons = [...buttons, ...interactiveDivs];
+      // 去重
+      const uniqueButtons = [];
+      const seen = new Set();
+
+      for (const btn of allButtons) {
+        try {
+          const handle = await btn.evaluateHandle((el) => el);
+          if (!seen.has(handle)) {
+            seen.add(handle);
+            uniqueButtons.push(btn);
+          }
+        } catch (e) {
+          // 忽略错误，继续处理下一个
+        }
+      }
+
       const buttonData = [];
+      for (let i = 0; i < uniqueButtons.length; i++) {
+        const btn = uniqueButtons[i];
+        try {
+          const text = ((await btn.textContent()) || "")
+            .trim()
+            .substring(0, 50);
+          const id = (await btn.getAttribute("id")) || `button_${i}`;
+          const isVisible = await btn.isVisible();
 
-      for (let i = 0; i < allButtons.length; i++) {
-        const btn = allButtons[i];
-        const text = ((await btn.textContent()) || "").trim();
-        const id = (await btn.getAttribute("id")) || `button_${i}`;
-        const visible = await btn.isVisible();
-
-        buttonData.push({
-          element: btn,
-          type: "button",
-          id: id,
-          text: text,
-          visible: visible,
-        });
+          buttonData.push({
+            element: btn,
+            type: "button",
+            id: id,
+            text: text || "unnamed_button",
+            visible: isVisible,
+            index: i,
+          });
+        } catch (e) {
+          console.log(`Button ${i} processing failed:`, e.message);
+        }
       }
 
       return buttonData;
     },
-    test: async (page, element, context = {}) => {
-      const beforeState = await capturePageState(page);
-
-      try {
-        await element.click({ force: true });
-        await page.waitForTimeout(800);
-
-        const afterState = await capturePageState(page);
-        const changes = detectStateChanges(beforeState, afterState);
-
-        return {
-          success: true,
-          changes,
-          stateChange: changes.hasSignificantChange,
-          newState: afterState,
-        };
-      } catch (e) {
-        return {
-          success: false,
-          error: e.message,
-          changes: { hasSignificantChange: false },
-        };
-      }
-    },
-  },
-
-  // 选择器相关探针
-  selector: {
-    detect: async (page) => {
-      const selects = await page.$$('select, [role="listbox"]');
-      const selectData = [];
-
-      for (let i = 0; i < selects.length; i++) {
-        const select = selects[i];
-        const options = await select.$$eval("option", (opts) =>
-          opts.map((o) => o.textContent)
-        );
-
-        selectData.push({
-          element: select,
-          type: "selector",
-          id: `select_${i}`,
-          options: options,
-        });
-      }
-      return selectData;
-    },
-    test: async (page, element) => {
-      const options = await element.$$("option");
-      if (options.length > 1) {
-        await element.selectOption({ index: 1 });
-        await page.waitForTimeout(300);
-        return { success: true, value: "option_1" };
-      }
-      return { success: false, error: "No options available" };
-    },
   },
 };
 
-// 页面状态捕获
+// 简化的页面状态捕获
 async function capturePageState(page) {
-  const state = {
-    timestamp: Date.now(),
-    url: page.url(),
-
-    // DOM 状态
-    visibleText: await page.evaluate(() => {
-      const elements = Array.from(document.body.getElementsByTagName("*"));
-      return elements
-        .filter((el) => el.children.length === 0 && el.textContent.trim())
-        .map((el) => el.textContent.trim())
-        .filter((text) => text.length > 0)
-        .slice(0, 50);
-    }),
-
-    // 类名和属性变化
-    classes: await page.evaluate(() => {
-      const elements = Array.from(document.querySelectorAll("*"));
-      const allClasses = elements.map((el) => Array.from(el.classList)).flat();
-      return [...new Set(allClasses)].slice(0, 100);
-    }),
-
-    // 特定元素状态
-    inputs: await page.$$eval("input, textarea", (elements) =>
-      elements.map((el) => ({
-        value: el.value,
-        type: el.type,
-        id: el.id,
-        placeholder: el.placeholder,
-      }))
-    ),
-
-    // 可视化状态
-    visibleElements: await page.evaluate(() => ({
-      buttons: document.querySelectorAll('button, [role="button"]').length,
-      inputs: document.querySelectorAll("input, textarea").length,
-      images: document.querySelectorAll("img").length,
-      visibleNodes: document.querySelectorAll("*").length,
-    })),
-
-    // 错误状态
-    errors: await page.evaluate(() => {
-      const errorElements = document.querySelectorAll(
-        '[class*="error"], [class*="invalid"]'
-      );
-      return Array.from(errorElements).map((el) => el.textContent.trim());
-    }),
-
-    // 自定义应用状态
-    customState: await detectCustomAppState(page),
-  };
-
-  return state;
-}
-
-// 检测特定应用状态
-async function detectCustomAppState(page) {
   try {
-    // 尝试检测树结构
-    const treeNodes = await page.$$eval(
-      '.node, [class*="node"], circle, rect',
-      (elements) =>
-        elements.map((el) => ({
+    const state = {
+      timestamp: Date.now(),
+
+      // 基本元素计数
+      elementCounts: await page.evaluate(() => ({
+        buttons: document.querySelectorAll("button").length,
+        inputs: document.querySelectorAll("input, textarea").length,
+        totalElements: document.querySelectorAll("*").length,
+      })),
+
+      // 树节点检测
+      treeNodes: await page.evaluate(() => {
+        const nodes = document.querySelectorAll(
+          '.node, circle, rect, [class*="node"]'
+        );
+        return Array.from(nodes).map((el) => ({
           text: el.textContent ? el.textContent.trim() : "",
-          transform: el.getAttribute("transform"),
-          class: el.className?.baseVal || el.className,
-        }))
-    );
+          tagName: el.tagName,
+          className: el.className || "",
+        }));
+      }),
 
-    // 检测高亮状态
-    const highlighted = await page.$$eval(
-      '.highlight, [class*="highlight"], [style*="background"]',
-      (elements) => elements.length
-    );
-
-    return {
-      hasTreeStructure: treeNodes.length > 0,
-      nodeCount: treeNodes.length,
-      highlightedCount: highlighted,
-      treeNodes: treeNodes.slice(0, 10),
+      // 可见文本（简化）
+      visibleText: await page.evaluate(() => {
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+          null,
+          false
+        );
+        const texts = [];
+        let node;
+        while ((node = walker.nextNode())) {
+          if (node.textContent.trim().length > 0) {
+            texts.push(node.textContent.trim());
+          }
+        }
+        return texts.slice(0, 20);
+      }),
     };
+
+    return state;
   } catch (e) {
+    console.log("State capture failed:", e.message);
     return { error: e.message };
   }
 }
 
-// 检测状态变化
+// 简化的状态变化检测
 function detectStateChanges(before, after) {
   const changes = {
     hasSignificantChange: false,
     details: [],
   };
 
-  // 文本内容变化
-  const newText = after.visibleText.filter(
-    (text) => !before.visibleText.includes(text)
-  );
-  const removedText = before.visibleText.filter(
-    (text) => !after.visibleText.includes(text)
-  );
+  try {
+    // 检查树节点变化
+    if (before.treeNodes && after.treeNodes) {
+      if (before.treeNodes.length !== after.treeNodes.length) {
+        changes.hasSignificantChange = true;
+        changes.details.push({
+          type: "node_count_change",
+          before: before.treeNodes.length,
+          after: after.treeNodes.length,
+        });
+      }
+    }
 
-  if (newText.length > 0 || removedText.length > 0) {
-    changes.hasSignificantChange = true;
-    changes.details.push({
-      type: "text_change",
-      added: newText,
-      removed: removedText,
-    });
+    // 检查元素数量变化
+    if (before.elementCounts && after.elementCounts) {
+      if (
+        before.elementCounts.totalElements !== after.elementCounts.totalElements
+      ) {
+        changes.hasSignificantChange = true;
+        changes.details.push({
+          type: "element_count_change",
+          before: before.elementCounts.totalElements,
+          after: after.elementCounts.totalElements,
+        });
+      }
+    }
+
+    // 检查文本内容变化
+    if (before.visibleText && after.visibleText) {
+      const newText = after.visibleText.filter(
+        (text) => !before.visibleText.includes(text)
+      );
+      if (newText.length > 0) {
+        changes.hasSignificantChange = true;
+        changes.details.push({
+          type: "text_content_change",
+          newText: newText,
+        });
+      }
+    }
+
+    return changes;
+  } catch (e) {
+    console.log("State change detection failed:", e.message);
+    return {
+      hasSignificantChange: false,
+      details: [],
+      error: e.message,
+    };
   }
-
-  // 类名变化
-  const newClasses = after.classes.filter(
-    (cls) => !before.classes.includes(cls)
-  );
-  const removedClasses = before.classes.filter(
-    (cls) => !after.classes.includes(cls)
-  );
-
-  if (newClasses.length > 0 || removedClasses.length > 0) {
-    changes.hasSignificantChange = true;
-    changes.details.push({
-      type: "class_change",
-      added: newClasses,
-      removed: removedClasses,
-    });
-  }
-
-  // 树结构变化
-  if (before.customState.nodeCount !== after.customState.nodeCount) {
-    changes.hasSignificantChange = true;
-    changes.details.push({
-      type: "tree_structure_change",
-      before: before.customState.nodeCount,
-      after: after.customState.nodeCount,
-    });
-  }
-
-  return changes;
 }
 
-// 推断交互语义
-function inferInteractionSemantic(element, stateChanges, context) {
-  const text = element.text ? element.text.toLowerCase() : "";
-  const changes = stateChanges.changes || [];
+// 简化的语义推断
+function inferInteractionSemantic(button, changes) {
+  const text = button.text.toLowerCase();
 
-  // 基于文本的推断
-  if (text.includes("insert") || text.includes("add") || text.includes("+")) {
-    const hasNewNodes = changes.some(
-      (change) =>
-        change.type === "tree_structure_change" && change.after > change.before
+  // 基于按钮文本的简单推断
+  if (text.includes("insert") || text.includes("add")) return "insert";
+  if (text.includes("delete") || text.includes("remove")) return "delete";
+  if (text.includes("search") || text.includes("find")) return "search";
+
+  // 基于行为变化的推断
+  if (changes.details && Array.isArray(changes.details)) {
+    const nodeChange = changes.details.find(
+      (d) => d.type === "node_count_change"
     );
-    if (hasNewNodes) return "insert";
-  }
-
-  if (
-    text.includes("delete") ||
-    text.includes("remove") ||
-    text.includes("-")
-  ) {
-    const hasRemovedNodes = changes.some(
-      (change) =>
-        change.type === "tree_structure_change" && change.after < change.before
-    );
-    if (hasRemovedNodes) return "delete";
-  }
-
-  if (text.includes("search") || text.includes("find")) {
-    return "search";
-  }
-
-  // 基于行为模式的推断
-  if (
-    changes.some(
-      (c) => c.type === "tree_structure_change" && c.after > c.before
-    )
-  ) {
-    return "insert";
-  }
-
-  if (
-    changes.some(
-      (c) => c.type === "tree_structure_change" && c.after < c.before
-    )
-  ) {
-    return "delete";
+    if (nodeChange) {
+      if (nodeChange.after > nodeChange.before) return "insert";
+      if (nodeChange.after < nodeChange.before) return "delete";
+    }
   }
 
   return "unknown";
@@ -331,132 +237,161 @@ function inferInteractionSemantic(element, stateChanges, context) {
 
 // 主FSM提取函数
 async function extractFSMFromPage(htmlFilePath) {
-  const browser = await chromium.launch({ headless: false });
+  console.log("Starting browser...");
+  const browser = await chromium.launch({
+    headless: false,
+    slowMo: 100, // 减慢操作以便观察
+  });
   const page = await browser.newPage();
+
+  // 设置超时
+  page.setDefaultTimeout(10000);
+  page.setDefaultNavigationTimeout(15000);
+
+  const fsm = {
+    states: [],
+    transitions: [],
+    components: {},
+    issues: [],
+    debug: {},
+  };
 
   try {
     // 转换文件路径
     const fileUrl = `file:///${htmlFilePath.replace(/\\/g, "/")}`;
-    console.log(`Loading: ${fileUrl}`);
+    console.log(`Loading URL: ${fileUrl}`);
 
-    await page.goto(fileUrl);
-    await page.waitForTimeout(2000);
+    await page.goto(fileUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(3000);
 
-    const fsm = {
-      states: [],
-      transitions: [],
-      components: {},
-      initialState: "start",
-      issues: [],
-    };
+    console.log("Page loaded, capturing initial state...");
 
     // 初始状态
     const initialState = await capturePageState(page);
     fsm.states.push({
-      id: "start",
+      id: "initial",
       type: "initial",
-      description: "Initial page load",
-      stateSnapshot: initialState,
+      description: "Page loaded",
     });
 
-    // 探测所有交互组件
-    const components = {
-      inputs: await BEHAVIOR_PROBES.input.detect(page),
-      buttons: await BEHAVIOR_PROBES.button.detect(page),
-      selectors: await BEHAVIOR_PROBES.selector.detect(page),
-    };
+    fsm.debug.initialState = initialState;
+
+    // 探测组件
+    console.log("Detecting components...");
+    const inputs = await BEHAVIOR_PROBES.input.detect(page);
+    const buttons = await BEHAVIOR_PROBES.button.detect(page);
+
+    console.log(`Found ${inputs.length} inputs, ${buttons.length} buttons`);
 
     fsm.components = {
-      inputCount: components.inputs.length,
-      buttonCount: components.buttons.length,
-      selectorCount: components.selectors.length,
+      inputs: inputs.length,
+      buttons: buttons.length,
+      inputDetails: inputs.map((i) => ({ id: i.id, type: i.inputType })),
+      buttonDetails: buttons.map((b) => ({ id: b.id, text: b.text })),
     };
 
-    console.log(
-      `Detected ${components.inputs.length} inputs, ${components.buttons.length} buttons, ${components.selectors.length} selectors`
-    );
+    fsm.debug.detectedButtons = buttons.map((b) => b.text);
 
     // 测试每个按钮
-    let stateCounter = 1;
-
-    for (const button of components.buttons) {
-      if (!button.visible) continue;
-
-      console.log(`Testing button: ${button.text} (${button.id})`);
-
-      // 准备输入（如果有）
-      if (components.inputs.length > 0) {
-        const inputTest = await BEHAVIOR_PROBES.input.test(
-          page,
-          components.inputs[0].element
-        );
-        if (!inputTest.success) {
-          fsm.issues.push(`Input field not functional: ${inputTest.error}`);
-        }
+    for (const button of buttons) {
+      if (!button.visible) {
+        console.log(`Skipping invisible button: ${button.text}`);
+        continue;
       }
 
-      // 测试按钮点击
-      const buttonTest = await BEHAVIOR_PROBES.button.test(
-        page,
-        button.element
-      );
+      console.log(`\n=== Testing button: "${button.text}" (${button.id}) ===`);
 
-      if (buttonTest.success && buttonTest.stateChange) {
-        // 创建新状态
-        const newStateId = `state_${stateCounter++}`;
-        const semantic = inferInteractionSemantic(
-          button,
-          buttonTest,
-          components
+      try {
+        // 如果有输入框，先填充测试数据
+        if (inputs.length > 0) {
+          console.log("Filling input with test data...");
+          await inputs[0].element.fill("50");
+          await page.waitForTimeout(500);
+        }
+
+        // 捕获点击前状态
+        const beforeState = await capturePageState(page);
+        console.log(
+          `Before click: ${beforeState.treeNodes?.length || 0} tree nodes`
         );
 
-        fsm.states.push({
-          id: newStateId,
-          type: "interaction",
-          description: `After clicking ${button.text}`,
-          semantic: semantic,
-          stateSnapshot: buttonTest.newState,
-        });
+        // 点击按钮
+        console.log("Clicking button...");
+        await button.element.click();
+        await page.waitForTimeout(2000);
 
-        // 创建转换
-        fsm.transitions.push({
-          from: "start",
-          to: newStateId,
-          event: `click_${button.id}`,
-          element: button.text,
-          semantic: semantic,
-          confidence: 0.8,
-          changes: buttonTest.changes.details,
-        });
-      } else if (!buttonTest.success) {
-        fsm.issues.push(`Button ${button.text} failed: ${buttonTest.error}`);
+        // 捕获点击后状态
+        const afterState = await capturePageState(page);
+        console.log(
+          `After click: ${afterState.treeNodes?.length || 0} tree nodes`
+        );
+
+        // 检测变化
+        const changes = detectStateChanges(beforeState, afterState);
+        console.log("Changes detected:", changes);
+
+        if (changes.hasSignificantChange) {
+          const semantic = inferInteractionSemantic(button, changes);
+
+          // 创建新状态
+          const newStateId = `state_after_${button.id}`;
+          fsm.states.push({
+            id: newStateId,
+            type: "interaction",
+            description: `After clicking ${button.text}`,
+            semantic: semantic,
+          });
+
+          // 创建转换
+          fsm.transitions.push({
+            from: "initial",
+            to: newStateId,
+            event: `click_${button.id}`,
+            element: button.text,
+            semantic: semantic,
+            changes: changes.details,
+          });
+
+          console.log(`✅ Added transition: ${button.text} -> ${semantic}`);
+        } else {
+          console.log(`❌ No significant changes detected for ${button.text}`);
+          fsm.issues.push(
+            `Button "${button.text}" produced no detectable changes`
+          );
+        }
+      } catch (error) {
+        console.log(`❌ Button test failed:`, error.message);
+        fsm.issues.push(`Button "${button.text}" failed: ${error.message}`);
       }
 
       // 重新加载页面进行下一个测试
+      console.log("Reloading page for next test...");
       await page.reload();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
     }
 
-    return fsm;
+    // 如果没有找到任何状态，至少保留初始状态
+    if (fsm.states.length === 1) {
+      fsm.issues.push("No interactive transitions detected");
+    }
   } catch (error) {
-    console.error("Error extracting FSM:", error);
-    return {
-      states: [],
-      transitions: [],
-      components: {},
-      issues: [`Extraction failed: ${error.message}`],
-    };
+    console.error("❌ FSM extraction failed:", error);
+    fsm.issues.push(`Extraction failed: ${error.message}`);
   } finally {
     await browser.close();
   }
+
+  return fsm;
 }
 
-// 使用示例
+// 主函数
 async function main() {
   const htmlFilePath = process.argv[2];
 
   if (!htmlFilePath) {
-    console.log("Usage: node universal-fsm-extractor.mjs <path-to-html-file>");
+    console.log(
+      "Usage: node universal-fsm-extractor-debug.mjs <path-to-html-file>"
+    );
     process.exit(1);
   }
 
@@ -465,20 +400,34 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Extracting FSM from: ${htmlFilePath}`);
+  console.log("🚀 Starting FSM extraction with debug mode...");
+  console.log(`Target: ${htmlFilePath}`);
 
   const fsm = await extractFSMFromPage(htmlFilePath);
 
   // 保存结果
-  const outputFile = path.join(__dirname, "extracted-fsm.json");
+  const outputFile = path.join(__dirname, "extracted-fsm-debug.json");
   fs.writeFileSync(outputFile, JSON.stringify(fsm, null, 2));
 
-  console.log(`\nFSM extracted successfully!`);
-  console.log(`- States: ${fsm.states.length}`);
-  console.log(`- Transitions: ${fsm.transitions.length}`);
-  console.log(`- Components: ${JSON.stringify(fsm.components)}`);
-  console.log(`- Issues: ${fsm.issues.length}`);
-  console.log(`Results saved to: ${outputFile}`);
+  console.log("\n📊 === EXTRACTION RESULTS ===");
+  console.log(`States: ${fsm.states.length}`);
+  console.log(`Transitions: ${fsm.transitions.length}`);
+  console.log(`Components: ${JSON.stringify(fsm.components)}`);
+  console.log(`Issues: ${fsm.issues.length}`);
+
+  if (fsm.issues.length > 0) {
+    console.log("\n⚠️ Issues:");
+    fsm.issues.forEach((issue) => console.log(`  - ${issue}`));
+  }
+
+  if (fsm.transitions.length > 0) {
+    console.log("\n🔄 Transitions found:");
+    fsm.transitions.forEach((t) =>
+      console.log(`  ${t.from} -> ${t.to} (${t.semantic})`)
+    );
+  }
+
+  console.log(`\n💾 Results saved to: ${outputFile}`);
 }
 
 // 运行主函数
@@ -487,5 +436,3 @@ const isMainModule =
 if (isMainModule) {
   main().catch(console.error);
 }
-
-export { extractFSMFromPage };

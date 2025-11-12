@@ -1,0 +1,104 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Binary Search Tree (BST) Interactive Lab" [level=1] [ref=e3]
+    - paragraph [ref=e4]: Insert, search, delete, and traverse. Watch algorithms step through the tree, inspect invariants, and practice with challenges.
+  - main [ref=e5]:
+    - generic [ref=e6]:
+      - heading "Visualization" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - generic [ref=e10]: Value
+          - spinbutton "Value" [ref=e11]
+          - button "Insert" [disabled] [ref=e12]
+          - button "Search" [disabled] [ref=e13]
+          - button "Delete" [disabled] [ref=e14]
+        - generic [ref=e15]:
+          - 'textbox "Insert list: e.g. 50,20,70,10 30 60 80" [ref=e16]'
+          - button "Insert List" [disabled] [ref=e17]
+          - button "Random Tree" [disabled] [ref=e18]
+          - combobox [ref=e19]:
+            - option "5"
+            - option "8" [selected]
+            - option "12"
+            - option "16"
+            - option "24"
+          - button "Clear" [disabled] [ref=e20]
+        - generic [ref=e21]:
+          - generic [ref=e22]: Animate
+          - generic "Toggle animations" [ref=e23] [cursor=pointer]
+          - generic [ref=e25]:
+            - generic [ref=e26]: Speed
+            - slider [ref=e27]: "40"
+            - generic [ref=e28]: 1x
+          - generic [ref=e29]: Theme
+          - generic "Toggle light/dark" [ref=e30] [cursor=pointer]
+        - generic [ref=e32]:
+          - generic [ref=e33]: Node Meta
+          - generic "Show height/size" [ref=e34] [cursor=pointer]
+      - generic [ref=e36]:
+        - img [ref=e37]:
+          - generic [ref=e38] [cursor=pointer]:
+            - generic: "50"
+        - generic [ref=e40]:
+          - generic [ref=e41]: visited
+          - generic [ref=e43]: compare/path
+          - generic [ref=e45]: delete
+    - generic [ref=e47]:
+      - generic [ref=e48]:
+        - heading "Inspector & Traversals" [level=2] [ref=e49]
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - button "Inorder" [disabled] [ref=e52] [cursor=pointer]
+            - button "Preorder" [disabled] [ref=e53] [cursor=pointer]
+            - button "Postorder" [disabled] [ref=e54] [cursor=pointer]
+            - button "Level Order" [disabled] [ref=e55] [cursor=pointer]
+          - generic [ref=e56]:
+            - button "Check BST Property" [disabled] [ref=e57] [cursor=pointer]
+            - button "Check Balanced" [disabled] [ref=e58] [cursor=pointer]
+            - button "Stats" [disabled] [ref=e59] [cursor=pointer]
+        - generic [ref=e60]:
+          - generic [ref=e61]: Results and messages appear here.
+          - generic [ref=e62]:
+            - generic [ref=e63]: Info
+            - generic [ref=e64]: Loaded demo tree. Try traversals and delete 25.
+          - generic [ref=e65]:
+            - generic [ref=e66]: OK
+            - generic [ref=e67]: Inserted 50.
+      - generic [ref=e68]:
+        - generic [ref=e69]:
+          - button "Insert" [ref=e70] [cursor=pointer]
+          - button "Search" [ref=e71] [cursor=pointer]
+          - button "Delete" [ref=e72] [cursor=pointer]
+          - button "Traverse" [ref=e73] [cursor=pointer]
+        - generic [ref=e75]: "function insert(node, x): if node == null: return new Node(x) if x == node.key: return node // ignore duplicate if x < node.key: node.left = insert(node.left, x) else: node.right = insert(node.right, x) update(node) // height, size return node"
+      - generic [ref=e76]:
+        - heading "Guided Challenge" [level=2] [ref=e77]
+        - generic [ref=e78]:
+          - generic [ref=e79]: Practice building and reasoning about BSTs.
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - button "Generate Sequence" [ref=e82] [cursor=pointer]
+              - combobox [ref=e83]:
+                - option "5"
+                - option "8" [selected]
+                - option "12"
+              - button "Start" [disabled] [ref=e84] [cursor=pointer]
+              - button "Reset" [ref=e85] [cursor=pointer]
+            - generic [ref=e86]:
+              - button "Check Traversals" [disabled] [ref=e87] [cursor=pointer]
+              - button "Hint" [disabled] [ref=e88] [cursor=pointer]
+          - generic [ref=e89]: No challenge yet. Click Generate Sequence.
+      - generic [ref=e90]:
+        - heading "Notes" [level=2] [ref=e91]
+        - generic [ref=e92]:
+          - text: "- BST property: left subtree keys < node key < right subtree keys."
+          - text: "- Inorder traversal of a valid BST yields a sorted sequence."
+          - text: "- Average time complexity: O(log n) for search/insert/delete; worst-case O(n) when skewed."
+          - text: "- Delete with two children uses the inorder successor (smallest key in right subtree)."
+  - contentinfo [ref=e93]:
+    - generic [ref=e94]: "Tip: Click nodes to center and inspect. Use \"Node Meta\" to show height and size."
+    - generic [ref=e95]: Built for learning. No external libraries.
+```

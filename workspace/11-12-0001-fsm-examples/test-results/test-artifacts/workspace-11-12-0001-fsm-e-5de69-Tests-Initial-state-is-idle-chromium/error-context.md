@@ -1,0 +1,77 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - text: "# Interactive Binary Search Tree Explorer I'll create a comprehensive, interactive module that teaches Binary Search Trees (BST) with visualizations, animations, and hands-on interaction. ```html"
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - heading "Interactive Binary Search Tree Explorer" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Understand the structure and operations of Binary Search Trees through interactive visualization. Insert, search, and traverse nodes to see how BSTs maintain their efficient properties.
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "📚 Binary Search Tree Concepts" [level=2] [ref=e8]:
+          - generic [ref=e9]: 📚
+          - text: Binary Search Tree Concepts
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - heading "What is a BST?" [level=3] [ref=e12]
+            - paragraph [ref=e13]: A Binary Search Tree (BST) is a hierarchical data structure where each node has at most two children. It maintains a sorted order, enabling efficient search, insertion, and deletion operations.
+            - paragraph [ref=e14]: "In a BST, for every node:"
+            - list [ref=e15]:
+              - listitem [ref=e16]: All nodes in the left subtree have values less than the node's value
+              - listitem [ref=e17]: All nodes in the right subtree have values greater than the node's value
+          - generic [ref=e18]:
+            - heading "Why Use BSTs?" [level=3] [ref=e19]
+            - paragraph [ref=e20]: BSTs provide an efficient way to store data that needs frequent searching. Their structure allows for operations with time complexity of O(h), where h is the tree height.
+            - generic [ref=e21]:
+              - generic [ref=e22]:
+                - heading "Search Efficiency" [level=4] [ref=e23]
+                - paragraph [ref=e24]: O(log n) on average for balanced trees
+              - generic [ref=e25]:
+                - heading "Insertion/Deletion" [level=4] [ref=e26]
+                - paragraph [ref=e27]: O(log n) average, O(n) worst-case
+              - generic [ref=e28]:
+                - heading "Sorted Traversal" [level=4] [ref=e29]
+                - paragraph [ref=e30]: In-order traversal gives sorted sequence
+      - generic [ref=e31]:
+        - heading "🎮 Interactive BST Explorer" [level=2] [ref=e32]:
+          - generic [ref=e33]: 🎮
+          - text: Interactive BST Explorer
+        - paragraph [ref=e34]: Use the controls below to interact with the BST. Insert nodes, search for values, and watch the tree dynamically update with animations.
+        - generic [ref=e35]:
+          - spinbutton [ref=e36]
+          - button "Insert Node" [ref=e37] [cursor=pointer]
+          - button "Search Node" [ref=e38] [cursor=pointer]
+          - button "Reset Tree" [ref=e39] [cursor=pointer]
+        - generic [ref=e41]:
+          - generic [ref=e44]: Root Node
+          - generic [ref=e47]: Tree Node
+      - generic [ref=e48]:
+        - heading "🔍 BST Operations Explained" [level=2] [ref=e49]:
+          - generic [ref=e50]: 🔍
+          - text: BST Operations Explained
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - heading "Insertion Process" [level=3] [ref=e53]
+            - paragraph [ref=e54]: "To insert a new value:"
+            - list [ref=e55]:
+              - listitem [ref=e56]: Start at the root node
+              - listitem [ref=e57]: Compare value with current node
+              - listitem [ref=e58]: If smaller, go left; if larger, go right
+              - listitem [ref=e59]: Repeat until you find an empty spot
+              - listitem [ref=e60]: Insert new node at that position
+            - paragraph [ref=e61]: The tree automatically maintains its BST properties during insertion.
+          - generic [ref=e62]:
+            - heading "Search Operation" [level=3] [ref=e63]
+            - paragraph [ref=e64]: "Searching in a BST:"
+            - list [ref=e65]:
+              - listitem [ref=e66]: Start at the root node
+              - listitem [ref=e67]: Compare search value with current node
+              - listitem [ref=e68]: If equal, node is found!
+              - listitem [ref=e69]: If smaller, search left subtree
+              - listitem [ref=e70]: If larger, search right subtree
+              - listitem [ref=e71]: If no node found, value doesn't exist
+            - paragraph [ref=e72]: This process is similar to binary search on sorted arrays.
+  - contentinfo [ref=e73]:
+    - paragraph [ref=e74]: Interactive Binary Search Tree Explorer | Created with HTML, CSS, and JavaScript
+```

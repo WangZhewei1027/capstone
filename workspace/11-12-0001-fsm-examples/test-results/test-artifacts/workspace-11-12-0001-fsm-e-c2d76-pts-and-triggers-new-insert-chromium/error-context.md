@@ -1,0 +1,80 @@
+# Page snapshot
+
+```yaml
+- main [ref=e2]:
+  - complementary "Binary Search Tree (BST) — Interactive Explorer" [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Binary Search Tree (BST) — Interactive Explorer" [level=1] [ref=e6]
+        - generic [ref=e7]: "One focused concept: dynamic insertion, search, and deletion in a BST with visualized traversal and animations."
+      - generic "Learning objective" [ref=e8]:
+        - strong [ref=e9]: Learning objective
+        - paragraph [ref=e10]: After interacting you'll be able to visualize how values are inserted, located, and removed in a BST; observe the exact nodes visited (path), understand parent-child reassignment during delete, and feel the cost (number of comparisons) through animated highlights and step-by-step controls.
+      - generic "Interaction design (how to use)" [ref=e11]:
+        - strong [ref=e12]: Interaction design (how to use)
+        - generic [ref=e13]:
+          - text: "- Type a number and press Insert to add. The algorithm highlights each visited node, animating the path."
+          - text: "- Use Step Mode to advance one comparison at a time (Next / Prev)."
+          - text: "- Click Search to highlight the path; found node turns green."
+          - text: "- Delete removes a value; animations show node replacement (in-order successor) when needed."
+          - text: "- Click nodes directly in the visualization to remove them (confirmation)."
+          - text: "- Use Randomize to add several nodes quickly and Clear to reset."
+      - generic "Layout description" [ref=e14]:
+        - strong [ref=e15]: Layout description
+        - generic [ref=e16]:
+          - text: "- Safe margins: 24px around viewport. Controls spaced with at least 16px."
+          - text: "- Left column: concise controls, objectives, and instructions."
+          - text: "- Right column: large SVG visualization (center) with controls below and a console log."
+          - text: "- Responsive: columns collapse to single column on narrow screens, SVG scales fluidly."
+      - generic "Controls" [ref=e17]:
+        - strong [ref=e18]: Controls
+        - generic [ref=e19]:
+          - generic [ref=e20]: Value
+          - spinbutton "Value to insert or delete" [ref=e21]
+          - button "Insert" [ref=e22] [cursor=pointer]
+          - button "Search" [ref=e23] [cursor=pointer]
+        - generic [ref=e24]:
+          - button "Delete" [ref=e25] [cursor=pointer]
+          - button "Clear" [ref=e26] [cursor=pointer]
+          - button "Randomize" [ref=e27] [cursor=pointer]
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - checkbox "Enable step mode" [ref=e30]
+            - generic [ref=e31]: Step Mode
+          - generic [ref=e32]:
+            - button "Prev" [ref=e33] [cursor=pointer]
+            - button "Next" [ref=e34] [cursor=pointer]
+        - generic [ref=e35]:
+          - generic [ref=e36]: "Current tree (in-order):"
+          - generic [ref=e37]: — empty —
+  - main "Visualization panel" [ref=e38]:
+    - region "Binary Search Tree visualization" [ref=e39]:
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - strong [ref=e42]: BST Visualizer
+          - generic [ref=e43]: Click nodes to remove. Hover to see value.
+        - generic [ref=e44]:
+          - generic [ref=e45]: "Comparisons:"
+          - generic [ref=e46]: "0"
+      - generic:
+        - img
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - generic [ref=e49]: Action log
+          - generic [ref=e50]: 1:11:29 PM - BST Explorer ready. Insert some values to begin.
+        - generic [ref=e51]:
+          - generic [ref=e52]: Legend
+          - generic [ref=e53]:
+            - generic [ref=e54]:
+              - img [ref=e55]
+              - generic [ref=e57]: Node
+            - generic [ref=e58]:
+              - img [ref=e59]
+              - generic [ref=e61]: Edge
+            - generic [ref=e62]:
+              - img [ref=e63]
+              - generic [ref=e65]: Found
+            - generic [ref=e66]:
+              - img [ref=e67]
+              - generic [ref=e69]: Visited
+```
