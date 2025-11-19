@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FSM Graph Visualizer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .header h1 {
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .controls {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .file-input {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      input[type="file"] {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+
+      button {
+        padding: 8px 16px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      button:hover {
+        background: #0056b3;
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      .fsm-selector {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      select {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        min-width: 200px;
+      }
+
+      .visualization-container {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: white;
+        position: relative;
+        min-height: 600px;
+      }
+
+      .fsm-graph {
+        width: 100%;
+        height: 600px;
+        border-radius: 8px;
+      }
+
+      .legend {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 12px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .legend-color {
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        border-radius: 3px;
+      }
+
+      .state-details {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+      }
+
+      .state-details h3 {
+        margin-top: 0;
+        color: #333;
+      }
+
+      .details-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-top: 15px;
+      }
+
+      .detail-section {
+        background: white;
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+      }
+
+      .detail-section h4 {
+        margin: 0 0 8px 0;
+        color: #555;
+        font-size: 14px;
+      }
+
+      .detail-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .detail-list li {
+        padding: 4px 0;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 13px;
+      }
+
+      .detail-list li:last-child {
+        border-bottom: none;
+      }
+
+      .fsm-meta {
+        background: #e3f2fd;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        border-left: 4px solid #2196f3;
+      }
+
+      .fsm-meta h3 {
+        margin: 0 0 8px 0;
+        color: #1976d2;
+      }
+
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+      }
+
+      .meta-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+      }
+
+      .meta-label {
+        font-weight: bold;
+        color: #555;
+      }
+
+      .meta-value {
+        color: #333;
+      }
+
+      /* D3 Graph Styles */
+      .node {
+        cursor: pointer;
+        stroke-width: 2px;
+      }
+
+      .node-idle {
+        fill: #4caf50;
+        stroke: #2e7d32;
+      }
+
+      .node-atomic {
+        fill: #2196f3;
+        stroke: #1565c0;
+      }
+
+      .node-composite {
+        fill: #ff9800;
+        stroke: #ef6c00;
+      }
+
+      .node-error {
+        fill: #f44336;
+        stroke: #c62828;
+      }
+
+      .node-selected {
+        stroke-width: 4px !important;
+        stroke: #9c27b0 !important;
+      }
+
+      .node-label {
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        font-weight: bold;
+        text-anchor: middle;
+        dominant-baseline: central;
+        fill: white;
+        pointer-events: none;
+      }
+
+      .link {
+        stroke: #666;
+        stroke-width: 2px;
+        fill: none;
+        marker-end: url(#arrowhead);
+      }
+
+      .link-label {
+        font-family: Arial, sans-serif;
+        font-size: 10px;
+        fill: #333;
+        text-anchor: middle;
+        background: white;
+        padding: 2px;
+      }
+
+      .link-path {
+        stroke: #999;
+        stroke-width: 1px;
+        fill: none;
+      }
+
+      .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        pointer-events: none;
+        font-size: 12px;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+
+      .error-message {
+        color: #d32f2f;
+        background: #ffebee;
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+        border: 1px solid #ffcdd2;
+      }
+
+      .success-message {
+        color: #2e7d32;
+        background: #e8f5e8;
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+        border: 1px solid #c8e6c9;
+      }
+
+      @media (max-width: 768px) {
+        .controls {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .details-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .meta-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🔄 FSM Graph Visualizer</h1>
+        <p>Universal Finite State Machine Visualization Tool</p>
+      </div>
+
+      <div class="controls">
+        <div class="file-input">
+          <label for="fsmFile">Load FSM JSON:</label>
+          <input type="file" id="fsmFile" accept=".json" multiple />
+        </div>
+
+        <div class="fsm-selector">
+          <label for="fsmSelect">Select FSM:</label>
+          <select id="fsmSelect">
+            <option value="">No FSM loaded</option>
+          </select>
+        </div>
+
+        <button id="loadSampleBtn">Load Sample FSMs</button>
+        <button id="resetViewBtn" disabled>Reset View</button>
+        <button id="exportSvgBtn" disabled>Export SVG</button>
+      </div>
+
+      <div id="messageArea"></div>
+
+      <div class="visualization-container">
+        <svg class="fsm-graph" id="fsmGraph"></svg>
+        <div class="legend">
+          <h4>State Types</h4>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #4caf50"></div>
+            <span>Idle State</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #2196f3"></div>
+            <span>Atomic State</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #ff9800"></div>
+            <span>Composite State</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #f44336"></div>
+            <span>Error State</span>
+          </div>
+          <div class="legend-item">
+            <div
+              class="legend-color"
+              style="background: #9c27b0; border: 3px solid #9c27b0"
+            ></div>
+            <span>Selected State</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="fsmMeta" class="fsm-meta" style="display: none">
+        <!-- FSM metadata will be populated here -->
+      </div>
+
+      <div id="stateDetails" class="state-details" style="display: none">
+        <!-- State details will be populated here -->
+      </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+      class FSMGraphVisualizer {
+        constructor() {
+          this.loadedFSMs = new Map();
+          this.currentFSM = null;
+          this.selectedState = null;
+          this.simulation = null;
+
+          this.initializeElements();
+          this.setupEventListeners();
+          this.initializeVisualization();
+        }
+
+        initializeElements() {
+          this.fileInput = document.getElementById("fsmFile");
+          this.fsmSelect = document.getElementById("fsmSelect");
+          this.loadSampleBtn = document.getElementById("loadSampleBtn");
+          this.resetViewBtn = document.getElementById("resetViewBtn");
+          this.exportSvgBtn = document.getElementById("exportSvgBtn");
+          this.messageArea = document.getElementById("messageArea");
+          this.fsmMetaDiv = document.getElementById("fsmMeta");
+          this.stateDetailsDiv = document.getElementById("stateDetails");
+          this.tooltip = document.getElementById("tooltip");
+          this.svg = d3.select("#fsmGraph");
+        }
+
+        setupEventListeners() {
+          this.fileInput.addEventListener("change", (e) =>
+            this.handleFileLoad(e)
+          );
+          this.fsmSelect.addEventListener("change", (e) =>
+            this.selectFSM(e.target.value)
+          );
+          this.loadSampleBtn.addEventListener("click", () =>
+            this.loadSampleFSMs()
+          );
+          this.resetViewBtn.addEventListener("click", () => this.resetView());
+          this.exportSvgBtn.addEventListener("click", () => this.exportSVG());
+        }
+
+        initializeVisualization() {
+          const width = 800;
+          const height = 600;
+
+          this.svg.attr("width", width).attr("height", height);
+
+          // Define arrow markers
+          this.svg
+            .append("defs")
+            .append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 25)
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("class", "arrowhead")
+            .style("fill", "#666");
+
+          this.container = this.svg.append("g");
+
+          // Add zoom behavior
+          const zoom = d3
+            .zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => {
+              this.container.attr("transform", event.transform);
+            });
+
+          this.svg.call(zoom);
+        }
+
+        showMessage(message, type = "info") {
+          this.messageArea.innerHTML = `<div class="${
+            type === "error" ? "error-message" : "success-message"
+          }">${message}</div>`;
+          setTimeout(() => {
+            this.messageArea.innerHTML = "";
+          }, 5000);
+        }
+
+        async handleFileLoad(event) {
+          const files = event.target.files;
+          if (!files.length) return;
+
+          for (const file of files) {
+            try {
+              const text = await file.text();
+              const fsm = JSON.parse(text);
+
+              if (this.validateFSM(fsm)) {
+                const fsmId = file.name.replace(".json", "");
+                this.loadedFSMs.set(fsmId, {
+                  data: fsm,
+                  filename: file.name,
+                  loaded: new Date(),
+                });
+
+                this.updateFSMSelector();
+                this.showMessage(`Successfully loaded ${file.name}`, "success");
+              } else {
+                this.showMessage(`Invalid FSM format in ${file.name}`, "error");
+              }
+            } catch (error) {
+              this.showMessage(
+                `Error parsing ${file.name}: ${error.message}`,
+                "error"
+              );
+            }
+          }
+        }
+
+        validateFSM(fsm) {
+          return (
+            fsm &&
+            Array.isArray(fsm.states) &&
+            Array.isArray(fsm.events) &&
+            Array.isArray(fsm.transitions) &&
+            fsm.states.length > 0
+          );
+        }
+
+        updateFSMSelector() {
+          this.fsmSelect.innerHTML =
+            '<option value="">Select an FSM...</option>';
+
+          for (const [id, fsmData] of this.loadedFSMs) {
+            const option = document.createElement("option");
+            option.value = id;
+            option.textContent = `${fsmData.filename} (${fsmData.data.states.length} states, ${fsmData.data.transitions.length} transitions)`;
+            this.fsmSelect.appendChild(option);
+          }
+        }
+
+        selectFSM(fsmId) {
+          if (!fsmId) {
+            this.currentFSM = null;
+            this.clearVisualization();
+            return;
+          }
+
+          const fsmData = this.loadedFSMs.get(fsmId);
+          if (fsmData) {
+            this.currentFSM = fsmData.data;
+            this.visualizeFSM(this.currentFSM);
+            this.displayFSMMetadata(this.currentFSM);
+            this.resetViewBtn.disabled = false;
+            this.exportSvgBtn.disabled = false;
+          }
+        }
+
+        visualizeFSM(fsm) {
+          this.clearVisualization();
+
+          const width = 800;
+          const height = 600;
+
+          // Prepare data
+          const nodes = fsm.states.map((state) => ({
+            id: state.id,
+            label: state.label || state.id,
+            type: state.type || "atomic",
+            ...state,
+          }));
+
+          const links = fsm.transitions.map((transition) => ({
+            source: transition.from,
+            target: transition.to,
+            event: transition.event,
+            guard: transition.guard,
+            actions: transition.actions,
+            ...transition,
+          }));
+
+          // Create force simulation
+          this.simulation = d3
+            .forceSimulation(nodes)
+            .force(
+              "link",
+              d3
+                .forceLink(links)
+                .id((d) => d.id)
+                .distance(150)
+            )
+            .force("charge", d3.forceManyBody().strength(-300))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide(35));
+
+          // Create links
+          const link = this.container
+            .selectAll(".link")
+            .data(links)
+            .join("path")
+            .attr("class", "link")
+            .attr("marker-end", "url(#arrowhead)");
+
+          // Create link labels
+          const linkLabel = this.container
+            .selectAll(".link-label")
+            .data(links)
+            .join("text")
+            .attr("class", "link-label")
+            .text((d) => d.event || "transition");
+
+          // Create nodes
+          const node = this.container
+            .selectAll(".node")
+            .data(nodes)
+            .join("circle")
+            .attr("class", (d) => `node node-${d.type}`)
+            .attr("r", 25)
+            .call(this.drag(this.simulation));
+
+          // Create node labels
+          const nodeLabel = this.container
+            .selectAll(".node-label")
+            .data(nodes)
+            .join("text")
+            .attr("class", "node-label")
+            .text((d) => d.label)
+            .call(this.drag(this.simulation));
+
+          // Add interactions
+          node
+            .on("click", (event, d) => this.selectState(d))
+            .on("mouseover", (event, d) => this.showTooltip(event, d))
+            .on("mouseout", () => this.hideTooltip());
+
+          // Update positions on simulation tick
+          this.simulation.on("tick", () => {
+            link.attr("d", (d) => {
+              const dx = d.target.x - d.source.x;
+              const dy = d.target.y - d.source.y;
+              const dr = Math.sqrt(dx * dx + dy * dy) * 2;
+              return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+            });
+
+            linkLabel
+              .attr("x", (d) => (d.source.x + d.target.x) / 2)
+              .attr("y", (d) => (d.source.y + d.target.y) / 2);
+
+            node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
+
+            nodeLabel.attr("x", (d) => d.x).attr("y", (d) => d.y);
+          });
+        }
+
+        drag(simulation) {
+          function dragstarted(event) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+          }
+
+          function dragged(event) {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+          }
+
+          function dragended(event) {
+            if (!event.active) simulation.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+          }
+
+          return d3
+            .drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended);
+        }
+
+        selectState(state) {
+          // Remove previous selection
+          this.container.selectAll(".node").classed("node-selected", false);
+
+          // Add selection to clicked node
+          this.container
+            .selectAll(".node")
+            .filter((d) => d.id === state.id)
+            .classed("node-selected", true);
+
+          this.selectedState = state;
+          this.displayStateDetails(state);
+        }
+
+        showTooltip(event, state) {
+          const tooltip = this.tooltip;
+          tooltip.style.opacity = 1;
+          tooltip.innerHTML = `
+                    <strong>${state.label}</strong><br>
+                    Type: ${state.type}<br>
+                    ID: ${state.id}
+                `;
+          tooltip.style.left = event.pageX + 10 + "px";
+          tooltip.style.top = event.pageY - 10 + "px";
+        }
+
+        hideTooltip() {
+          this.tooltip.style.opacity = 0;
+        }
+
+        displayFSMMetadata(fsm) {
+          const meta = fsm.meta || {};
+          const stats = this.calculateFSMStatistics(fsm);
+
+          this.fsmMetaDiv.style.display = "block";
+          this.fsmMetaDiv.innerHTML = `
+                    <h3>FSM Metadata</h3>
+                    <div class="meta-grid">
+                        <div class="meta-item">
+                            <span class="meta-label">Concept:</span>
+                            <span class="meta-value">${
+                              meta.concept || "N/A"
+                            }</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Topic:</span>
+                            <span class="meta-value">${
+                              meta.topic || "N/A"
+                            }</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">States:</span>
+                            <span class="meta-value">${stats.stateCount}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Events:</span>
+                            <span class="meta-value">${stats.eventCount}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Transitions:</span>
+                            <span class="meta-value">${
+                              stats.transitionCount
+                            }</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Components:</span>
+                            <span class="meta-value">${
+                              stats.componentCount
+                            }</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Extraction Method:</span>
+                            <span class="meta-value">${
+                              meta.extraction_method || "N/A"
+                            }</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Timestamp:</span>
+                            <span class="meta-value">${
+                              meta.timestamp
+                                ? new Date(meta.timestamp).toLocaleString()
+                                : "N/A"
+                            }</span>
+                        </div>
+                    </div>
+                `;
+        }
+
+        calculateFSMStatistics(fsm) {
+          return {
+            stateCount: fsm.states.length,
+            eventCount: fsm.events.length,
+            transitionCount: fsm.transitions.length,
+            componentCount: fsm.components ? fsm.components.length : 0,
+            stateTypes: fsm.states.reduce((acc, state) => {
+              acc[state.type] = (acc[state.type] || 0) + 1;
+              return acc;
+            }, {}),
+          };
+        }
+
+        displayStateDetails(state) {
+          this.stateDetailsDiv.style.display = "block";
+
+          const incomingTransitions = this.currentFSM.transitions.filter(
+            (t) => t.to === state.id
+          );
+          const outgoingTransitions = this.currentFSM.transitions.filter(
+            (t) => t.from === state.id
+          );
+
+          this.stateDetailsDiv.innerHTML = `
+                    <h3>State Details: ${state.label} (${state.id})</h3>
+                    <div class="details-grid">
+                        <div class="detail-section">
+                            <h4>Basic Information</h4>
+                            <ul class="detail-list">
+                                <li><strong>ID:</strong> ${state.id}</li>
+                                <li><strong>Label:</strong> ${state.label}</li>
+                                <li><strong>Type:</strong> ${state.type}</li>
+                            </ul>
+                        </div>
+                        <div class="detail-section">
+                            <h4>Actions</h4>
+                            <ul class="detail-list">
+                                <li><strong>Entry Actions:</strong></li>
+                                ${(state.entry_actions || [])
+                                  .map(
+                                    (action) =>
+                                      `<li>&nbsp;&nbsp;• ${action}</li>`
+                                  )
+                                  .join("")}
+                                <li><strong>Exit Actions:</strong></li>
+                                ${(state.exit_actions || [])
+                                  .map(
+                                    (action) =>
+                                      `<li>&nbsp;&nbsp;• ${action}</li>`
+                                  )
+                                  .join("")}
+                            </ul>
+                        </div>
+                        <div class="detail-section">
+                            <h4>Incoming Transitions (${
+                              incomingTransitions.length
+                            })</h4>
+                            <ul class="detail-list">
+                                ${incomingTransitions
+                                  .map(
+                                    (t) => `
+                                    <li><strong>${t.from}</strong> → ${t.to} 
+                                        <br>&nbsp;&nbsp;Event: ${t.event}
+                                        <br>&nbsp;&nbsp;Guard: ${
+                                          t.guard || "none"
+                                        }
+                                    </li>
+                                `
+                                  )
+                                  .join("")}
+                            </ul>
+                        </div>
+                        <div class="detail-section">
+                            <h4>Outgoing Transitions (${
+                              outgoingTransitions.length
+                            })</h4>
+                            <ul class="detail-list">
+                                ${outgoingTransitions
+                                  .map(
+                                    (t) => `
+                                    <li>${t.from} → <strong>${t.to}</strong>
+                                        <br>&nbsp;&nbsp;Event: ${t.event}
+                                        <br>&nbsp;&nbsp;Guard: ${
+                                          t.guard || "none"
+                                        }
+                                    </li>
+                                `
+                                  )
+                                  .join("")}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+        }
+
+        clearVisualization() {
+          this.container.selectAll("*").remove();
+          this.stateDetailsDiv.style.display = "none";
+          this.selectedState = null;
+          if (this.simulation) {
+            this.simulation.stop();
+          }
+        }
+
+        resetView() {
+          if (this.currentFSM) {
+            this.visualizeFSM(this.currentFSM);
+          }
+        }
+
+        exportSVG() {
+          const svgElement = document.getElementById("fsmGraph");
+          const serializer = new XMLSerializer();
+          const svgString = serializer.serializeToString(svgElement);
+
+          const blob = new Blob([svgString], { type: "image/svg+xml" });
+          const url = URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `fsm-graph-${Date.now()}.svg`;
+          a.click();
+
+          URL.revokeObjectURL(url);
+          this.showMessage("SVG exported successfully!", "success");
+        }
+
+        async loadSampleFSMs() {
+          // Sample FSM paths based on the attachments
+          const samplePaths = [
+            "ideal_fsm_example.json",
+            "fsm/5d7c31e0-bf4e-11f0-9d64-ab1079f525e7/extracted_fsm.json",
+            "fsm/9e580470-bf51-11f0-8ac4-79272b6a78b2/extracted_fsm.json",
+          ];
+
+          this.showMessage("Loading sample FSMs...", "info");
+
+          for (const path of samplePaths) {
+            try {
+              const response = await fetch(path);
+              if (response.ok) {
+                const fsm = await response.json();
+                if (this.validateFSM(fsm)) {
+                  const fsmId =
+                    path.split("/").pop().replace(".json", "") + "_sample";
+                  this.loadedFSMs.set(fsmId, {
+                    data: fsm,
+                    filename: path.split("/").pop(),
+                    loaded: new Date(),
+                  });
+                }
+              }
+            } catch (error) {
+              console.warn(`Could not load sample FSM from ${path}:`, error);
+            }
+          }
+
+          this.updateFSMSelector();
+          this.showMessage(
+            `Loaded ${this.loadedFSMs.size} sample FSMs`,
+            "success"
+          );
+        }
+      }
+
+      // Initialize the visualizer when DOM is loaded
+      document.addEventListener("DOMContentLoaded", () => {
+        window.fsmVisualizer = new FSMGraphVisualizer();
+      });
+    </script>
+  </body>
+</html>
