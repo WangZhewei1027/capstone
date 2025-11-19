@@ -4,11 +4,11 @@ import { ConcurrencyLimiter } from "./lib/concurrency-limiter.mjs";
 
 import questionList from "./question-list-short.json" with { type: "json" };
 
-// questionList.splice(4); // 仅保留前n个问题用于测试
+questionList.splice(1); // 仅保留前n个问题用于测试
 
 console.log("问题列表：", questionList);
 
-const m = "gpt-5-mini";
+const m = "gpt-4o-mini";
 
 
 /**
@@ -23,11 +23,11 @@ Only return HTML code!`;
 
 // 简单的测试配置
 const TEST_CONFIG = {
-  workspace: "11-18-0003",
+  workspace: "bubble-sort-fsm-extract",
   concurrencyLimit: 15,
   defaultTopic: "bubble sort", // 默认主题
-  enableFSM: true, // 启用 FSM 生成（Agent 2）
-  enableTests: true, // 启用 Playwright 测con试生成（Agent 3）
+  enableFSM: false, // 启用 FSM 生成（Agent 2）
+  enableTests: false, // 启用 Playwright 测con试生成（Agent 3）
   showProgress: false, // 是否显示详细进度
   generationsPerQuestion: 1, // 每个问题生成的次数（默认1次）
   // 每个 Agent 使用的模型配置
