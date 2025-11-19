@@ -1,0 +1,49 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Bubble Sort Visualizer" [level=1] [ref=e5]
+      - generic [ref=e6]: "Interactive demonstration: watch comparisons and swaps as bubble sort sorts the array."
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e11]: Size
+          - slider "Size" [ref=e12]: "5"
+        - generic [ref=e13]:
+          - generic [ref=e14]: Speed
+          - slider "Speed" [ref=e15]: "200"
+        - generic [ref=e17]:
+          - checkbox "Optimized" [ref=e18]
+          - text: Optimized
+        - generic [ref=e19]:
+          - button "Shuffle" [ref=e20] [cursor=pointer]
+          - button "Start" [ref=e21] [cursor=pointer]
+          - button "Step" [ref=e22] [cursor=pointer]
+          - button "Pause" [ref=e23] [cursor=pointer]
+          - button "Reset" [ref=e24] [cursor=pointer]
+      - generic [ref=e26]:
+        - generic [ref=e27]: "Comparisons: 0"
+        - generic [ref=e28]: "Swaps: 0"
+        - generic [ref=e29]: "Pass: 0"
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - textbox "Enter numbers comma-separated (e.g. 5,3,8,1)" [ref=e32]: 3,2,1
+        - button "Apply" [active] [ref=e33] [cursor=pointer]
+        - generic [ref=e34]:
+          - text: "Legend:"
+          - text: normal
+          - text: comparing
+          - text: swapping
+          - text: sorted
+      - generic [ref=e39]:
+        - generic [ref=e41]: "3"
+        - generic [ref=e43]: "2"
+        - generic [ref=e45]: "1"
+      - generic [ref=e46]: Bubble sort repeatedly steps through the list, compares adjacent items and swaps them if they are in the wrong order. This visualization allows step-by-step execution and automatic play. Toggle "Optimized" to stop early when the array becomes sorted.
+    - generic [ref=e47]:
+      - generic [ref=e48]: "Current indices: i = -, j = -"
+      - generic [ref=e49]: "Status: Applied custom array"
+```
