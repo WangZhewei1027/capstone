@@ -53,11 +53,14 @@ cp your-interactive-page.html html/
 
 ### 3. 运行 FSM 提取
 
-#### 方式一：单文件提取
+#### ！！！！！！！！！
 
 ```bash
 # 提取特定HTML文件的FSM
-TARGET_HTML_FILE=your-file.html npx playwright test fsm-interactive-capture.spec.js
+npx playwright test fsm-interactive-capture.spec.js
+# 运行fsm visualization dashboard
+cd workspace
+python -m http.server 8080
 ```
 
 #### 方式二：批量提取
