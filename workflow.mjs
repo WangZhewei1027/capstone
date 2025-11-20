@@ -10,7 +10,7 @@
 
 import { promises as fs } from "fs";
 import { v1 as uuidv1 } from "uuid";
-import { generateHTML, extractHTMLContent } from "./lib/html-agent.mjs";
+import { generateHTML } from "./lib/html-agent.mjs";
 import { generateFSM } from "./lib/fsm-agent.mjs";
 import {
   generatePlaywrightTest,
@@ -78,14 +78,25 @@ export async function runWorkflow(config, options = {}) {
       console.log(`需求: ${question}\n`);
     }
 
-    const htmlResult = await generateHTML(question, htmlModel, systemPrompt, {
+    htmlContent = await generateHTML(htmlModel, question, systemPrompt, {
       showProgress,
       taskId: taskId ? `${taskId}-HTML` : "HTML",
     });
 
-    assistantMessage = htmlResult.assistantMessage;
-    messages = htmlResult.messages;
-    htmlContent = extractHTMLContent(htmlResult.assistantMessage.content);
+    // 构建消息记录
+    assistantMessage = {
+      role: "assistant",
+      content: htmlContent,
+    };
+    messages = [
+      {
+        role: "system",
+        content:
+          systemPrompt ||
+          "Generate a single HTML file with JavaScript demonstrating the user-given concept. Only respond in a single HTML file.",
+      },
+      { role: "user", content: question },
+    ];
 
     if (showProgress) {
       console.log(`✅ HTML 生成成功 (${htmlContent.length} 字符)\n`);
@@ -102,15 +113,25 @@ export async function runWorkflow(config, options = {}) {
       }
 
       try {
-        fsmData = await generateFSM(
-          htmlContent,
-          topic || "Interactive Application",
-          {
-            showProgress,
-            taskId: taskId ? `${taskId}-FSM` : "FSM",
-            model: fsmModel,
-          }
-        );
+        // 构建 FSM 的 userPrompt
+        const fsmUserPrompt = `Analyze this interactive HTML application and generate a finite state machine definition.
+
+Topic: ${topic || "Interactive Application"}
+
+HTML Code:
+${htmlContent}
+
+CRITICAL REQUIREMENTS:
+1. Extract ALL button IDs, classes, and selectors from the HTML
+2. Map each event to the exact DOM selectors found  
+3. Include all possible state transitions based on the interactive elements
+4. Generate comprehensive FSM that captures all the interactive states and transitions in this application.`;
+
+        fsmData = await generateFSM(fsmModel, fsmUserPrompt, null, {
+          showProgress,
+          taskId: taskId ? `${taskId}-FSM` : "FSM",
+          temperature: 0.3,
+        });
 
         if (showProgress) {
           console.log(`✅ FSM 生成成功`);
@@ -146,15 +167,43 @@ export async function runWorkflow(config, options = {}) {
 
         try {
           testFileName = generateTestFileName(resultId, fsmData.topic);
+
+          // 构建 Playwright 的 userPrompt
+          const playwrightUserPrompt = `Generate comprehensive Playwright tests for this interactive application.
+
+Application ID: ${resultId}
+Workspace: ${workspace}
+Topic: ${fsmData.topic || "Interactive Application"}
+
+FSM Definition:
+${JSON.stringify(fsmData, null, 2)}
+
+HTML Implementation:
+${htmlContent}
+
+Requirements:
+1. Test file should be named: ${testFileName}
+2. The HTML file will be served at: http://127.0.0.1:5500/workspace/${workspace}/html/${resultId}.html
+3. Test all states mentioned in the FSM
+4. Test all events/transitions in the FSM
+5. Verify onEnter/onExit actions if mentioned
+6. Include edge cases and error scenarios
+7. Add comments explaining what each test validates
+8. Use modern async/await syntax
+9. Group related tests with describe blocks
+10. MUST use ES6 import syntax: import { test, expect } from '@playwright/test'
+11. DO NOT use require() - this is an ES module project
+
+Generate the complete test file now:`;
+
           testCode = await generatePlaywrightTest(
-            fsmData,
-            htmlContent,
-            resultId,
+            playwrightModel,
+            playwrightUserPrompt,
+            null,
             {
               showProgress,
               taskId: taskId ? `${taskId}-TEST` : "TEST",
-              model: playwrightModel,
-              workspace,
+              temperature: 0.3,
             }
           );
 
