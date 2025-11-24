@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>双端队列（Deque）交互式可视化演示</title>
+<style>
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    margin: 20px;
+    background: #f0f2f5;
+    user-select: none;
+  }
+  h1 {
+    text-align: center;
+    color: #333;
+  }
+  #container {
+    max-width: 900px;
+    margin: 20px auto;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 6px 16px rgb(0 0 0 / 0.15);
+  }
+  #deque {
+    margin: 30px auto;
+    width: 100%;
+    height: 80px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+  }
+  .node {
+    min-width: 60px;
+    height: 60px;
+    background: #4caf50;
+    border-radius: 8px;
+    color: white;
+    font-weight: 700;
+    font-size: 1.4rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    user-select: none;
+    position: relative;
+    box-shadow: 0 3px 8px rgb(76 175 80 / 0.5);
+    cursor: default;
+  }
+  .node.inserting {
+    background: #2196f3;
+    box-shadow: 0 4px 10px #2196f3cc;
+  }
+  .node.removing {
+    background: #f44336;
+    box-shadow: 0 4px 10px #f44336cc;
+  }
+  .marker {
+    position: absolute;
+    top: -25px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #555;
+  }
+  .marker.front {
+    left: 0;
+  }
+  .marker.rear {
+    right: 0;
+  }
+  #controls {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 10px;
+  }
+  #controls > * {
+    font-size: 1rem;
+  }
+  button {
+    background: #2196f3;
+    border: none;
+    color: white;
+    border-radius: 5px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    user-select: none;
+  }
+  button:disabled {
+    background: #90caf9;
+    cursor: not-allowed;
+  }
+  button:hover:not(:disabled) {
+    background: #1976d2;
+  }
+  input[type="text"] {
+    width: 100px;
+    border-radius: 5px;
+    border: 2px solid #2196f3;
+    padding: 8px 10px;
+    font-size: 1rem;
+    text-align: center;
+  }
+  #message {
+    margin-top: 15px;
+    font-weight: 600;
+    color: #f44336;
+    min-height: 26px;
+    text-align: center;
+    user-select: none;
+  }
+  /* Animation classes */
+  @keyframes slideInLeft {
+    0% {
+      opacity: 0;
+      transform: translateX(-100%) scale(0.5);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+  @keyframes slideInRight {
+    0% {
+      opacity: 0;
+      transform: translateX(100%) scale(0.5);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+  @keyframes fadeOut {
+    0% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+  }
+  .slide-in-front {
+    animation: slideInLeft 400ms ease forwards;
+  }
+  .slide-in-rear {
+    animation: slideInRight 400ms ease forwards;
+  }
+  .fade-out {
+    animation: fadeOut 400ms ease forwards;
+  }
+  /* Responsive */
+  @media (max-width: 600px) {
+    .node {
+      min-width: 45px;
+      height: 45px;
+      font-size: 1.1rem;
+    }
+    #controls {
+      gap: 10px;
+    }
+    input[type="text"] {
+      width: 80px;
+      font-size: 0.9rem;
+    }
+  }
+</style>
+</head>
+<body>
+  <h1>双端队列（Deque）交互式可视化演示</h1>
+  <div id="container" aria-live="polite" aria-atomic="true" aria-label="双端队列交互演示">
+    <div id="deque" aria-describedby="message" role="list" tabindex="0" aria-label="Deque内容展示"></div>
+    <div id="controls">
+      <input type="text" id="inputValue" placeholder="输入元素" aria-label="输入要插入的元素" />
+      <button id="pushFrontBtn" aria-label="从前端添加元素">从前端添加</button>
+      <button id="pushBackBtn" aria-label="从后端添加元素">从后端添加</button>
+      <button id="popFrontBtn" aria-label="从前端移除元素">从前端移除</button>
+      <button id="popBackBtn" aria-label="从后端移除元素">从后端移除</button>
+      <button id="clearBtn" aria-label="清空双端队列">清空队列</button>
+    </div>
+    <div id="message" role="alert" aria-live="assertive"></div>
+  </div>
+<script>
+(() => {
+  // Deque data structure and UI elements
+  const deque = [];
+  const maxSize = 20; // limit deque size for visualization clarity
+
+  const dequeContainer = document.getElementById("deque");
+  const inputValue = document.getElementById("inputValue");
+
+  const pushFrontBtn = document.getElementById("pushFrontBtn");
+  const pushBackBtn = document.getElementById("pushBackBtn");
+  const popFrontBtn = document.getElementById("popFrontBtn");
+  const popBackBtn = document.getElementById("popBackBtn");
+  const clearBtn = document.getElementById("clearBtn");
+
+  const messageEl = document.getElementById("message");
+
+  let animating = false;
+
+  function setMessage(msg, isError = false) {
+    messageEl.textContent = msg;
+    if (isError) {
+      messageEl.style.color = "#f44336";
+    } else {
+      messageEl.style.color = "#2e7d32";
+    }
+  }
+
+  function clearMessage() {
+    messageEl.textContent = "";
+  }
+
+  function createNodeElement(value) {
+    const node = document.createElement("div");
+    node.classList.add("node");
+    node.textContent = value;
+    node.setAttribute("role", "listitem");
+    return node;
+  }
+
+  // Markers for Front and Rear
+  function appendMarkers() {
+    // remove old markers first
+    const oldFront = dequeContainer.querySelector(".marker.front");
+    const oldRear = dequeContainer.querySelector(".marker.rear");
+    if (oldFront) oldFront.remove();
+    if (oldRear) oldRear.remove();
+
+    if (deque.length === 0) return;
+
+    // Find front and rear nodes - front: first child, rear: last child
+    const nodes = dequeContainer.children;
+    if (nodes.length === 0) return;
+
+    const frontMarker = document.createElement("div");
+    frontMarker.textContent = "Front";
+    frontMarker.classList.add("marker", "front");
+    frontMarker.style.left = nodes[0].offsetLeft + "px";
+    dequeContainer.appendChild(frontMarker);
+
+    const rearMarker = document.createElement("div");
+    rearMarker.textContent = "Rear";
+    rearMarker.classList.add("marker", "rear");
+    rearMarker.style.left = nodes[nodes.length - 1].offsetLeft + "px";
+    dequeContainer.appendChild(rearMarker);
+  }
+
+  // Update marker positions on window resize or layout change
+  function updateMarkersPosition() {
+    const frontMarker = dequeContainer.querySelector(".marker.front");
+    const rearMarker = dequeContainer.querySelector(".marker.rear");
+    const nodes = dequeContainer.children;
+    if (deque.length === 0 || nodes.length === 0) {
+      if (frontMarker) frontMarker.style.display = "none";
+      if (rearMarker) rearMarker.style.display = "none";
+      return;
+    }
+    if (frontMarker) {
+      frontMarker.style.display = "block";
+      frontMarker.style.left = nodes[0].offsetLeft + "px";
+    }
+    if (rearMarker) {
+      rearMarker.style.display = "block";
+      rearMarker.style.left = nodes[nodes.length - 1].offsetLeft + "px";
+    }
+  }
+
+  window.addEventListener("resize", updateMarkersPosition);
+
+  // Core functions to update UI with animations:
+
+  // Animate inserting at front
+  function animatePushFront(value) {
+    return new Promise((resolve) => {
+      if (dequeContainer.children.length === 0) {
+        // no elements, just add node
+        const node = createNodeElement(value);
+        node.classList.add("node", "inserting", "slide-in-front");
+        dequeContainer.appendChild(node);
+        node.addEventListener("animationend", () => {
+          node.classList.remove("inserting", "slide-in-front");
+          resolve(node);
+          updateMarkersPosition();
+        }, { once: true });
+      } else {
+        // insert element at the start visually
+        const node = createNodeElement(value);
+        node.classList.add("node", "inserting", "slide-in-front");
+        dequeContainer.insertBefore(node, dequeContainer.firstChild);
+        node.addEventListener("animationend", () => {
+          node.classList.remove("inserting", "slide-in-front");
+          resolve(node);
+          updateMarkersPosition();
+        }, { once: true });
+      }
+      updateMarkersPosition();
+    });
+  }
+
+  // Animate inserting at rear
+  function animatePushBack(value) {
+    return new Promise((resolve) => {
+      const node = createNodeElement(value);
+      node.classList.add("node", "inserting", "slide-in-rear");
+      dequeContainer.appendChild(node);
+      node.addEventListener("animationend", () => {
+        node.classList.remove("inserting", "slide-in-rear");
+        resolve(node);
+        updateMarkersPosition();
+      }, { once: true });
+      updateMarkersPosition();
+    });
+  }
+
+  // Animate removing from front
+  function animatePopFront() {
+    return new Promise((resolve, reject) => {
+      const node = dequeContainer.firstElementChild;
+      if (!node) {
+        reject("队列为空，无法从前端移除元素！");
+        return;
+      }
+      node.classList.add("removing", "fade-out");
+      node.addEventListener("animationend", () => {
+        dequeContainer.removeChild(node);
+        resolve(node.textContent);
+        updateMarkersPosition();
+      }, { once: true });
+    });
+  }
+
+  // Animate removing from rear
+  function animatePopBack() {
+    return new Promise((resolve, reject) => {
+      const node = dequeContainer.lastElementChild;
+      if (!node) {
+        reject("队列为空，无法从后端移除元素！");
+        return;
+      }
+      node.classList.add("removing", "fade-out");
+      node.addEventListener("animationend", () => {
+        dequeContainer.removeChild(node);
+        resolve(node.textContent);
+        updateMarkersPosition();
+      }, { once: true });
+    });
+  }
+
+  // Clear the deque UI with fade out effect
+  function animateClear() {
+    return new Promise(async (resolve) => {
+      if (dequeContainer.children.length === 0) {
+        resolve();
+        return;
+      }
+      const nodes = Array.from(dequeContainer.children);
+      let finishedCount = 0;
+      nodes.forEach((node) => {
+        node.classList.add("removing", "fade-out");
+        node.addEventListener("animationend", () => {
+          finishedCount++;
+          if (finishedCount === nodes.length) {
+            dequeContainer.innerHTML = "";
+            resolve();
+            updateMarkersPosition();
+          }
+        }, { once: true });
+      });
+    });
+  }
+
+  // Action handlers
+
+  async function handlePushFront() {
+    if (animating) return;
+    clearMessage();
+    const val = inputValue.value.trim();
+    if (val === "") {
+      setMessage("请输入一个非空元素！", true);
+      return;
+    }
+    if (deque.length >= maxSize) {
+      setMessage("队列已达到最大容量！", true);
+      return;
+    }
+    animating = true;
+    try {
+      await animatePushFront(val);
+      deque.unshift(val);
+      setMessage(`成功从前端添加元素 "${val}"`, false);
+      inputValue.value = "";
+    } catch (e) {
+      setMessage(e.toString(), true);
+    } finally {
+      animating = false;
+      updateButtonsState();
+    }
+  }
+
+  async function handlePushBack() {
+    if (animating) return;
+    clearMessage();
+    const val = inputValue.value.trim();
+    if (val === "") {
+      setMessage("请输入一个非空元素！", true);
+      return;
+    }
+    if (deque.length >= maxSize) {
+      setMessage("队列已达到最大容量！", true);
+      return;
+    }
+    animating = true;
+    try {
+      await animatePushBack(val);
+      deque.push(val);
+      setMessage(`成功从后端添加元素 "${val}"`, false);
+      inputValue.value = "";
+    } catch (e) {
+      setMessage(e.toString(), true);
+    } finally {
+      animating = false;
+      updateButtonsState();
+    }
+  }
+
+  async function handlePopFront() {
+    if (animating) return;
+    clearMessage();
+    if (deque.length === 0) {
+      setMessage("队列为空，无法从前端移除元素！", true);
+      return;
+    }
+    animating = true;
+    try {
+      const removedValue = await animatePopFront();
+      deque.shift();
+      setMessage(`成功从前端移除元素 "${removedValue}"`, false);
+    } catch (e) {
+      setMessage(e.toString(), true);
+    } finally {
+      animating = false;
+      updateButtonsState();
+    }
+  }
+
+  async function handlePopBack() {
+    if (animating) return;
+    clearMessage();
+    if (deque.length === 0) {
+      setMessage("队列为空，无法从后端移除元素！", true);
+      return;
+    }
+    animating = true;
+    try {
+      const removedValue = await animatePopBack();
+      deque.pop();
+      setMessage(`成功从后端移除元素 "${removedValue}"`, false);
+    } catch (e) {
+      setMessage(e.toString(), true);
+    } finally {
+      animating = false;
+      updateButtonsState();
+    }
+  }
+
+  async function handleClear() {
+    if (animating) return;
+    if (deque.length === 0) {
+      clearMessage();
+      setMessage("队列已为空，无需清空", false);
+      return;
+    }
+    animating = true;
+    clearMessage();
+    try {
+      await animateClear();
+      deque.length = 0;
+      setMessage("队列已清空", false);
+    } catch (e) {
+      setMessage(e.toString(), true);
+    } finally {
+      animating = false;
+      updateButtonsState();
+    }
+  }
+
+  // Enable/Disable buttons according to state
+  function updateButtonsState() {
+    const disableInput = animating;
+    inputValue.disabled = disableInput;
+
+    pushFrontBtn.disabled = disableInput;
+    pushBackBtn.disabled = disableInput || deque.length >= maxSize;
+    popFrontBtn.disabled = disableInput || deque.length === 0;
+    popBackBtn.disabled = disableInput || deque.length === 0;
+    clearBtn.disabled = disableInput || deque.length === 0;
+  }
+
+  // Accessibility: allow Enter to add from input with default to rear
+  inputValue.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      if (!animating) {
+        event.preventDefault();
+        handlePushBack();
+      }
+    }
+  });
+
+  // Button event listeners
+  pushFrontBtn.addEventListener("click", handlePushFront);
+  pushBackBtn.addEventListener("click", handlePushBack);
+  popFrontBtn.addEventListener("click", handlePopFront);
+  popBackBtn.addEventListener("click", handlePopBack);
+  clearBtn.addEventListener("click", handleClear);
+
+  // Initial setup
+  updateButtonsState();
+  setMessage("请输入元素，点击按钮操作双端队列。最大容量20。");
+
+})();
+</script>
+</body>
+</html>

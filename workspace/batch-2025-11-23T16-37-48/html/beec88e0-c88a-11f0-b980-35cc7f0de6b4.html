@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>链表算法交互式可视化演示</title>
+<style>
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    background: #004aad;
+    color: #fff;
+    padding: 1rem;
+    text-align: center;
+    font-weight: 700;
+    font-size: 1.5rem;
+    user-select: none;
+  }
+  #container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 1000px;
+    margin: 1rem auto;
+  }
+  #canvas-wrapper {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #ccc;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    position: relative;
+    overflow-x: auto;
+  }
+  canvas {
+    display: block;
+    background: #fff;
+  }
+  #controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    justify-content: center;
+  }
+  #controls > * {
+    flex: none;
+  }
+  input[type="number"], input[type="text"] {
+    padding: 0.4rem 0.6rem;
+    font-size: 1rem;
+    border: 1.5px solid #ccc;
+    border-radius: 4px;
+    width: 80px;
+    text-align: center;
+  }
+  button {
+    background: #004aad;
+    border: none;
+    color: white;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+  }
+  button:disabled {
+    background: #7a86a2;
+    cursor: not-allowed;
+  }
+  button:hover:not(:disabled) {
+    background: #003080;
+  }
+  label {
+    font-weight: 600;
+    margin-right: 0.4rem;
+  }
+  .input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  #speedControl {
+    width: 120px;
+  }
+  #info {
+    margin-top: 0.5rem;
+    text-align: center;
+    color: #333;
+    font-weight: 600;
+    user-select: none;
+    min-height: 1.2rem;
+  }
+  /* Node styles for legend */
+  #legend {
+    margin-top: 0.6rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #555;
+  }
+  #legend span {
+    display: inline-flex;
+    align-items: center;
+    margin: 0 0.6rem;
+  }
+  .legend-node {
+    width: 22px;
+    height: 28px;
+    border: 2px solid #004aad;
+    border-radius: 6px;
+    margin-right: 0.3rem;
+    position: relative;
+    background: #cce0ff;
+  }
+  .legend-current {
+    background: #0f74e5;
+  }
+  .legend-visited {
+    background: #a6c8ff;
+  }
+</style>
+</head>
+<body>
+<header>链表算法交互式可视化演示</header>
+<div id="container">
+  <div id="canvas-wrapper" tabindex="0">
+    <canvas id="canvas" height="200"></canvas>
+  </div>
+  <div id="controls" aria-label="链表操作控制">
+    <div class="input-group" title="节点数据 (字符串)">
+      <label for="valueInput">节点值：</label>
+      <input type="text" id="valueInput" maxlength="10" placeholder="例: 10" aria-describedby="valueInputDesc" />
+    </div>
+    <div class="input-group" title="位置索引 (从 0 开始)">
+      <label for="indexInput">位置：</label>
+      <input type="number" id="indexInput" min="0" placeholder="0" aria-describedby="indexInputDesc" />
+    </div>
+    <button id="pushBtn" title="在链表尾部添加节点">尾部添加</button>
+    <button id="unshiftBtn" title="在链表头部添加节点">头部添加</button>
+    <button id="insertBtn" title="在指定位置插入节点">指定位置插入</button>
+    <button id="popBtn" title="删除链表尾部节点">尾部删除</button>
+    <button id="shiftBtn" title="删除链表头部节点">头部删除</button>
+    <button id="removeBtn" title="删除指定位置节点">指定位置删除</button>
+    <button id="searchBtn" title="查找指定值(高亮显示)">查找节点</button>
+    <button id="resetBtn" title="重置链表为初始状态">重置链表</button>
+    <div class="input-group" title="动画速度调整">
+      <label for="speedControl">速度：</label>
+      <input type="range" id="speedControl" min="0.1" max="2" value="1" step="0.1" aria-label="动画速度" />
+    </div>
+  </div>
+  <div id="info" role="alert" aria-live="polite"></div>
+  <div id="legend" aria-label="图例">
+    <span><div class="legend-node"></div> 节点</span>
+    <span><div class="legend-node legend-current"></div> 当前遍历节点</span>
+    <span><div class="legend-node legend-visited"></div> 已遍历节点</span>
+  </div>
+</div>
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const wrapper = document.getElementById("canvas-wrapper");
+  const info = document.getElementById("info");
+
+  // Control elements
+  const valueInput = document.getElementById("valueInput");
+  const indexInput = document.getElementById("indexInput");
+  const pushBtn = document.getElementById("pushBtn");
+  const unshiftBtn = document.getElementById("unshiftBtn");
+  const insertBtn = document.getElementById("insertBtn");
+  const popBtn = document.getElementById("popBtn");
+  const shiftBtn = document.getElementById("shiftBtn");
+  const removeBtn = document.getElementById("removeBtn");
+  const searchBtn = document.getElementById("searchBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const speedControl = document.getElementById("speedControl");
+
+  // Canvas sizing for horizontal scroll
+  function setCanvasWidth(nodesCount) {
+    // Each node + space ~120px width
+    let width = Math.max(wrapper.clientWidth, nodesCount * 140 + 40);
+    canvas.width = width;
+  }
+  function setCanvasHeight() {
+    canvas.height = 200;
+  }
+  setCanvasHeight();
+
+  // Node class
+  class Node {
+    constructor(value) {
+      this.value = value;
+      this.next = null;
+    }
+  }
+
+  // LinkedList class with event callbacks for animation sync
+  class LinkedList {
+    constructor() {
+      this.head = null;
+      this.length = 0;
+    }
+    push(value) {
+      const newNode = new Node(value);
+      if (!this.head) {
+        this.head = newNode;
+      } else {
+        let current = this.head;
+        while (current.next) current = current.next;
+        current.next = newNode;
+      }
+      this.length++;
+      return newNode;
+    }
+    unshift(value) {
+      const newNode = new Node(value);
+      newNode.next = this.head;
+      this.head = newNode;
+      this.length++;
+      return newNode;
+    }
+    insert(value, position) {
+      if (position < 0 || position > this.length) return null;
+      if (position === 0) return this.unshift(value);
+      if (position === this.length) return this.push(value);
+      const newNode = new Node(value);
+      let prev = this._getNodeAt(position - 1);
+      newNode.next = prev.next;
+      prev.next = newNode;
+      this.length++;
+      return newNode;
+    }
+    pop() {
+      if (!this.head) return null;
+      if (this.length === 1) {
+        let temp = this.head;
+        this.head = null;
+        this.length--;
+        return temp;
+      }
+      let current = this.head;
+      let prev = null;
+      while (current.next) {
+        prev = current;
+        current = current.next;
+      }
+      prev.next = null;
+      this.length--;
+      return current;
+    }
+    shift() {
+      if (!this.head) return null;
+      let temp = this.head;
+      this.head = this.head.next;
+      this.length--;
+      return temp;
+    }
+    remove(position) {
+      if (position < 0 || position >= this.length) return null;
+      if (position === 0) return this.shift();
+      let prev = this._getNodeAt(position - 1);
+      let removed = prev.next;
+      prev.next = removed.next;
+      this.length--;
+      return removed;
+    }
+    _getNodeAt(position) {
+      if (position < 0 || position >= this.length) return null;
+      let current = this.head;
+      let i = 0;
+      while (i < position) {
+        current = current.next;
+        i++;
+      }
+      return current;
+    }
+    toArray() {
+      let arr = [];
+      let current = this.head;
+      while (current) {
+        arr.push(current.value);
+        current = current.next;
+      }
+      return arr;
+    }
+  }
+
+  // Animation & Rendering
+  const NODE_WIDTH = 80;
+  const NODE_HEIGHT = 50;
+  const NODE_RADIUS = 12;
+  const NODE_MARGIN_X = 60; // space between nodes horizontally (excluding width)
+  const START_X = 40;
+  const START_Y = 80;
+
+  const ARROW_LENGTH = 30;
+
+  // Colors
+  const COLOR_NODE_BORDER = "#004aad";
+  const COLOR_NODE_FILL = "#cce0ff";
+  const COLOR_NODE_TEXT = "#003080";
+  const COLOR_NODE_CURRENT = "#0f74e5";
+  const COLOR_NODE_VISITED = "#a6c8ff";
+  const COLOR_ARROW = "#004aad";
+
+  // State for animation:
+  // Nodes positions: calculated from linked list nodes
+  // visitedIndices: indices highlighted as visited
+  // currentIndex: current traversal index for animation
+
+  let linkedList = new LinkedList();
+  // Initialize with some nodes:
+  ["A", "B", "C", "D"].forEach(v => linkedList.push(v));
+  setCanvasWidth(linkedList.length);
+  info.textContent = "链表初始化完成，包含节点: A → B → C → D";
+
+  // Animation frame & traversal state
+  let visitedIndices = new Set();
+  let currentIndex = -1;
+  let animationSpeed = 1; // speed multiplier, from speedControl
+  let animationRunning = false;
+  let animationType = null; // "search" or null
+  let animationValue = null; // value to search for
+  let animationResolve = null;
+
+  // Helpers drawing rounded rect with text
+  function drawNode(ctx, x, y, width, height, radius, value, options = {}) {
+    const {
+      fillColor = COLOR_NODE_FILL,
+      borderColor = COLOR_NODE_BORDER,
+      textColor = COLOR_NODE_TEXT,
+      highlight = false,
+      visited = false,
+    } = options;
+
+    ctx.beginPath();
+    ctx.fillStyle = fillColor;
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 2;
+    if (visited) {
+      ctx.fillStyle = COLOR_NODE_VISITED;
+    }
+    if (highlight) {
+      ctx.fillStyle = COLOR_NODE_CURRENT;
+      ctx.strokeStyle = "#003070";
+      ctx.lineWidth = 3;
+    }
+    // Rounded rectangle
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(
+      x + width,
+      y + height,
+      x + width - radius,
+      y + height
+    );
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+
+    ctx.fill();
+    ctx.stroke();
+
+    // Text in center
+    ctx.fillStyle = textColor;
+    ctx.font = "bold 20px 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(value, x + width / 2, y + height / 2);
+  }
+
+  function drawArrow(ctx, fromX, fromY, toX, toY, options = {}) {
+    const { color = COLOR_ARROW } = options;
+    const headLength = 8;
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const angle = Math.atan2(dy, dx);
+
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(toX, toY);
+    ctx.stroke();
+
+    // arrowhead
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(
+      toX - headLength * Math.cos(angle - Math.PI / 6),
+      toY - headLength * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.lineTo(
+      toX - headLength * Math.cos(angle + Math.PI / 6),
+      toY - headLength * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.lineTo(toX, toY);
+    ctx.fill();
+  }
+
+  // Draw linked list nodes and arrows between them
+  function drawLinkedList(ctx, list, highlightIndex = -1, visitedSet = new Set()) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let current = list.head;
+    let index = 0;
+    let x = START_X;
+    let y = START_Y;
+
+    // Draw nodes
+    const nodePositions = [];
+    while (current) {
+      // Determine highlight/visited
+      const isCurrent = index === highlightIndex;
+      const isVisited = visitedSet.has(index);
+
+      drawNode(ctx, x, y, NODE_WIDTH, NODE_HEIGHT, NODE_RADIUS, current.value, {
+        highlight: isCurrent,
+        visited: isVisited,
+      });
+      nodePositions.push({ x, y });
+
+      current = current.next;
+      index++;
+      x += NODE_WIDTH + NODE_MARGIN_X;
+    }
+
+    // Draw arrows
+    for (let i = 0; i < nodePositions.length - 1; i++) {
+      const startX = nodePositions[i].x + NODE_WIDTH;
+      const startY = nodePositions[i].y + NODE_HEIGHT / 2;
+      const endX = nodePositions[i + 1].x;
+      const endY = nodePositions[i + 1].y + NODE_HEIGHT / 2;
+      drawArrow(ctx, startX, startY, endX, endY);
+    }
+
+    // Draw 'null' box at the end if list not empty
+    if (nodePositions.length > 0) {
+      let lastX = nodePositions[nodePositions.length - 1].x + NODE_WIDTH + NODE_MARGIN_X / 2;
+      let lastY = START_Y;
+      ctx.beginPath();
+      ctx.rect(lastX, lastY + NODE_HEIGHT / 4, 40, NODE_HEIGHT / 2);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
+      ctx.strokeStyle = COLOR_NODE_BORDER;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = COLOR_NODE_TEXT;
+      ctx.font = "bold 18px 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("null", lastX + 20, lastY + NODE_HEIGHT / 2);
+    }
+  }
+
+  // Animation control helpers
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Adjusted sleep with speed multiplier
+  function sleepSpeedAdjusted(ms) {
+    return sleep(ms / animationSpeed);
+  }
+
+  // Disable or enable controls (except speed) during animation
+  function setControlsEnabled(enabled) {
+    [pushBtn, unshiftBtn, insertBtn, popBtn, shiftBtn, removeBtn, searchBtn, resetBtn, valueInput, indexInput].forEach(control => {
+      control.disabled = !enabled;
+    });
+  }
+
+  // Validate inputs
+  function getValueInput() {
+    let val = valueInput.value.trim();
+    if (val === "") return null;
+    if (val.length > 10) val = val.substring(0, 10);
+    return val;
+  }
+  function getIndexInput() {
+    let idx = indexInput.value;
+    if (idx === "") return null;
+    idx = Number(idx);
+    if (Number.isNaN(idx) || idx < 0) return null;
+    if (!Number.isInteger(idx)) return null;
+    return idx;
+  }
+
+  // Animation for searching a node by value
+  async function animateSearch(value) {
+    if (linkedList.length === 0) {
+      info.textContent = "链表为空，无法查找节点。";
+      return;
+    }
+    animationRunning = true;
+    animationType = "search";
+    animationValue = value;
+    setControlsEnabled(false);
+    info.textContent = `开始查找值 "${value}" ...`;
+
+    visitedIndices.clear();
+    currentIndex = -1;
+    drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+    await sleepSpeedAdjusted(500);
+
+    let current = linkedList.head;
+    let idx = 0;
+    while (current) {
+      currentIndex = idx;
+      visitedIndices.add(idx);
+      drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+      info.textContent = `访问节点 ${idx}, 值="${current.value}"`;
+      await sleepSpeedAdjusted(1200);
+      if (current.value === value) {
+        info.textContent = `找到节点，位置: ${idx}`;
+        animationRunning = false;
+        animationType = null;
+        currentIndex = -1;
+        setControlsEnabled(true);
+        return true;
+      }
+      current = current.next;
+      idx++;
+    }
+    info.textContent = `未找到值为 "${value}" 的节点。`;
+    animationRunning = false;
+    animationType = null;
+    currentIndex = -1;
+    setControlsEnabled(true);
+    drawLinkedList(ctx, linkedList);
+    return false;
+  }
+
+  // Animate traversal for insert/remove to show the traversed path
+  async function animateTraversal(position, actionText) {
+    // Position out of range?
+    if (position < 0 || position > linkedList.length) return false;
+    animationRunning = true;
+    setControlsEnabled(false);
+    visitedIndices.clear();
+    for (let i = 0; i < position; i++) {
+      currentIndex = i;
+      visitedIndices.add(i);
+      info.textContent = `${actionText} 操作: 访问节点 ${i}`;
+      drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+      await sleepSpeedAdjusted(800);
+    }
+    visitedIndices.add(position);
+    currentIndex = position;
+    drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+    info.textContent = `${actionText} 节点位置到达 ${position}`;
+    await sleepSpeedAdjusted(800);
+    currentIndex = -1;
+    visitedIndices.clear();
+    drawLinkedList(ctx, linkedList);
+    setControlsEnabled(true);
+    animationRunning = false;
+    return true;
+  }
+
+  async function animatePopOrShift(isPop) {
+    if (linkedList.length === 0) {
+      info.textContent = (isPop ? "尾部" : "头部") + "删除失败，链表为空。";
+      return;
+    }
+    animationRunning = true;
+    setControlsEnabled(false);
+    info.textContent = (isPop ? "尾部" : "头部") + "删除操作中...";
+
+    // For pop we traverse all but last, for shift just highlight head
+    if (isPop) {
+      for (let i = 0; i < linkedList.length - 1; i++) {
+        currentIndex = i;
+        visitedIndices.add(i);
+        drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+        info.textContent = `访问节点 ${i} ...`;
+        await sleepSpeedAdjusted(600);
+      }
+      currentIndex = linkedList.length - 1;
+      drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+      info.textContent = `准备删除尾部节点，位置: ${currentIndex}`;
+      await sleepSpeedAdjusted(1000);
+      linkedList.pop();
+    } else {
+      currentIndex = 0;
+      visitedIndices.add(0);
+      drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+      info.textContent = `准备删除头部节点，位置: 0`;
+      await sleepSpeedAdjusted(1100);
+      linkedList.shift();
+    }
+    currentIndex = -1;
+    visitedIndices.clear();
+    drawLinkedList(ctx, linkedList);
+    info.textContent = (isPop ? "尾部" : "头部") + "删除操作完成。";
+    setControlsEnabled(true);
+    animationRunning = false;
+  }
+
+  // Common function to validate and perform insert with animation
+  async function handleInsertAtPosition(value, index) {
+    if (value === null) {
+      info.textContent = "请先输入节点值。";
+      return;
+    }
+    if (index === null || index < 0 || index > linkedList.length) {
+      info.textContent = `请输入合法的位置（0 - ${linkedList.length}）。`;
+      return;
+    }
+    if (animationRunning) return;
+    await animateTraversal(index, "插入");
+    linkedList.insert(value, index);
+    drawLinkedList(ctx, linkedList);
+    info.textContent = `节点值 "${value}" 已成功插入位置 ${index}。`;
+  }
+
+  // Common function to validate and remove node at position with animation
+  async function handleRemoveAtPosition(index) {
+    if (index === null || index < 0 || index >= linkedList.length) {
+      info.textContent = `请输入合法的位置（0 - ${linkedList.length - 1}）。`;
+      return;
+    }
+    if (animationRunning) return;
+    await animateTraversal(index, "删除");
+    let removedNode = linkedList.remove(index);
+    drawLinkedList(ctx, linkedList);
+    info.textContent = `位置 ${index} 的节点值 "${removedNode.value}" 已删除。`;
+  }
+
+  // Common function to push value at tail with minimal animation
+  async function handlePush(value) {
+    if (value === null) {
+      info.textContent = "请先输入节点值。";
+      return;
+    }
+    if (animationRunning) return;
+    // Visually highlight tail before adding
+    if (linkedList.length > 0) {
+      animationRunning = true;
+      setControlsEnabled(false);
+      currentIndex = linkedList.length - 1;
+      visitedIndices.clear();
+      visitedIndices.add(currentIndex);
+      drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+      info.textContent = "准备在尾部添加节点...";
+      await sleepSpeedAdjusted(1000);
+      currentIndex = -1;
+      visitedIndices.clear();
+      linkedList.push(value);
+      drawLinkedList(ctx, linkedList);
+      info.textContent = `尾部添加节点 "${value}" 完成。`;
+      setControlsEnabled(true);
+      animationRunning = false;
+    } else {
+      linkedList.push(value);
+      drawLinkedList(ctx, linkedList);
+      info.textContent = `尾部添加节点 "${value}" 完成。`;
+    }
+  }
+
+  // Common function to unshift value at head with minimal animation
+  async function handleUnshift(value) {
+    if (value === null) {
+      info.textContent = "请先输入节点值。";
+      return;
+    }
+    if (animationRunning) return;
+    animationRunning = true;
+    setControlsEnabled(false);
+    currentIndex = 0;
+    visitedIndices.clear();
+    visitedIndices.add(0);
+    drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+    info.textContent = "准备在头部添加节点...";
+    await sleepSpeedAdjusted(1000);
+    currentIndex = -1;
+    visitedIndices.clear();
+    linkedList.unshift(value);
+    drawLinkedList(ctx, linkedList);
+    info.textContent = `头部添加节点 "${value}" 完成。`;
+    setControlsEnabled(true);
+    animationRunning = false;
+  }
+
+  // Reset linked list to default state
+  function resetLinkedList() {
+    if (animationRunning) return;
+    linkedList = new LinkedList();
+    ["A", "B", "C", "D"].forEach(v => linkedList.push(v));
+    setCanvasWidth(linkedList.length);
+    drawLinkedList(ctx, linkedList);
+    info.textContent = "链表重置为默认状态: A → B → C → D";
+  }
+
+  // Resize handler
+  function onResize() {
+    setCanvasWidth(linkedList.length);
+    setCanvasHeight();
+    drawLinkedList(ctx, linkedList, currentIndex, visitedIndices);
+  }
+
+  window.addEventListener("resize", onResize);
+
+  // Event handlers for buttons
+  pushBtn.addEventListener("click", async () => {
+    if (animationRunning) return;
+    let val = getValueInput();
+    await handlePush(val);
+    setCanvasWidth(linkedList.length);
+  });
+  unshiftBtn.addEventListener("click", async () => {
+    if (animationRunning) return;
+    let val = getValueInput();
+    await handleUnshift(val);
+    setCanvasWidth(linkedList.length);
+  });
+  insertBtn.addEventListener("click", async () => {
+    if (animationRunning) return;
+    let val = getValueInput();
+    let idx = getIndexInput();
+    await handleInsertAtPosition(val, idx);
+    setCanvasWidth(linkedList.length);
+  });
+  popBtn.addEventListener("click", async () => {
+    if (animationRunning) return;
+    await animatePopOrShift(true);
+    setCanvasWidth(linkedList.length);
+  });
+  shiftBtn.addEventListener("click", async () => {
+    if (animationRunning) return;
+    await animatePopOrShift(false);
+    setCanvasWidth(linkedList.length);
+  });
+  removeBtn.addEventListener("click", async () => {
+    if (animationRunning) return;
+    let idx = getIndexInput();
+    await handleRemoveAtPosition(idx);
+    setCanvasWidth(linkedList.length);
+  });
+  searchBtn.addEventListener("click", async () => {
+    if (animationRunning) return;
+    let val = getValueInput();
+    if (val === null) {
+      info.textContent = "请输入要查找的节点值。";
+      return;
+    }
+    await animateSearch(val);
+  });
+  resetBtn.addEventListener("click", () => {
+    resetLinkedList();
+  });
+  speedControl.addEventListener("input", () => {
+    animationSpeed = parseFloat(speedControl.value);
+    info.textContent = `动画速度设为 ${animationSpeed.toFixed(1)}x`;
+  });
+
+  // Initialize canvas and draw default list
+  function init() {
+    setCanvasWidth(linkedList.length);
+    setCanvasHeight();
+    drawLinkedList(ctx, linkedList);
+  }
+  init();
+
+  // Keyboard accessibility to focus canvas wrapper (scroll)
+  wrapper.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight") {
+      wrapper.scrollLeft += 40;
+    } else if (e.key === "ArrowLeft") {
+      wrapper.scrollLeft -= 40;
+    }
+  });
+})();
+</script>
+</body>
+</html>

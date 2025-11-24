@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stack 算法交互式可视化演示</title>
+<style>
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f0f4f8;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 {
+    margin-bottom: 5px;
+    color: #333;
+  }
+  #stack-container {
+    width: 200px;
+    min-height: 300px;
+    border: 2px solid #4a90e2;
+    border-radius: 8px;
+    background: white;
+    position: relative;
+    overflow: visible;
+    box-shadow: 0 4px 8px rgb(74 144 226 / 0.3);
+  }
+  .stack-element {
+    width: 160px;
+    height: 40px;
+    margin: 8px auto;
+    background: #4a90e2;
+    color: white;
+    font-weight: 700;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+    position: relative;
+    opacity: 1;
+    transition: transform 0.5s ease, opacity 0.5s ease;
+    user-select: none;
+  }
+  .stack-element.removing {
+    opacity: 0;
+    transform: translateX(100px) rotate(20deg);
+  }
+  .stack-element.pushing {
+    opacity: 0;
+    transform: translateY(-60px);
+    animation: pushIn 0.5s forwards ease;
+  }
+  @keyframes pushIn {
+    0% {
+      opacity: 0;
+      transform: translateY(-60px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  #controls {
+    margin-top: 25px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #3178c6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 3px 6px rgb(49 120 198 / 0.6);
+    user-select: none;
+    transition: background-color 0.3s ease;
+  }
+  button:disabled {
+    background-color: #98c1f2;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  button:hover:not(:disabled) {
+    background-color: #255a9b;
+  }
+  #input-value {
+    width: 140px;
+    padding: 10px;
+    font-size: 16px;
+    border: 2px solid #4a90e2;
+    border-radius: 6px;
+    outline-offset: 2px;
+  }
+  #info {
+    margin-top: 20px;
+    max-width: 500px;
+    color: #555;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  #top-label {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    background: #4a90e2;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    user-select: none;
+  }
+  #help-text {
+    margin-top: 30px;
+    max-width: 520px;
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<h1>Stack 算法交互式可视化演示</h1>
+<div id="stack-container">
+  <div id="top-label" style="display:none;">Top</div>
+</div>
+
+<div id="controls">
+  <input type="text" id="input-value" placeholder="请填写要入栈的值" maxlength="10" aria-label="入栈元素值" />
+  <button id="push-btn" aria-label="执行入栈操作">Push</button>
+  <button id="pop-btn" aria-label="执行出栈操作">Pop</button>
+  <button id="peek-btn" aria-label="查看栈顶元素">Peek</button>
+  <button id="clear-btn" aria-label="清空栈">Clear</button>
+</div>
+
+<div id="info" aria-live="polite" aria-atomic="true"></div>
+
+<div id="help-text">
+  <p>操作说明：</p>
+  <ul style="list-style: inside disc; padding-left: 0; margin-top:0;">
+    <li>输入一个值，点击 <strong>Push</strong> 可将元素入栈；</li>
+    <li>点击 <strong>Pop</strong> 可将栈顶元素出栈；</li>
+    <li>点击 <strong>Peek</strong> 查看当前栈顶元素不删除；</li>
+    <li>点击 <strong>Clear</strong> 可清空整个栈；</li>
+    <li>每个操作都有动画辅助直观理解栈操作过程。</li>
+  </ul>
+</div>
+
+<script>
+(() => {
+  const stackContainer = document.getElementById('stack-container');
+  const inputValue = document.getElementById('input-value');
+  const pushBtn = document.getElementById('push-btn');
+  const popBtn = document.getElementById('pop-btn');
+  const peekBtn = document.getElementById('peek-btn');
+  const clearBtn = document.getElementById('clear-btn');
+  const infoBox = document.getElementById('info');
+  const topLabel = document.getElementById('top-label');
+
+  // 数据结构
+  let stack = [];
+
+  // 动画标识，防止重复操作中断动画
+  let animating = false;
+
+  // 最大栈长度（防止页面溢出）
+  const MAX_STACK_SIZE = 10;
+
+  // Helper: 更新栈视觉层
+  function renderStack() {
+    stackContainer.innerHTML = '';
+    if (stack.length === 0){
+      topLabel.style.display = 'none';
+    } else {
+      topLabel.style.display = 'block';
+    }
+
+    // 遍历stack从底到顶渲染(底部第一个元素)
+    for (let i = 0; i < stack.length; i++) {
+      const val = stack[i];
+      const elem = document.createElement('div');
+      elem.className = 'stack-element';
+      elem.textContent = val;
+      // 标记top元素位置
+      // 元素从底部开始排列，top元素在最后一个，显示top标识相对定位即可
+      if(i === stack.length - 1) {
+        elem.appendChild(topLabel);
+        topLabel.style.position = 'absolute';
+        topLabel.style.top = '8px';
+        topLabel.style.right = '10px';
+      }
+      stackContainer.appendChild(elem);
+    }
+  }
+
+  // 动画辅助函数：添加一个新的元素动画入栈
+  function animatePush(value) {
+    animating = true;
+    // 创建元素，初始在容器上面透明且向上偏移，用动画下落
+    const elem = document.createElement('div');
+    elem.className = 'stack-element pushing';
+    elem.textContent = value;
+    stackContainer.appendChild(elem);
+    topLabel.style.display = 'none';
+
+    // 动画结束后，把元素转换为普通状态，更新stack结构并画面
+    elem.addEventListener('animationend', () => {
+      stack.push(value);
+      animating = false;
+      renderStack();
+      updateInfo(`已入栈元素 "${value}"。`);
+      updateButtons();
+    }, {once:true});
+  }
+
+  // 动画辅助函数：动画出栈顶部元素
+  function animatePop() {
+    if(stack.length === 0) return;
+    animating = true;
+    // 获取栈顶元素dom节点（stackContainer的最后一个div）
+    const elems = stackContainer.querySelectorAll('.stack-element');
+    if(elems.length === 0) {
+      animating = false;
+      return;
+    }
+    const topElem = elems[elems.length - 1];
+    // 标记删除动画
+    topElem.classList.add('removing');
+
+    // 动画结束后删除元素，更新stack结构和更新界面
+    topElem.addEventListener('transitionend', () => {
+      const poppedVal = stack.pop();
+      animating = false;
+      renderStack();
+      updateInfo(`已出栈元素 "${poppedVal}"。`);
+      updateButtons();
+    }, {once:true});
+  }
+
+  // 操作按钮状态更新
+  function updateButtons(){
+    pushBtn.disabled = animating || inputValue.value.trim() === '' || stack.length >= MAX_STACK_SIZE;
+    popBtn.disabled = animating || stack.length === 0;
+    peekBtn.disabled = animating || stack.length === 0;
+    clearBtn.disabled = animating || stack.length === 0;
+  }
+
+  // 更新提示信息
+  function updateInfo(msg){
+    infoBox.textContent = msg;
+  }
+
+  // 按钮事件绑定
+  pushBtn.addEventListener('click', () => {
+    if(animating) return;
+    const val = inputValue.value.trim();
+    if(val === ''){
+      updateInfo('请输入一个有效的值进行入栈。');
+      return;
+    }
+    if(stack.length >= MAX_STACK_SIZE) {
+      updateInfo(`栈已满，最多可包含 ${MAX_STACK_SIZE} 个元素。`);
+      return;
+    }
+    inputValue.value = '';
+    updateButtons();
+    animatePush(val);
+  });
+
+  popBtn.addEventListener('click', () => {
+    if(animating) return;
+    if(stack.length === 0) {
+      updateInfo('栈为空，无法出栈。');
+      return;
+    }
+    updateButtons();
+    animatePop();
+  });
+
+  peekBtn.addEventListener('click', () => {
+    if(animating) return;
+    if(stack.length === 0) {
+      updateInfo('栈为空，无栈顶元素。');
+      return;
+    }
+    const topVal = stack[stack.length - 1];
+    updateInfo(`栈顶元素是 "${topVal}"。`);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    if(animating) return;
+    if(stack.length === 0) {
+      updateInfo('栈已为空，无需清空。');
+      return;
+    }
+    animating = true;
+    // 简单淡出全部元素
+    const elems = stackContainer.querySelectorAll('.stack-element');
+    let transitionCount = 0;
+    elems.forEach(elem => {
+      elem.classList.add('removing');
+      elem.addEventListener('transitionend', () => {
+        transitionCount++;
+        if(transitionCount === elems.length){
+          stack = [];
+          animating = false;
+          renderStack();
+          updateInfo('栈已清空。');
+          updateButtons();
+        }
+      }, {once:true});
+    });
+    if(elems.length === 0){
+      // safety fallback
+      stack = [];
+      animating = false;
+      renderStack();
+      updateInfo('栈已清空。');
+      updateButtons();
+    }
+  });
+
+  // 输入框输入事件监测更新Push按钮状态
+  inputValue.addEventListener('input', () => {
+    updateButtons();
+  });
+
+  // 初始化界面
+  renderStack();
+  updateButtons();
+  updateInfo('欢迎使用 Stack 算法可视化演示！请输入值点击Push开始。');
+
+  // 支持回车键快速Push
+  inputValue.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && !pushBtn.disabled){
+      e.preventDefault();
+      pushBtn.click();
+    }
+  });
+})();
+</script>
+</body>
+</html>

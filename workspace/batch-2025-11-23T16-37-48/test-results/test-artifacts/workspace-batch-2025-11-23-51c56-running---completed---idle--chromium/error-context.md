@@ -1,0 +1,65 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "数组算法交互式可视化演示" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - text: "算法:"
+    - combobox "选择算法" [ref=e4] [cursor=pointer]:
+      - option "冒泡排序 (Bubble Sort)" [selected]
+      - option "选择排序 (Selection Sort)"
+      - option "插入排序 (Insertion Sort)"
+      - option "线性搜索 (Linear Search)"
+      - option "二分搜索 (Binary Search) - 需排序数组"
+    - text: "数组大小:"
+    - spinbutton "数组大小" [ref=e5] [cursor=pointer]: "20"
+    - button "生成数组" [ref=e6] [cursor=pointer]
+    - button "开始" [ref=e7] [cursor=pointer]
+    - button "暂停" [disabled] [ref=e8]
+    - button "重置" [disabled] [ref=e9]
+    - text: "速度:"
+    - slider "动画速度" [ref=e10]: "700"
+    - text: 700ms
+  - generic [ref=e11]:
+    - generic "索引 0, 值 7" [ref=e12]:
+      - generic [ref=e13]: "7"
+    - generic "索引 1, 值 37" [ref=e14]:
+      - generic [ref=e15]: "37"
+    - generic "索引 2, 值 57" [ref=e16]:
+      - generic [ref=e17]: "57"
+    - generic "索引 3, 值 95" [ref=e18]:
+      - generic [ref=e19]: "95"
+    - generic "索引 4, 值 75" [ref=e20]:
+      - generic [ref=e21]: "75"
+    - generic "索引 5, 值 42" [ref=e22]:
+      - generic [ref=e23]: "42"
+    - generic "索引 6, 值 96" [ref=e24]:
+      - generic [ref=e25]: "96"
+    - generic "索引 7, 值 43" [ref=e26]:
+      - generic [ref=e27]: "43"
+    - generic "索引 8, 值 26" [ref=e28]:
+      - generic [ref=e29]: "26"
+    - generic "索引 9, 值 54" [ref=e30]:
+      - generic [ref=e31]: "54"
+    - generic "索引 10, 值 74" [ref=e32]:
+      - generic [ref=e33]: "74"
+    - generic "索引 11, 值 25" [ref=e34]:
+      - generic [ref=e35]: "25"
+    - generic "索引 12, 值 46" [ref=e36]:
+      - generic [ref=e37]: "46"
+    - generic "索引 13, 值 94" [ref=e38]:
+      - generic [ref=e39]: "94"
+    - generic "索引 14, 值 45" [ref=e40]:
+      - generic [ref=e41]: "45"
+    - generic "索引 15, 值 15" [ref=e42]:
+      - generic [ref=e43]: "15"
+    - generic "索引 16, 值 94" [ref=e44]:
+      - generic [ref=e45]: "94"
+    - generic "索引 17, 值 42" [ref=e46]:
+      - generic [ref=e47]: "42"
+    - generic "索引 18, 值 6" [ref=e48]:
+      - generic [ref=e49]: "6"
+    - generic "索引 19, 值 60" [ref=e50]:
+      - generic [ref=e51]: "60"
+  - generic [ref=e53]: 欢迎使用数组算法交互式可视化演示。
+```

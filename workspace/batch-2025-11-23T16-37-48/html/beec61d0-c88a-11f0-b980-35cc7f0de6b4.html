@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Array算法交互式可视化演示</title>
+<style>
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+  h1 {
+    margin-top: 20px;
+    color: #333;
+  }
+  #array-container {
+    margin: 20px 0;
+    display: flex;
+    justify-content: center;
+    min-height: 80px;
+  }
+  .array-bar {
+    margin: 0 3px;
+    background-color: #4a90e2;
+    width: 30px;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    border-radius: 4px;
+    user-select: none;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    transition: background-color 0.3s ease;
+    position: relative;
+  }
+  .array-bar span {
+    display: block;
+    padding-bottom: 4px;
+  }
+  .highlight {
+    background-color: #f39c12 !important;
+  }
+  .swap {
+    background-color: #e74c3c !important;
+  }
+  .done {
+    background-color: #27ae60 !important;
+  }
+  #controls {
+    margin-bottom: 20px;
+  }
+  button, select, input[type=number] {
+    margin: 5px;
+    padding: 8px 16px;
+    font-size: 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  button {
+    background-color: #4a90e2;
+    color: white;
+    transition: background-color 0.2s ease;
+  }
+  button:hover:not(:disabled) {
+    background-color: #357ABD;
+  }
+  label {
+    font-weight: bold;
+    margin-left: 10px;
+  }
+  #speed-label {
+    margin-left: 15px;
+    font-weight: normal;
+    font-size: 14px;
+  }
+  #log {
+    width: 90%;
+    max-width: 800px;
+    height: 100px;
+    margin-bottom: 20px;
+    background: white;
+    border-radius: 6px;
+    padding: 10px;
+    overflow-y: auto;
+    box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 14px;
+    color: #333;
+    user-select: text;
+  }
+  #algorithm-select {
+    min-width: 150px;
+  }
+  #array-size-label {
+    margin-left: 10px;
+    font-weight: normal;
+  }
+</style>
+</head>
+<body>
+  <h1>数组算法交互式可视化演示</h1>
+  <div id="controls">
+    <label for="algorithm-select">算法:</label>
+    <select id="algorithm-select" aria-label="选择算法">
+      <option value="bubbleSort">冒泡排序 (Bubble Sort)</option>
+      <option value="selectionSort">选择排序 (Selection Sort)</option>
+      <option value="insertionSort">插入排序 (Insertion Sort)</option>
+      <option value="linearSearch">线性搜索 (Linear Search)</option>
+      <option value="binarySearch">二分搜索 (Binary Search) - 需排序数组</option>
+    </select>
+
+    <label for="array-size">数组大小:</label>
+    <input type="number" id="array-size" min="5" max="50" value="20" aria-label="数组大小" />
+
+    <button id="generate-array-btn">生成数组</button>
+    <button id="start-btn">开始</button>
+    <button id="pause-btn" disabled>暂停</button>
+    <button id="reset-btn" disabled>重置</button>
+
+    <label for="speed-range">速度:</label>
+    <input type="range" id="speed-range" min="100" max="2000" step="50" value="700" aria-label="动画速度" />
+    <span id="speed-label">700ms</span>
+  </div>
+
+  <div id="array-container" aria-live="polite" aria-atomic="true" aria-relevant="all"></div>
+  <div id="log" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+(() => {
+  // 我们来实现多个算法的可视化动画。结构：
+  // 1. 用户可生成新数组，调整大小。
+  // 2. 选择算法：冒泡、选择、插入、线性搜索、二分搜索(需提前排序)
+  // 3. 设定动画速度。
+  // 4. 启动/暂停/重置功能。
+  // 5. 动画演示时，以颜色和动画显示元素变化，
+  //    log区显示步骤和状态信息。
+
+  // DOM Elements
+  const arrayContainer = document.getElementById("array-container");
+  const logContainer = document.getElementById("log");
+
+  const generateBtn = document.getElementById("generate-array-btn");
+  const startBtn = document.getElementById("start-btn");
+  const pauseBtn = document.getElementById("pause-btn");
+  const resetBtn = document.getElementById("reset-btn");
+
+  const algorithmSelect = document.getElementById("algorithm-select");
+  const arraySizeInput = document.getElementById("array-size");
+  const speedRange = document.getElementById("speed-range");
+  const speedLabel = document.getElementById("speed-label");
+
+  // State
+  let array = [];
+  let arraySize = +arraySizeInput.value || 20;
+  let animationSpeed = +speedRange.value; // ms delay
+  let animationTimeouts = [];
+  let running = false;
+  let paused = false;
+  let currentStep = 0;
+  let steps = [];
+  let currentAlgorithm = algorithmSelect.value;
+
+  // For searching algorithms need a target value input
+  // We'll add an input box dynamically
+  let searchTargetInput = null;
+
+  // Clear visual and logs
+  function clearAll() {
+    animationTimeouts.forEach(clearTimeout);
+    animationTimeouts = [];
+    running = false;
+    paused = false;
+    currentStep = 0;
+    steps = [];
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    resetBtn.disabled = true;
+    logContainer.textContent = "";
+  }
+
+  // Generate random array
+  function generateArray(size) {
+    const arr = [];
+    for (let i = 0; i < size; i++) {
+      // Use a range from 5 to 100 for better visuals
+      arr.push(Math.floor(Math.random() * 95) + 5);
+    }
+    return arr;
+  }
+
+  // Rendering the array bars
+  function renderArray(arr, highlightIndices = {}, extraClass = {}) {
+    // highlightIndices: {i: 'highlight'/'swap'/'done'...}
+    // extraClass: {className: [i1,i2,...]}
+    arrayContainer.innerHTML = "";
+    const maxVal = Math.max(...arr);
+    arr.forEach((val, i) => {
+      const bar = document.createElement("div");
+      bar.classList.add("array-bar");
+      const heightPercent = (val / maxVal) * 100;
+      bar.style.height = `${heightPercent}%`;
+      bar.setAttribute("data-index", i);
+      bar.setAttribute("aria-label", `索引 ${i}, 值 ${val}`);
+      bar.tabIndex = 0;
+      bar.style.width = `${Math.max(20, 600 / array.length)}px`;
+
+      if (highlightIndices[i]) {
+        bar.classList.add(highlightIndices[i]);
+      }
+      for (const [cls, indices] of Object.entries(extraClass)) {
+        if (indices.includes(i)) {
+          bar.classList.add(cls);
+        }
+      }
+
+      const textSpan = document.createElement("span");
+      textSpan.textContent = val;
+      bar.appendChild(textSpan);
+
+      arrayContainer.appendChild(bar);
+    });
+  }
+
+  // Log utility
+  function log(message, clear = false) {
+    if (clear) {
+      logContainer.textContent = "";
+    }
+    const p = document.createElement("div");
+    p.textContent = message;
+    logContainer.appendChild(p);
+    logContainer.scrollTop = logContainer.scrollHeight;
+  }
+
+  // Disable controls during running except pause
+  function updateControlsDuringRun() {
+    generateBtn.disabled = true;
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    resetBtn.disabled = false;
+    arraySizeInput.disabled = true;
+    algorithmSelect.disabled = true;
+    if (searchTargetInput) searchTargetInput.disabled = true;
+  }
+
+  // Enable controls after stop/reset
+  function updateControlsAfterStop() {
+    generateBtn.disabled = false;
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    resetBtn.disabled = true;
+    arraySizeInput.disabled = false;
+    algorithmSelect.disabled = false;
+    if (searchTargetInput) searchTargetInput.disabled = false;
+  }
+
+  // Animation scheduler: Support pause/resume
+  // We will store all timeouts and a global time counter,
+  // and on pause clear all pending timeouts,
+  // on resume schedule the rest with adjusted timeouts.
+  // For simplicity here, we implement a step-based manual startNextStep() function.
+
+  function runSteps() {
+    if (paused) return;
+    if (currentStep >= steps.length) {
+      running = false;
+      log(`算法执行完毕。`, false);
+      updateControlsAfterStop();
+      // Mark all done
+      renderArray(array, {}, { done: [...Array(array.length).keys()] });
+      return;
+    }
+
+    const step = steps[currentStep];
+    // Step is a function with animation and log internally
+    step();
+    currentStep++;
+    if (running && !paused) {
+      animationTimeouts.push(
+        setTimeout(() => {
+          runSteps();
+        }, animationSpeed)
+      );
+    }
+  }
+
+  function startAnimation() {
+    if (running) return;
+    if (steps.length === 0) return;
+    running = true;
+    paused = false;
+    updateControlsDuringRun();
+    log(`开始执行算法: ${algorithmSelect.options[algorithmSelect.selectedIndex].text}`, true);
+    currentStep = 0;
+    runSteps();
+  }
+  function pauseAnimation() {
+    if (!running) return;
+    if (paused) return;
+    paused = true;
+    animationTimeouts.forEach(clearTimeout);
+    animationTimeouts = [];
+    log("动画已暂停。");
+    pauseBtn.disabled = true;
+    startBtn.disabled = false;
+  }
+  function resumeAnimation() {
+    if (!running) return;
+    if (!paused) return;
+    paused = false;
+    log("动画已恢复。");
+    pauseBtn.disabled = false;
+    startBtn.disabled = true;
+    runSteps();
+  }
+
+  // Reset animation
+  function resetAnimation() {
+    animationTimeouts.forEach(clearTimeout);
+    animationTimeouts = [];
+    running = false;
+    paused = false;
+    currentStep = 0;
+    steps = [];
+    log("动画已重置。", true);
+    renderArray(array);
+    updateControlsAfterStop();
+    if (searchTargetInput) searchTargetInput.disabled = false;
+  }
+
+  // Create steps for algorithms
+  // 格式: steps 是一组函数，执行该函数就进行一步动画和log
+
+  // Utils for steps
+  function makeStepRender(highlight = {}, arrCopy = null, logMsg = "") {
+    return () => {
+      if (arrCopy) {
+        renderArray(arrCopy, highlight);
+      } else {
+        renderArray(array, highlight);
+      }
+      if (logMsg) log(logMsg, false);
+    };
+  }
+
+  // 冒泡排序
+  function generateBubbleSortSteps(arr) {
+    let stepsArray = [];
+    let a = arr.slice(); // copy array
+
+    const n = a.length;
+    for (let i = 0; i < n - 1; i++) {
+      for (let j = 0; j < n - i - 1; j++) {
+        // highlight comparing j and j+1
+        stepsArray.push(() => {
+          renderArray(a, { [j]: "highlight", [j+1]: "highlight" });
+          log(`比较索引 ${j} 和 ${j+1}: ${a[j]} 和 ${a[j+1]}`, false);
+        });
+        if (a[j] > a[j + 1]) {
+          // highlight swap
+          stepsArray.push(() => {
+            let newArr = a.slice();
+            [newArr[j], newArr[j + 1]] = [newArr[j + 1], newArr[j]];
+            renderArray(newArr, { [j]: "swap", [j+1]: "swap" });
+            log(`交换索引 ${j} 和 ${j + 1}`, false);
+          });
+          // perform swap in original array for next step
+          [a[j], a[j + 1]] = [a[j + 1], a[j]];
+        }
+      }
+      // Mark the last sorted element as done
+      stepsArray.push(() => {
+        let doneIndices = [];
+        for(let k = n - i - 1; k < n; k++) {
+          doneIndices.push(k);
+        }
+        renderArray(a, {}, { done: doneIndices });
+        log(`索引 ${n - i - 1} 及之后元素排序完成`, false);
+      });
+    }
+    // After finishing mark all done
+    stepsArray.push(() => {
+      renderArray(a, {}, { done: [...Array(n).keys()] });
+      log("排序完成。", false);
+      array = a;
+    });
+    return stepsArray;
+  }
+
+  // 选择排序
+  function generateSelectionSortSteps(arr) {
+    let stepsArray = [];
+    let a = arr.slice();
+
+    const n = a.length;
+
+    for(let i=0; i<n-1; i++) {
+      let minIndex = i;
+      stepsArray.push(() => {
+        renderArray(a, {[i]: "highlight"});
+        log(`开始选择索引 ${i} 之后的最小元素`, false);
+      });
+      for(let j=i+1; j<n; j++) {
+        stepsArray.push(() => {
+          renderArray(a, {[minIndex]: "highlight", [j]: "swap"});
+          log(`比较当前最小值索引 ${minIndex} 的值 ${a[minIndex]} 和索引 ${j} 的值 ${a[j]}`, false);
+        });
+        if(a[j] < a[minIndex]) {
+          minIndex = j;
+          stepsArray.push(() => {
+            renderArray(a, {[minIndex]: "highlight"});
+            log(`新的最小值更新为索引 ${minIndex}: ${a[minIndex]}`, false);
+          });
+        }
+      }
+      if(minIndex !== i) {
+        stepsArray.push(() => {
+          let newArr = a.slice();
+          [newArr[i], newArr[minIndex]] = [newArr[minIndex], newArr[i]];
+          renderArray(newArr, {[i]: "swap", [minIndex]: "swap"});
+          log(`交换索引 ${i} 和 ${minIndex}`, false);
+        });
+        [a[i], a[minIndex]] = [a[minIndex], a[i]];
+      }
+      stepsArray.push(() => {
+        renderArray(a, {}, { done: [...Array(i+1).keys()] });
+        log(`索引 ${i} 及之前元素排序完成`, false);
+      });
+    }
+    stepsArray.push(() => {
+      renderArray(a, {}, { done: [...Array(n).keys()] });
+      log("排序完成。", false);
+      array = a;
+    });
+    return stepsArray;
+  }
+
+  // 插入排序
+  function generateInsertionSortSteps(arr) {
+    let stepsArray = [];
+    let a = arr.slice();
+    const n = a.length;
+
+    for(let i=1; i<n; i++) {
+      let key = a[i];
+      let j = i - 1;
+      stepsArray.push(() => {
+        renderArray(a, {[i]: "highlight"});
+        log(`插入元素索引 ${i} 的值 ${key}`, false);
+      });
+      while(j >= 0 && a[j] > key) {
+        stepsArray.push(() => {
+          renderArray(a, {[j]: "swap", [j+1]: "swap"});
+          log(`索引 ${j} 的值 ${a[j]} 大于 ${key}, 向后移动`, false);
+        });
+        a[j+1] = a[j];
+        j--;
+      }
+      stepsArray.push(() => {
+        a[j+1] = key;
+        renderArray(a, {[j+1]: "highlight"});
+        log(`插入元素 ${key} 到索引 ${j+1}`, false);
+      });
+      stepsArray.push(() => {
+        renderArray(a, {}, { done: [...Array(i+1).keys()] });
+        log(`索引 0 到 ${i} 排序完成`, false);
+      });
+    }
+    stepsArray.push(() => {
+      renderArray(a, {}, { done: [...Array(n).keys()] });
+      log("排序完成。", false);
+      array = a;
+    });
+    return stepsArray;
+  }
+
+  // 线性搜索
+  // 用户需输入目标值
+  // 每步highlight一个元素，找到即结束
+  function generateLinearSearchSteps(arr, targetValue) {
+    let stepsArray = [];
+    let a = arr.slice();
+
+    stepsArray.push(() => {
+      log(`线性搜索目标值: ${targetValue}`, true);
+    });
+
+    for(let i=0; i<a.length; i++) {
+      stepsArray.push(() => {
+        renderArray(a, {[i]: "highlight"});
+        log(`检查索引 ${i}, 值 ${a[i]}`, false);
+      });
+      if(a[i] == targetValue) {
+        stepsArray.push(() => {
+          renderArray(a, {[i]: "done"});
+          log(`找到目标值 ${targetValue} 在索引 ${i}`, false);
+        });
+        return stepsArray;
+      }
+    }
+    // 结束没找到
+    stepsArray.push(() => {
+      renderArray(a);
+      log(`未找到目标值 ${targetValue}。`, false);
+    });
+    return stepsArray;
+  }
+
+  // 二分搜索
+  // 数组要求是有序的，用户须输入目标值
+  // 每步突出中间元素
+  function generateBinarySearchSteps(arr, targetValue) {
+    let stepsArray = [];
+    let a = arr.slice();
+
+    stepsArray.push(() => {
+      log(`二分搜索目标值: ${targetValue}`, true);
+    });
+
+    let left = 0;
+    let right = a.length - 1;
+
+    while(left <= right) {
+      let mid = Math.floor((left + right) / 2);
+      stepsArray.push(() => {
+        // highlight mid
+        renderArray(a, {[mid]: "highlight"});
+        log(`检查中间索引 ${mid}, 值 ${a[mid]}`, false);
+      });
+      if(a[mid] == targetValue) {
+        stepsArray.push(() => {
+          renderArray(a, {[mid]: "done"});
+          log(`找到目标值 ${targetValue} 在索引 ${mid}`, false);
+        });
+        return stepsArray;
+      } else if(a[mid] < targetValue) {
+        stepsArray.push(() => {
+          log(`目标值大于索引 ${mid} 的值 ${a[mid]}, 在右半部分继续搜索`, false);
+        });
+        left = mid + 1;
+      } else {
+        stepsArray.push(() => {
+          log(`目标值小于索引 ${mid} 的值 ${a[mid]}, 在左半部分继续搜索`, false);
+        });
+        right = mid - 1;
+      }
+    }
+    stepsArray.push(() => {
+      renderArray(a);
+      log(`未找到目标值 ${targetValue}。`, false);
+    });
+
+    return stepsArray;
+  }
+
+  // 根据选择的算法生成steps
+  function prepareSteps() {
+    steps = [];
+    currentStep = 0;
+    let target = null;
+    if (searchTargetInput) {
+      const val = searchTargetInput.value.trim();
+      if(val.length > 0) {
+        target = Number(val);
+        if (isNaN(target)) {
+          alert("请输入有效的目标值（数字）。");
+          return false;
+        }
+      }
+    }
+    if((currentAlgorithm === "linearSearch" || currentAlgorithm === "binarySearch") && target === null) {
+      alert("请先输入搜索目标值。");
+      return false;
+    }
+    // For binary search must be sorted
+    if(currentAlgorithm === "binarySearch") {
+      array.sort((a,b) => a-b);
+      renderArray(array);
+    }
+    switch(currentAlgorithm) {
+      case "bubbleSort":
+        steps = generateBubbleSortSteps(array);
+        break;
+      case "selectionSort":
+        steps = generateSelectionSortSteps(array);
+        break;
+      case "insertionSort":
+        steps = generateInsertionSortSteps(array);
+        break;
+      case "linearSearch":
+        steps = generateLinearSearchSteps(array, target);
+        break;
+      case "binarySearch":
+        steps = generateBinarySearchSteps(array, target);
+        break;
+    }
+    return true;
+  }
+
+  // Event listeners:
+
+  // Update speed label
+  speedRange.addEventListener("input", e => {
+    animationSpeed = +e.target.value;
+    speedLabel.textContent = animationSpeed + "ms";
+  });
+
+  // Generate new array
+  generateBtn.addEventListener("click", () => {
+    let size = +arraySizeInput.value;
+    if (isNaN(size) || size < 5) {
+      size = 5;
+      arraySizeInput.value = size;
+    } else if (size > 50) {
+      size = 50;
+      arraySizeInput.value = size;
+    }
+    arraySize = size;
+    array = generateArray(arraySize);
+    renderArray(array);
+    log("生成新数组。", true);
+    resetAnimation();
+
+    // If binary search selected, sort immediately for user clarity
+    if (algorithmSelect.value === "binarySearch") {
+      array.sort((a,b) => a-b);
+      renderArray(array);
+      log("数组已排序以用于二分搜索。", false);
+    }
+  });
+
+  // Algorithm change
+  algorithmSelect.addEventListener("change", e => {
+    currentAlgorithm = e.target.value;
+    resetAnimation();
+    if (searchTargetInput) {
+      searchTargetInput.remove();
+      searchTargetInput = null;
+    }
+    // For search algorithms, show input box for target value
+    if(currentAlgorithm === "linearSearch" || currentAlgorithm === "binarySearch") {
+      searchTargetInput = document.createElement("input");
+      searchTargetInput.type = "number";
+      searchTargetInput.id = "search-target";
+      searchTargetInput.placeholder = "输入搜索目标值";
+      searchTargetInput.setAttribute("aria-label", "搜索目标值输入框");
+      searchTargetInput.style.marginLeft = "10px";
+      const label = document.createElement("label");
+      label.htmlFor = "search-target";
+      label.textContent = "目标值:";
+      label.style.marginLeft = "10px";
+      label.style.fontWeight = "bold";
+      document.getElementById("controls").insertBefore(searchTargetInput, startBtn);
+      document.getElementById("controls").insertBefore(label, searchTargetInput);
+    } else {
+      // Remove any left labels
+      const labels = document.querySelectorAll("#controls label");
+      labels.forEach(lbl=>{
+        if(lbl.htmlFor === "search-target") lbl.remove();
+      });
+    }
+
+    // If user changed to binary search, sort the array first and render
+    if(currentAlgorithm === "binarySearch") {
+      array.sort((a,b) => a-b);
+      renderArray(array);
+      log("数组已排序以用于二分搜索。", true);
+    } else {
+      renderArray(array);
+    }
+  });
+
+  // Start button
+  startBtn.addEventListener("click", () => {
+    if (running && paused) {
+      resumeAnimation();
+      startBtn.disabled = true;
+      pauseBtn.disabled = false;
+      return;
+    }
+
+    if (!prepareSteps()) return;
+
+    startAnimation();
+  });
+
+  // Pause button
+  pauseBtn.addEventListener("click", () => {
+    pauseAnimation();
+  });
+
+  // Reset button
+  resetBtn.addEventListener("click", () => {
+    resetAnimation();
+  });
+
+  // Initialize
+
+  array = generateArray(arraySize);
+  renderArray(array);
+  log("欢迎使用数组算法交互式可视化演示。", true);
+
+})();
+</script>
+</body>
+</html>

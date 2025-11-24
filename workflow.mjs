@@ -394,10 +394,10 @@ async function saveWorkflowResults(params) {
     }
   }
 
-  // 4. 保存元数据到 data.json
+  // 4. 保存元数据到独立的 UUID.json 文件
   if (metadata) {
     const dataDir = `./workspace/${workspace}/data`;
-    const dataFilePath = `${dataDir}/data.json`;
+    const dataFilePath = `${dataDir}/${resultId}.json`;
 
     const dataEntry = {
       id: resultId,
@@ -415,7 +415,10 @@ async function saveWorkflowResults(params) {
     };
 
     await fs.mkdir(dataDir, { recursive: true });
-    await fileWriter.appendToJsonFile(dataFilePath, dataEntry);
+    await fileWriter.writeFile(
+      dataFilePath,
+      JSON.stringify(dataEntry, null, 2)
+    );
 
     if (showProgress) {
       console.log(
