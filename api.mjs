@@ -43,16 +43,32 @@ app.get("/api/workspaces", async (req, res) => {
           await fs.access(dataPath);
           await fs.access(htmlPath);
 
-          // 检查是否有data.json文件
-          const dataJsonPath = path.join(dataPath, "data.json");
-          await fs.access(dataJsonPath);
+          // 检查data目录中是否有JSON文件（UUID格式或data.json）
+          const dataFiles = await fs.readdir(dataPath);
+          const hasDataFiles = dataFiles.some(
+            (file) =>
+              file.endsWith(".json") &&
+              (file === "data.json" ||
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/i.test(
+                  file
+                ))
+          );
 
-          workspaces.push({
-            name: workspaceName,
-            path: workspaceName,
-            hasData: true,
-            hasHtml: true,
-          });
+          if (hasDataFiles) {
+            workspaces.push({
+              name: workspaceName,
+              path: workspaceName,
+              hasData: true,
+              hasHtml: true,
+            });
+          } else {
+            workspaces.push({
+              name: workspaceName,
+              path: workspaceName,
+              hasData: false,
+              hasHtml: false,
+            });
+          }
         } catch (error) {
           // 如果目录结构不完整，仍然添加但标记为不完整
           workspaces.push({
@@ -79,12 +95,43 @@ app.get("/api/workspaces", async (req, res) => {
 app.get("/api/workspaces/:workspace/data", async (req, res) => {
   try {
     const { workspace } = req.params;
-    const dataPath = `./workspace/${workspace}/data/data.json`;
+    const dataDir = `./workspace/${workspace}/data`;
+    const legacyDataPath = path.join(dataDir, "data.json");
 
-    const data = await fs.readFile(dataPath, "utf-8");
-    const jsonData = JSON.parse(data);
+    // 首先检查是否存在传统的data.json文件
+    try {
+      await fs.access(legacyDataPath);
+      const data = await fs.readFile(legacyDataPath, "utf-8");
+      const jsonData = JSON.parse(data);
+      return res.json(jsonData);
+    } catch (error) {
+      // data.json不存在，尝试读取UUID格式的文件
+    }
 
-    res.json(jsonData);
+    // 读取所有UUID格式的JSON文件
+    const files = await fs.readdir(dataDir);
+    const uuidFiles = files.filter((file) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/i.test(
+        file
+      )
+    );
+
+    const allData = [];
+    for (const file of uuidFiles) {
+      try {
+        const filePath = path.join(dataDir, file);
+        const fileData = await fs.readFile(filePath, "utf-8");
+        const jsonData = JSON.parse(fileData);
+        allData.push(jsonData);
+      } catch (error) {
+        console.warn(`跳过无效文件 ${file}:`, error.message);
+      }
+    }
+
+    // 按时间戳排序
+    allData.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    res.json(allData);
   } catch (error) {
     console.error("获取工作空间数据失败:", error);
     res.status(500).json({
@@ -123,12 +170,38 @@ app.get("/api/workspaces/:workspace/html", async (req, res) => {
 app.get("/api/workspaces/:workspace/stats", async (req, res) => {
   try {
     const { workspace } = req.params;
-    const dataPath = `./workspace/${workspace}/data/data.json`;
+    const dataDir = `./workspace/${workspace}/data`;
     const htmlPath = `./workspace/${workspace}/html`;
 
-    // 读取数据文件
-    const data = await fs.readFile(dataPath, "utf-8");
-    const jsonData = JSON.parse(data);
+    // 获取数据（支持两种格式）
+    let jsonData = [];
+
+    // 首先尝试传统的data.json
+    const legacyDataPath = path.join(dataDir, "data.json");
+    try {
+      await fs.access(legacyDataPath);
+      const data = await fs.readFile(legacyDataPath, "utf-8");
+      jsonData = JSON.parse(data);
+    } catch (error) {
+      // 尝试读取UUID文件
+      const files = await fs.readdir(dataDir);
+      const uuidFiles = files.filter((file) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/i.test(
+          file
+        )
+      );
+
+      for (const file of uuidFiles) {
+        try {
+          const filePath = path.join(dataDir, file);
+          const fileData = await fs.readFile(filePath, "utf-8");
+          const data = JSON.parse(fileData);
+          jsonData.push(data);
+        } catch (error) {
+          console.warn(`跳过无效文件 ${file}:`, error.message);
+        }
+      }
+    }
 
     // 读取HTML文件
     const htmlFiles = await fs.readdir(htmlPath);
@@ -152,6 +225,7 @@ app.get("/api/workspaces/:workspace/stats", async (req, res) => {
       totalEntries: jsonData.length,
       htmlFiles: htmlCount,
       modelStats,
+      storageType: jsonData.length > 0 ? "uuid" : "legacy", // 标识存储类型
       dateRange: {
         newest: newest ? newest.toISOString() : null,
         oldest: oldest ? oldest.toISOString() : null,
@@ -226,6 +300,25 @@ app.get("/api/fsm/:workspace/:fileId", async (req, res) => {
   } catch (error) {
     console.error("获取FSM数据失败:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取单个UUID数据条目
+app.get("/api/workspaces/:workspace/data/:uuid", async (req, res) => {
+  try {
+    const { workspace, uuid } = req.params;
+    const dataPath = `./workspace/${workspace}/data/${uuid}.json`;
+
+    const data = await fs.readFile(dataPath, "utf-8");
+    const jsonData = JSON.parse(data);
+
+    res.json(jsonData);
+  } catch (error) {
+    console.error("获取UUID数据失败:", error);
+    res.status(404).json({
+      error: "数据不存在",
+      message: `UUID ${req.params.uuid} 对应的数据文件不存在`,
+    });
   }
 });
 
@@ -404,7 +497,12 @@ app.listen(PORT, () => {
   console.log(`🚀 API服务器运行在 http://localhost:${PORT}`);
   console.log(`📡 可用的API端点:`);
   console.log(`   GET /api/workspaces - 获取所有工作空间`);
-  console.log(`   GET /api/workspaces/:workspace/data - 获取工作空间数据`);
+  console.log(
+    `   GET /api/workspaces/:workspace/data - 获取工作空间数据 (支持UUID分散存储)`
+  );
+  console.log(
+    `   GET /api/workspaces/:workspace/data/:uuid - 获取单个UUID数据条目`
+  );
   console.log(`   GET /api/workspaces/:workspace/html - 获取HTML文件列表`);
   console.log(`   GET /api/workspaces/:workspace/stats - 获取工作空间统计`);
   console.log(
