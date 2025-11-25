@@ -69,7 +69,7 @@ export async function runBatchWorkflow(config) {
   const {
     workspace,
     model,
-    questionListPath = "./question-list.json",
+    questionListPath = "./question-list-short.json",
     concurrency = 3,
     enableFSM = true,
     enableTests = true,
