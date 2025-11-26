@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Radix Sort Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f5f7fa;
+    color: #333;
+  }
+  h1 {
+    text-align: center;
+  }
+  #inputArea {
+    margin-bottom: 15px;
+    text-align: center;
+  }
+  input[type="text"] {
+    width: 300px;
+    font-size: 16px;
+    padding: 7px;
+    border-radius: 5px;
+    border: 2px solid #ccc;
+  }
+  button {
+    font-size: 16px;
+    padding: 8px 15px;
+    margin-left: 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #4a90e2;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  button:hover:not(:disabled) {
+    background-color: #357ABD;
+  }
+  button:disabled {
+    background-color: #a0a0a0;
+    cursor: not-allowed;
+  }
+  #arrayContainer {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .array-item {
+    background-color: #80b3ff;
+    color: white;
+    padding: 15px 20px;
+    margin: 5px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 18px;
+    min-width: 50px;
+    text-align: center;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+    transition: background-color 0.5s ease;
+  }
+  .highlight {
+    background-color: #ffae42 !important;
+    box-shadow: 0 0 10px 3px #ffae42;
+  }
+  .bucket {
+    border: 2px dashed #4a90e2;
+    border-radius: 8px;
+    margin: 10px;
+    min-width: 60px;
+    min-height: 70px;
+    padding: 5px;
+    background: white;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
+  }
+  .bucket-label {
+    font-size: 14px;
+    text-align: center;
+    margin-bottom: 3px;
+    color: #357ABD;
+    font-weight: 600;
+  }
+  #bucketsContainer {
+    display: flex;
+    justify-content: center;
+    flex-wrap: nowrap;
+  }
+  #log {
+    max-width: 800px;
+    margin: 20px auto 0;
+    background: white;
+    border-radius: 6px;
+    padding: 15px;
+    box-shadow: 0 3px 7px rgba(0,0,0,0.1);
+    height: 140px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 14px;
+    color: #444;
+    white-space: pre-wrap;
+  }
+  #speedControl {
+    margin-top: 10px;
+    text-align: center;
+  }
+  label {
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Radix Sort Visualization (LSD - Least Significant Digit)</h1>
+
+<div id="inputArea">
+  <input id="inputArray" type="text" placeholder="Enter numbers separated by commas" value="170, 45, 75, 90, 802, 24, 2, 66" />
+  <button id="startBtn">Start Sorting</button>
+</div>
+
+<div id="speedControl">
+  <label for="speedRange">Animation speed (ms delay between steps): </label>
+  <input id="speedRange" type="range" min="100" max="2000" value="800" step="100" />
+  <span id="speedValue">800</span> ms
+</div>
+
+<div id="arrayContainer"></div>
+
+<div id="bucketsContainer"></div>
+
+<div id="log"></div>
+
+<script>
+(() => {
+  const inputArray = document.getElementById("inputArray");
+  const startBtn = document.getElementById("startBtn");
+  const arrayContainer = document.getElementById("arrayContainer");
+  const bucketsContainer = document.getElementById("bucketsContainer");
+  const log = document.getElementById("log");
+  const speedRange = document.getElementById("speedRange");
+  const speedValue = document.getElementById("speedValue");
+
+  speedRange.addEventListener('input', () => {
+    speedValue.textContent = speedRange.value;
+  });
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function logMessage(msg) {
+    log.textContent += msg + "\n";
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // Render the array visually
+  function renderArray(arr, highlightIndices = []) {
+    arrayContainer.innerHTML = "";
+    arr.forEach((num, i) => {
+      const div = document.createElement("div");
+      div.className = "array-item";
+      if (highlightIndices.includes(i)) {
+        div.classList.add("highlight");
+      }
+      div.textContent = num;
+      arrayContainer.appendChild(div);
+    });
+  }
+
+  // Render the buckets visually
+  function renderBuckets(buckets, currentDigit) {
+    bucketsContainer.innerHTML = "";
+    for(let i=0; i<10; i++) {
+      const bucketDiv = document.createElement("div");
+      bucketDiv.className = "bucket";
+      const label = document.createElement("div");
+      label.className = "bucket-label";
+      label.textContent = `Digit ${i}`;
+      bucketDiv.appendChild(label);
+
+      buckets[i].forEach(num => {
+        const numDiv = document.createElement("div");
+        numDiv.className = "array-item";
+        numDiv.style.padding = "5px 10px";
+        numDiv.style.margin = "3px auto";
+        numDiv.style.minWidth = "40px";
+        numDiv.textContent = num;
+        bucketDiv.appendChild(numDiv);
+      });
+
+      if(i === currentDigit) {
+        bucketDiv.style.borderColor = "#ffae42";
+        bucketDiv.style.backgroundColor = "#fff3e0";
+      } else {
+        bucketDiv.style.borderColor = "#4a90e2";
+        bucketDiv.style.backgroundColor = "white";
+      }
+      bucketsContainer.appendChild(bucketDiv);
+    }
+  }
+
+  // Helper to get digit at position d (0-based from right)
+  function getDigit(num, d) {
+    return Math.floor(Math.abs(num) / Math.pow(10, d)) % 10;
+  }
+
+  // Find max number of digits in array elements
+  function getMaxDigits(arr) {
+    let max = 0;
+    for(let num of arr) {
+      max = Math.max(max, num.toString().length);
+    }
+    return max;
+  }
+
+  async function radixSort(arr) {
+    log.textContent = "";
+    const maxDigitCount = getMaxDigits(arr);
+    logMessage(`Maximum number of digits found: ${maxDigitCount}`);
+
+    let output = [...arr];
+
+    for(let digitIndex = 0; digitIndex < maxDigitCount; digitIndex++) {
+      logMessage(`\n--- Sorting by digit index (from right) = ${digitIndex} ---`);
+
+      // Create buckets for each digit 0-9
+      let buckets = Array.from({length:10}, () => []);
+
+      // Place elements in buckets based on current digit
+      for(let i=0; i<output.length; i++) {
+        const num = output[i];
+        const digit = getDigit(num, digitIndex);
+        logMessage(`Placing ${num} in bucket ${digit}`);
+        buckets[digit].push(num);
+
+        renderArray(output, [i]);
+        renderBuckets(buckets, digit);
+        await sleep(speedRange.value);
+      }
+
+      // Concatenate buckets in order
+      output = [];
+      for(let i=0; i<10; i++) {
+        if(buckets[i].length > 0) {
+          logMessage(`Collecting bucket ${i}: [${buckets[i].join(", ")}]`);
+        }
+        output.push(...buckets[i]);
+
+        renderArray(output);
+        renderBuckets(buckets, i);
+        await sleep(speedRange.value / 2);
+      }
+      logMessage(`Array after sorting by digit ${digitIndex}: [${output.join(", ")}]`);
+    }
+    logMessage("\nSorting completed!");
+    renderArray(output);
+    bucketsContainer.innerHTML = "";
+  }
+
+  startBtn.addEventListener("click", async () => {
+    let rawInput = inputArray.value.trim();
+    if(!rawInput) {
+      alert("Please enter some numbers separated by commas.");
+      return;
+    }
+    let arr = rawInput.split(",").map(s => s.trim()).map(Number);
+    if(arr.some(isNaN)) {
+      alert("Please enter valid integers separated by commas.");
+      return;
+    }
+    if(arr.some(n => n < 0)) {
+      alert("This visualization supports only non-negative integers.");
+      return;
+    }
+    startBtn.disabled = true;
+    inputArray.disabled = true;
+    speedRange.disabled = true;
+    try {
+      await radixSort(arr);
+    } catch(e) {
+      alert("An error occurred during sorting.");
+      console.error(e);
+    }
+    startBtn.disabled = false;
+    inputArray.disabled = false;
+    speedRange.disabled = false;
+  });
+
+  // Initial render
+  renderArray([170, 45, 75, 90, 802, 24, 2, 66]);
+})();
+</script>
+
+</body>
+</html>

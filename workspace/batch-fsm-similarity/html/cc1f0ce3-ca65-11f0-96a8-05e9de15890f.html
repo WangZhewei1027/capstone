@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Linear Regression Interactive Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 0; background: #f5f7fb; color: #222; }
+  header { padding: 18px 22px; background: linear-gradient(90deg,#3b82f6,#06b6d4); color: white; }
+  header h1 { margin: 0; font-size: 20px; }
+  main { display: flex; gap: 18px; padding: 18px; }
+  .canvas-wrap { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 6px 18px rgba(15,23,42,0.08); flex: 1; display: flex; flex-direction: column; }
+  canvas { background: #ffffff; border-radius: 6px; border: 1px solid #e6eef8; cursor: crosshair; }
+  .controls { width: 360px; background: white; border-radius: 8px; padding: 16px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+  .section { margin-bottom: 12px; }
+  label { display: block; font-size: 13px; color: #334155; margin-bottom: 6px; }
+  input[type="range"] { width: 100%; }
+  button, .btn { background: #2563eb; color: white; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+  .btn.secondary { background: #e6eef8; color: #0f172a; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .small { font-size: 13px; color: #475569; }
+  .stats { background:#fbfdff; border-radius:6px; padding:10px; border: 1px solid #e6eef8; }
+  .stat-row { display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px; color:#0f172a; }
+  .method { display:flex; gap:8px; margin-bottom:8px; }
+  .hint { font-size:13px; color:#475569; margin-top:8px; }
+  footer { padding:12px 18px; font-size:13px; color:#334155; }
+  .point-count { font-weight:600; color:#0f172a; }
+  .control-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+  .link { color:#2563eb; text-decoration:underline; cursor:pointer; background:none; border:none; padding:0; font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Linear Regression — Interactive Demo</h1>
+</header>
+
+<main>
+  <div class="canvas-wrap">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div>
+        <strong>Scatter Plot</strong>
+        <div class="small">Click to add points. Drag to move. Shift+Click to remove nearest point.</div>
+      </div>
+      <div class="small">Points: <span id="pointCount" class="point-count">0</span></div>
+    </div>
+    <canvas id="plot" width="760" height="520"></canvas>
+    <div class="hint" style="margin-top:10px;">
+      Closed-form (OLS) = exact least-squares solution. Gradient Descent shows iterative convergence. R² and SSE update live.
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="section">
+      <label>Data</label>
+      <div class="control-grid">
+        <div>
+          <label class="small">Generate points</label>
+          <div class="row">
+            <input id="nPoints" type="number" min="2" max="500" value="20" style="width:80px;padding:6px;border-radius:6px;border:1px solid #e6eef8" />
+            <select id="pattern" style="padding:6px;border-radius:6px;border:1px solid #e6eef8">
+              <option value="linear">Linear</option>
+              <option value="linear_outliers">Linear + outliers</option>
+              <option value="cluster">Clusters</option>
+              <option value="noisy_slope">Noisy slope</option>
+              <option value="random">Random</option>
+            </select>
+          </div>
+          <div style="margin-top:8px;" class="row">
+            <button id="genBtn" class="btn">Generate</button>
+            <button id="clearBtn" class="btn secondary">Clear</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="small">Noise (std)</label>
+          <input id="noise" type="range" min="0" max="2" step="0.01" value="0.25">
+          <div class="small" style="display:flex;justify-content:space-between;"><span>0</span><span id="noiseVal">0.25</span><span>2</span></div>
+          <div style="margin-top:8px;" class="small">Random seed: <input id="seed" type="number" value="42" style="width:90px;padding:6px;border-radius:6px;border:1px solid #e6eef8" /></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <label>Method</label>
+      <div class="method">
+        <label><input type="radio" name="method" value="ols" checked> Closed-form (OLS)</label>
+        <label><input type="radio" name="method" value="gd"> Gradient Descent</label>
+      </div>
+
+      <div id="gdControls" style="display:none; margin-top:8px;">
+        <label class="small">Learning rate</label>
+        <input id="lr" type="range" min="0.0001" max="0.5" step="0.0001" value="0.01">
+        <div class="row" style="margin-top:6px;">
+          <label class="small">Iterations</label>
+          <input id="iters" type="number" min="1" max="20000" value="200" style="width:100px;padding:6px;border-radius:6px;border:1px solid #e6eef8" />
+          <button id="runGD" class="btn">Run</button>
+          <button id="animateGD" class="btn secondary">Animate</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section stats">
+      <div class="stat-row"><div>Slope (m)</div><div id="slope">—</div></div>
+      <div class="stat-row"><div>Intercept (b)</div><div id="intercept">—</div></div>
+      <div class="stat-row"><div>SSE (sum squared errors)</div><div id="sse">—</div></div>
+      <div class="stat-row"><div>R²</div><div id="r2">—</div></div>
+      <div class="stat-row"><div>Method</div><div id="methodName">OLS</div></div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <div class="small">Hints:</div>
+      <ul style="margin:8px 0 0 18px; color:#475569; font-size:13px;">
+        <li>OLS computes the exact minimum of SSE in one step.</li>
+        <li>Gradient Descent iteratively updates parameters by descending the SSE surface.</li>
+        <li>Add and move points to see how slope/intercept change.</li>
+      </ul>
+    </div>
+
+    <div style="margin-top:12px; display:flex; justify-content:space-between;">
+      <button id="resetParams" class="btn secondary">Reset GD params</button>
+      <button id="export" class="btn">Export CSV</button>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Demo: Simple linear regression (1D) — click to add training points. Use Shift+Click to remove the nearest point.
+</footer>
+
+<script>
+/*
+  Linear Regression Interactive Demo
+  - Click canvas to add points
+  - Drag to move points
+  - Shift+Click to remove nearest
+  - Generate datasets, change noise
+  - Compare closed-form OLS and gradient descent
+*/
+
+(() => {
+  // Canvas and drawing
+  const canvas = document.getElementById('plot');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const margin = {left:56, right:18, top:18, bottom:48};
+  const innerW = W - margin.left - margin.right;
+  const innerH = H - margin.top - margin.bottom;
+
+  // UI elements
+  const pointCountEl = document.getElementById('pointCount');
+  const genBtn = document.getElementById('genBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const nPointsEl = document.getElementById('nPoints');
+  const noiseEl = document.getElementById('noise');
+  const noiseVal = document.getElementById('noiseVal');
+  const seedEl = document.getElementById('seed');
+  const patternEl = document.getElementById('pattern');
+  const methodRadios = document.getElementsByName('method');
+  const gdControls = document.getElementById('gdControls');
+  const lrEl = document.getElementById('lr');
+  const itersEl = document.getElementById('iters');
+  const runGD = document.getElementById('runGD');
+  const animateGD = document.getElementById('animateGD');
+  const slopeEl = document.getElementById('slope');
+  const interceptEl = document.getElementById('intercept');
+  const sseEl = document.getElementById('sse');
+  const r2El = document.getElementById('r2');
+  const methodNameEl = document.getElementById('methodName');
+  const resetParamsBtn = document.getElementById('resetParams');
+  const exportBtn = document.getElementById('export');
+
+  noiseVal.textContent = noiseEl.value;
+
+  // Data storage: array of {x,y}
+  let points = [];
+
+  // Current model parameters
+  let model = {m: 0, b: 0};        // used for display; if GD is running, modelGD tracks iterative params
+  let modelGD = {m: 0, b: 0};
+  let gdAnimating = false;
+  let gdAnimationId = null;
+
+  // RNG (seedable for reproducible datasets)
+  let seed = Number(seedEl.value) || 1;
+  function rng() {
+    // xorshift32
+    seed = (seed ^ (seed << 13)) >>> 0;
+    seed = (seed ^ (seed >>> 17)) >>> 0;
+    seed = (seed ^ (seed << 5)) >>> 0;
+    return (seed >>> 0) / 4294967295;
+  }
+
+  // Coordinate transforms (data domain chosen: x in [0,1], y in [0,1])
+  function xToPx(x) { return margin.left + x * innerW; }
+  function yToPx(y) { return margin.top + (1 - y) * innerH; } // invert y
+  function pxToX(px) { return Math.min(1, Math.max(0, (px - margin.left) / innerW)); }
+  function pxToY(py) { return Math.min(1, Math.max(0, 1 - (py - margin.top) / innerH)); }
+
+  // Drawing grid, axes, points, line, residuals
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    drawBackground();
+    drawGrid();
+    drawAxes();
+    drawLine();       // draws fitted line (model)
+    drawResiduals();
+    drawPoints();
+    drawLegend();
+  }
+
+  function drawBackground() {
+    // subtle background
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0,0,W,H);
+  }
+
+  function drawGrid() {
+    ctx.strokeStyle = '#eef6ff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    // vertical grid (x)
+    for (let i=0;i<=10;i++) {
+      let x = margin.left + (innerW/10)*i;
+      ctx.moveTo(x, margin.top);
+      ctx.lineTo(x, H - margin.bottom);
+    }
+    // horizontal grid (y)
+    for (let j=0;j<=10;j++) {
+      let y = margin.top + (innerH/10)*j;
+      ctx.moveTo(margin.left, y);
+      ctx.lineTo(W - margin.right, y);
+    }
+    ctx.stroke();
+  }
+
+  function drawAxes() {
+    ctx.strokeStyle = '#cfe7ff';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    // x axis
+    ctx.moveTo(margin.left, H - margin.bottom);
+    ctx.lineTo(W - margin.right, H - margin.bottom);
+    // y axis
+    ctx.moveTo(margin.left, margin.top);
+    ctx.lineTo(margin.left, H - margin.bottom);
+    ctx.stroke();
+
+    // labels
+    ctx.fillStyle = '#334155';
+    ctx.font = '13px system-ui, -apple-system, "Segoe UI", Roboto';
+    ctx.textAlign = 'center';
+    for (let i=0;i<=5;i++) {
+      let x = margin.left + innerW * (i/5);
+      ctx.fillText((i/5).toFixed(2), x, H - margin.bottom + 18);
+    }
+    ctx.textAlign = 'right';
+    for (let i=0;i<=5;i++) {
+      let y = margin.top + innerH * (i/5);
+      ctx.fillText((1 - i/5).toFixed(2), margin.left - 8, y + 4);
+    }
+  }
+
+  function drawPoints() {
+    for (let i=0;i<points.length;i++) {
+      let p = points[i];
+      const px = xToPx(p.x), py = yToPx(p.y);
+      // ring
+      ctx.beginPath();
+      ctx.fillStyle = 'white';
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.4;
+      ctx.arc(px, py, 6, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+
+      // fill with blue
+      ctx.beginPath();
+      ctx.fillStyle = '#2563eb';
+      ctx.arc(px, py, 3.7, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function drawLine() {
+    if (points.length < 2) return;
+    // Use current method to draw main line (if GD and animating, use modelGD else use model)
+    const activeMethod = getMethod();
+    let m = model.m, b = model.b;
+    if (activeMethod === 'gd') {
+      // when GD animate or run, use modelGD for display; otherwise show model (which might be OLS)
+      m = modelGD.m;
+      b = modelGD.b;
+    }
+    // draw line across x=0..1
+    const y0 = b + m * 0;
+    const y1 = b + m * 1;
+    const px0 = xToPx(0), py0 = yToPx(y0);
+    const px1 = xToPx(1), py1 = yToPx(y1);
+
+    // line
+    ctx.beginPath();
+    ctx.moveTo(px0, py0);
+    ctx.lineTo(px1, py1);
+    ctx.strokeStyle = (activeMethod === 'ols' ? '#065f46' : '#b91c1c');
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+
+    // area of prediction shadow
+    ctx.strokeStyle = (activeMethod === 'ols' ? 'rgba(6,95,70,0.08)' : 'rgba(185,28,28,0.08)');
+    ctx.lineWidth = 1.0;
+  }
+
+  function drawResiduals() {
+    if (points.length < 1) return;
+    const activeMethod = getMethod();
+    let m = model.m, b = model.b;
+    if (activeMethod === 'gd') {
+      m = modelGD.m;
+      b = modelGD.b;
+    }
+    for (let p of points) {
+      const px = xToPx(p.x), py = yToPx(p.y);
+      const yPred = b + m * p.x;
+      const pyPred = yToPx(yPred);
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px, pyPred);
+      ctx.strokeStyle = 'rgba(15,23,42,0.12)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+  }
+
+  function drawLegend() {
+    // top-left legend with method and parameter values
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(W - margin.right - 180, margin.top + 8, 170, 64);
+    ctx.strokeStyle = '#e6eef8';
+    ctx.strokeRect(W - margin.right - 180, margin.top + 8, 170, 64);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '13px system-ui, -apple-system, "Segoe UI", Roboto';
+    ctx.textAlign = 'left';
+    ctx.fillText('Method: ' + capitalize(getMethod()), W - margin.right - 168, margin.top + 26);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText('m: ' + (Number(modelGD.m.toFixed(4))), W - margin.right - 168, margin.top + 44);
+    ctx.fillText('b: ' + (Number(modelGD.b.toFixed(4))), W - margin.right - 88, margin.top + 44);
+  }
+
+  // Compute OLS closed form
+  function fitOLS(pts) {
+    if (!pts || pts.length === 0) {
+      return {m: 0, b: 0};
+    }
+    const n = pts.length;
+    let meanX = 0, meanY = 0;
+    for (let p of pts) { meanX += p.x; meanY += p.y; }
+    meanX /= n; meanY /= n;
+    let num = 0, den = 0;
+    for (let p of pts) {
+      num += (p.x - meanX) * (p.y - meanY);
+      den += (p.x - meanX) * (p.x - meanX);
+    }
+    // handle zero variance
+    const m = den === 0 ? 0 : num / den;
+    const b = meanY - m * meanX;
+    return {m, b};
+  }
+
+  // Compute error metrics
+  function computeStats(pts, m, b) {
+    if (!pts || pts.length === 0) return {sse: 0, r2: 0};
+    let sse = 0, sst = 0;
+    let meanY = pts.reduce((s,p)=>s+p.y,0) / pts.length;
+    for (let p of pts) {
+      const err = p.y - (b + m * p.x);
+      sse += err * err;
+      const tot = p.y - meanY;
+      sst += tot * tot;
+    }
+    const r2 = (sst === 0) ? 1 : Math.max(0, 1 - sse / sst);
+    return {sse, r2};
+  }
+
+  // Gradient Descent (batch) on SSE for parameters m and b
+  function gradientDescentStep(pts, m, b, lr) {
+    // gradients: d/dm = (-2/N)*sum x*(y - (b+mx)), d/db = (-2/N)*sum (y - (b+mx))
+    const n = pts.length;
+    if (n === 0) return {m,b};
+    let dm = 0, db = 0;
+    for (let p of pts) {
+      const pred = b + m * p.x;
+      const err = p.y - pred;
+      dm += -2 * p.x * err;
+      db += -2 * err;
+    }
+    dm /= n; db /= n;
+    const mNew = m - lr * dm;
+    const bNew = b - lr * db;
+    return {m: mNew, b: bNew};
+  }
+
+  // UI interactions: adding/removing/draging points
+  let draggingIndex = -1;
+  let dragOffset = {dx:0, dy:0};
+
+  canvas.addEventListener('mousedown', (evt) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = evt.clientX - rect.left;
+    const y = evt.clientY - rect.top;
+    const dataX = pxToX(x), dataY = pxToY(y);
+
+    const nearest = findNearestPoint(dataX, dataY);
+    if (evt.shiftKey && nearest.index !== -1 && nearest.dist < 0.08) {
+      // remove nearest
+      points.splice(nearest.index, 1);
+      updateAndDraw();
+      return;
+    }
+
+    if (nearest.index !== -1 && nearest.dist < 0.06) {
+      // start dragging
+      draggingIndex = nearest.index;
+      dragOffset.dx = points[draggingIndex].x - dataX;
+      dragOffset.dy = points[draggingIndex].y - dataY;
+      canvas.style.cursor = 'grabbing';
+    } else {
+      // add a point
+      points.push({x: dataX, y: dataY});
+      updateAndDraw();
+      // Also set this new point as dragging - immediate move while mouse down
+      draggingIndex = points.length - 1;
+      dragOffset.dx = 0;
+      dragOffset.dy = 0;
+    }
+  });
+
+  canvas.addEventListener('mousemove', (evt) => {
+    if (draggingIndex === -1) return;
+    const rect = canvas.getBoundingClientRect();
+    const dataX = pxToX(evt.clientX - rect.left) + dragOffset.dx;
+    const dataY = pxToY(evt.clientY - rect.top) + dragOffset.dy;
+    // clamp
+    points[draggingIndex].x = Math.max(0, Math.min(1, dataX));
+    points[draggingIndex].y = Math.max(0, Math.min(1, dataY));
+    updateAndDraw();
+  });
+
+  window.addEventListener('mouseup', () => {
+    draggingIndex = -1;
+    canvas.style.cursor = 'crosshair';
+  });
+
+  function findNearestPoint(x,y) {
+    let best = {index:-1, dist: Infinity};
+    for (let i=0;i<points.length;i++) {
+      const dx = points[i].x - x;
+      const dy = points[i].y - y;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < best.dist) { best.dist = d; best.index = i; }
+    }
+    return best;
+  }
+
+  // Buttons and controls
+  genBtn.addEventListener('click', () => {
+    seed = Number(seedEl.value) || 1;
+    generateDataset(Number(nPointsEl.value), patternEl.value, Number(noiseEl.value));
+    updateAndDraw();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    points = [];
+    updateAndDraw();
+  });
+
+  noiseEl.addEventListener('input', () => {
+    noiseVal.textContent = Number(noiseEl.value).toFixed(2);
+  });
+
+  for (const r of methodRadios) {
+    r.addEventListener('change', () => {
+      gdControls.style.display = (getMethod() === 'gd') ? 'block' : 'none';
+      methodNameEl.textContent = getMethod().toUpperCase();
+      if (getMethod() === 'ols') {
+        // compute OLS model immediately
+        model = fitOLS(points);
+        modelGD = { ...model };
+      }
+      updateAndDraw();
+    });
+  }
+
+  function getMethod() {
+    for (const r of methodRadios) if (r.checked) return r.value;
+    return 'ols';
+  }
+
+  runGD.addEventListener('click', () => {
+    if (points.length < 2) return;
+    const lr = Number(lrEl.value);
+    const iters = Number(itersEl.value);
+    // initialize params to OLS for stability or zeros
+    modelGD = { ...model }; // start from closed-form to show refinement quickly
+    // run iteratively
+    for (let i=0;i<iters;i++) {
+      modelGD = gradientDescentStep(points, modelGD.m, modelGD.b, lr);
+    }
+    // update displayed model when done
+    if (getMethod() === 'gd') {
+      updateAndDraw();
+    }
+  });
+
+  animateGD.addEventListener('click', () => {
+    if (points.length < 2) return;
+    if (gdAnimating) {
+      stopGDAnimation();
+    } else {
+      startGDAnimation();
+    }
+  });
+
+  function startGDAnimation() {
+    gdAnimating = true;
+    animateGD.textContent = 'Stop';
+    modelGD = { ...model }; // start from OLS for better visuals
+    let lr = Number(lrEl.value);
+    let step = 0;
+    function stepFn() {
+      if (!gdAnimating) return;
+      // take a few mini-steps per frame for speed
+      for (let k=0;k<3;k++) modelGD = gradientDescentStep(points, modelGD.m, modelGD.b, lr);
+      step++;
+      updateAndDraw();
+      gdAnimationId = requestAnimationFrame(stepFn);
+    }
+    stepFn();
+  }
+
+  function stopGDAnimation() {
+    gdAnimating = false;
+    animateGD.textContent = 'Animate';
+    if (gdAnimationId) cancelAnimationFrame(gdAnimationId);
+    gdAnimationId = null;
+  }
+
+  resetParamsBtn.addEventListener('click', () => {
+    lrEl.value = 0.01;
+    itersEl.value = 200;
+  });
+
+  exportBtn.addEventListener('click', () => {
+    // export points to CSV
+    if (points.length === 0) return alert('No points to export');
+    let csv = 'x,y\n' + points.map(p => `${p.x},${p.y}`).join('\n');
+    const blob = new Blob([csv], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'points.csv'; document.body.appendChild(a);
+    a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  // Dataset generation patterns
+  function generateDataset(n, pattern='linear', noiseStd=0.2) {
+    points = [];
+    seed = Number(seedEl.value) || 1;
+    if (pattern === 'linear') {
+      const trueM = 0.8, trueB = 0.1;
+      for (let i=0;i<n;i++) {
+        const x = i/(n-1) * 0.9 + 0.05 * rng();
+        const y = trueB + trueM * x + gaussianNoise(0, noiseStd);
+        points.push({x: clamp(x,0,1), y: clamp(y,0,1)});
+      }
+    } else if (pattern === 'linear_outliers') {
+      const trueM = 0.6, trueB = 0.15;
+      for (let i=0;i<n;i++) {
+        let x = rng();
+        let y = trueB + trueM * x + gaussianNoise(0, noiseStd);
+        if (i % Math.max(3, Math.floor(n/8)) === 0) {
+          y += (rng() > 0.5 ? 0.6 : -0.6); // outlier
+        }
+        points.push({x: clamp(x,0,1), y: clamp(y,0,1)});
+      }
+    } else if (pattern === 'cluster') {
+      const centers = [{x:0.2,y:0.2},{x:0.4,y:0.75},{x:0.8,y:0.6}];
+      for (let i=0;i<n;i++) {
+        const c = centers[Math.floor(rng()*centers.length)];
+        points.push({x: clamp(c.x + gaussianNoise(0,0.06),0,1), y: clamp(c.y + gaussianNoise(0,0.06),0,1)});
+      }
+    } else if (pattern === 'noisy_slope') {
+      // slope varies slowly across x
+      for (let i=0;i<n;i++) {
+        const x = rng();
+        const m = 0.2 + 1.0 * x; // slope depends on x
+        const b = 0.05;
+        const y = b + m*x + gaussianNoise(0,noiseStd);
+        points.push({x: clamp(x,0,1), y: clamp(y,0,1)});
+      }
+    } else {
+      for (let i=0;i<n;i++) points.push({x: rng(), y: rng()});
+    }
+    // compute initial OLS
+    model = fitOLS(points);
+    modelGD = { ...model };
+  }
+
+  // Utilities
+  function clamp(v,a,b) { return Math.max(a, Math.min(b, v)); }
+  function gaussianNoise(mean=0, std=1) {
+    // Box-Muller
+    let u = 0, v = 0;
+    while (u === 0) u = rng();
+    while (v === 0) v = rng();
+    let z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    return z * std + mean;
+  }
+  function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  // Update stats/UI and draw
+  function updateAndDraw() {
+    pointCountEl.textContent = points.length;
+    // update models
+    if (points.length >= 2) {
+      // OLS model always available
+      model = fitOLS(points);
+      if (getMethod() === 'ols') {
+        modelGD = { ...model };
+      } else {
+        // if gd not animating, we might still want to keep modelGD; do not override
+        if (!gdAnimating && points.length >= 2 && (modelGD === undefined || isNaN(modelGD.m))) {
+          modelGD = { ...model };
+        }
+      }
+    } else {
+      model = {m:0,b:0};
+      modelGD = {m:0,b:0};
+    }
+
+    // compute stats for whichever method is active (displayed)
+    const activeMethod = getMethod();
+    const m = activeMethod === 'gd' ? modelGD.m : model.m;
+    const b = activeMethod === 'gd' ? modelGD.b : model.b;
+    const stats = computeStats(points, m, b);
+    slopeEl.textContent = points.length < 1 ? '—' : Number(m.toFixed(4));
+    interceptEl.textContent = points.length < 1 ? '—' : Number(b.toFixed(4));
+    sseEl.textContent = points.length < 1 ? '—' : Number(stats.sse.toFixed(6));
+    r2El.textContent = points.length < 1 ? '—' : Number(stats.r2.toFixed(4));
+    methodNameEl.textContent = activeMethod.toUpperCase();
+    draw();
+  }
+
+  // Initialize with sample dataset
+  generateDataset(20, 'linear', Number(noiseEl.value));
+  updateAndDraw();
+
+  // Allow keyboard shortcuts for convenience
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'g') { genBtn.click(); }
+    if (e.key === 'c') { clearBtn.click(); }
+    if (e.key === ' ') { // space toggles gd animate
+      if (getMethod() === 'gd') animateGD.click();
+    }
+  });
+
+  // Small: when resizing window, keep canvas same but allow crisp redraw
+  window.addEventListener('resize', () => { draw(); });
+
+  // When points change externally (drag, add), stop GD animation (so user can adjust)
+  const stopGDOnInteraction = () => { if (gdAnimating) stopGDAnimation(); };
+  canvas.addEventListener('mousedown', stopGDOnInteraction);
+  genBtn.addEventListener('click', stopGDOnInteraction);
+  clearBtn.addEventListener('click', stopGDOnInteraction);
+
+  // If user toggles method to OLS, compute OLS and show
+  // Already handled by event listener above.
+
+  // Prevent text selection when dragging
+  canvas.addEventListener('dragstart', (e) => e.preventDefault());
+
+  // Initial draw
+  draw();
+
+})();
+</script>
+</body>
+</html>

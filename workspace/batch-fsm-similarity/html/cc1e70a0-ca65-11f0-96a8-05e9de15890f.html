@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Floyd–Warshall Algorithm Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 18px; line-height:1.4; color:#111; }
+    h1 { margin: 0 0 6px 0; font-size: 20px; }
+    p.lead { margin: 6px 0 18px 0; color:#444; max-width:900px; }
+    .controls { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
+    .panel { border: 1px solid #ddd; padding:10px; border-radius:8px; background:#fafafa; }
+    label { font-size:13px; color:#333; margin-right:6px; }
+    input[type="number"], select { width:70px; }
+    .matrix { display:inline-block; margin:8px 10px 8px 0; vertical-align:top; }
+    table.mat { border-collapse: collapse; }
+    table.mat td, table.mat th { border:1px solid #ccc; padding:6px 8px; min-width:44px; text-align:center; font-family:monospace; }
+    table.mat th { background:#f4f4f4; font-weight:600; font-size:13px; }
+    table.mat td.infinite { color:#999; }
+    table.mat td.updated { background:#e6ffe6; border-color:#7dd77d; }
+    table.mat td.considered { background:#fff7cc; border-color:#f2d97c; }
+    .small { font-size:13px; color:#444; }
+    .btn { background:#007bff; color:white; padding:7px 11px; border-radius:6px; border:none; cursor:pointer; margin-right:6px; }
+    .btn.secondary { background:#6c757d; }
+    .btn.warn { background:#dc3545; }
+    .btn:disabled { opacity:0.5; cursor:not-allowed; }
+    .row { display:flex; gap:12px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+    .meta { margin-top:8px; color:#333; }
+    .info { font-size:13px; color:#333; }
+    .footer-note { font-size:12px; color:#666; margin-top:10px; }
+    .path-output { font-family:monospace; margin-top:6px; color:#111; }
+    .legend { font-size:13px; margin-top:6px; }
+    .kbd { background:#eee; border-radius:4px; padding:2px 6px; font-family:monospace; font-size:12px; }
+    .small-input { width:48px; }
+    .matrix-input td input { width:56px; padding:6px; box-sizing:border-box; font-family:monospace; border:1px solid #ccc; border-radius:4px; }
+    .top-controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .status { padding:6px 8px; border-radius:6px; background:#f6f6f6; border:1px solid #eee; }
+    .highlight { font-weight:700; color:#004085; }
+  </style>
+</head>
+<body>
+  <h1>Floyd–Warshall Algorithm Visualizer</h1>
+  <p class="lead">
+    Floyd–Warshall finds shortest paths between all pairs of vertices in a weighted graph (directed or undirected),
+    and can handle negative edge weights (but not negative cycles). This interactive demo lets you edit an adjacency matrix,
+    run the algorithm step-by-step, see updates, and reconstruct shortest paths.
+  </p>
+
+  <div class="panel">
+    <div class="top-controls">
+      <div>
+        <label>Nodes:</label>
+        <input id="nodeCount" type="number" value="5" min="2" max="10" />
+      </div>
+
+      <div>
+        <label>Directed:</label>
+        <select id="directed">
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Allow negatives:</label>
+        <select id="allowNeg">
+          <option value="false">No</option>
+          <option value="true">Yes</option>
+        </select>
+      </div>
+
+      <button id="makeRandom" class="btn">Random Graph</button>
+      <button id="resetBtn" class="btn secondary">Reset Matrix</button>
+      <button id="runBtn" class="btn">Run Floyd–Warshall</button>
+      <button id="runFastBtn" class="btn">Compute Final Only</button>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <div class="matrix panel" id="matrixPanel" aria-live="polite"></div>
+
+      <div style="min-width:360px;">
+        <div class="info"><strong>Controls while running:</strong></div>
+        <div style="margin-top:6px;">
+          <button id="stepBack" class="btn secondary">◀ Step Back</button>
+          <button id="playPause" class="btn">▶ Play</button>
+          <button id="stepForward" class="btn">Step ▶</button>
+          <label style="margin-left:6px">Speed:</label>
+          <input id="speed" type="range" min="100" max="1500" value="600" />
+        </div>
+
+        <div class="meta" id="statusArea">
+          <div class="status" id="statusText">Status: ready</div>
+          <div class="small" id="stepInfo" style="margin-top:6px;">No run yet.</div>
+        </div>
+
+        <div style="margin-top:10px;">
+          <div class="legend"><span class="highlight">Green</span> = updated; <span class="highlight" style="color:#b36b00">Yellow</span> = currently considered (k,i,j).</div>
+          <div class="footer-note">Tip: empty cell = no edge (∞), diagonal defaults to 0.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+    <div class="panel" style="flex:1; min-width:320px;">
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+        <strong>Distance Matrix (current step)</strong>
+        <span style="margin-left:auto;" id="diagCheck"></span>
+      </div>
+      <div id="distMatrices" style="display:flex; gap:12px; flex-wrap:wrap;">
+        <div id="distancePanel" class="matrix"></div>
+        <div id="nextPanel" class="matrix"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="min-width:320px; width:420px;">
+      <strong>Query shortest path</strong>
+      <div style="margin-top:8px;">
+        <label>From:</label>
+        <select id="fromNode"></select>
+        <label>To:</label>
+        <select id="toNode"></select>
+        <button id="showPath" class="btn">Show Path</button>
+      </div>
+      <div class="path-output" id="pathResult">No path query yet.</div>
+      <div style="margin-top:10px; font-size:13px; color:#444;">
+        After computing, use the final matrices to reconstruct a path using the "next" table.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Floyd–Warshall visualizer
+    (() => {
+      const INF = Number.POSITIVE_INFINITY;
+      let n = 5;
+      let directed = true;
+      let allowNeg = false;
+
+      // Matrices
+      let adj = []; // adjacency input as numbers or INF
+      // Snapshots for stepping through algorithm
+      let snapshots = []; // {dist, next, k, i, j, updated, oldValue, newValue}
+      let currentStep = -1;
+      let playing = false;
+      let playTimer = null;
+
+      // DOM
+      const nodeCountInput = document.getElementById('nodeCount');
+      const directedSel = document.getElementById('directed');
+      const allowNegSel = document.getElementById('allowNeg');
+      const matrixPanel = document.getElementById('matrixPanel');
+      const distancePanel = document.getElementById('distancePanel');
+      const nextPanel = document.getElementById('nextPanel');
+      const makeRandomBtn = document.getElementById('makeRandom');
+      const resetBtn = document.getElementById('resetBtn');
+      const runBtn = document.getElementById('runBtn');
+      const runFastBtn = document.getElementById('runFastBtn');
+      const stepForwardBtn = document.getElementById('stepForward');
+      const stepBackBtn = document.getElementById('stepBack');
+      const playPauseBtn = document.getElementById('playPause');
+      const speedInput = document.getElementById('speed');
+      const statusText = document.getElementById('statusText');
+      const stepInfo = document.getElementById('stepInfo');
+      const fromNodeSel = document.getElementById('fromNode');
+      const toNodeSel = document.getElementById('toNode');
+      const showPathBtn = document.getElementById('showPath');
+      const pathResult = document.getElementById('pathResult');
+      const diagCheck = document.getElementById('diagCheck');
+
+      // Utilities
+      function make2DArray(rows, cols, val = INF) {
+        return Array.from({length: rows}, () => Array.from({length: cols}, () => val));
+      }
+      function deepCopyMatrix(m) {
+        return m.map(row => row.slice());
+      }
+      function indexToLabel(i) { return String.fromCharCode(65 + i); } // A, B, C...
+      function formatVal(v) {
+        if (v === INF) return "∞";
+        if (Number.isFinite(v)) return (Math.round(v * 100) / 100).toString();
+        return v.toString();
+      }
+
+      // Build initial adjacency matrix
+      function buildDefaultAdj(size) {
+        const a = make2DArray(size, size, INF);
+        for (let i=0;i<size;i++) {
+          a[i][i] = 0;
+        }
+        return a;
+      }
+
+      function renderMatrixInputs() {
+        matrixPanel.innerHTML = '';
+        const tbl = document.createElement('table');
+        tbl.className = 'mat matrix-input';
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        headRow.appendChild(document.createElement('th')); // corner
+        for (let j=0;j<n;j++) {
+          const th = document.createElement('th'); th.textContent = indexToLabel(j); headRow.appendChild(th);
+        }
+        thead.appendChild(headRow);
+        tbl.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        for (let i=0;i<n;i++) {
+          const tr = document.createElement('tr');
+          const rowHeader = document.createElement('th'); rowHeader.textContent = indexToLabel(i); tr.appendChild(rowHeader);
+          for (let j=0;j<n;j++) {
+            const td = document.createElement('td');
+            if (i === j) {
+              const input = document.createElement('input');
+              input.type = 'text';
+              input.value = '0';
+              input.disabled = true;
+              td.appendChild(input);
+            } else {
+              const input = document.createElement('input');
+              input.type = 'text';
+              input.value = (adj[i][j] === INF ? '' : String(adj[i][j]));
+              input.addEventListener('change', () => {
+                const val = input.value.trim();
+                if (val === '' || val.toLowerCase() === 'inf' || val === '∞') {
+                  adj[i][j] = INF;
+                } else {
+                  const num = Number(val);
+                  if (!Number.isFinite(num)) {
+                    alert('Please enter a finite number, or leave blank for no edge.');
+                    input.value = (adj[i][j] === INF ? '' : String(adj[i][j]));
+                    return;
+                  }
+                  if (!allowNeg && num < 0) {
+                    alert('Negative weights are not allowed currently (toggle Allow negatives).');
+                    input.value = (adj[i][j] === INF ? '' : String(adj[i][j]));
+                    return;
+                  }
+                  adj[i][j] = num;
+                  if (!directed) {
+                    adj[j][i] = num;
+                    // update symmetric cell display
+                    const otherInput = tbody.querySelector(`tr:nth-child(${j+1}) td:nth-child(${i+1}) input`);
+                    if (otherInput) otherInput.value = String(num);
+                  }
+                }
+                // clear previous runs
+                snapshots = []; currentStep = -1; playing = false; stopPlay();
+                updateStatus('Matrix edited — ready');
+                renderMatrices(null);
+              });
+              td.appendChild(input);
+            }
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+        tbl.appendChild(tbody);
+        matrixPanel.appendChild(tbl);
+        populateNodeSelectors();
+      }
+
+      function populateNodeSelectors() {
+        fromNodeSel.innerHTML = ''; toNodeSel.innerHTML = '';
+        for (let i=0;i<n;i++) {
+          const o1 = document.createElement('option'); o1.value = String(i); o1.textContent = indexToLabel(i);
+          const o2 = document.createElement('option'); o2.value = String(i); o2.textContent = indexToLabel(i);
+          fromNodeSel.appendChild(o1); toNodeSel.appendChild(o2);
+        }
+      }
+
+      // Render distance and next matrices based on current snapshot or initial adj
+      function renderMatrices(snapshot) {
+        let dist, next;
+        let considered = null;
+        let updatedCell = null;
+        if (!snapshot) {
+          // show starting matrices (dist = adj)
+          dist = deepCopyMatrix(adj);
+          next = make2DArray(n,n, -1);
+          for (let i=0;i<n;i++) {
+            for (let j=0;j<n;j++) {
+              if (dist[i][j] !== INF) next[i][j] = j;
+            }
+          }
+        } else {
+          dist = snapshot.dist;
+          next = snapshot.next;
+          considered = {k: snapshot.k, i: snapshot.i, j: snapshot.j};
+          if (snapshot.updated) updatedCell = {i: snapshot.i, j: snapshot.j, old: snapshot.oldValue, new: snapshot.newValue};
+        }
+
+        // Distance table
+        distancePanel.innerHTML = '';
+        const dtbl = document.createElement('table'); dtbl.className = 'mat';
+        const dthead = document.createElement('thead');
+        const dh = document.createElement('tr'); dh.appendChild(document.createElement('th'));
+        for (let j=0;j<n;j++){ const th = document.createElement('th'); th.textContent = indexToLabel(j); dh.appendChild(th); }
+        dthead.appendChild(dh); dtbl.appendChild(dthead);
+        const dtbody = document.createElement('tbody');
+        for (let i=0;i<n;i++){
+          const tr = document.createElement('tr');
+          const rh = document.createElement('th'); rh.textContent = indexToLabel(i); tr.appendChild(rh);
+          for (let j=0;j<n;j++){
+            const td = document.createElement('td');
+            td.textContent = formatVal(dist[i][j]);
+            if (dist[i][j] === INF) td.classList.add('infinite');
+            if (considered && considered.i === i && considered.j === j) td.classList.add('considered');
+            if (updatedCell && updatedCell.i === i && updatedCell.j === j) td.classList.add('updated');
+            tr.appendChild(td);
+          }
+          dtbody.appendChild(tr);
+        }
+        dtbl.appendChild(dtbody);
+        const dtcap = document.createElement('div'); dtcap.textContent = 'Distances'; dtcap.style.fontWeight='600'; dtcap.style.marginBottom='6px';
+        distancePanel.appendChild(dtcap); distancePanel.appendChild(dtbl);
+
+        // Next table
+        nextPanel.innerHTML = '';
+        const ntbl = document.createElement('table'); ntbl.className = 'mat';
+        const nthead = document.createElement('thead');
+        const nh = document.createElement('tr'); nh.appendChild(document.createElement('th'));
+        for (let j=0;j<n;j++){ const th = document.createElement('th'); th.textContent = indexToLabel(j); nh.appendChild(th); }
+        nthead.appendChild(nh); ntbl.appendChild(nthead);
+        const ntbody = document.createElement('tbody');
+        for (let i=0;i<n;i++){
+          const tr = document.createElement('tr');
+          const rh = document.createElement('th'); rh.textContent = indexToLabel(i); tr.appendChild(rh);
+          for (let j=0;j<n;j++){
+            const td = document.createElement('td');
+            const v = next[i][j];
+            td.textContent = (v === -1 ? '-' : indexToLabel(v));
+            if (considered && considered.i === i && considered.j === j) td.classList.add('considered');
+            if (updatedCell && updatedCell.i === i && updatedCell.j === j) td.classList.add('updated');
+            tr.appendChild(td);
+          }
+          ntbody.appendChild(tr);
+        }
+        ntbl.appendChild(ntbody);
+        const ntcap = document.createElement('div'); ntcap.textContent = 'Next (for path reconstruction)'; ntcap.style.fontWeight='600'; ntcap.style.marginBottom='6px';
+        nextPanel.appendChild(ntcap); nextPanel.appendChild(ntbl);
+
+        // diag check (negative cycle)
+        if (snapshot) {
+          const negDiag = snapshot.final && snapshot.finalNegCycle;
+          if (negDiag) {
+            diagCheck.innerHTML = '<span style="color:#b80d0d; font-weight:700">Negative cycle detected!</span>';
+          } else {
+            diagCheck.innerHTML = '';
+          }
+        } else {
+          diagCheck.innerHTML = '';
+        }
+      }
+
+      function updateStatus(text) {
+        statusText.textContent = 'Status: ' + text;
+      }
+
+      // Random graph generator
+      function randomizeGraph() {
+        const density = 0.45; // probability of an edge
+        const maxW = 12;
+        for (let i=0;i<n;i++){
+          for (let j=0;j<n;j++){
+            if (i===j) { adj[i][j]=0; continue; }
+            if (Math.random() < density) {
+              // weight
+              let w = Math.floor(Math.random()*maxW) + 1;
+              if (allowNeg && Math.random() < 0.2) w = -w;
+              adj[i][j] = w;
+              if (!directed) adj[j][i] = adj[i][j];
+            } else {
+              adj[i][j] = INF;
+              if (!directed) adj[j][i] = INF;
+            }
+          }
+        }
+        snapshots = []; currentStep = -1; stopPlay();
+        renderMatrixInputs();
+        renderMatrices(null);
+        updateStatus('Random graph created');
+      }
+
+      // Floyd–Warshall algorithm with snapshots (records each (k,i,j) consideration and updates)
+      function runFloydWithSnapshots() {
+        // initialize dist and next
+        let dist = deepCopyMatrix(adj);
+        let next = make2DArray(n,n, -1);
+        for (let i=0;i<n;i++){
+          for (let j=0;j<n;j++){
+            if (dist[i][j] !== INF) next[i][j] = j;
+          }
+        }
+        snapshots = [];
+        // snapshot 0: initial
+        snapshots.push({
+          dist: deepCopyMatrix(dist),
+          next: deepCopyMatrix(next),
+          k: -1, i:-1, j:-1, updated:false, oldValue:null, newValue:null, final:false
+        });
+
+        // main triple loop
+        for (let k=0;k<n;k++){
+          for (let i=0;i<n;i++){
+            for (let j=0;j<n;j++){
+              // capture considered state before update
+              const curSnapshot = {
+                dist: deepCopyMatrix(dist),
+                next: deepCopyMatrix(next),
+                k, i, j, updated:false, oldValue:null, newValue:null, final:false
+              };
+              snapshots.push(curSnapshot);
+
+              const through = (dist[i][k] === INF || dist[k][j] === INF) ? INF : dist[i][k] + dist[k][j];
+              if (through < dist[i][j]) {
+                const old = dist[i][j];
+                dist[i][j] = through;
+                next[i][j] = next[i][k];
+                // record update snapshot
+                const updatedSnap = {
+                  dist: deepCopyMatrix(dist),
+                  next: deepCopyMatrix(next),
+                  k, i, j, updated:true, oldValue: old, newValue: through, final:false
+                };
+                snapshots.push(updatedSnap);
+              }
+            }
+          }
+        }
+
+        // final snapshot: mark final and detect negative cycle
+        const finalSnap = {
+          dist: deepCopyMatrix(dist),
+          next: deepCopyMatrix(next),
+          k: n, i:-1, j:-1, updated:false, oldValue:null, newValue:null, final:true
+        };
+        // detect negative cycle if any dist[i][i] < 0
+        let neg = false;
+        for (let i=0;i<n;i++) {
+          if (finalSnap.dist[i][i] < 0) { neg = true; break; }
+        }
+        finalSnap.finalNegCycle = neg;
+        snapshots.push(finalSnap);
+        return snapshots;
+      }
+
+      // Run fast (no intermediate snapshots) - compute final only
+      function runFloydFinalOnly() {
+        let dist = deepCopyMatrix(adj);
+        let next = make2DArray(n,n, -1);
+        for (let i=0;i<n;i++){
+          for (let j=0;j<n;j++){
+            if (dist[i][j] !== INF) next[i][j] = j;
+          }
+        }
+        for (let k=0;k<n;k++){
+          for (let i=0;i<n;i++){
+            for (let j=0;j<n;j++){
+              const through = (dist[i][k] === INF || dist[k][j] === INF) ? INF : dist[i][k] + dist[k][j];
+              if (through < dist[i][j]) {
+                dist[i][j] = through;
+                next[i][j] = next[i][k];
+              }
+            }
+          }
+        }
+        snapshots = [];
+        const finalSnap = {
+          dist: deepCopyMatrix(dist),
+          next: deepCopyMatrix(next),
+          k: n, i:-1, j:-1, updated:false, oldValue:null, newValue:null, final:true
+        };
+        finalSnap.finalNegCycle = dist.some((row, i) => row[i] < 0);
+        snapshots.push(finalSnap);
+        currentStep = 0;
+        renderMatrices(snapshots[currentStep]);
+        updateStatus('Computed final matrices (no step history).');
+        stepInfo.textContent = `Step ${currentStep+1} of ${snapshots.length} (final only)`;
+      }
+
+      // Playback controls
+      function goToStep(idx) {
+        if (snapshots.length === 0) return;
+        if (idx < 0) idx = 0;
+        if (idx >= snapshots.length) idx = snapshots.length - 1;
+        currentStep = idx;
+        const s = snapshots[currentStep];
+        renderMatrices(s);
+        // update step info
+        stepInfo.textContent = `Step ${currentStep+1} of ${snapshots.length}` + (s.k >= 0 ? ` — considering k=${s.k} (${indexToLabel(s.k)})` : '');
+        // update status indicator
+        if (s.final) {
+          updateStatus('Final result' + (s.finalNegCycle ? ' (negative cycle!)' : ''));
+        } else if (s.k === -1) {
+          updateStatus('Initial');
+        } else if (s.updated) {
+          updateStatus(`Updated dist[${indexToLabel(s.i)}][${indexToLabel(s.j)}]: ${formatVal(s.oldValue)} → ${formatVal(s.newValue)}`);
+        } else {
+          updateStatus(`Considering k=${indexToLabel(s.k)}, i=${indexToLabel(s.i)}, j=${indexToLabel(s.j)}`);
+        }
+        // disable/enable buttons
+        stepBackBtn.disabled = (currentStep <= 0);
+        stepForwardBtn.disabled = (currentStep >= snapshots.length - 1);
+      }
+
+      function stepForward() {
+        if (snapshots.length === 0) return;
+        if (currentStep < snapshots.length - 1) {
+          goToStep(currentStep + 1);
+        }
+      }
+      function stepBack() {
+        if (snapshots.length === 0) return;
+        if (currentStep > 0) {
+          goToStep(currentStep - 1);
+        }
+      }
+
+      function play() {
+        if (snapshots.length === 0) return;
+        playing = true;
+        playPauseBtn.textContent = '❚❚ Pause';
+        const delay = Number(speedInput.value) || 600;
+        playTimer = setInterval(() => {
+          if (currentStep >= snapshots.length - 1) {
+            stopPlay();
+            return;
+          }
+          stepForward();
+        }, delay);
+      }
+      function stopPlay() {
+        playing = false;
+        playPauseBtn.textContent = '▶ Play';
+        if (playTimer) { clearInterval(playTimer); playTimer = null; }
+      }
+
+      // Path reconstruction using next matrix at final snapshot (or any snapshot)
+      function reconstructPath(next, u, v) {
+        if (next[u][v] === -1) return null;
+        const path = [u];
+        let cur = u;
+        const visited = new Set();
+        visited.add(cur);
+        while (cur !== v) {
+          cur = next[cur][v];
+          if (cur === -1 || visited.has(cur)) { // malformed (cycle)
+            return null;
+          }
+          path.push(cur);
+          visited.add(cur);
+        }
+        return path;
+      }
+
+      // Initialize UI and event handlers
+      function init() {
+        // initial setup
+        n = Number(nodeCountInput.value) || 5;
+        directed = (directedSel.value === 'true');
+        allowNeg = (allowNegSel.value === 'true');
+        adj = buildDefaultAdj(n);
+        renderMatrixInputs();
+        renderMatrices(null);
+        updateStatus('ready');
+
+        // events
+        nodeCountInput.addEventListener('change', () => {
+          let newN = Number(nodeCountInput.value);
+          if (!Number.isInteger(newN) || newN < 2) newN = 2;
+          if (newN > 10) newN = 10;
+          nodeCountInput.value = String(newN);
+          n = newN;
+          adj = buildDefaultAdj(n);
+          snapshots = []; currentStep = -1; stopPlay();
+          renderMatrixInputs(); renderMatrices(null);
+        });
+        directedSel.addEventListener('change', () => {
+          directed = (directedSel.value === 'true');
+          // if toggling to undirected, mirror matrix
+          if (!directed) {
+            for (let i=0;i<n;i++){
+              for (let j=0;j<n;j++){
+                if (i!==j) {
+                  // choose minimum if both exist
+                  const aij = adj[i][j], aji = adj[j][i];
+                  if (aij !== INF) adj[j][i] = aij;
+                  else if (aji !== INF) adj[i][j] = aji;
+                }
+              }
+            }
+            renderMatrixInputs();
+            renderMatrices(null);
+          }
+        });
+        allowNegSel.addEventListener('change', () => {
+          allowNeg = (allowNegSel.value === 'true');
+        });
+
+        makeRandomBtn.addEventListener('click', () => {
+          randomizeGraph();
+        });
+
+        resetBtn.addEventListener('click', () => {
+          adj = buildDefaultAdj(n);
+          snapshots = []; currentStep = -1; stopPlay();
+          renderMatrixInputs(); renderMatrices(null);
+          updateStatus('Matrix reset');
+        });
+
+        runBtn.addEventListener('click', () => {
+          // validate no NaN entries in inputs
+          const bad = false;
+          // recompute adj from inputs (in case user edited directly)
+          // but inputs already updated adj on change event; nothing to do.
+          snapshots = runFloydWithSnapshots();
+          currentStep = 0;
+          goToStep(currentStep);
+          updateStatus('Run complete (step history recorded)');
+          stepInfo.textContent = `Step ${currentStep+1} of ${snapshots.length}`;
+        });
+
+        runFastBtn.addEventListener('click', () => {
+          runFloydFinalOnly();
+        });
+
+        stepForwardBtn.addEventListener('click', () => { stopPlay(); stepForward(); });
+        stepBackBtn.addEventListener('click', () => { stopPlay(); stepBack(); });
+        playPauseBtn.addEventListener('click', () => {
+          if (playing) stopPlay(); else play();
+        });
+
+        speedInput.addEventListener('input', () => {
+          if (playing) {
+            stopPlay();
+            play();
+          }
+        });
+
+        showPathBtn.addEventListener('click', () => {
+          if (snapshots.length === 0) { pathResult.textContent = 'No computed matrices yet.'; return; }
+          const finalSnap = snapshots[snapshots.length - 1];
+          if (!finalSnap.final) {
+            // find last final-like snapshot (there is one at end)
+            // but prefer actual final
+          }
+          const next = finalSnap.next;
+          const u = Number(fromNodeSel.value);
+          const v = Number(toNodeSel.value);
+          if (finalSnap.finalNegCycle && finalSnap.dist.some((row, i) => row[i] < 0)) {
+            pathResult.innerHTML = '<span style="color:#b80d0d">Warning: negative cycle exists — shortest paths undefined for some pairs.</span>';
+            return;
+          }
+          if (u === v) {
+            pathResult.textContent = `${indexToLabel(u)} → ${indexToLabel(v)} (trivial): distance 0`;
+            return;
+          }
+          const path = reconstructPath(next, u, v);
+          if (!path) {
+            pathResult.textContent = `No path from ${indexToLabel(u)} to ${indexToLabel(v)}.`;
+            return;
+          }
+          const dist = finalSnap.dist[u][v];
+          pathResult.textContent = `Path: ${path.map(indexToLabel).join(' → ')}  (distance = ${formatVal(dist)})`;
+        });
+
+        // keyboard shortcuts for convenience
+        window.addEventListener('keydown', (e) => {
+          if (e.key === ' ' && document.activeElement.tagName !== 'INPUT') {
+            e.preventDefault();
+            if (playing) stopPlay(); else play();
+          } else if (e.key === 'ArrowRight') { stepForward(); }
+          else if (e.key === 'ArrowLeft') { stepBack(); }
+        });
+
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>

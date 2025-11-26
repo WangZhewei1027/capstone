@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interactive Weighted Graph Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial; }
+  #app { display:flex; height:100vh; gap:12px; padding:12px; box-sizing:border-box; background: #f6f7fb; }
+  #canvas-wrap { flex:1; background:#fff; border:1px solid #ddd; border-radius:8px; position:relative; overflow:hidden; }
+  svg { width:100%; height:100%; display:block; touch-action:none; }
+  #controls { width:360px; max-width:40%; min-width:240px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:12px; box-sizing:border-box; overflow:auto; }
+  h2 { margin:8px 0 6px; font-size:16px; }
+  .row { display:flex; gap:8px; margin:8px 0; align-items:center; }
+  button { padding:8px 10px; border-radius:6px; border:1px solid #bbb; background:#fafafa; cursor:pointer; }
+  button.primary { background:#2563eb; color:white; border-color:#1e40af; }
+  label { font-size:13px; }
+  select,input[type="number"],input[type="text"] { padding:6px 8px; border-radius:6px; border:1px solid #ccc; }
+  .muted { color:#666; font-size:13px; }
+  .mode-btn { flex:1; padding:8px; border-radius:6px; border:1px solid #cfd8e3; background:#f5f7fb; cursor:pointer; }
+  .mode-btn.active { background:#e6f0ff; border-color:#9fbff9; }
+  ul { padding-left:18px; margin:6px 0; font-size:13px; }
+  .legend { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .legend div { display:flex; gap:6px; align-items:center; font-size:13px; }
+  .dot { width:14px; height:14px; border-radius:50%; display:inline-block; }
+  .info { font-size:13px; margin-top:8px; color:#333; }
+  #log { margin-top:10px; font-family:monospace; font-size:13px; max-height:160px; overflow:auto; border-top:1px dashed #eee; padding-top:8px; color:#333; }
+  small.hint { display:block; margin-top:6px; color:#666; font-size:12px; }
+  .weight-input { width:90px; }
+  .edge-weight-label { font-family:monospace; font-size:12px; pointer-events:none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvas-wrap">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div id="controls">
+    <h2>Weighted Graph Interactive Demo</h2>
+    <div class="row">
+      <button id="mode-add-node" class="mode-btn active">Add Node</button>
+      <button id="mode-add-edge" class="mode-btn">Add Edge</button>
+      <button id="mode-move" class="mode-btn">Move</button>
+      <button id="mode-delete" class="mode-btn">Delete</button>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="directed"> Directed</label>
+      <label style="margin-left:8px;"><input type="checkbox" id="allow-multi"> Allow Multi-edges</label>
+    </div>
+
+    <div style="border-top:1px solid #eee; padding-top:8px; margin-top:8px;">
+      <h2>Create / Generate</h2>
+      <div class="row">
+        <button id="clear-graph">Clear Graph</button>
+        <button id="random-graph" class="primary">Random Graph</button>
+      </div>
+      <div class="row">
+        <label>Nodes: <input id="rand-n" type="number" min="2" value="7" style="width:72px"></label>
+        <label>Density %: <input id="rand-density" type="number" min="5" max="100" value="35" style="width:72px"></label>
+        <label>Max weight: <input id="rand-maxw" type="number" min="1" value="20" style="width:78px"></label>
+      </div>
+      <small class="hint">Click the canvas to add nodes. In "Add Edge" mode click source then target and enter weight.</small>
+    </div>
+
+    <div style="border-top:1px solid #eee; padding-top:8px; margin-top:8px;">
+      <h2>Algorithms</h2>
+      <div class="row">
+        <button id="dijkstra-btn">Dijkstra (Shortest Path)</button>
+        <button id="prim-btn">Prim's MST</button>
+        <button id="kruskal-btn">Kruskal's MST</button>
+      </div>
+      <div class="row">
+        <label>Source: <input id="alg-src" type="text" placeholder="click to set" readonly style="width:76px"></label>
+        <label>Target: <input id="alg-tgt" type="text" placeholder="click to set" readonly style="width:76px"></label>
+        <button id="set-src" title="Click a node on canvas to set source">Set Src</button>
+        <button id="set-tgt" title="Click a node on canvas to set target">Set Tgt</button>
+      </div>
+      <small class="hint">Use "Set Src/Tgt" then run Dijkstra. MSTs ignore direction (graph treated undirected).</small>
+    </div>
+
+    <div style="border-top:1px solid #eee; padding-top:8px; margin-top:8px;">
+      <h2>Legend & Info</h2>
+      <div class="legend">
+        <div><span class="dot" style="background:#2563eb"></span> Selected</div>
+        <div><span class="dot" style="background:#10b981"></span> Path / MST</div>
+        <div><span class="dot" style="background:#bbb"></span> Regular</div>
+        <div><span style="width:16px; height:2px; background:#333; display:inline-block"></span> Edge</div>
+      </div>
+      <div class="info" id="status">Nodes: 0 • Edges: 0</div>
+    </div>
+
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+/*
+Interactive Weighted Graph Demo
+- Modes: Add Node, Add Edge, Move (drag), Delete
+- Add Edge: click source -> click target -> prompt weight
+- Directed toggle
+- Random graph generator
+- Dijkstra shortest path (choose source and target)
+- Prim's and Kruskal's MST (graph treated as undirected)
+- Visual: SVG rendering, draggable nodes, weight labels
+*/
+
+const svg = document.getElementById('svg');
+const modeBtns = {
+  addNode: document.getElementById('mode-add-node'),
+  addEdge: document.getElementById('mode-add-edge'),
+  move: document.getElementById('mode-move'),
+  del: document.getElementById('mode-delete')
+};
+let mode = 'addNode';
+for (const k in modeBtns) {
+  modeBtns[k].addEventListener('click', () => setMode(k));
+}
+function setMode(m) {
+  mode = m;
+  Object.values(modeBtns).forEach(b => b.classList.remove('active'));
+  modeBtns[m].classList.add('active');
+  clearTempSelection();
+  log('Mode: ' + mode);
+}
+
+const directedCheckbox = document.getElementById('directed');
+const allowMulti = document.getElementById('allow-multi');
+const statusEl = document.getElementById('status');
+const logEl = document.getElementById('log');
+function log(...args) {
+  const s = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+  const line = document.createElement('div');
+  line.textContent = s;
+  logEl.prepend(line);
+}
+
+let nodes = []; // {id,x,y,el}
+let edges = []; // {id,u,v,weight,el,dir}
+let nodeIdCounter = 1;
+let edgeIdCounter = 1;
+
+function updateStatus() {
+  statusEl.textContent = `Nodes: ${nodes.length} • Edges: ${edges.length}`;
+}
+function clearSvg() {
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+}
+
+// Render helpers: groups for edges and nodes
+const gEdges = (() => { const g = document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g); return g; })();
+const gNodes = (() => { const g = document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g); return g; })();
+
+function createNode(x,y,label=null) {
+  const id = nodeIdCounter++;
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.classList.add('node-group');
+  const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  circle.setAttribute('r', 18);
+  circle.setAttribute('fill', '#bbb');
+  circle.setAttribute('stroke', '#555');
+  circle.setAttribute('stroke-width', '1');
+  circle.style.cursor = 'pointer';
+  const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+  text.setAttribute('text-anchor','middle');
+  text.setAttribute('dy','6');
+  text.setAttribute('font-size','12');
+  text.setAttribute('fill','#fff');
+  text.textContent = label || id;
+  g.appendChild(circle);
+  g.appendChild(text);
+  g.setAttribute('transform', `translate(${x},${y})`);
+  g.dataset.id = id;
+  g.onpointerdown = nodePointerDown;
+  svg.appendChild(g); // append to root but visually nodes above edges due stacking order; keep simple
+  nodes.push({id, x, y, g, circle, text});
+  updateStatus();
+  return id;
+}
+
+function createEdge(uId, vId, weight, directed=false, silent=false) {
+  // Prevent duplicate edges unless allowMulti true
+  if (!allowMulti.checked) {
+    const dup = edges.find(e => e.u===uId && e.v===vId && e.dir===directed);
+    if (dup) { if(!silent) log('Edge already exists'); return null; }
+    if (!directed) {
+      const dup2 = edges.find(e => e.u===vId && e.v===uId && e.dir===false);
+      if (dup2) { if(!silent) log('Edge already exists (undirected duplicate)'); return null; }
+    }
+  }
+  const u = nodes.find(n=>n.id===uId); const v = nodes.find(n=>n.id===vId);
+  if (!u || !v) return null;
+  const id = edgeIdCounter++;
+  // edge group contains line and weight label (and optional arrow)
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.classList.add('edge-group');
+  const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+  line.setAttribute('stroke','#333'); line.setAttribute('stroke-width','2');
+  const weightLabel = document.createElementNS('http://www.w3.org/2000/svg','text');
+  weightLabel.setAttribute('text-anchor','middle');
+  weightLabel.setAttribute('dy','-6');
+  weightLabel.setAttribute('class','edge-weight-label');
+  weightLabel.textContent = weight;
+  // arrow marker if directed
+  if (directed) {
+    const markerId = 'arrow-' + id;
+    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg','marker');
+    marker.setAttribute('id', markerId);
+    marker.setAttribute('markerWidth','8'); marker.setAttribute('markerHeight','8');
+    marker.setAttribute('refX','6'); marker.setAttribute('refY','3');
+    marker.setAttribute('orient','auto');
+    const poly = document.createElementNS('http://www.w3.org/2000/svg','path');
+    poly.setAttribute('d','M0,0 L6,3 L0,6 z');
+    poly.setAttribute('fill','#333');
+    marker.appendChild(poly);
+    defs.appendChild(marker);
+    g.appendChild(defs);
+    line.setAttribute('marker-end', 'url(#'+markerId+')');
+  }
+  g.appendChild(line);
+  g.appendChild(weightLabel);
+  // lower z-index than nodes
+  gEdges.appendChild(g);
+  const e = {id, u:uId, v:vId, weight: Number(weight), g, line, weightLabel, dir: directed};
+  edges.push(e);
+  updateEdgePosition(e);
+  updateStatus();
+  return id;
+}
+
+function updateEdgePosition(e) {
+  const u = nodes.find(n=>n.id===e.u);
+  const v = nodes.find(n=>n.id===e.v);
+  if (!u || !v) return;
+  // line endpoints offset a bit from node centers
+  const dx = v.x - u.x, dy = v.y - u.y;
+  const dist = Math.hypot(dx,dy) || 1;
+  const ox = (dx/dist) * 20, oy = (dy/dist) * 20;
+  const x1 = u.x + ox, y1 = u.y + oy;
+  const x2 = v.x - ox, y2 = v.y - oy;
+  e.line.setAttribute('x1', x1);
+  e.line.setAttribute('y1', y1);
+  e.line.setAttribute('x2', x2);
+  e.line.setAttribute('y2', y2);
+  // label midpoint
+  const mx = (x1+x2)/2, my = (y1+y2)/2;
+  e.weightLabel.setAttribute('x', mx);
+  e.weightLabel.setAttribute('y', my);
+  // stroke color default
+  e.line.setAttribute('stroke','#333');
+  e.line.setAttribute('stroke-width','2');
+}
+
+function updateAllEdges() {
+  edges.forEach(updateEdgePosition);
+}
+
+function removeNodeById(id) {
+  // remove edges touching node
+  const toRemove = edges.filter(e => e.u===id || e.v===id).map(e=>e.id);
+  toRemove.forEach(removeEdgeById);
+  const idx = nodes.findIndex(n=>n.id===id);
+  if (idx>=0) {
+    const n = nodes[idx];
+    if (n.g && n.g.parentNode) n.g.parentNode.removeChild(n.g);
+    nodes.splice(idx,1);
+  }
+  updateStatus();
+}
+
+function removeEdgeById(id) {
+  const idx = edges.findIndex(e=>e.id===id);
+  if (idx>=0) {
+    const e = edges[idx];
+    if (e.g && e.g.parentNode) e.g.parentNode.removeChild(e.g);
+    edges.splice(idx,1);
+  }
+  updateStatus();
+}
+
+// Canvas interactions
+svg.addEventListener('pointerdown', svgPointerDown);
+function svgPointerDown(evt) {
+  const pt = getSvgPoint(evt);
+  if (mode === 'addNode') {
+    createNode(pt.x, pt.y);
+    render();
+    return;
+  }
+  if (mode === 'addEdge') {
+    // handled by node clicks
+    clearTempSelection();
+    log('Add Edge: click source then target');
+    return;
+  }
+  if (mode === 'move') {
+    // will be handled by node pointer events
+    return;
+  }
+  if (mode === 'del') {
+    // clicking empty space does nothing
+    return;
+  }
+}
+
+// Node pointer interactions: pointerdown used for select, drag
+let dragging = null;
+let dragOffset = {x:0,y:0};
+let tempSelection = {firstNode: null, setSrc: false, setTgt:false};
+
+function nodePointerDown(evt) {
+  evt.stopPropagation();
+  const g = evt.currentTarget;
+  const id = Number(g.dataset.id);
+  if (mode === 'addEdge') {
+    if (!tempSelection.firstNode) {
+      tempSelection.firstNode = id;
+      highlightNode(id, '#2563eb');
+      log('Selected source node ' + id + '. Now click target.');
+    } else {
+      const src = tempSelection.firstNode;
+      const tgt = id;
+      if (src === tgt) {
+        log('Cannot create self-loop (ignored).');
+        clearTempSelection();
+        return;
+      }
+      const w = prompt('Edge weight (number):', '1');
+      if (w === null) { clearTempSelection(); return; }
+      const weight = Number(w);
+      if (Number.isNaN(weight)) { alert('Invalid weight'); clearTempSelection(); return; }
+      createEdge(src, tgt, weight, directedCheckbox.checked);
+      log(`Edge created: ${src} -> ${tgt} w=${weight}`);
+      clearTempSelection();
+      render();
+    }
+    return;
+  }
+  if (mode === 'move') {
+    // start dragging
+    dragging = nodes.find(n=>n.id===id);
+    const pt = getSvgPoint(evt);
+    dragOffset.x = dragging.x - pt.x;
+    dragOffset.y = dragging.y - pt.y;
+    svg.setPointerCapture(evt.pointerId);
+    svg.onpointermove = nodePointerMove;
+    svg.onpointerup = nodePointerUp;
+    highlightNode(id, '#2563eb');
+    return;
+  }
+  if (mode === 'del') {
+    // delete node or its edges
+    if (confirm('Delete node ' + id + ' and its edges?')) {
+      removeNodeById(id);
+      render();
+      log('Deleted node ' + id);
+    }
+    return;
+  }
+  // Other modes: selection for algorithms
+  if (tempSelection.setSrc) {
+    document.getElementById('alg-src').value = id;
+    tempSelection.setSrc = false;
+    highlightNode(id, '#2563eb');
+    log('Source set to ' + id);
+    return;
+  }
+  if (tempSelection.setTgt) {
+    document.getElementById('alg-tgt').value = id;
+    tempSelection.setTgt = false;
+    highlightNode(id, '#2563eb');
+    log('Target set to ' + id);
+    return;
+  }
+}
+
+// dragging handlers
+function nodePointerMove(evt) {
+  if (!dragging) return;
+  const pt = getSvgPoint(evt);
+  dragging.x = pt.x + dragOffset.x;
+  dragging.y = pt.y + dragOffset.y;
+  dragging.g.setAttribute('transform', `translate(${dragging.x},${dragging.y})`);
+  updateAllEdges();
+}
+function nodePointerUp(evt) {
+  if (dragging) {
+    svg.releasePointerCapture(evt.pointerId);
+    svg.onpointermove = null; svg.onpointerup = null;
+    dragging = null;
+  }
+}
+
+// utility: get SVG point from event
+function getSvgPoint(evt) {
+  const rect = svg.getBoundingClientRect();
+  const x = evt.clientX - rect.left;
+  const y = evt.clientY - rect.top;
+  return {x,y};
+}
+
+// highlight node by id
+function highlightNode(id, color) {
+  nodes.forEach(n => {
+    if (n.id===id) {
+      n.circle.setAttribute('fill', color || '#2563eb');
+    } else {
+      n.circle.setAttribute('fill', '#bbb');
+    }
+  });
+}
+
+// clear temporary selections or highlights
+function clearTempSelection() {
+  tempSelection.firstNode = null;
+  tempSelection.setSrc = false;
+  tempSelection.setTgt = false;
+  nodes.forEach(n => n.circle.setAttribute('fill','#bbb'));
+}
+
+function render() {
+  // bring nodes visually above edges by re-appending to svg
+  // We keep edges in gEdges and nodes in gNodes; but earlier we appended nodes directly.
+  // For simplicity reposition groups: remove all nodes elements and re-add in a layer on top.
+  // First update edges positions
+  updateAllEdges();
+  // Update node group transforms and labels
+  nodes.forEach(n => {
+    n.g.setAttribute('transform', `translate(${n.x},${n.y})`);
+    n.text.textContent = n.id;
+  });
+  updateStatus();
+}
+
+// Controls wiring
+document.getElementById('clear-graph').addEventListener('click', () => {
+  if (!confirm('Clear entire graph?')) return;
+  // remove nodes and edges DOM
+  nodes.forEach(n => { if (n.g.parentNode) n.g.parentNode.removeChild(n.g); });
+  edges.forEach(e => { if (e.g.parentNode) e.g.parentNode.removeChild(e.g); });
+  nodes = []; edges = [];
+  updateStatus();
+  log('Graph cleared');
+});
+document.getElementById('random-graph').addEventListener('click', () => {
+  const n = Math.max(2, Number(document.getElementById('rand-n').value) || 5);
+  const density = Math.min(100, Math.max(1, Number(document.getElementById('rand-density').value) || 30));
+  const maxw = Math.max(1, Number(document.getElementById('rand-maxw').value) || 10);
+  // clear existing
+  document.getElementById('clear-graph').click();
+  // add nodes at random positions
+  const rect = svg.getBoundingClientRect();
+  for (let i=0;i<n;i++) {
+    createNode(40 + Math.random()*(rect.width-80), 40 + Math.random()*(rect.height-80));
+  }
+  // add edges probabilistically
+  for (let i=0;i<n;i++) for (let j=i+1;j<n;j++) {
+    if (Math.random()*100 < density) {
+      const w = Math.ceil(Math.random()*maxw);
+      createEdge(nodes[i].id, nodes[j].id, w, directedCheckbox.checked && Math.random() < 0.5, true);
+    }
+  }
+  render();
+  log(`Random graph: ${n} nodes, density ${density}%`);
+});
+
+// Algorithm buttons
+document.getElementById('set-src').addEventListener('click', () => {
+  tempSelection.setSrc = true;
+  tempSelection.setTgt = false;
+  log('Click a node to set Source');
+});
+document.getElementById('set-tgt').addEventListener('click', () => {
+  tempSelection.setTgt = true;
+  tempSelection.setSrc = false;
+  log('Click a node to set Target');
+});
+
+document.getElementById('dijkstra-btn').addEventListener('click', () => {
+  const srcVal = document.getElementById('alg-src').value;
+  const tgtVal = document.getElementById('alg-tgt').value;
+  if (!srcVal || !tgtVal) { alert('Set source and target first'); return; }
+  const src = Number(srcVal), tgt = Number(tgtVal);
+  if (!nodes.find(n=>n.id===src) || !nodes.find(n=>n.id===tgt)) { alert('Invalid source/target'); return; }
+  runDijkstra(src, tgt);
+});
+
+document.getElementById('prim-btn').addEventListener('click', () => {
+  if (nodes.length===0) { alert('Graph empty'); return; }
+  runPrim();
+});
+document.getElementById('kruskal-btn').addEventListener('click', () => {
+  if (nodes.length===0) { alert('Graph empty'); return; }
+  runKruskal();
+});
+
+// Dijkstra implementation (works with directed edges according to edge.dir)
+function runDijkstra(src, tgt) {
+  // build adjacency list
+  const adj = new Map();
+  nodes.forEach(n => adj.set(n.id, []));
+  edges.forEach(e => {
+    adj.get(e.u).push({to:e.v, w:e.weight, id:e.id});
+    if (!e.dir) adj.get(e.v).push({to:e.u, w:e.weight, id:e.id});
+  });
+  // Dijkstra
+  const dist = new Map(); const prev = new Map(); const prevEdge = new Map();
+  nodes.forEach(n=> { dist.set(n.id, Infinity); prev.set(n.id,null); prevEdge.set(n.id,null); });
+  dist.set(src,0);
+  const pq = new Set(nodes.map(n=>n.id));
+  while (pq.size) {
+    // extract min (simple linear)
+    let u=null, best=Infinity;
+    for (const id of pq) { if (dist.get(id) < best) { best = dist.get(id); u=id; } }
+    if (u===null) break;
+    pq.delete(u);
+    if (u===tgt) break;
+    for (const e of adj.get(u)) {
+      const alt = dist.get(u) + e.w;
+      if (alt < dist.get(e.to)) { dist.set(e.to, alt); prev.set(e.to, u); prevEdge.set(e.to, e.id); }
+    }
+  }
+  if (dist.get(tgt) === Infinity) {
+    alert('No path found');
+    return;
+  }
+  // reconstruct path
+  const pathNodes = [];
+  const pathEdges = [];
+  let cur = tgt;
+  while (cur !== null) {
+    pathNodes.push(cur);
+    const pe = prevEdge.get(cur);
+    if (pe !== null) pathEdges.push(pe);
+    cur = prev.get(cur);
+  }
+  pathNodes.reverse();
+  pathEdges.reverse();
+  log(`Dijkstra: shortest ${dist.get(tgt)} via nodes ${pathNodes.join(' -> ')}`);
+  // Visual highlight path
+  clearHighlights();
+  pathNodes.forEach(id => {
+    const n = nodes.find(x=>x.id===id); if(n) n.circle.setAttribute('fill','#10b981');
+  });
+  edges.forEach(e => {
+    if (pathEdges.includes(e.id)) {
+      e.line.setAttribute('stroke','#10b981');
+      e.line.setAttribute('stroke-width','4');
+    } else {
+      e.line.setAttribute('stroke','#ddd');
+    }
+  });
+}
+
+// Prim's MST (graph treated as undirected)
+function runPrim() {
+  // build undirected adjacency
+  const adj = new Map();
+  nodes.forEach(n => adj.set(n.id, []));
+  edges.forEach(e => {
+    adj.get(e.u).push({to:e.v,w:e.weight,id:e.id});
+    adj.get(e.v).push({to:e.u,w:e.weight,id:e.id});
+  });
+  const start = nodes[0].id;
+  const inMST = new Set([start]);
+  const edgeList = [];
+  while (inMST.size < nodes.length) {
+    let bestEdge = null, bestW = Infinity;
+    for (const u of inMST) {
+      for (const e of adj.get(u)) {
+        if (!inMST.has(e.to) && e.w < bestW) { bestW = e.w; bestEdge = {u, v:e.to, id:e.id, w:e.w}; }
+      }
+    }
+    if (!bestEdge) break; // disconnected
+    inMST.add(bestEdge.v);
+    edgeList.push(bestEdge.id);
+  }
+  if (inMST.size < nodes.length) { alert('Graph is disconnected; MST covers only a component.'); }
+  // compute weight
+  let total = 0; edgeList.forEach(id=>{ const e = edges.find(x=>x.id===id); if (e) total += e.weight; });
+  log(`Prim's MST weight = ${total}; edges: ${edgeList.join(', ')}`);
+  clearHighlights();
+  edgeList.forEach(id => {
+    const e = edges.find(x=>x.id===id); if (e) { e.line.setAttribute('stroke','#10b981'); e.line.setAttribute('stroke-width','4'); }
+  });
+  // color nodes in MST
+  edges.filter(e=>edgeList.includes(e.id)).forEach(e => {
+    const nu = nodes.find(n=>n.id===e.u); const nv = nodes.find(n=>n.id===e.v);
+    if (nu) nu.circle.setAttribute('fill','#10b981');
+    if (nv) nv.circle.setAttribute('fill','#10b981');
+  });
+}
+
+// Kruskal's MST
+function runKruskal() {
+  // treat undirected: build list unique edges by undirected pair
+  const list = [];
+  edges.forEach(e => {
+    // normalize u < v for undirected MST treatment
+    const a = Math.min(e.u,e.v), b = Math.max(e.u,e.v);
+    // keep single instance; if multiple edges between same pair exist, keep all (Kruskal handles)
+    list.push({id:e.id, u:a, v:b, w:e.weight});
+  });
+  list.sort((a,b)=>a.w - b.w);
+  // union-find
+  const parent = new Map();
+  nodes.forEach(n=> parent.set(n.id, n.id));
+  function find(x){ if (parent.get(x)===x) return x; const r=find(parent.get(x)); parent.set(x,r); return r; }
+  function unite(a,b){ parent.set(find(a), find(b)); }
+  const picked = [];
+  for (const e of list) {
+    if (find(e.u) !== find(e.v)) {
+      unite(e.u, e.v);
+      picked.push(e.id);
+    }
+  }
+  let total = 0; picked.forEach(id=>{ const e = edges.find(x=>x.id===id); if (e) total += e.weight; });
+  log(`Kruskal's MST weight = ${total}; edges: ${picked.join(', ')}`);
+  clearHighlights();
+  picked.forEach(id => {
+    const e = edges.find(x=>x.id===id); if (e) { e.line.setAttribute('stroke','#10b981'); e.line.setAttribute('stroke-width','4'); }
+  });
+  edges.filter(e=>picked.includes(e.id)).forEach(e => {
+    const nu = nodes.find(n=>n.id===e.u); const nv = nodes.find(n=>n.id===e.v);
+    if (nu) nu.circle.setAttribute('fill','#10b981');
+    if (nv) nv.circle.setAttribute('fill','#10b981');
+  });
+}
+
+function clearHighlights() {
+  edges.forEach(e => { e.line.setAttribute('stroke','#ddd'); e.line.setAttribute('stroke-width','2'); });
+  nodes.forEach(n => { n.circle.setAttribute('fill','#bbb'); });
+}
+
+// Deletion of edges by clicking them in delete mode
+// We'll add pointer listeners for edge lines
+function attachEdgeListeners(e) {
+  e.line.style.cursor = 'pointer';
+  e.line.onpointerdown = (evt) => {
+    evt.stopPropagation();
+    if (mode === 'del') {
+      if (confirm('Delete this edge?')) {
+        removeEdgeById(e.id);
+      }
+    } else {
+      // show simple info
+      alert(`Edge ${e.id}: ${e.u} -> ${e.v}  weight=${e.weight}  ${e.dir ? '(directed)' : '(undirected)'}`);
+    }
+  };
+}
+
+// Whenever a new edge is created, attach listener
+const origCreateEdge = createEdge;
+createEdge = function(u,v,w,d,silent){
+  const id = origCreateEdge(u,v,w,d,silent);
+  const e = edges.find(x=>x.id===id);
+  if (e) attachEdgeListeners(e);
+  return id;
+};
+
+// initial sample graph
+(function seed(){
+  createNode(120,100); createNode(300,80); createNode(260,220); createNode(110,240); createNode(420,180);
+  createEdge(1,2,4,false); createEdge(2,3,2,false); createEdge(3,4,7,false); createEdge(4,1,3,false); createEdge(2,5,5,false);
+  render();
+  log('Sample graph created');
+})();
+
+</script>
+</body>
+</html>

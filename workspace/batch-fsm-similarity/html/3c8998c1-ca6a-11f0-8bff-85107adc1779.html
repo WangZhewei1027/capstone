@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dijkstra's Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #fafafa;
+  }
+  h1 {
+    margin: 20px 0 5px;
+  }
+  #container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 960px;
+    margin-bottom: 20px;
+  }
+  #graphCanvas {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  #controls {
+    max-width: 960px;
+    background: #fff;
+    padding: 15px 20px;
+    border-radius: 6px;
+    box-shadow: 0 0 8px rgba(0,0,0,.1);
+    margin-bottom: 30px;
+  }
+  label {
+    display: inline-block;
+    margin: 8px 10px 8px 0;
+  }
+  select, button {
+    margin-right: 15px;
+    padding: 6px 12px;
+    font-size: 1rem;
+  }
+  #log {
+    max-width: 960px;
+    height: 180px;
+    overflow-y: auto;
+    background: #222;
+    color: #eee;
+    font-family: monospace;
+    font-size: 14px;
+    padding: 12px;
+    border-radius: 6px;
+    box-sizing: border-box;
+  }
+  #speedLabel {
+    vertical-align: middle;
+  }
+  input[type=range] {
+    vertical-align: middle;
+  }
+  #info {
+    max-width: 960px;
+    margin: 0 10px 20px 10px;
+    font-size: 14px;
+    color: #333;
+  }
+  a {
+    color: #007acc;
+  }
+</style>
+</head>
+<body>
+<h1>Dijkstra's Algorithm Visualization</h1>
+<div id="info">
+  <p>This interactive visualization demonstrates Dijkstra's algorithm finding the shortest path on a weighted graph. 
+  Select start and end nodes, then press <b>Run Algorithm</b>. You can change the animation speed, reset, or generate a new graph.</p>
+  <p>Graph nodes are shown as circles; edges show weights; the shortest path is highlighted in green.</p>
+</div>
+<div id="container">
+  <canvas id="graphCanvas" width="800" height="500"></canvas>
+</div>
+<div id="controls">
+  <label for="startNode">Start Node:</label>
+  <select id="startNode"></select>
+
+  <label for="endNode">End Node:</label>
+  <select id="endNode"></select>
+
+  <button id="runBtn">Run Algorithm</button>
+  <button id="stepBtn" disabled>Step</button>
+  <button id="resetBtn">Reset</button>
+  <button id="newGraphBtn">New Graph</button>
+
+  <label for="speedRange" id="speedLabel">Animation Speed:</label>
+  <input type="range" id="speedRange" min="50" max="2000" value="500" step="10" />
+  <span id="speedValue">500 ms</span>
+</div>
+<div id="log" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const runBtn = document.getElementById('runBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const newGraphBtn = document.getElementById('newGraphBtn');
+
+  const startNodeSelect = document.getElementById('startNode');
+  const endNodeSelect = document.getElementById('endNode');
+
+  const speedRange = document.getElementById('speedRange');
+  const speedValue = document.getElementById('speedValue');
+
+  const logElem = document.getElementById('log');
+
+  const NODE_RADIUS = 20;
+  const EDGE_COLOR = '#999';
+  const EDGE_HIGHLIGHT = '#2a9d8f';
+  const PATH_COLOR = '#2a9d8f';
+  const NODE_COLOR = '#264653';
+  const NODE_HIGHLIGHT = '#e76f51';
+  const NODE_VISITED = '#f4a261';
+  const NODE_CURRENT = '#e76f51';
+  const LABEL_COLOR = '#222';
+  const BACKGROUND_COLOR = '#fff';
+
+  // Graph data structure
+  // nodes: {id: string, x: number, y: number, neighbors: Array<{id, weight}>}
+  // Using adjacency list with weights
+  let graph = { nodes: [] };
+
+  // Algorithm state
+  let distances = {}; // nodeId -> current shortest distance
+  let previous = {}; // nodeId -> previous node in path
+  let visited = new Set();
+  let unvisited = new Set();
+  let pq = []; // priority queue simulated with array of {node, dist} objects
+  let startNode = null;
+  let endNode = null;
+
+  let animationSpeed = 500;
+
+  let intervalId = null;
+  let algorithmRunning = false;
+  let algorithmSteps = []; // steps for stepwise run
+  let stepIdx = 0;
+
+  // Utility: shuffle array
+  function shuffle(array) {
+    for (let i=array.length-1; i>0; i--) {
+      const j = Math.floor(Math.random()*(i+1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+
+  // Priority queue helpers
+  function enqueuePQ(pq, node, dist) {
+    pq.push({node, dist});
+    pq.sort((a,b) => a.dist - b.dist);
+  }
+  function dequeuePQ(pq) {
+    return pq.shift();
+  }
+
+  // Clear log
+  function clearLog() {
+    logElem.textContent = '';
+  }
+  // Add line to log (and scroll)
+  function log(message) {
+    const line = document.createElement('div');
+    line.textContent = message;
+    logElem.appendChild(line);
+    logElem.scrollTop = logElem.scrollHeight;
+  }
+
+  // Generate a simple random connected graph with weighted edges
+  // For demo: 10 nodes placed randomly, edges between near nodes
+  function generateRandomGraph(numNodes=10, maxEdgesPerNode=4, maxWeight=20) {
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Generate nodes with random positions away from edges
+    const margin = NODE_RADIUS * 3;
+    let nodes = [];
+    for (let i=0; i<numNodes; i++) {
+      const node = {
+        id: i.toString(),
+        x: Math.random()*(width - 2*margin) + margin,
+        y: Math.random()*(height - 2*margin) + margin,
+        neighbors: []
+      };
+      nodes.push(node);
+    }
+
+    // We want undirected weighted edges connecting nodes to nearby nodes.
+    // First connect nodes in a chain to guarantee connectivity:
+    for(let i=0; i<numNodes-1; i++) {
+      const w = 1 + Math.floor(Math.random()*maxWeight);
+      nodes[i].neighbors.push({id: nodes[i+1].id, weight: w});
+      nodes[i+1].neighbors.push({id: nodes[i].id, weight: w});
+    }
+
+    // Add some extra edges to add complexity:
+    nodes.forEach((node, i) => {
+      // Find nodes sorted by distance
+      let dists = nodes.map(other => {
+        if (other.id === node.id) return null;
+        const dx = other.x - node.x;
+        const dy = other.y - node.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        return {id: other.id, dist};
+      }).filter(v => v !== null);
+      dists.sort((a,b)=> a.dist - b.dist);
+
+      let edgesAdded = node.neighbors.length;
+      for (let j=1; edgesAdded < maxEdgesPerNode && j < dists.length; j++) {
+        let neighborId = dists[j].id;
+        // Check if edge already exists:
+        if (!node.neighbors.find(n => n.id === neighborId)) {
+          const w = Math.max(1, Math.round(dists[j].dist / 15)) + Math.floor(Math.random()*3);
+          node.neighbors.push({id: neighborId, weight: w});
+          const otherNode = nodes.find(n => n.id === neighborId);
+          otherNode.neighbors.push({id: node.id, weight: w});
+          edgesAdded++;
+        }
+      }
+    });
+
+    return {nodes};
+  }
+
+  // Draw graph on canvas
+  function drawGraph(options={highlightEdges:[], highlightNodes:[], shortestPath: []}) {
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+
+    // Draw edges
+    ctx.lineWidth = 2;
+    graph.nodes.forEach(node => {
+      node.neighbors.forEach(neighbor => {
+        // To draw each edge only once, draw if node.id < neighbor.id
+        if (node.id < neighbor.id) {
+          let neighborNode = graph.nodes.find(n => n.id === neighbor.id);
+          let isPathEdge = options.shortestPath.some((edgeIdx, idx, arr) => {
+            if (idx === arr.length - 1) return false;
+            let from = arr[idx], to = arr[idx+1];
+            return ( (node.id === from && neighborNode.id === to) || (node.id === to && neighborNode.id === from) );
+          });
+
+          let isHighlighted = options.highlightEdges.some(e => e[0] === node.id && e[1] === neighbor.id)
+                              || options.highlightEdges.some(e => e[1] === node.id && e[0] === neighbor.id);
+
+          ctx.strokeStyle = isPathEdge ? PATH_COLOR : (isHighlighted ? EDGE_HIGHLIGHT : EDGE_COLOR);
+          ctx.beginPath();
+          ctx.moveTo(node.x, node.y);
+          ctx.lineTo(neighborNode.x, neighborNode.y);
+          ctx.stroke();
+
+          // Draw edge weight at midpoint
+          const midX = (node.x + neighborNode.x) / 2;
+          const midY = (node.y + neighborNode.y) / 2;
+          ctx.fillStyle = LABEL_COLOR;
+          ctx.font = '14px Arial';
+          ctx.fillText(neighbor.weight.toString(), midX + 4, midY - 4);
+        }
+      });
+    });
+
+    // Draw nodes
+    graph.nodes.forEach(node => {
+      // Determine node color
+      let fillColor = NODE_COLOR;
+      if (options.shortestPath.includes(node.id)) {
+        fillColor = PATH_COLOR;
+      } else if (options.highlightNodes.includes(node.id)) {
+        fillColor = NODE_CURRENT;
+      } else if (visited.has(node.id)) {
+        fillColor = NODE_VISITED;
+      }
+
+      ctx.beginPath();
+      ctx.fillStyle = fillColor;
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 2;
+      ctx.arc(node.x, node.y, NODE_RADIUS, 0, 2*Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      // Node label
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px Arial bold';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.id, node.x, node.y);
+
+      // Distance label (if exists)
+      if (distances[node.id] !== undefined && distances[node.id] !== Infinity) {
+        ctx.fillStyle = '#222';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`Dist: ${distances[node.id]}`, node.x, node.y + NODE_RADIUS + 2);
+      }
+    });
+  }
+
+  // Populate start/end node selectors
+  function populateNodeSelectors() {
+    [startNodeSelect, endNodeSelect].forEach(select => {
+      select.innerHTML = '';
+      graph.nodes.forEach(node => {
+        let opt = document.createElement('option');
+        opt.value = node.id;
+        opt.textContent = node.id;
+        select.appendChild(opt);
+      });
+    });
+    // Default selections
+    startNodeSelect.selectedIndex = 0;
+    endNodeSelect.selectedIndex = graph.nodes.length-1;
+  }
+
+  // Initialize/reset algorithm state
+  function initializeAlgorithm() {
+    distances = {};
+    previous = {};
+    visited = new Set();
+    unvisited = new Set(graph.nodes.map(n => n.id));
+    pq = [];
+    algorithmSteps = [];
+    stepIdx = 0;
+
+    graph.nodes.forEach(n => distances[n.id] = Infinity);
+    distances[startNode] = 0;
+    enqueuePQ(pq, startNode, 0);
+  }
+
+  // Prepare algorithm steps for stepwise execution & animation
+  function prepareAlgorithmSteps() {
+    algorithmSteps = [];
+
+    let localDistances = {...distances};
+    let localPrevious = {...previous};
+    let localVisited = new Set();
+    let localPQ = [...pq];
+
+    while (localPQ.length > 0) {
+      // Get node with smallest distance
+      localPQ.sort((a,b) => a.dist - b.dist);
+      let {node: currentNode, dist: currentDist} = localPQ.shift();
+
+      if (localVisited.has(currentNode)) continue;
+      localVisited.add(currentNode);
+
+      // Step: mark current node as visited, record state
+      algorithmSteps.push({
+        type: 'visit',
+        currentNode,
+        distances: {...localDistances},
+        visited: new Set(localVisited),
+        previous: {...localPrevious},
+        pq: [...localPQ],
+      });
+
+      // Early stop if reached end node
+      if (currentNode === endNode) break;
+
+      // For each neighbor of currentNode:
+      let curNodeObj = graph.nodes.find(n => n.id === currentNode);
+      for(let neighbor of curNodeObj.neighbors) {
+        if (localVisited.has(neighbor.id)) continue;
+        let altDist = localDistances[currentNode] + neighbor.weight;
+        if (altDist < (localDistances[neighbor.id] ?? Infinity)) {
+          localDistances[neighbor.id] = altDist;
+          localPrevious[neighbor.id] = currentNode;
+          localPQ.push({node: neighbor.id, dist: altDist});
+
+          // Step: update neighbor distance
+          algorithmSteps.push({
+            type: 'update',
+            currentNode,
+            neighborId: neighbor.id,
+            newDist: altDist,
+            distances: {...localDistances},
+            visited: new Set(localVisited),
+            previous: {...localPrevious},
+            pq: [...localPQ],
+          });
+        }
+      }
+    }
+
+    // Add final step showing shortest path
+    let path = reconstructPath(localPrevious, startNode, endNode);
+    algorithmSteps.push({
+      type: 'done',
+      path,
+      distances: {...localDistances},
+      visited: new Set(localVisited),
+      previous: {...localPrevious},
+      pq: [],
+    });
+  }
+
+  // Reconstruct path from previous map
+  function reconstructPath(prev, start, end) {
+    let path = [];
+    let current = end;
+    while (current !== undefined) {
+      path.push(current);
+      if (current === start) break;
+      current = prev[current];
+    }
+    if (path[path.length-1] !== start) return []; // no path
+    return path.reverse();
+  }
+
+  // Draw step state
+  function drawStep(step) {
+    // Highlight current node
+    let highlightNodes = [];
+    let highlightEdges = [];
+    if (step.type === 'visit') {
+      highlightNodes = [step.currentNode];
+    } else if (step.type === 'update') {
+      highlightNodes = [step.currentNode, step.neighborId];
+    } else if (step.type === 'done') {
+      // path already in step.path
+    }
+
+    // Replace global distances and visited with step snapshot
+    distances = step.distances;
+    visited = step.visited;
+
+    drawGraph({
+      highlightNodes,
+      highlightEdges,
+      shortestPath: step.path || []
+    });
+  }
+
+  // Run algorithm animation step by step
+  function runAlgorithmAnimation() {
+    if (stepIdx >= algorithmSteps.length) {
+      clearInterval(intervalId);
+      algorithmRunning = false;
+      stepBtn.disabled = true;
+      runBtn.disabled = false;
+      log("Algorithm completed.");
+      return;
+    }
+    const step = algorithmSteps[stepIdx];
+    drawStep(step);
+
+    // Log info about step
+    if (step.type === 'visit') {
+      log(`Visit node ${step.currentNode} with distance ${distances[step.currentNode]}`);
+    } else if (step.type === 'update') {
+      log(`Update distance of node ${step.neighborId} to ${step.newDist} via ${step.currentNode}`);
+    } else if (step.type === 'done') {
+      if (step.path.length > 0) {
+        log(`Shortest path found: ${step.path.join(' → ')} with distance ${distances[endNode]}`);
+      } else {
+        log("No path found from start to end node.");
+      }
+    }
+    stepIdx++;
+  }
+
+  // Manual step one step
+  function stepAlgorithm() {
+    if (stepIdx >= algorithmSteps.length) {
+      log("Algorithm completed.");
+      stepBtn.disabled = true;
+      runBtn.disabled = false;
+      algorithmRunning = false;
+      return;
+    }
+    const step = algorithmSteps[stepIdx];
+    drawStep(step);
+
+    if (step.type === 'visit') {
+      log(`Visit node ${step.currentNode} with distance ${distances[step.currentNode]}`);
+    } else if (step.type === 'update') {
+      log(`Update distance of node ${step.neighborId} to ${step.newDist} via ${step.currentNode}`);
+    } else if (step.type === 'done') {
+      if (step.path.length > 0) {
+        log(`Shortest path found: ${step.path.join(' → ')} with distance ${distances[endNode]}`);
+      } else {
+        log("No path found from start to end node.");
+      }
+      stepBtn.disabled = true;
+      runBtn.disabled = false;
+      algorithmRunning = false;
+    }
+    stepIdx++;
+  }
+
+  // Event handlers
+  runBtn.addEventListener('click', () => {
+    if (algorithmRunning) return; // ignore while running
+
+    startNode = startNodeSelect.value;
+    endNode = endNodeSelect.value;
+    if (startNode === endNode) {
+      alert("Start node and end node must be different.");
+      return;
+    }
+
+    initializeAlgorithm();
+    prepareAlgorithmSteps();
+    stepIdx = 0;
+    algorithmRunning = true;
+    clearLog();
+    log(`Running Dijkstra's algorithm from node ${startNode} to node ${endNode}...`);
+
+    runBtn.disabled = true;
+    stepBtn.disabled = true;
+    resetBtn.disabled = true;
+    newGraphBtn.disabled = true;
+    startNodeSelect.disabled = true;
+    endNodeSelect.disabled = true;
+
+    intervalId = setInterval(() => {
+      runAlgorithmAnimation();
+      if (!algorithmRunning) {
+        clearInterval(intervalId);
+        resetBtn.disabled = false;
+        newGraphBtn.disabled = false;
+        startNodeSelect.disabled = false;
+        endNodeSelect.disabled = false;
+      }
+    }, animationSpeed);
+  });
+
+  stepBtn.addEventListener('click', () => {
+    if (!algorithmRunning) {
+      startNode = startNodeSelect.value;
+      endNode = endNodeSelect.value;
+      if (startNode === endNode) {
+        alert("Start node and end node must be different.");
+        return;
+      }
+      initializeAlgorithm();
+      prepareAlgorithmSteps();
+      stepIdx = 0;
+      algorithmRunning = true;
+      clearLog();
+      log(`Running Dijkstra's algorithm (stepwise) from node ${startNode} to node ${endNode}...`);
+      runBtn.disabled = true;
+      resetBtn.disabled = true;
+      newGraphBtn.disabled = true;
+      startNodeSelect.disabled = true;
+      endNodeSelect.disabled = true;
+    }
+    stepAlgorithm();
+    if (!algorithmRunning) {
+      resetBtn.disabled = false;
+      newGraphBtn.disabled = false;
+      startNodeSelect.disabled = false;
+      endNodeSelect.disabled = false;
+      runBtn.disabled = false;
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    clearInterval(intervalId);
+    algorithmRunning = false;
+    resetBtn.disabled = false;
+    runBtn.disabled = false;
+    stepBtn.disabled = true;
+    newGraphBtn.disabled = false;
+    startNodeSelect.disabled = false;
+    endNodeSelect.disabled = false;
+    clearLog();
+    distances = {};
+    previous = {};
+    visited.clear();
+    stepIdx = 0;
+    drawGraph();
+  });
+
+  newGraphBtn.addEventListener('click', () => {
+    clearInterval(intervalId);
+    algorithmRunning = false;
+    graph = generateRandomGraph();
+    populateNodeSelectors();
+    startNode = null;
+    endNode = null;
+    distances = {};
+    previous = {};
+    visited.clear();
+    stepIdx = 0;
+    clearLog();
+    drawGraph();
+    runBtn.disabled = false;
+    stepBtn.disabled = true;
+    resetBtn.disabled = false;
+    startNodeSelect.disabled = false;
+    endNodeSelect.disabled = false;
+  });
+
+  speedRange.addEventListener('input', () => {
+    animationSpeed = parseInt(speedRange.value, 10);
+    speedValue.textContent = animationSpeed + " ms";
+    if (algorithmRunning) {
+      clearInterval(intervalId);
+      intervalId = setInterval(runAlgorithmAnimation, animationSpeed);
+    }
+  });
+
+  // Initialize page
+  function init() {
+    graph = generateRandomGraph();
+    populateNodeSelectors();
+    drawGraph();
+    runBtn.disabled = false;
+    stepBtn.disabled = true;
+    resetBtn.disabled = false;
+    speedValue.textContent = speedRange.value + " ms";
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

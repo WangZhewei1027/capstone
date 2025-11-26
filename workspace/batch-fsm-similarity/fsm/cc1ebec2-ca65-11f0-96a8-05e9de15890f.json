@@ -1,0 +1,591 @@
+{
+  "meta": {
+    "concept": "KnapsackProblem",
+    "topic": "Knapsack Problem",
+    "educational_goal": "Demonstrate 0/1 DP, brute-force and fractional greedy solutions, with DP table visualization and interactive item editing",
+    "expected_interactions": [
+      "add_item",
+      "randomize_items",
+      "clear_items",
+      "edit_item",
+      "remove_item",
+      "change_capacity",
+      "change_algorithm",
+      "compute",
+      "visualize_dp",
+      "inspect_dp_cell",
+      "keyboard_compute"
+    ]
+  },
+  "states": [
+    {
+      "id": "S0_Idle",
+      "label": "Idle",
+      "type": "idle",
+      "entry_actions": [
+        "renderItems()",
+        "clearResults()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S1_Editing",
+      "label": "EditingItems",
+      "type": "atomic",
+      "entry_actions": [
+        "focusEditor()",
+        "renderItems()"
+      ],
+      "exit_actions": [
+        "renderItems()"
+      ]
+    },
+    {
+      "id": "S2_Confirming",
+      "label": "ConfirmPrompt",
+      "type": "atomic",
+      "entry_actions": [
+        "showConfirmDialog()"
+      ],
+      "exit_actions": [
+        "hideConfirmDialog()"
+      ]
+    },
+    {
+      "id": "S3_Computing",
+      "label": "Computing",
+      "type": "atomic",
+      "entry_actions": [
+        "runSelectedAlgo()",
+        "clearVisualPreview()"
+      ],
+      "exit_actions": [
+        "storeResults()"
+      ]
+    },
+    {
+      "id": "S4_ShowingResults",
+      "label": "ShowingResults",
+      "type": "atomic",
+      "entry_actions": [
+        "displayResult()",
+        "highlightSelectedRows()",
+        "renderChart()"
+      ],
+      "exit_actions": [
+        "clearSelectionHighlights()"
+      ]
+    },
+    {
+      "id": "S5_DPVisualizing",
+      "label": "DPVisualizing",
+      "type": "atomic",
+      "entry_actions": [
+        "visualizeDP()",
+        "renderDPTable()",
+        "highlightBacktrack()"
+      ],
+      "exit_actions": [
+        "clearDPVisualization()"
+      ]
+    },
+    {
+      "id": "S6_AlertShown",
+      "label": "AlertShown",
+      "type": "atomic",
+      "entry_actions": [
+        "showAlert()"
+      ],
+      "exit_actions": [
+        "dismissAlert()"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "USER_CLICK_ADD_ITEM",
+      "event_type": "user_action",
+      "description": "User clicks the Add Item button",
+      "triggers": "#addItem"
+    },
+    {
+      "id": "USER_CLICK_RANDOMIZE",
+      "event_type": "user_action",
+      "description": "User clicks Randomize button (opens prompt for count)",
+      "triggers": "#randomItems"
+    },
+    {
+      "id": "USER_CLICK_CLEAR",
+      "event_type": "user_action",
+      "description": "User clicks Clear Items button (confirm dialog)",
+      "triggers": "#clearItems"
+    },
+    {
+      "id": "USER_EDIT_ITEM",
+      "event_type": "user_action",
+      "description": "User edits an item's weight or value in the items table",
+      "triggers": "#itemsBody input[data-field=\"w\"], #itemsBody input[data-field=\"v\"]"
+    },
+    {
+      "id": "USER_CLICK_REMOVE_ITEM",
+      "event_type": "user_action",
+      "description": "User clicks Remove on an item row",
+      "triggers": "#itemsBody button[data-action=\"remove\"]"
+    },
+    {
+      "id": "USER_CHANGE_CAPACITY",
+      "event_type": "user_action",
+      "description": "User changes the capacity input",
+      "triggers": "#capacity"
+    },
+    {
+      "id": "USER_CHANGE_ALGORITHM",
+      "event_type": "user_action",
+      "description": "User changes selected algorithm",
+      "triggers": "#algo"
+    },
+    {
+      "id": "USER_CLICK_COMPUTE",
+      "event_type": "user_action",
+      "description": "User clicks Compute to run the selected algorithm",
+      "triggers": "#compute"
+    },
+    {
+      "id": "USER_CLICK_VISUALIZE_DP",
+      "event_type": "user_action",
+      "description": "User clicks Visualize DP button",
+      "triggers": "#animateDP"
+    },
+    {
+      "id": "USER_CLICK_DP_CELL",
+      "event_type": "user_action",
+      "description": "User clicks a DP table cell to inspect (cells created dynamically)",
+      "triggers": "td[data-i][data-w]"
+    },
+    {
+      "id": "USER_KEYBOARD_COMPUTE",
+      "event_type": "user_action",
+      "description": "User presses Enter (global) to trigger compute when not typing in input",
+      "triggers": "document (keydown Enter)"
+    },
+    {
+      "id": "SYS_PROMPT_RESPONSE",
+      "event_type": "system_event",
+      "description": "User responded to a prompt() (randomize count) or confirm() decision",
+      "triggers": "window.prompt / window.confirm"
+    },
+    {
+      "id": "SYS_COMPUTE_COMPLETE",
+      "event_type": "system_event",
+      "description": "Algorithm compute finished (DP/brute/fractional)",
+      "triggers": "internal: runSelectedAlgo() completion"
+    },
+    {
+      "id": "SYS_DP_AVAILABLE",
+      "event_type": "system_event",
+      "description": "A DP table result is available after running 0/1 DP",
+      "triggers": "internal: knapsackDP() returns with dpTable"
+    },
+    {
+      "id": "SYS_NO_ITEMS_ALERT",
+      "event_type": "system_event",
+      "description": "Alert shown because there are no items",
+      "triggers": "alert('Add some items first.')"
+    },
+    {
+      "id": "SYS_ERROR_ALERT",
+      "event_type": "system_event",
+      "description": "Generic error alert shown (e.g., exceptions during compute)",
+      "triggers": "alert('Error: ...')"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0_Idle",
+      "to": "S1_Editing",
+      "event": "USER_CLICK_ADD_ITEM",
+      "guard": "true",
+      "actions": [
+        "addItem(10,10)",
+        "renderItems()"
+      ],
+      "expected_observables": [
+        "dom:#addItem:click",
+        "dom:#itemsBody tr.item-row"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_Confirming",
+      "event": "USER_CLICK_RANDOMIZE",
+      "guard": "true",
+      "actions": [
+        "prompt('How many random items?', '6')"
+      ],
+      "expected_observables": [
+        "dom:#randomItems:click",
+        "dom:window.prompt"
+      ],
+      "timeout": 30000
+    },
+    {
+      "from": "S2_Confirming",
+      "to": "S1_Editing",
+      "event": "SYS_PROMPT_RESPONSE",
+      "guard": "response_is_numeric_and_positive",
+      "actions": [
+        "randomize(parsedCount)",
+        "renderItems()",
+        "clearResults()"
+      ],
+      "expected_observables": [
+        "dom:#itemsBody tr.item-row",
+        "dom:#itemsBody input[data-field=\"w\"]"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S2_Confirming",
+      "to": "S0_Idle",
+      "event": "SYS_PROMPT_RESPONSE",
+      "guard": "response_cancel_or_invalid",
+      "actions": [],
+      "expected_observables": [
+        "dom:#randomItems:click"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_Confirming",
+      "event": "USER_CLICK_CLEAR",
+      "guard": "true",
+      "actions": [
+        "confirm('Clear all items?')"
+      ],
+      "expected_observables": [
+        "dom:#clearItems:click",
+        "dom:window.confirm"
+      ],
+      "timeout": 30000
+    },
+    {
+      "from": "S2_Confirming",
+      "to": "S0_Idle",
+      "event": "SYS_PROMPT_RESPONSE",
+      "guard": "confirm_accepted_for_clear",
+      "actions": [
+        "clearItems()",
+        "renderItems()",
+        "clearResults()"
+      ],
+      "expected_observables": [
+        "dom:#itemsBody",
+        "dom:#resultTitle"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S2_Confirming",
+      "to": "S0_Idle",
+      "event": "SYS_PROMPT_RESPONSE",
+      "guard": "confirm_rejected_for_clear",
+      "actions": [],
+      "expected_observables": [
+        "dom:#clearItems:click"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S1_Editing",
+      "event": "USER_EDIT_ITEM",
+      "guard": "true",
+      "actions": [
+        "updateItemFromInput()",
+        "renderItems()"
+      ],
+      "expected_observables": [
+        "dom:#itemsBody input[data-field=\"w\"]",
+        "dom:#itemsBody input[data-field=\"v\"]"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S1_Editing",
+      "to": "S1_Editing",
+      "event": "USER_CLICK_REMOVE_ITEM",
+      "guard": "true",
+      "actions": [
+        "removeItemAtIndex(dataset.index)",
+        "renderItems()"
+      ],
+      "expected_observables": [
+        "dom:#itemsBody button[data-action=\"remove\"]:click",
+        "dom:#itemsBody tr.item-row:not(.selected)"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S3_Computing",
+      "event": "USER_CLICK_COMPUTE",
+      "guard": "items_length_greater_than_zero_and_no_precompute_confirmation",
+      "actions": [
+        "dpArea.innerHTML = ''",
+        "runSelectedAlgo()"
+      ],
+      "expected_observables": [
+        "dom:#compute:click",
+        "internal: runSelectedAlgo() invoked"
+      ],
+      "timeout": 60000
+    },
+    {
+      "from": "S1_Editing",
+      "to": "S3_Computing",
+      "event": "USER_CLICK_COMPUTE",
+      "guard": "items_length_greater_than_zero",
+      "actions": [
+        "runSelectedAlgo()"
+      ],
+      "expected_observables": [
+        "dom:#compute:click"
+      ],
+      "timeout": 60000
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S6_AlertShown",
+      "event": "USER_CLICK_COMPUTE",
+      "guard": "items_length_equals_zero",
+      "actions": [
+        "alert('Add some items first.')"
+      ],
+      "expected_observables": [
+        "dom:#compute:click",
+        "dom:alert"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S3_Computing",
+      "to": "S2_Confirming",
+      "event": "USER_CLICK_COMPUTE",
+      "guard": "algo_is_bruteforce_and_items_gt_24",
+      "actions": [
+        "confirm(`Brute-force with ${items.length} items will be slow (2^${items.length} subsets). Continue?`)"
+      ],
+      "expected_observables": [
+        "dom:#compute:click",
+        "dom:window.confirm"
+      ],
+      "timeout": 30000
+    },
+    {
+      "from": "S2_Confirming",
+      "to": "S3_Computing",
+      "event": "SYS_PROMPT_RESPONSE",
+      "guard": "confirm_accepted_for_bruteforce",
+      "actions": [
+        "runSelectedAlgo()"
+      ],
+      "expected_observables": [
+        "internal: runSelectedAlgo() invoked"
+      ],
+      "timeout": 60000
+    },
+    {
+      "from": "S3_Computing",
+      "to": "S4_ShowingResults",
+      "event": "SYS_COMPUTE_COMPLETE",
+      "guard": "computation_successful",
+      "actions": [
+        "displayResult(res, took)",
+        "if(dpTable_present) store lastDP"
+      ],
+      "expected_observables": [
+        "dom:#resultTitle",
+        "dom:#statsArea",
+        "dom:#chartArea"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S3_Computing",
+      "to": "S6_AlertShown",
+      "event": "SYS_COMPUTE_COMPLETE",
+      "guard": "computation_threw_error",
+      "actions": [
+        "alert('Error: ' + err.message)"
+      ],
+      "expected_observables": [
+        "dom:alert"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S4_ShowingResults",
+      "to": "S5_DPVisualizing",
+      "event": "USER_CLICK_VISUALIZE_DP",
+      "guard": "lastDP_present_and_capacity_not_too_large_and_items_not_too_many",
+      "actions": [
+        "visualizeDP()",
+        "renderDPTable()"
+      ],
+      "expected_observables": [
+        "dom:#animateDP:click",
+        "dom:#dpArea .dp-grid"
+      ],
+      "timeout": 120000
+    },
+    {
+      "from": "S4_ShowingResults",
+      "to": "S2_Confirming",
+      "event": "USER_CLICK_VISUALIZE_DP",
+      "guard": "lastDP_present_but_capacity_large",
+      "actions": [
+        "confirm('Capacity is large. Visualizing may be slow. Continue?')"
+      ],
+      "expected_observables": [
+        "dom:#animateDP:click",
+        "dom:window.confirm"
+      ],
+      "timeout": 30000
+    },
+    {
+      "from": "S4_ShowingResults",
+      "to": "S6_AlertShown",
+      "event": "USER_CLICK_VISUALIZE_DP",
+      "guard": "no_lastDP",
+      "actions": [
+        "alert('No DP table available. Run 0/1 DP first (algorithm must be \"0/1 Knapsack (Dynamic Programming)\").')"
+      ],
+      "expected_observables": [
+        "dom:#animateDP:click",
+        "dom:alert"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S5_DPVisualizing",
+      "to": "S5_DPVisualizing",
+      "event": "USER_CLICK_DP_CELL",
+      "guard": "true",
+      "actions": [
+        "onDPClick(lastDP, clickedCell) /* shows explanation via alert() */"
+      ],
+      "expected_observables": [
+        "dom:td[data-i][data-w]:click",
+        "dom:alert"
+      ],
+      "timeout": 60000
+    },
+    {
+      "from": "S5_DPVisualizing",
+      "to": "S4_ShowingResults",
+      "event": "SYS_PROMPT_RESPONSE",
+      "guard": "user_closed_dp_or_navigated_away",
+      "actions": [
+        "clearDPVisualization()"
+      ],
+      "expected_observables": [
+        "dom:#dpArea"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S6_AlertShown",
+      "to": "S0_Idle",
+      "event": "SYS_PROMPT_RESPONSE",
+      "guard": "alert_dismissed",
+      "actions": [],
+      "expected_observables": [
+        "dom:alert_closed"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S4_ShowingResults",
+      "to": "S1_Editing",
+      "event": "USER_CLICK_ADD_ITEM",
+      "guard": "true",
+      "actions": [
+        "addItem(10,10)",
+        "renderItems()"
+      ],
+      "expected_observables": [
+        "dom:#addItem:click",
+        "dom:#itemsBody tr.item-row"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S4_ShowingResults",
+      "to": "S3_Computing",
+      "event": "USER_KEYBOARD_COMPUTE",
+      "guard": "document_activeElement_not_input",
+      "actions": [
+        "runSelectedAlgo()"
+      ],
+      "expected_observables": [
+        "dom:document.keydown Enter",
+        "internal: runSelectedAlgo() invoked"
+      ],
+      "timeout": 60000
+    },
+    {
+      "from": "S1_Editing",
+      "to": "S0_Idle",
+      "event": "USER_CHANGE_ALGORITHM",
+      "guard": "true",
+      "actions": [
+        "algoSelect.value = newValue",
+        "clearResults()"
+      ],
+      "expected_observables": [
+        "dom:#algo:change",
+        "dom:#resultTitle"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S1_Editing",
+      "to": "S1_Editing",
+      "event": "USER_CHANGE_CAPACITY",
+      "guard": "true",
+      "actions": [
+        "normalizeCapacityInput()",
+        "capacityInput.value = sanitizedValue"
+      ],
+      "expected_observables": [
+        "dom:#capacity:input"
+      ],
+      "timeout": 500
+    }
+  ],
+  "components": [
+    "input#capacity",
+    "select#algo",
+    "button#addItem",
+    "button#randomItems",
+    "button#clearItems",
+    "button#compute",
+    "button#animateDP",
+    "table#itemsTable",
+    "tbody#itemsBody",
+    "div#resultTitle",
+    "div#statsArea",
+    "div#summary",
+    "div#selectionList",
+    "div#chartArea",
+    "div#dpArea",
+    "div#noteArea",
+    ".item-row",
+    "#itemsBody input[data-field=\"w\"]",
+    "#itemsBody input[data-field=\"v\"]",
+    "#itemsBody button[data-action=\"remove\"]",
+    "td[data-i][data-w] (dp cells generated dynamically)"
+  ]
+}

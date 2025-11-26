@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Prim's Algorithm Visualizer</title>
+<style>
+  :root{
+    --bg:#0f1724;
+    --panel:#0b1220cc;
+    --text:#e6eef8;
+    --muted:#9fb0cf;
+    --accent:#60a5fa;
+    --good:#34d399;
+    --warn:#fb923c;
+    --danger:#ef4444;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;color:var(--text);background:linear-gradient(180deg,#071021 0%, #0a1628 100%);}
+  .container{display:flex;flex-direction:column;height:100%;gap:12px;padding:14px;}
+  .topbar{display:flex;gap:12px;align-items:center;}
+  .controls, .infos{background:var(--panel);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.6);display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  label{font-size:13px;color:var(--muted)}
+  input[type=range]{accent-color:var(--accent)}
+  button{background:linear-gradient(180deg,#1f2937,#111827);color:var(--text);border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+  .small{padding:6px 8px;font-size:13px}
+  .svgwrapper{flex:1;background:linear-gradient(180deg,#071428 0%, #071a28 100%);border-radius:12px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+  svg{width:100%;height:100%;display:block}
+  .sidebar{width:360px;min-width:260px;max-width:420px;background:var(--panel);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.6);display:flex;flex-direction:column;gap:10px;}
+  .row{display:flex;gap:8px;align-items:center}
+  .muted{color:var(--muted);font-size:13px}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);display:flex;flex-direction:column;gap:8px}
+  .pq{max-height:140px;overflow:auto}
+  .pq-item{display:flex;justify-content:space-between;padding:6px;border-radius:6px;background:rgba(255,255,255,0.02);font-size:13px}
+  .code{font-family:monospace;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;font-size:13px;line-height:1.5}
+  .code .hl{background:linear-gradient(90deg, rgba(96,165,250,0.15), rgba(96,165,250,0.06));display:block;padding:2px 6px;border-radius:4px}
+  footer{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px;padding:6px 0}
+  .legend{display:flex;gap:8px;align-items:center}
+  .legend .item{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+  .swatch{width:18px;height:10px;border-radius:4px}
+  /* node and edge tooltip */
+  .tooltip{position:absolute;pointer-events:none;padding:6px 8px;background:#020617;border-radius:6px;border:1px solid rgba(255,255,255,0.04);color:var(--text);font-size:13px}
+  /* small helpers */
+  .flexcol{display:flex;flex-direction:column}
+  .grow{flex:1}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <div class="controls">
+      <label class="muted">Nodes: <span id="nodeCountLabel">10</span></label>
+      <input id="nodeCount" type="range" min="3" max="20" value="10">
+      <label class="muted">Density: <span id="densityLabel">0.4</span></label>
+      <input id="density" type="range" min="0" max="100" value="40">
+      <label class="muted">Max Weight: <span id="maxWLabel">20</span></label>
+      <input id="maxWeight" type="range" min="2" max="50" value="20">
+      <button id="regen" title="Generate new random graph">Generate</button>
+      <button id="clear" class="ghost" title="Clear MST / reset algorithm">Reset</button>
+    </div>
+    <div class="infos">
+      <div class="muted">Mode:</div>
+      <button id="selectStart" class="small">Choose Start Node</button>
+      <button id="autoRun" class="small">Auto Run</button>
+      <button id="stepBtn" class="small">Step</button>
+      <label class="muted">Speed</label>
+      <input id="speed" type="range" min="100" max="2000" value="700">
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;flex:1;min-height:420px;">
+    <div class="svgwrapper" id="canvasWrapper" style="flex:1;min-width:0;min-height:420px">
+      <svg id="svgCanvas" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="tooltip" class="tooltip" style="display:none"></div>
+    </div>
+
+    <div class="sidebar">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:700">Prim's Algorithm</div>
+            <div class="muted" style="font-size:13px">Minimum Spanning Tree (MST) visualizer — weighted undirected graph</div>
+          </div>
+          <div style="text-align:right">
+            <div class="muted" style="font-size:13px">MST Weight</div>
+            <div id="mstWeight" style="font-weight:800;font-size:18px">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div class="muted" style="width:110px">Visited</div>
+          <div id="visitedList" class="muted" style="flex:1"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div class="muted" style="width:110px">Edges in MST</div>
+          <div id="mstEdges" class="muted" style="flex:1"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700">Priority Queue (frontier)</div>
+          <div class="muted" style="font-size:12px">min-weight first</div>
+        </div>
+        <div class="pq" id="pqList" aria-live="polite"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700">Pseudo-code</div>
+        </div>
+        <div class="code" id="pseudocode">
+          <div id="line0">1. Initialize MST set with start node.</div>
+          <div id="line1">2. Insert all edges from start node into PQ.</div>
+          <div id="line2">3. While PQ not empty and MST not complete:</div>
+          <div id="line3" style="padding-left:14px">a) Extract min edge (u,v,w).</div>
+          <div id="line4" style="padding-left:14px">b) If v not in MST, add edge to MST and add v to MST set.</div>
+          <div id="line5" style="padding-left:14px">c) Insert edges from v to PQ.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700">Legend</div>
+        </div>
+        <div class="legend">
+          <div class="item"><div class="swatch" style="background:linear-gradient(90deg,#60a5fa,#3b82f6)"></div> Frontier edge</div>
+          <div class="item"><div class="swatch" style="background:linear-gradient(90deg,#34d399,#16a34a)"></div> MST edge</div>
+          <div class="item"><div class="swatch" style="background:linear-gradient(90deg,#f97316,#fb923c)"></div> Selected edge</div>
+          <div class="item"><div class="swatch" style="background:#aab4bf"></div> Idle edge</div>
+        </div>
+      </div>
+
+      <footer>
+        <div class="muted">Click nodes to drag. Click "Choose Start Node" and pick a node.</div>
+        <div class="muted">Author: Prim Visualizer</div>
+      </footer>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  Prim's Algorithm Visualizer
+  - Undirected weighted graph
+  - Interactive: generate graph, select start node, step through algorithm or auto-run
+  - Visual cues: frontier edges (blue), selected edge (orange), MST edges (green)
+*/
+
+const svg = document.getElementById('svgCanvas');
+const tooltip = document.getElementById('tooltip');
+const nodeCountInput = document.getElementById('nodeCount');
+const densityInput = document.getElementById('density');
+const maxWeightInput = document.getElementById('maxWeight');
+const nodeCountLabel = document.getElementById('nodeCountLabel');
+const densityLabel = document.getElementById('densityLabel');
+const maxWLabel = document.getElementById('maxWLabel');
+const regenBtn = document.getElementById('regen');
+const clearBtn = document.getElementById('clear');
+const selectStartBtn = document.getElementById('selectStart');
+const autoRunBtn = document.getElementById('autoRun');
+const stepBtn = document.getElementById('stepBtn');
+const pqListEl = document.getElementById('pqList');
+const mstWeightEl = document.getElementById('mstWeight');
+const visitedListEl = document.getElementById('visitedList');
+const mstEdgesEl = document.getElementById('mstEdges');
+const speedInput = document.getElementById('speed');
+
+const pseudocode = [
+  document.getElementById('line0'),
+  document.getElementById('line1'),
+  document.getElementById('line2'),
+  document.getElementById('line3'),
+  document.getElementById('line4'),
+  document.getElementById('line5'),
+];
+
+let W = 1000, H = 700;
+let state = {
+  nodes: [], // {id,x,y,el,txt}
+  edges: [], // {id,u,v,w,line,txt}
+  adj: [],   // adjacency list
+  mstSet: new Set(),
+  pq: [],    // array of {u,v,w,edgeId}
+  mstEdges: new Set(),
+  visitedOrder: [],
+  startNode: null,
+  running:false,
+  auto:false,
+  wantChooseStart:false,
+  selectedEdge:null,
+  lastAddedEdge:null,
+  timer:null
+};
+
+function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+
+function clearSVG(){
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+}
+
+function makeGraph(n=10,density=0.4,maxW=20){
+  // Reset state
+  state.nodes = [];
+  state.edges = [];
+  state.adj = Array.from({length:n},()=>[]);
+  state.mstSet.clear();
+  state.pq = [];
+  state.mstEdges.clear();
+  state.visitedOrder = [];
+  state.startNode = null;
+  state.selectedEdge = null;
+  state.lastAddedEdge = null;
+  state.running = false;
+  state.auto = false;
+  if(state.timer) clearInterval(state.timer);
+
+  clearSVG();
+  // place nodes in circle-ish positions for readability
+  const cx = W/2, cy = H/2, r = Math.min(W,H)/2 - 90;
+  for(let i=0;i<n;i++){
+    const ang = (2*Math.PI*i)/n + (Math.random()-0.5)*0.4;
+    const rr = r*(0.6 + Math.random()*0.4);
+    const nx = cx + rr*Math.cos(ang) + randInt(-30,30);
+    const ny = cy + rr*Math.sin(ang) + randInt(-20,20);
+    const g = createNode(i, nx, ny);
+    state.nodes.push(g);
+  }
+
+  // add edges randomly based on density
+  let edgeId = 0;
+  for(let i=0;i<n;i++){
+    for(let j=i+1;j<n;j++){
+      if(Math.random() < density){
+        const w = randInt(1, maxW);
+        const e = createEdge(edgeId++, i, j, w);
+        state.edges.push(e);
+        state.adj[i].push({to:j,w,edgeId:e.id});
+        state.adj[j].push({to:i,w,edgeId:e.id});
+      }
+    }
+  }
+
+  // Ensure connectivity: if disconnected, connect components
+  const comp = Array(n).fill(-1);
+  let cid=0;
+  function dfs(u,c){
+    comp[u]=c;
+    for(const nb of state.adj[u]) if(comp[nb.to]===-1) dfs(nb.to,c);
+  }
+  for(let i=0;i<n;i++) if(comp[i]===-1) dfs(i,cid++);
+  if(cid>1){
+    // connect components by adding edges between random nodes of components
+    // collect nodes per component
+    const groups = Array.from({length:cid},()=>[]);
+    for(let i=0;i<n;i++) groups[comp[i]].push(i);
+    for(let k=1;k<cid;k++){
+      const a = groups[k][randInt(0,groups[k].length-1)];
+      const b = groups[0][randInt(0,groups[0].length-1)];
+      const w = randInt(1, maxW);
+      const e = createEdge(edgeId++, a, b, w);
+      state.edges.push(e);
+      state.adj[a].push({to:b,w,edgeId:e.id});
+      state.adj[b].push({to:a,w,edgeId:e.id});
+    }
+  }
+
+  refreshVisual();
+}
+
+function createNode(id,x,y){
+  const g = document.createElementNS("http://www.w3.org/2000/svg","g");
+  g.setAttribute('data-id',id);
+  g.style.cursor='grab';
+  const circle = document.createElementNS("http://www.w3.org/2000/svg","circle");
+  circle.setAttribute('cx',x);
+  circle.setAttribute('cy',y);
+  circle.setAttribute('r',18);
+  circle.setAttribute('fill','#020617');
+  circle.setAttribute('stroke','#9fb0cf');
+  circle.setAttribute('stroke-opacity',0.12);
+  circle.setAttribute('stroke-width',1.8);
+
+  const txt = document.createElementNS("http://www.w3.org/2000/svg","text");
+  txt.setAttribute('x',x);
+  txt.setAttribute('y',y+5);
+  txt.setAttribute('fill','#dbeafe');
+  txt.setAttribute('font-size',12);
+  txt.setAttribute('font-family','monospace');
+  txt.setAttribute('text-anchor','middle');
+  txt.textContent = id;
+
+  g.appendChild(circle);
+  g.appendChild(txt);
+  svg.appendChild(g);
+
+  const node = {id,x,y,el:g,circle,txt};
+  makeDraggable(node);
+  node.el.addEventListener('mouseenter', ()=>showTooltipNode(node));
+  node.el.addEventListener('mouseleave', hideTooltip);
+  node.el.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    if(state.wantChooseStart){
+      setStartNode(node.id);
+      state.wantChooseStart=false;
+      selectStartBtn.textContent='Choose Start Node';
+    }
+  });
+  return node;
+}
+
+function createEdge(id,u,v,w){
+  // draw line under nodes
+  const nu = {x:0,y:0}, nv = {x:0,y:0};
+  if(state.nodes[u]){ nu.x = state.nodes[u].x; nu.y=state.nodes[u].y; }
+  if(state.nodes[v]){ nv.x = state.nodes[v].x; nv.y=state.nodes[v].y; }
+  const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+  line.setAttribute('x1',nu.x);
+  line.setAttribute('y1',nu.y);
+  line.setAttribute('x2',nv.x);
+  line.setAttribute('y2',nv.y);
+  line.setAttribute('stroke','#aab4bf');
+  line.setAttribute('stroke-opacity',0.14);
+  line.setAttribute('stroke-width',3);
+  line.setAttribute('data-id',id);
+  line.style.cursor='pointer';
+
+  const midx=(nu.x+nv.x)/2, midy=(nu.y+nv.y)/2;
+  const txt = document.createElementNS("http://www.w3.org/2000/svg","text");
+  txt.setAttribute('x',midx);
+  txt.setAttribute('y',midy-8);
+  txt.setAttribute('fill','#e6eef8');
+  txt.setAttribute('font-size',12);
+  txt.setAttribute('text-anchor','middle');
+  txt.setAttribute('pointer-events','none');
+  txt.textContent = w;
+
+  // put line first so it stays under nodes
+  svg.insertBefore(line, svg.firstChild);
+  svg.appendChild(txt);
+
+  const edge = {id,u,v,w,line,txt};
+  line.addEventListener('mouseenter', ()=>showTooltipEdge(edge));
+  line.addEventListener('mouseleave', hideTooltip);
+  line.addEventListener('click', (ev)=>{ ev.stopPropagation(); /* future: allow edit */});
+  return edge;
+}
+
+function makeDraggable(node){
+  let drag=false, offsetX=0, offsetY=0;
+  node.el.addEventListener('mousedown', (ev)=>{
+    drag=true;
+    node.el.style.cursor='grabbing';
+    offsetX = ev.clientX;
+    offsetY = ev.clientY;
+    ev.preventDefault();
+  });
+  window.addEventListener('mousemove', (ev)=>{
+    if(!drag) return;
+    const dx = (ev.clientX - offsetX) * (1000/svg.clientWidth);
+    const dy = (ev.clientY - offsetY) * (700/svg.clientHeight);
+    offsetX = ev.clientX; offsetY = ev.clientY;
+    node.x += dx; node.y += dy;
+    node.circle.setAttribute('cx', node.x);
+    node.circle.setAttribute('cy', node.y);
+    node.txt.setAttribute('x', node.x);
+    node.txt.setAttribute('y', node.y+5);
+    updateEdgesForNode(node.id);
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(drag){
+      drag=false;
+      node.el.style.cursor='grab';
+    }
+  });
+}
+
+function updateEdgesForNode(nodeId){
+  for(const e of state.edges){
+    if(e.u===nodeId || e.v===nodeId){
+      const u = state.nodes[e.u], v = state.nodes[e.v];
+      e.line.setAttribute('x1', u.x);
+      e.line.setAttribute('y1', u.y);
+      e.line.setAttribute('x2', v.x);
+      e.line.setAttribute('y2', v.y);
+      const midx=(u.x+v.x)/2, midy=(u.y+v.y)/2;
+      e.txt.setAttribute('x',midx);
+      e.txt.setAttribute('y',midy-8);
+    }
+  }
+}
+
+function showTooltip(text,x,y){
+  tooltip.style.left = x + 12 + 'px';
+  tooltip.style.top = y + 12 + 'px';
+  tooltip.style.display = 'block';
+  tooltip.textContent = text;
+}
+
+function showTooltipNode(node){
+  showTooltip('Node ' + node.id, node.x, node.y);
+}
+function showTooltipEdge(edge){
+  showTooltip(`Edge ${edge.u} — ${edge.v} (w=${edge.w})`, (state.nodes[edge.u].x+state.nodes[edge.v].x)/2, (state.nodes[edge.u].y+state.nodes[edge.v].y)/2);
+}
+function hideTooltip(){ tooltip.style.display='none'; }
+
+function refreshVisual(){
+  // update edges styles by status
+  for(const e of state.edges){
+    // default
+    let color = '#aab4bf';
+    let opacity = 0.12;
+    let width = 3;
+    if(state.mstEdges.has(e.id)){
+      color = '#34d399';
+      opacity = 0.95;
+      width = 4.4;
+    } else if(state.selectedEdge && state.selectedEdge.edgeId===e.id){
+      color = '#fb923c';
+      opacity = 0.98;
+      width = 4.6;
+    } else if(state.pq.some(it=>it.edgeId===e.id)){
+      color = '#60a5fa';
+      opacity = 0.95;
+      width = 3.8;
+    }
+    e.line.setAttribute('stroke', color);
+    e.line.setAttribute('stroke-opacity', opacity);
+    e.line.setAttribute('stroke-width', width);
+    // ensure weight text color
+    e.txt.setAttribute('fill', (state.mstEdges.has(e.id) ? '#dcfce7' : '#e6eef8'));
+  }
+
+  // update visited nodes appearance
+  for(const n of state.nodes){
+    if(state.mstSet.has(n.id)){
+      n.circle.setAttribute('fill','#0b1220');
+      n.circle.setAttribute('stroke','#7ee787');
+      n.circle.setAttribute('stroke-width',2.6);
+      n.txt.setAttribute('fill','#d9fbe4');
+    } else {
+      n.circle.setAttribute('fill','#020617');
+      n.circle.setAttribute('stroke','#9fb0cf');
+      n.circle.setAttribute('stroke-opacity',0.12);
+      n.circle.setAttribute('stroke-width',1.8);
+      n.txt.setAttribute('fill','#e6eef8');
+    }
+  }
+
+  updatePQUI();
+  updateInfoUI();
+  highlightPseudo();
+}
+
+function updatePQUI(){
+  // sort pq by weight
+  state.pq.sort((a,b)=>a.w - b.w || a.v - b.v);
+  pqListEl.innerHTML = '';
+  for(const it of state.pq.slice()){
+    const div = document.createElement('div');
+    div.className='pq-item';
+    // show u -> v (w)
+    const left = document.createElement('div'); left.textContent = `${it.u} → ${it.v}`;
+    const right = document.createElement('div'); right.textContent = `w=${it.w}`;
+    div.appendChild(left); div.appendChild(right);
+    pqListEl.appendChild(div);
+  }
+}
+
+function updateInfoUI(){
+  mstWeightEl.textContent = Array.from(state.mstEdges).reduce((s,eid)=>{
+    const e = state.edges.find(x=>x.id===eid);
+    return s + (e?e.w:0);
+  },0);
+
+  visitedListEl.textContent = Array.from(state.mstSet).join(', ');
+  mstEdgesEl.textContent = Array.from(state.mstEdges).map(eid=>{
+    const e = state.edges.find(x=>x.id===eid);
+    return e ? `${e.u}-${e.v}` : '';
+  }).join(', ');
+}
+
+function setStartNode(id){
+  // reset algorithm state but keep graph
+  state.mstSet.clear();
+  state.mstEdges.clear();
+  state.pq=[];
+  state.visitedOrder=[];
+  state.startNode = id;
+  state.mstSet.add(id);
+  state.visitedOrder.push(id);
+  // push adjacent edges of start into pq
+  for(const nb of state.adj[id]){
+    state.pq.push({u:id, v:nb.to, w:nb.w, edgeId:nb.edgeId});
+  }
+  state.selectedEdge = null;
+  state.lastAddedEdge = null;
+  refreshVisual();
+}
+
+function stepPrim(){
+  // single step of Prim's algorithm
+  if(!state.startNode) {
+    alert('Please choose a start node first (press "Choose Start Node")');
+    return;
+  }
+  if(state.mstSet.size === state.nodes.length){
+    // done
+    state.running=false;
+    state.auto=false;
+    if(state.timer) clearInterval(state.timer);
+    return;
+  }
+  // if pq empty and not all visited -> graph disconnected (shouldn't happen)
+  if(state.pq.length===0){
+    // nothing to extract
+    state.running=false;
+    state.auto=false;
+    if(state.timer) clearInterval(state.timer);
+    alert('Priority queue empty. Graph might be disconnected.');
+    return;
+  }
+
+  // extract min edge whose v is not in MST (while pq exists)
+  // state.selectedEdge used to highlight extraction
+  while(state.pq.length){
+    // get min
+    state.pq.sort((a,b)=>a.w-b.w || a.u-b.u || a.v-b.v);
+    const e = state.pq.shift();
+    state.selectedEdge = e;
+    refreshVisual();
+    // highlight extraction briefly (when auto-run, will be visible)
+    // Check if v not already in MST (note: we might store edges where the endpoint is in MST)
+    if(!state.mstSet.has(e.v)){
+      // add edge to MST
+      state.mstEdges.add(e.edgeId);
+      state.mstSet.add(e.v);
+      state.visitedOrder.push(e.v);
+      state.lastAddedEdge = e;
+      // push edges from new node
+      for(const nb of state.adj[e.v]){
+        if(!state.mstSet.has(nb.to)){
+          state.pq.push({u:e.v, v:nb.to, w:nb.w, edgeId:nb.edgeId});
+        }
+      }
+      refreshVisual();
+      return;
+    } else {
+      // edge leads to already visited; continue
+      // continue loop to extract next min
+      refreshVisual();
+    }
+  }
+}
+
+function autoRunToggle(){
+  state.auto = !state.auto;
+  if(state.auto){
+    autoRunBtn.textContent = 'Pause';
+    // start timer
+    state.timer = setInterval(()=>{
+      if(state.mstSet.size === state.nodes.length || state.pq.length===0){
+        state.auto=false;
+        autoRunBtn.textContent='Auto Run';
+        clearInterval(state.timer);
+        return;
+      }
+      // small pre-step highlight: if queue empty -> finish
+      stepPrim();
+    }, Math.max(80, speedInput.value));
+  } else {
+    autoRunBtn.textContent = 'Auto Run';
+    if(state.timer) clearInterval(state.timer);
+  }
+}
+
+function resetAlgorithm(){
+  state.mstSet.clear();
+  state.pq=[];
+  state.mstEdges.clear();
+  state.visitedOrder=[];
+  state.startNode=null;
+  state.selectedEdge=null;
+  state.lastAddedEdge=null;
+  state.running=false;
+  state.auto=false;
+  if(state.timer) clearInterval(state.timer);
+  refreshVisual();
+}
+
+function highlightPseudo(){
+  // clear highlights
+  pseudocode.forEach(p=>p.className='');
+  // Decide which line to highlight:
+  // 0: start not chosen
+  if(!state.startNode){
+    pseudocode[0].className='hl';
+    return;
+  }
+  // when start chosen: show line1
+  pseudocode[1].className='hl';
+  // if PQ empty and not complete: highlight line2
+  if(state.pq.length===0 && state.mstSet.size < state.nodes.length){
+    pseudocode[2].className='hl';
+    return;
+  }
+  // if selectedEdge exists: highlight line3 (extract)
+  if(state.selectedEdge){
+    pseudocode[3].className='hl';
+    // if edge leads to new node then highlight 4 and 5
+    if(!state.mstSet.has(state.selectedEdge.v)){
+      pseudocode[4].className='hl';
+      pseudocode[5].className='hl';
+    }
+  }
+}
+
+function wireUI(){
+  nodeCountInput.addEventListener('input',()=>{
+    nodeCountLabel.textContent = nodeCountInput.value;
+  });
+  densityInput.addEventListener('input',()=>{
+    densityLabel.textContent = (densityInput.value/100).toFixed(2);
+  });
+  maxWeightInput.addEventListener('input',()=>{
+    maxWLabel.textContent = maxWeightInput.value;
+  });
+  regenBtn.addEventListener('click', ()=>{
+    makeGraph(parseInt(nodeCountInput.value), densityInput.value/100, parseInt(maxWeightInput.value));
+  });
+  clearBtn.addEventListener('click', resetAlgorithm);
+  selectStartBtn.addEventListener('click', ()=>{
+    state.wantChooseStart = !state.wantChooseStart;
+    selectStartBtn.textContent = state.wantChooseStart ? 'Click a node...' : 'Choose Start Node';
+  });
+  stepBtn.addEventListener('click', ()=>{
+    stepPrim();
+  });
+  autoRunBtn.addEventListener('click', autoRunToggle);
+  speedInput.addEventListener('input', ()=>{
+    if(state.auto){
+      clearInterval(state.timer);
+      state.timer = setInterval(()=>{
+        if(state.mstSet.size === state.nodes.length || state.pq.length===0){
+          state.auto=false;
+          autoRunBtn.textContent='Auto Run';
+          clearInterval(state.timer);
+          return;
+        }
+        stepPrim();
+      }, Math.max(80, speedInput.value));
+    }
+  });
+  // clicking on blank canvas cancels choosing start
+  svg.addEventListener('click', ()=>{
+    if(state.wantChooseStart){
+      state.wantChooseStart=false;
+      selectStartBtn.textContent='Choose Start Node';
+    }
+  });
+
+  // resize handling: keep viewBox static; svg scales automatically
+  window.addEventListener('resize', ()=>{});
+}
+
+// initialize with default graph
+(function init(){
+  W = 1000; H = 700;
+  nodeCountLabel.textContent = nodeCountInput.value;
+  densityLabel.textContent = (densityInput.value/100).toFixed(2);
+  maxWLabel.textContent = maxWeightInput.value;
+  wireUI();
+  makeGraph(parseInt(nodeCountInput.value), densityInput.value/100, parseInt(maxWeightInput.value));
+})();
+
+</script>
+</body>
+</html>

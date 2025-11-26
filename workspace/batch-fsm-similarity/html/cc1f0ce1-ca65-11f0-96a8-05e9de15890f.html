@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sliding Window Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1724; --panel:#0b1220; --accent:#2dd4bf; --muted:#94a3b8; --card:#071026;
+      --good:#16a34a; --bad:#ef4444; --window:#2563eb; --best:#10b981;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color-scheme: dark;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#021124 0%, #041428 50%, #07172a 100%); color:#e6eef6}
+    .container{max-width:1100px;margin:28px auto;padding:20px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+    h1{margin:0 0 6px;font-size:20px;color:var(--accent)}
+    p.lead{margin:0 0 16px;color:var(--muted);font-size:13px}
+    .controls{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)}
+    label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+    input[type="number"], input[type="text"], select{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:transparent;color:inherit;min-width:140px}
+    button{padding:8px 10px;border-radius:8px;border:none;background:var(--accent);color:#042a2a;font-weight:600;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .row{display:flex;gap:12px;align-items:center}
+    .visual{padding:14px;margin-top:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));min-height:180px}
+    .array{display:flex;gap:8px;align-items:flex-end;justify-content:center;padding:12px 4px;flex-wrap:wrap}
+    .cell{width:54px;height:64px;border-radius:8px;background:rgba(255,255,255,0.03);display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;box-shadow:0 2px 6px rgba(2,6,23,0.6)}
+    .cell .val{font-weight:700;font-size:16px;color:#e9f9f6}
+    .cell .idx{position:absolute;bottom:6px;font-size:11px;color:var(--muted)}
+    .cell.window{background:linear-gradient(90deg, rgba(37,99,235,0.16), rgba(37,99,235,0.08));box-shadow:0 6px 18px rgba(37,99,235,0.08) inset;border:1px solid rgba(37,99,235,0.18)}
+    .cell.best{background:linear-gradient(90deg, rgba(16,185,129,0.16), rgba(16,185,129,0.06));border:1px solid rgba(16,185,129,0.18)}
+    .cell.left{outline:3px solid rgba(37,99,235,0.12);box-shadow:0 6px 18px rgba(37,99,235,0.06)}
+    .cell.right{outline:3px solid rgba(37,99,235,0.12);box-shadow:0 6px 18px rgba(37,99,235,0.06)}
+    .stats{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:8px}
+    .stat{padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.02);font-size:13px;color:var(--muted)}
+    .pseudocode{margin-top:12px;padding:12px;border-radius:8px;background:#021b2c;border:1px solid rgba(255,255,255,0.02);font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;font-size:13px}
+    .line{padding:4px 8px;border-radius:6px;color:var(--muted)}
+    .line.active{background:rgba(255,255,255,0.02);color:#e6f7f1}
+    .explain{margin-top:10px;color:var(--muted);font-size:13px}
+    footer{margin-top:14px;font-size:12px;color:var(--muted)}
+    .small{font-size:12px;color:var(--muted)}
+    .controls-grid{display:flex;gap:10px;align-items:center}
+    .speed{width:140px;}
+    .string-input{min-width:260px}
+    @media (max-width:720px){
+      .cell{width:46px;height:56px}
+      .controls{gap:8px}
+      .container{margin:12px}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Sliding Window Visualizer</h1>
+    <p class="lead">Interactive demonstration of common sliding window patterns: fixed-size window (max sum), variable-size window (minimum subarray length for a target sum), and longest substring without repeating characters. Step through the algorithm and watch pointers move.</p>
+
+    <div class="controls">
+      <div class="card">
+        <label>Mode</label>
+        <select id="mode">
+          <option value="fixed">Fixed-size window - max sum of size k</option>
+          <option value="minlen">Variable window - min length subarray sum ≥ target</option>
+          <option value="unique">Longest substring w/out repeating characters</option>
+        </select>
+      </div>
+
+      <div class="card" id="array-card">
+        <label>Array (comma separated) or use Random</label>
+        <input type="text" id="array-input" placeholder="e.g. 2,1,5,1,3,2" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="apply-array" class="ghost">Apply</button>
+          <button id="random-array" class="ghost">Random Gen</button>
+        </div>
+      </div>
+
+      <div class="card" id="string-card" style="display:none">
+        <label>String</label>
+        <input type="text" id="string-input" class="string-input" placeholder="e.g. abcabcbb" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="apply-string" class="ghost">Apply</button>
+          <button id="random-string" class="ghost">Random</button>
+        </div>
+      </div>
+
+      <div class="card" id="k-card">
+        <label>Window size k</label>
+        <input type="number" id="k" min="1" value="3" />
+      </div>
+
+      <div class="card" id="target-card" style="display:none">
+        <label>Target sum</label>
+        <input type="number" id="target" min="1" value="7" />
+      </div>
+
+      <div class="card">
+        <label>Controls</label>
+        <div class="row">
+          <button id="play">Play</button>
+          <button id="step" class="ghost">Step</button>
+          <button id="back" class="ghost">Back</button>
+          <button id="reset" class="ghost">Reset</button>
+          <div style="margin-left:10px" class="small">Speed</div>
+          <input type="range" id="speed" min="50" max="1200" value="500" class="speed" />
+        </div>
+      </div>
+    </div>
+
+    <div class="visual card">
+      <div class="array" id="array-visual"></div>
+
+      <div class="stats" id="stats">
+        <!-- dynamic stats -->
+      </div>
+
+      <div class="pseudocode" id="pseudocode">
+        <!-- pseudocode lines -->
+      </div>
+
+      <div class="explain" id="explain"></div>
+    </div>
+
+    <footer>Tip: Use random generation and step through. The pseudocode highlights the currently executed line.</footer>
+  </div>
+
+<script>
+(() => {
+  // Utilities
+  const el = id => document.getElementById(id);
+  const randInt = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+
+  // State
+  let mode = 'fixed';
+  let arr = [2,1,5,1,3,2];
+  let s = "abcabcbb";
+  let steps = []; // each step: {left,right,windowIndices:[],sum,action, best: {l,r,val}, extra}
+  let playTimer = null;
+  let current = 0;
+  let speed = 500;
+  let k = 3;
+  let target = 7;
+
+  // DOM refs
+  const modeSelect = el('mode');
+  const arrayInput = el('array-input');
+  const applyArrayBtn = el('apply-array');
+  const randomArrayBtn = el('random-array');
+  const kInput = el('k');
+  const targetCard = el('target-card');
+  const targetInput = el('target');
+  const arrayCard = el('array-card');
+  const stringCard = el('string-card');
+  const stringInput = el('string-input');
+  const applyStringBtn = el('apply-string');
+  const randomStringBtn = el('random-string');
+  const playBtn = el('play');
+  const stepBtn = el('step');
+  const backBtn = el('back');
+  const resetBtn = el('reset');
+  const speedInput = el('speed');
+
+  const arrayVisual = el('array-visual');
+  const statsDiv = el('stats');
+  const pseudocodeDiv = el('pseudocode');
+  const explainDiv = el('explain');
+
+  // Initial setup
+  arrayInput.value = arr.join(',');
+  stringInput.value = s;
+
+  // Pseudocode templates
+  const pseudocodes = {
+    fixed: [
+      "sum = 0",
+      "for right in [0..n-1]:",
+      "  sum += arr[right]",
+      "  if right >= k: sum -= arr[right-k]",
+      "  if right >= k-1: update max with sum (window [right-k+1..right])"
+    ],
+    minlen: [
+      "left = 0; sum = 0; minLen = +∞",
+      "for right in [0..n-1]:",
+      "  sum += arr[right]",
+      "  while sum >= target:",
+      "    minLen = min(minLen, right - left + 1)",
+      "    sum -= arr[left]; left += 1"
+    ],
+    unique: [
+      "left = 0; best = 0; map = {}",
+      "for right in [0..n-1]:",
+      "  ch = s[right]",
+      "  if ch seen and map[ch] >= left: left = map[ch] + 1",
+      "  map[ch] = right",
+      "  best = max(best, right - left + 1)"
+    ]
+  };
+
+  function setMode(m){
+    mode = m;
+    // show/hide inputs
+    if(m === 'unique'){
+      arrayCard.style.display = 'none';
+      stringCard.style.display = 'block';
+      kInput.parentElement.style.display = 'none';
+      targetCard.style.display = 'none';
+    } else {
+      arrayCard.style.display = 'block';
+      stringCard.style.display = 'none';
+      kInput.parentElement.style.display = m === 'fixed' ? 'block' : 'none';
+      targetCard.style.display = m === 'minlen' ? 'block' : 'none';
+    }
+    build();
+  }
+
+  modeSelect.addEventListener('change', e => setMode(e.target.value));
+  kInput.addEventListener('change', e => { k = Math.max(1,parseInt(e.target.value)||1); build(); });
+  targetInput.addEventListener('change', e => { target = Math.max(1,parseInt(e.target.value)||1); build(); });
+
+  applyArrayBtn.addEventListener('click', () => {
+    const v = arrayInput.value.trim();
+    if(!v) return;
+    const parts = v.split(',').map(x => x.trim()).filter(x=>x!=='').map(x=>Number(x));
+    if(parts.some(isNaN)){ alert('Invalid array input: use comma separated numbers'); return; }
+    arr = parts.slice();
+    build();
+  });
+
+  randomArrayBtn.addEventListener('click', () => {
+    const n = Math.max(5, Math.min(16, randInt(5,12)));
+    arr = Array.from({length:n}, ()=>randInt(1,9));
+    arrayInput.value = arr.join(',');
+    build();
+  });
+
+  applyStringBtn.addEventListener('click', () => {
+    const v = stringInput.value;
+    if(!v) return;
+    s = v;
+    build();
+  });
+
+  randomStringBtn.addEventListener('click', () => {
+    const pool = "abcde";
+    const n = randInt(5,12);
+    let out = "";
+    for(let i=0;i<n;i++) out += pool[randInt(0,pool.length-1)];
+    s = out;
+    stringInput.value = s;
+    build();
+  });
+
+  speedInput.addEventListener('input', e => { speed = parseInt(e.target.value); if(playTimer){ pause(); play(); } });
+
+  playBtn.addEventListener('click', () => {
+    if(playTimer) { pause(); } else { play(); }
+  });
+  stepBtn.addEventListener('click', nextStep);
+  backBtn.addEventListener('click', prevStep);
+  resetBtn.addEventListener('click', () => { current = 0; render(); });
+
+  function play(){
+    if(steps.length === 0) return;
+    playBtn.textContent = 'Pause';
+    playTimer = setInterval(()=> {
+      if(current < steps.length-1){ current++; render(); }
+      else { pause(); }
+    }, speed);
+  }
+  function pause(){
+    playBtn.textContent = 'Play';
+    if(playTimer) { clearInterval(playTimer); playTimer = null; }
+  }
+
+  function nextStep(){
+    if(current < steps.length-1){ current++; render(); }
+  }
+  function prevStep(){
+    if(current > 0){ current--; render(); }
+  }
+
+  // Algorithm runners that produce step traces
+  function build(){
+    // set inputs
+    k = Math.max(1, parseInt(kInput.value)||1);
+    target = Math.max(1, parseInt(targetInput.value)||1);
+
+    // generate steps based on mode
+    if(mode === 'fixed'){
+      steps = buildFixed(arr, k);
+    } else if(mode === 'minlen'){
+      steps = buildMinLen(arr, target);
+    } else {
+      steps = buildUnique(s);
+    }
+    current = 0;
+    render();
+  }
+
+  function buildFixed(array, k){
+    const out = [];
+    let sum = 0;
+    let maxSum = -Infinity;
+    let best = null;
+    for(let right=0; right<array.length; right++){
+      sum += array[right];
+      out.push(state('add', {left: Math.max(0,right-k+1), right, sum, window: windowIndices(right,k,array.length), best:{...best}}));
+      if(right >= k){
+        sum -= array[right-k];
+        out.push(state('sub', {left: Math.max(0,right-k+1), right, sum, window: windowIndices(right,k,array.length), best:{...best}}));
+      }
+      if(right >= k-1){
+        if(sum > maxSum){
+          maxSum = sum;
+          best = {l: right-k+1, r: right, val: maxSum};
+        }
+        out.push(state('check', {left: right-k+1, right, sum, window: windowIndices(right,k,array.length), best:{...best}}));
+      }
+    }
+    // final step to show best
+    out.push(state('done', {left: best ? best.l : 0, right: best ? best.r : 0, sum, window: best ? range(best.l,best.r) : [], best}));
+    annotateLines('fixed', out);
+    return out;
+  }
+
+  function buildMinLen(array, target){
+    const out = [];
+    let left = 0, sum = 0, minLen = Infinity, best = null;
+    out.push(state('init', {left, right:-1, sum, target, minLen, best:null}));
+    for(let right=0; right<array.length; right++){
+      sum += array[right];
+      out.push(state('add', {left, right, sum, target, window: range(left,right), minLen, best}));
+      while(sum >= target){
+        const len = right - left + 1;
+        if(len < minLen){
+          minLen = len;
+          best = {l:left, r:right, len};
+        }
+        out.push(state('update-min', {left, right, sum, target, minLen, best, window: range(left,right)}));
+        sum -= array[left];
+        left += 1;
+        out.push(state('shrink', {left, right, sum, target, minLen, best, window: range(left,right)}));
+      }
+    }
+    out.push(state('done', {left, right: array.length-1, sum, target, minLen: isFinite(minLen)?minLen:null, best}));
+    annotateLines('minlen', out);
+    return out;
+  }
+
+  function buildUnique(str){
+    const out = [];
+    let left = 0, best = 0;
+    const map = {};
+    out.push(state('init',{left,right:-1,best,map:Object.assign({},map)}));
+    for(let right=0; right<str.length; right++){
+      const ch = str[right];
+      out.push(state('read',{left,right,ch,best,map:Object.assign({},map),window:range(left,right)}));
+      if(map[ch] !== undefined && map[ch] >= left){
+        left = map[ch] + 1;
+        out.push(state('move-left',{left,right,ch,best,map:Object.assign({},map),window:range(left,right)}));
+      }
+      map[ch] = right;
+      if(right - left + 1 > best){
+        best = right - left + 1;
+      }
+      out.push(state('update',{left,right,ch,best,map:Object.assign({},map),window:range(left,right)}));
+    }
+    out.push(state('done',{left,right:str.length-1,best,map:Object.assign({},map)}));
+    annotateLines('unique', out);
+    return out;
+  }
+
+  function state(action, obj){
+    return Object.assign({action}, obj);
+  }
+
+  function windowIndices(right,k,n){
+    const l = Math.max(0,right-k+1);
+    return range(l,right);
+  }
+  function range(a,b){
+    const arr = [];
+    for(let i=a;i<=b;i++) if(i>=0) arr.push(i);
+    return arr;
+  }
+
+  function annotateLines(modeName, steps){
+    steps.forEach(s => {
+      // add a line pointer index for highlighting pseudocode
+      if(modeName === 'fixed'){
+        if(s.action === 'add') s.line = 2;
+        else if(s.action === 'sub') s.line = 3;
+        else if(s.action === 'check') s.line = 4;
+        else if(s.action === 'done') s.line = 4;
+        else s.line = 0;
+      } else if(modeName === 'minlen'){
+        if(s.action === 'init') s.line = 0;
+        else if(s.action === 'add') s.line = 1;
+        else if(s.action === 'update-min') s.line = 3;
+        else if(s.action === 'shrink') s.line = 4;
+        else if(s.action === 'done') s.line = 0;
+        else s.line = 1;
+      } else if(modeName === 'unique'){
+        if(s.action === 'init') s.line = 0;
+        else if(s.action === 'read') s.line = 1;
+        else if(s.action === 'move-left') s.line = 2;
+        else if(s.action === 'update') s.line = 3;
+        else if(s.action === 'done') s.line = 0;
+      }
+    });
+  }
+
+  // Rendering
+  function render(){
+    // clear play if out of bounds
+    speed = parseInt(speedInput.value);
+    if(current < 0) current = 0;
+    if(current >= steps.length) current = steps.length-1;
+    const st = steps[current] || {};
+
+    // Render array or string
+    arrayVisual.innerHTML = '';
+    if(mode === 'unique'){
+      // show string characters
+      const chars = s.split('');
+      chars.forEach((ch, idx) => {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if(st.window && st.window.includes(idx)) cell.classList.add('window');
+        if(st.left === idx) cell.classList.add('left');
+        if(st.right === idx) cell.classList.add('right');
+        if(st.best && st.best.l <= idx && idx <= st.best.r) cell.classList.add('best');
+        const val = document.createElement('div'); val.className='val'; val.textContent = ch;
+        const idxEl = document.createElement('div'); idxEl.className='idx'; idxEl.textContent = idx;
+        cell.appendChild(val); cell.appendChild(idxEl);
+        arrayVisual.appendChild(cell);
+      });
+    } else {
+      // numeric array
+      arr.forEach((v, idx) => {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if(st.window && st.window.includes(idx)) cell.classList.add('window');
+        if(st.left === idx) cell.classList.add('left');
+        if(st.right === idx) cell.classList.add('right');
+        if(st.best && typeof st.best.l === 'number' && idx >= st.best.l && idx <= st.best.r) cell.classList.add('best');
+        const val = document.createElement('div'); val.className='val'; val.textContent = v;
+        const idxEl = document.createElement('div'); idxEl.className='idx'; idxEl.textContent = idx;
+        cell.appendChild(val); cell.appendChild(idxEl);
+        arrayVisual.appendChild(cell);
+      });
+    }
+
+    // Stats
+    statsDiv.innerHTML = '';
+    if(mode === 'fixed'){
+      const sum = st.sum !== undefined ? st.sum : 0;
+      addStat('Current sum', String(sum));
+      const kstat = k;
+      addStat('k', kstat);
+      const bestVal = st.best && st.best.val !== undefined ? st.best.val : 'N/A';
+      addStat('Best sum', bestVal);
+      if(st.best) addStat('Best window', `[${st.best.l}..${st.best.r}]`);
+      addStat('Step', `${current+1} / ${steps.length}`);
+    } else if(mode === 'minlen'){
+      addStat('Target', String(target));
+      addStat('Current sum', String(st.sum !== undefined ? st.sum : 0));
+      addStat('Left', String(st.left !== undefined ? st.left : 0));
+      addStat('Right', String(st.right !== undefined ? st.right : 0));
+      addStat('Min length so far', st.minLen ? String(st.minLen) : (st.minLen===0? '0' : 'N/A'));
+      if(st.best) addStat('Best window', `[${st.best.l}..${st.best.r}] len=${st.best.len}`);
+      addStat('Step', `${current+1} / ${steps.length}`);
+    } else {
+      addStat('String length', String(s.length));
+      addStat('Left', String(st.left !== undefined ? st.left : 0));
+      addStat('Right', String(st.right !== undefined ? st.right : 0));
+      addStat('Best length', String(st.best !== undefined ? st.best : 0));
+      addStat('Step', `${current+1} / ${steps.length}`);
+      if(st.map) addStat('Map', JSON.stringify(st.map));
+    }
+
+    // Pseudocode
+    pseudocodeDiv.innerHTML = '';
+    const lines = pseudocodes[mode];
+    lines.forEach((ln, i) => {
+      const elLine = document.createElement('div');
+      elLine.className = 'line' + ((st.line === i) ? ' active' : '');
+      elLine.textContent = ln;
+      pseudocodeDiv.appendChild(elLine);
+    });
+
+    // Explanation
+    explainDiv.innerHTML = explainFor(st);
+    // update play button label
+    playBtn.textContent = playTimer ? 'Pause' : 'Play';
+  }
+
+  function addStat(title, val){
+    const d = document.createElement('div');
+    d.className = 'stat';
+    d.innerHTML = `<strong style="color:var(--accent);margin-right:8px">${title}:</strong> ${val}`;
+    statsDiv.appendChild(d);
+  }
+
+  function explainFor(s){
+    if(!s || !s.action) return 'Ready. Hit Play or Step to execute the algorithm.';
+    switch(mode){
+      case 'fixed':
+        if(s.action === 'add') return `Right pointer moved to ${s.right}. Added arr[${s.right}] to sum → ${s.sum}.`;
+        if(s.action === 'sub') return `Window exceeded size k. Subtracted the element that slid out. Current sum → ${s.sum}.`;
+        if(s.action === 'check') return `Window [${s.left}..${s.right}] of size k. If sum improves, record best: ${s.best ? s.best.val : 'N/A'}.`;
+        if(s.action === 'done') return `Finished. Best window is [${s.best ? s.best.l : '-'}..${s.best ? s.best.r : '-'}] with sum ${s.best ? s.best.val : 'N/A'}.`;
+        break;
+      case 'minlen':
+        if(s.action === 'add') return `Added arr[${s.right}] → sum=${s.sum}. If sum ≥ target (${s.target}), we'll try to shrink from left to shorten window.`;
+        if(s.action === 'update-min') return `sum (${s.sum}) ≥ target. Update minLen => ${s.minLen}. Then subtract arr[left] and increment left to try shorter windows.`;
+        if(s.action === 'shrink') return `Shrank window; left moved to ${s.left}. Current sum=${s.sum}.`;
+        if(s.action === 'done') return `Finished. Minimum length subarray with sum ≥ ${s.target} is ${s.minLen ? s.minLen : 'none'}.`;
+        break;
+      case 'unique':
+        if(s.action === 'read') return `Read '${s.ch}' at r=${s.right}. Current window [${s.left}..${s.right}]. If repeated, move left.`;
+        if(s.action === 'move-left') return `Character '${s.ch}' was seen inside window; move left to ${s.left} (one past previous occurrence).`;
+        if(s.action === 'update') return `Record index of '${s.ch}' = ${s.right}. Best window length updated to ${s.best}.`;
+        if(s.action === 'done') return `Finished. Longest substring without repeating characters has length ${s.best}.`;
+        break;
+    }
+    return '';
+  }
+
+  // Initial build
+  setMode('fixed');
+
+  // Auto-generate a helpful initial array
+  arr = [2,1,5,1,3,2];
+  arrayInput.value = arr.join(',');
+  build();
+
+})();
+</script>
+</body>
+</html>

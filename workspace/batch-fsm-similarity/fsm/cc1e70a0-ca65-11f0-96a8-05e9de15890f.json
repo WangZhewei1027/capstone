@@ -1,0 +1,682 @@
+{
+  "meta": {
+    "concept": "FloydWarshall",
+    "topic": "Floyd–Warshall Algorithm Visualizer",
+    "educational_goal": "Visualize Floyd–Warshall step-by-step, show intermediate distance/next matrices, allow editing adjacency matrix and reconstruct shortest paths",
+    "expected_interactions": [
+      "edit_matrix",
+      "change_node_count",
+      "toggle_directed",
+      "toggle_allow_negatives",
+      "randomize_graph",
+      "reset_matrix",
+      "run_stepwise",
+      "play_pause",
+      "step_forward",
+      "step_back",
+      "run_final_only",
+      "adjust_speed",
+      "query_path"
+    ]
+  },
+  "states": [
+    {
+      "id": "S0_Idle",
+      "label": "Idle",
+      "type": "idle",
+      "entry_actions": [
+        "initUI()",
+        "renderMatrixInputs()",
+        "renderMatrices(null)",
+        "updateStatus('ready')",
+        "enableControls()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S1_EditingMatrix",
+      "label": "EditingMatrix",
+      "type": "atomic",
+      "entry_actions": [
+        "stopPlay()",
+        "clearSnapshots()",
+        "captureMatrixInputChange()",
+        "updateAdjFromInput()",
+        "renderMatrices(null)",
+        "updateStatus('Matrix edited — ready')"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S2_ChangingParams",
+      "label": "ChangingParams",
+      "type": "atomic",
+      "entry_actions": [
+        "stopPlay()",
+        "applyNodeCount()",
+        "applyDirectedToggle()",
+        "applyAllowNegToggle()",
+        "buildDefaultAdjIfNeeded()",
+        "renderMatrixInputs()",
+        "renderMatrices(null)",
+        "updateStatus('ready')"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S3_Randomizing",
+      "label": "RandomizingGraph",
+      "type": "atomic",
+      "entry_actions": [
+        "stopPlay()",
+        "randomizeGraph()",
+        "renderMatrixInputs()",
+        "renderMatrices(null)",
+        "updateStatus('Random graph created')"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S4_Resetting",
+      "label": "ResettingMatrix",
+      "type": "atomic",
+      "entry_actions": [
+        "stopPlay()",
+        "adj = buildDefaultAdj(n)",
+        "snapshots = []",
+        "currentStep = -1",
+        "renderMatrixInputs()",
+        "renderMatrices(null)",
+        "updateStatus('Matrix reset')"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S5_Running_Playing",
+      "label": "RunningPlaying",
+      "type": "composite",
+      "entry_actions": [
+        "playing = true",
+        "play()",
+        "playTimerStarted()"
+      ],
+      "exit_actions": [
+        "stopPlay()",
+        "playing = false"
+      ]
+    },
+    {
+      "id": "S6_Running_Paused",
+      "label": "RunningPaused",
+      "type": "atomic",
+      "entry_actions": [
+        "stopPlay()",
+        "updateStatus('Paused')"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S7_Snapshot_Consider",
+      "label": "ConsideringSnapshot",
+      "type": "atomic",
+      "entry_actions": [
+        "renderMatrices(snapshot)",
+        "updateStatus('Considering k,i,j')",
+        "highlightConsideredCell()"
+      ],
+      "exit_actions": [
+        "clearConsiderHighlight()"
+      ]
+    },
+    {
+      "id": "S8_Snapshot_Updated",
+      "label": "UpdatedSnapshot",
+      "type": "atomic",
+      "entry_actions": [
+        "renderMatrices(snapshot)",
+        "updateStatus('Updated distance and next for cell')",
+        "highlightUpdatedCell()"
+      ],
+      "exit_actions": [
+        "clearUpdateHighlight()"
+      ]
+    },
+    {
+      "id": "S9_Final",
+      "label": "FinalResult",
+      "type": "final",
+      "entry_actions": [
+        "renderMatrices(finalSnapshot)",
+        "updateStatus('Final result' )",
+        "enablePathQuery()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S10_Computing_FinalOnly",
+      "label": "ComputingFinalOnly",
+      "type": "atomic",
+      "entry_actions": [
+        "stopPlay()",
+        "runFloydFinalOnly()",
+        "renderMatrices(snapshots[0])",
+        "updateStatus('Computed final matrices (no step history).')"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S11_PathQuerying",
+      "label": "PathQuerying",
+      "type": "atomic",
+      "entry_actions": [
+        "computePathFromNext()",
+        "renderPathResult()"
+      ],
+      "exit_actions": []
+    }
+  ],
+  "events": [
+    {
+      "id": "USER_EDIT_MATRIX",
+      "event_type": "user_action",
+      "description": "User edits a non-diagonal matrix input cell",
+      "triggers": "#matrixPanel table.matrix-input tbody tr td input:not([disabled])"
+    },
+    {
+      "id": "NODECOUNT_CHANGED",
+      "event_type": "user_action",
+      "description": "User changes node count",
+      "triggers": "#nodeCount"
+    },
+    {
+      "id": "DIRECTED_TOGGLED",
+      "event_type": "user_action",
+      "description": "User toggles Directed select",
+      "triggers": "#directed"
+    },
+    {
+      "id": "ALLOWNEG_TOGGLED",
+      "event_type": "user_action",
+      "description": "User toggles Allow negatives select",
+      "triggers": "#allowNeg"
+    },
+    {
+      "id": "USER_CLICKS_RANDOMIZE",
+      "event_type": "user_action",
+      "description": "User clicks Random Graph",
+      "triggers": "#makeRandom"
+    },
+    {
+      "id": "USER_CLICKS_RESET",
+      "event_type": "user_action",
+      "description": "User clicks Reset Matrix",
+      "triggers": "#resetBtn"
+    },
+    {
+      "id": "USER_CLICKS_RUN",
+      "event_type": "user_action",
+      "description": "User clicks Run Floyd–Warshall (step history)",
+      "triggers": "#runBtn"
+    },
+    {
+      "id": "USER_CLICKS_RUN_FAST",
+      "event_type": "user_action",
+      "description": "User clicks Compute Final Only",
+      "triggers": "#runFastBtn"
+    },
+    {
+      "id": "USER_CLICKS_STEP_FORWARD",
+      "event_type": "user_action",
+      "description": "User clicks Step ▶",
+      "triggers": "#stepForward"
+    },
+    {
+      "id": "USER_CLICKS_STEP_BACK",
+      "event_type": "user_action",
+      "description": "User clicks ◀ Step Back",
+      "triggers": "#stepBack"
+    },
+    {
+      "id": "USER_CLICKS_PLAY_PAUSE",
+      "event_type": "user_action",
+      "description": "User clicks Play/Pause toggle",
+      "triggers": "#playPause"
+    },
+    {
+      "id": "SPEED_CHANGED",
+      "event_type": "user_action",
+      "description": "User changes playback speed slider",
+      "triggers": "#speed"
+    },
+    {
+      "id": "SNAPSHOT_CONSIDERED",
+      "event_type": "system_event",
+      "description": "A snapshot with considered (k,i,j) is presented (no update yet)",
+      "triggers": "#distancePanel, #nextPanel"
+    },
+    {
+      "id": "SNAPSHOT_UPDATED",
+      "event_type": "system_event",
+      "description": "A snapshot recording an updated dist/next cell is presented",
+      "triggers": "#distancePanel, #nextPanel"
+    },
+    {
+      "id": "SNAPSHOT_FINAL",
+      "event_type": "system_event",
+      "description": "Final snapshot (computation complete) is presented",
+      "triggers": "#distancePanel, #nextPanel, #diagCheck"
+    },
+    {
+      "id": "USER_CLICKS_SHOW_PATH",
+      "event_type": "user_action",
+      "description": "User clicks Show Path",
+      "triggers": "#showPath"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0_Idle",
+      "to": "S1_EditingMatrix",
+      "event": "USER_EDIT_MATRIX",
+      "guard": "true",
+      "actions": [
+        "updateAdjFromInput()",
+        "snapshots = []",
+        "currentStep = -1",
+        "stopPlay()",
+        "renderMatrices(null)",
+        "updateStatus('Matrix edited — ready')"
+      ],
+      "expected_observables": [
+        "dom:matrixInputChanged",
+        "dom:matrixPanelUpdated"
+      ],
+      "timeout": 500,
+      "triggers": "#matrixPanel table.matrix-input tbody tr td input:not([disabled])"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_ChangingParams",
+      "event": "NODECOUNT_CHANGED",
+      "guard": "true",
+      "actions": [
+        "applyNodeCount()",
+        "n = Number(nodeCountInput.value) || 5",
+        "adj = buildDefaultAdj(n)",
+        "snapshots = []",
+        "currentStep = -1",
+        "stopPlay()",
+        "renderMatrixInputs()",
+        "renderMatrices(null)",
+        "updateStatus('ready')"
+      ],
+      "expected_observables": [
+        "dom:nodeCountChanged",
+        "dom:matrixRebuilt"
+      ],
+      "timeout": 500,
+      "triggers": "#nodeCount"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_ChangingParams",
+      "event": "DIRECTED_TOGGLED",
+      "guard": "true",
+      "actions": [
+        "directed = (directedSel.value === 'true')",
+        "if (!directed) mirrorMatrixIfUndirected()",
+        "renderMatrixInputs()",
+        "renderMatrices(null)"
+      ],
+      "expected_observables": [
+        "dom:directedChanged",
+        "dom:matrixPanelUpdated"
+      ],
+      "timeout": 400,
+      "triggers": "#directed"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_ChangingParams",
+      "event": "ALLOWNEG_TOGGLED",
+      "guard": "true",
+      "actions": [
+        "allowNeg = (allowNegSel.value === 'true')"
+      ],
+      "expected_observables": [
+        "dom:allowNegChanged"
+      ],
+      "timeout": 200,
+      "triggers": "#allowNeg"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S3_Randomizing",
+      "event": "USER_CLICKS_RANDOMIZE",
+      "guard": "true",
+      "actions": [
+        "randomizeGraph()",
+        "snapshots = []",
+        "currentStep = -1",
+        "stopPlay()",
+        "renderMatrixInputs()",
+        "renderMatrices(null)",
+        "updateStatus('Random graph created')"
+      ],
+      "expected_observables": [
+        "dom:randomButtonClicked",
+        "dom:matrixPanelUpdated"
+      ],
+      "timeout": 600,
+      "triggers": "#makeRandom"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S4_Resetting",
+      "event": "USER_CLICKS_RESET",
+      "guard": "true",
+      "actions": [
+        "adj = buildDefaultAdj(n)",
+        "snapshots = []",
+        "currentStep = -1",
+        "stopPlay()",
+        "renderMatrixInputs()",
+        "renderMatrices(null)",
+        "updateStatus('Matrix reset')"
+      ],
+      "expected_observables": [
+        "dom:resetButtonClicked",
+        "dom:matrixPanelUpdated"
+      ],
+      "timeout": 500,
+      "triggers": "#resetBtn"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S7_Snapshot_Consider",
+      "event": "USER_CLICKS_RUN",
+      "guard": "true",
+      "actions": [
+        "snapshots = runFloydWithSnapshots()",
+        "currentStep = 0",
+        "goToStep(0)",
+        "updateStatus('Run complete (step history recorded)')",
+        "stepInfo.textContent = `Step ${currentStep+1} of ${snapshots.length}`"
+      ],
+      "expected_observables": [
+        "dom:runButtonClicked",
+        "dom:snapshotsCreated",
+        "dom:distancePanelUpdated"
+      ],
+      "timeout": 3000,
+      "triggers": "#runBtn"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S10_Computing_FinalOnly",
+      "event": "USER_CLICKS_RUN_FAST",
+      "guard": "true",
+      "actions": [
+        "runFloydFinalOnly()"
+      ],
+      "expected_observables": [
+        "dom:runFastButtonClicked",
+        "dom:finalComputed"
+      ],
+      "timeout": 3000,
+      "triggers": "#runFastBtn"
+    },
+    {
+      "from": "S7_Snapshot_Consider",
+      "to": "S8_Snapshot_Updated",
+      "event": "SNAPSHOT_UPDATED",
+      "guard": "true",
+      "actions": [
+        "renderMatrices(snapshot)",
+        "updateStatus('Updated dist/next for cell')"
+      ],
+      "expected_observables": [
+        "dom:distancePanelUpdated",
+        "dom:nextPanelUpdated"
+      ],
+      "timeout": 1500,
+      "triggers": "#distancePanel, #nextPanel"
+    },
+    {
+      "from": "S7_Snapshot_Consider",
+      "to": "S7_Snapshot_Consider",
+      "event": "USER_CLICKS_STEP_FORWARD",
+      "guard": "nextSnapshotIsConsider",
+      "actions": [
+        "stopPlay()",
+        "stepForward()"
+      ],
+      "expected_observables": [
+        "dom:stepForwardClicked",
+        "dom:distancePanelUpdated"
+      ],
+      "timeout": 600,
+      "triggers": "#stepForward"
+    },
+    {
+      "from": "S7_Snapshot_Consider",
+      "to": "S8_Snapshot_Updated",
+      "event": "USER_CLICKS_STEP_FORWARD",
+      "guard": "nextSnapshotIsUpdated",
+      "actions": [
+        "stopPlay()",
+        "stepForward()"
+      ],
+      "expected_observables": [
+        "dom:stepForwardClicked",
+        "dom:distancePanelUpdated",
+        "dom:updatedCellHighlighted"
+      ],
+      "timeout": 600,
+      "triggers": "#stepForward"
+    },
+    {
+      "from": "S8_Snapshot_Updated",
+      "to": "S7_Snapshot_Consider",
+      "event": "USER_CLICKS_STEP_FORWARD",
+      "guard": "nextSnapshotIsConsider",
+      "actions": [
+        "stopPlay()",
+        "stepForward()"
+      ],
+      "expected_observables": [
+        "dom:stepForwardClicked",
+        "dom:distancePanelUpdated"
+      ],
+      "timeout": 600,
+      "triggers": "#stepForward"
+    },
+    {
+      "from": "S8_Snapshot_Updated",
+      "to": "S9_Final",
+      "event": "SNAPSHOT_FINAL",
+      "guard": "true",
+      "actions": [
+        "renderMatrices(finalSnapshot)",
+        "updateStatus('Final result')",
+        "enablePathQuery()"
+      ],
+      "expected_observables": [
+        "dom:finalSnapshotShown",
+        "dom:diagCheck"
+      ],
+      "timeout": 1000,
+      "triggers": "#distancePanel, #nextPanel, #diagCheck"
+    },
+    {
+      "from": "S7_Snapshot_Consider",
+      "to": "S9_Final",
+      "event": "SNAPSHOT_FINAL",
+      "guard": "true",
+      "actions": [
+        "renderMatrices(finalSnapshot)",
+        "updateStatus('Final result')",
+        "enablePathQuery()"
+      ],
+      "expected_observables": [
+        "dom:finalSnapshotShown",
+        "dom:diagCheck"
+      ],
+      "timeout": 1000,
+      "triggers": "#distancePanel, #nextPanel, #diagCheck"
+    },
+    {
+      "from": "S5_Running_Playing",
+      "to": "S6_Running_Paused",
+      "event": "USER_CLICKS_PLAY_PAUSE",
+      "guard": "playing === true",
+      "actions": [
+        "stopPlay()"
+      ],
+      "expected_observables": [
+        "dom:playPauseClicked",
+        "dom:playTimerStopped"
+      ],
+      "timeout": 200,
+      "triggers": "#playPause"
+    },
+    {
+      "from": "S6_Running_Paused",
+      "to": "S5_Running_Playing",
+      "event": "USER_CLICKS_PLAY_PAUSE",
+      "guard": "playing === false",
+      "actions": [
+        "play()"
+      ],
+      "expected_observables": [
+        "dom:playPauseClicked",
+        "dom:playTimerStarted"
+      ],
+      "timeout": 200,
+      "triggers": "#playPause"
+    },
+    {
+      "from": "S6_Running_Paused",
+      "to": "S7_Snapshot_Consider",
+      "event": "USER_CLICKS_STEP_FORWARD",
+      "guard": "true",
+      "actions": [
+        "stepForward()"
+      ],
+      "expected_observables": [
+        "dom:stepForwardClicked",
+        "dom:distancePanelUpdated"
+      ],
+      "timeout": 500,
+      "triggers": "#stepForward"
+    },
+    {
+      "from": "S6_Running_Paused",
+      "to": "S7_Snapshot_Consider",
+      "event": "USER_CLICKS_STEP_BACK",
+      "guard": "true",
+      "actions": [
+        "stepBack()"
+      ],
+      "expected_observables": [
+        "dom:stepBackClicked",
+        "dom:distancePanelUpdated"
+      ],
+      "timeout": 500,
+      "triggers": "#stepBack"
+    },
+    {
+      "from": "S5_Running_Playing",
+      "to": "S7_Snapshot_Consider",
+      "event": "PLAY_TIMER_TICK",
+      "guard": "true",
+      "actions": [
+        "stepForward()"
+      ],
+      "expected_observables": [
+        "dom:automaticStep",
+        "dom:distancePanelUpdated"
+      ],
+      "timeout": 0,
+      "triggers": "#speed"
+    },
+    {
+      "from": "S10_Computing_FinalOnly",
+      "to": "S9_Final",
+      "event": "SNAPSHOT_FINAL",
+      "guard": "true",
+      "actions": [
+        "renderMatrices(snapshots[0])",
+        "updateStatus('Computed final matrices (no step history).')",
+        "enablePathQuery()"
+      ],
+      "expected_observables": [
+        "dom:finalSnapshotShown"
+      ],
+      "timeout": 2000,
+      "triggers": "#distancePanel, #nextPanel"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S11_PathQuerying",
+      "event": "USER_CLICKS_SHOW_PATH",
+      "guard": "snapshots.length > 0",
+      "actions": [
+        "finalSnap = snapshots[snapshots.length - 1]",
+        "computePathFromNext(finalSnap.next, Number(fromNodeSel.value), Number(toNodeSel.value))",
+        "renderPathResult()"
+      ],
+      "expected_observables": [
+        "dom:showPathClicked",
+        "dom:pathResultUpdated"
+      ],
+      "timeout": 500,
+      "triggers": "#showPath"
+    },
+    {
+      "from": "S9_Final",
+      "to": "S11_PathQuerying",
+      "event": "USER_CLICKS_SHOW_PATH",
+      "guard": "true",
+      "actions": [
+        "finalSnap = snapshots[snapshots.length - 1]",
+        "computePathFromNext(finalSnap.next, Number(fromNodeSel.value), Number(toNodeSel.value))",
+        "renderPathResult()"
+      ],
+      "expected_observables": [
+        "dom:showPathClicked",
+        "dom:pathResultUpdated"
+      ],
+      "timeout": 500,
+      "triggers": "#showPath"
+    }
+  ],
+  "components": [
+    "#nodeCount",
+    "#directed",
+    "#allowNeg",
+    "#makeRandom",
+    "#resetBtn",
+    "#runBtn",
+    "#runFastBtn",
+    "#matrixPanel",
+    "#matrixPanel table.matrix-input tbody tr td input",
+    "#distancePanel",
+    "#nextPanel",
+    "#stepBack",
+    "#playPause",
+    "#stepForward",
+    "#speed",
+    "#statusText",
+    "#stepInfo",
+    "#fromNode",
+    "#toNode",
+    "#showPath",
+    "#pathResult",
+    "#diagCheck",
+    ".mat",
+    ".matrix-input",
+    ".btn",
+    "window"
+  ]
+}

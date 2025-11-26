@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>K-Means Clustering Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f7f7f7;
+    text-align: center;
+  }
+  canvas {
+    border: 1px solid #ccc;
+    background: white;
+    margin-top: 10px;
+    cursor: crosshair;
+  }
+  #controls {
+    margin-top: 15px;
+  }
+  input[type=number] {
+    width: 60px;
+    padding: 4px;
+    font-size: 14px;
+  }
+  button {
+    padding: 6px 12px;
+    margin-left: 10px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #info {
+    max-width: 700px;
+    margin: 10px auto;
+    font-size: 14px;
+    color: #444;
+  }
+</style>
+</head>
+<body>
+<h1>K-Means Clustering Interactive Demo</h1>
+<p>Click on the canvas to add data points. Adjust the number of clusters (K) below, then press "Run K-Means".</p>
+<canvas id="canvas" width="700" height="500" title="Click to add points"></canvas>
+<div id="controls">
+  <label for="kInput">Number of clusters (K): </label>
+  <input type="number" id="kInput" value="3" min="1" max="10" />
+  <button id="runBtn">Run K-Means</button>
+  <button id="resetBtn">Reset</button>
+</div>
+<div id="info"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const kInput = document.getElementById('kInput');
+  const runBtn = document.getElementById('runBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const info = document.getElementById('info');
+  
+  const width = canvas.width;
+  const height = canvas.height;
+  
+  let points = [];
+  let clusters = [];
+  let assignments = [];
+  const maxIterations = 100;
+  
+  // Colors for clusters (up to 10)
+  const clusterColors = [
+    '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
+    '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe'
+  ];
+  
+  // Add a point at (x,y)
+  function addPoint(x, y) {
+    if (points.length >= 500) {
+      alert('Maximum 500 points allowed.');
+      return;
+    }
+    points.push({x, y});
+    assignments.push(-1);
+    draw();
+  }
+  
+  // Draw all points and clusters
+  function draw(clusterCenters = null) {
+    ctx.clearRect(0, 0, width, height);
+    
+    // Draw points with colors by assigned cluster
+    points.forEach((p, i) => {
+      let color = '#999'; // default gray if no assignment
+      if (assignments[i] !== -1 && clusterColors[assignments[i]]) {
+        color = clusterColors[assignments[i]];
+      }
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+    
+    // Draw cluster centers
+    if (clusterCenters) {
+      clusterCenters.forEach((c, i) => {
+        ctx.fillStyle = clusterColors[i];
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 10, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+        // Draw "center" small black dot
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 3, 0, Math.PI*2);
+        ctx.fill();
+      });
+    }
+  }
+  
+  // Euclidean distance squared (faster than sqrt)
+  function dist2(a, b) {
+    let dx = a.x - b.x;
+    let dy = a.y - b.y;
+    return dx*dx + dy*dy;
+  }
+  
+  // Initialize cluster centers randomly from points
+  function initializeCenters(k) {
+    if (points.length < k) {
+      alert('Number of clusters cannot exceed number of points.');
+      return null;
+    }
+    const centers = [];
+    const usedIndices = new Set();
+    while (centers.length < k) {
+      const idx = Math.floor(Math.random() * points.length);
+      if (!usedIndices.has(idx)) {
+        usedIndices.add(idx);
+        centers.push({x: points[idx].x, y: points[idx].y});
+      }
+    }
+    return centers;
+  }
+  
+  // Assign points to nearest center, return true if assignments changed
+  function assignPoints(centers) {
+    let changed = false;
+    for (let i=0; i < points.length; i++) {
+      let minDist = Infinity;
+      let bestCluster = -1;
+      for (let c=0; c < centers.length; c++) {
+        let d = dist2(points[i], centers[c]);
+        if (d < minDist) {
+          minDist = d;
+          bestCluster = c;
+        }
+      }
+      if (assignments[i] !== bestCluster) {
+        changed = true;
+        assignments[i] = bestCluster;
+      }
+    }
+    return changed;
+  }
+  
+  // Update cluster centers given assignments
+  function updateCenters(k) {
+    const sums = Array(k).fill(null).map(() => ({x:0,y:0,count:0}));
+    for (let i=0; i < points.length; i++) {
+      const c = assignments[i];
+      sums[c].x += points[i].x;
+      sums[c].y += points[i].y;
+      sums[c].count++;
+    }
+    const newCenters = sums.map(s => {
+      if (s.count === 0) {
+        // In case cluster lost all points, reinitialize randomly
+        const p = points[Math.floor(Math.random()*points.length)];
+        return {x: p.x, y: p.y};
+      }
+      return {x: s.x / s.count, y: s.y / s.count};
+    });
+    return newCenters;
+  }
+  
+  // K-Means main loop
+  async function runKMeans(k) {
+    if (points.length === 0) {
+      alert('Please add some points first.');
+      return;
+    }
+    if (k < 1) {
+      alert('K must be at least 1.');
+      return;
+    }
+    if (k > points.length) {
+      alert('K cannot be greater than number of points.');
+      return;
+    }
+    
+    // Initialize
+    let centers = initializeCenters(k);
+    if (!centers) return;
+    assignments.fill(-1);
+    
+    draw(centers);
+    info.textContent = '';
+    
+    for (let iter=0; iter < maxIterations; iter++) {
+      const changed = assignPoints(centers);
+      centers = updateCenters(k);
+      draw(centers);
+      info.textContent = `Iteration: ${iter+1}`;
+      
+      await new Promise(r => setTimeout(r, 300)); // slow down for visualization
+      
+      if (!changed) {
+        info.textContent += ' - Converged';
+        break;
+      }
+    }
+  }
+  
+  
+  // Event Listeners
+  canvas.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    addPoint(x, y);
+  });
+  
+  runBtn.addEventListener('click', () => {
+    const k = parseInt(kInput.value,10);
+    runKMeans(k);
+  });
+  
+  resetBtn.addEventListener('click', () => {
+    points = [];
+    assignments = [];
+    clusters = [];
+    info.textContent = '';
+    draw();
+  });
+  
+  // Initial draw
+  draw();
+})();
+</script>
+</body>
+</html>

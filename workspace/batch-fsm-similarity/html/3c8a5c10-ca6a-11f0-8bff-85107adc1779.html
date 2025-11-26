@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Huffman Coding Demonstration</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    background: #f9f9f9;
+    color: #222;
+  }
+  h1 {
+    text-align: center;
+    color: #2c3e50;
+  }
+  textarea {
+    width: 100%;
+    font-family: monospace;
+    font-size: 1rem;
+    height: 100px;
+    resize: vertical;
+  }
+  button {
+    margin-top: 1rem;
+    padding: 0.7rem 1.2rem;
+    font-size: 1.1rem;
+    background: #2980b9;
+    border: none;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #1f5f8b;
+  }
+  .result {
+    margin-top: 2rem;
+    background: white;
+    padding: 1rem;
+    box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    border-radius: 5px;
+  }
+  .tree-container {
+    margin-top: 1rem;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+  }
+  svg {
+    width: 100%;
+    height: 400px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 1rem;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 0.4rem 0.6rem;
+    text-align: center;
+  }
+  th {
+    background: #2980b9;
+    color: white;
+  }
+  small {
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<h1>Huffman Coding Demonstration</h1>
+
+<label for="inputText"><strong>Enter text to encode:</strong></label>
+<textarea id="inputText" placeholder="Type some text here...">this is an example for huffman encoding</textarea>
+
+<button id="encodeBtn">Generate Huffman Codes</button>
+
+<div class="result" id="result" aria-live="polite" aria-atomic="true">
+  <!-- Results will show here -->
+</div>
+
+<script>
+(() => {
+
+  // Node constructor for Huffman Tree
+  function Node(char, freq, left = null, right = null) {
+    this.char = char;
+    this.freq = freq;
+    this.left = left;
+    this.right = right;
+  }
+
+  // Priority queue using simple array and sorting (efficient enough for demo)
+  function PriorityQueue() {
+    this.nodes = [];
+  }
+  PriorityQueue.prototype.enqueue = function(node) {
+    this.nodes.push(node);
+    this.nodes.sort((a,b) => a.freq - b.freq);
+  };
+  PriorityQueue.prototype.dequeue = function() {
+    return this.nodes.shift();
+  };
+  PriorityQueue.prototype.size = function() {
+    return this.nodes.length;
+  };
+
+  // Build frequency map of characters
+  function buildFrequencyMap(text) {
+    const freqMap = new Map();
+    for (let ch of text) {
+      freqMap.set(ch, (freqMap.get(ch) || 0) + 1);
+    }
+    return freqMap;
+  }
+
+  // Build Huffman Tree
+  function buildHuffmanTree(freqMap) {
+    const pq = new PriorityQueue();
+    for (const [char, freq] of freqMap.entries()) {
+      pq.enqueue(new Node(char, freq));
+    }
+
+    while (pq.size() > 1) {
+      const left = pq.dequeue();
+      const right = pq.dequeue();
+      const newNode = new Node(null, left.freq + right.freq, left, right);
+      pq.enqueue(newNode);
+    }
+
+    return pq.dequeue(); // root node
+  }
+
+  // Generate codes from Huffman Tree
+  function generateCodes(node, prefix = "", codes = {}) {
+    if (!node) return;
+    if (node.char !== null) {
+      codes[node.char] = prefix || "0"; // handle single node case
+    }
+    generateCodes(node.left, prefix + "0", codes);
+    generateCodes(node.right, prefix + "1", codes);
+    return codes;
+  }
+
+  // Encode input text using codes
+  function encodeText(text, codes) {
+    let encoded = "";
+    for (const ch of text) {
+      encoded += codes[ch];
+    }
+    return encoded;
+  }
+
+  // Decode a bit string using the Huffman tree
+  function decodeText(encoded, root) {
+    let decoded = "";
+    let node = root;
+    for (const bit of encoded) {
+      node = (bit === "0") ? node.left : node.right;
+      if (node.char !== null) {
+        decoded += node.char;
+        node = root;
+      }
+    }
+    return decoded;
+  }
+
+  // Visualize Huffman Tree as an SVG
+  function visualizeTree(root) {
+    // We will do a simple horizontal tree layout
+    const nodes = [];
+    const links = [];
+
+    let index = 0;
+    function traverse(node, depth, xOffset) {
+      if (!node) return 0;
+
+      // If leaf, width needed is 1
+      if (node.char !== null) {
+        nodes.push({ node, depth, x: xOffset, index });
+        return 1;
+      }
+
+      // For internal nodes, place children side by side
+      const leftWidth = traverse(node.left, depth+1, xOffset);
+      const rightWidth = traverse(node.right, depth+1, xOffset + leftWidth);
+      const nodeX = xOffset + (leftWidth + rightWidth) / 2;
+
+      nodes.push({ node, depth, x: nodeX, index });
+      links.push({ parentIndex: index, leftIndex: index + 1, rightIndex: null }); // rightIndex to fix below
+      const currentIndex = index;
+      index++;
+      // Adjust the children links after traversal:
+      // It's a bit hacky because we push children nodes in different order than parent node
+      // Fix links array now
+      // Actually, the above approach requires care, let's do a simpler approach:
+
+      return leftWidth + rightWidth;
+    }
+
+    // Because above mixing index logic is complicated, let's do a BFS like positioning
+    // So we use a helper to gather nodes per level
+
+    let levels = {};
+    let maxDepth = 0;
+    // Inorder indexing for x axis
+    let currentX = 0;
+
+    function assignPositions(node, depth) {
+      if (!node) return;
+      maxDepth = Math.max(maxDepth, depth);
+      assignPositions(node.left, depth+1);
+      levels[node] = {depth, x: currentX};
+      currentX++;
+      assignPositions(node.right, depth+1);
+    }
+
+    assignPositions(root, 0);
+
+    // Convert levels (map) keys to array to access nodes
+    const treeNodes = [];
+    const nodeMap = new Map();
+    let nodeId = 0;
+    function buildNodeList(node) {
+      if (!node) return;
+      buildNodeList(node.left);
+      treeNodes.push(node);
+      nodeMap.set(node, nodeId++);
+      buildNodeList(node.right);
+    }
+    buildNodeList(root);
+
+    // Collect nodes info for SVG
+    // Using inorder x for horizontal placement, depth for vertical
+
+    const horizontalSpacing = 40;
+    const verticalSpacing = 80;
+
+    let svgNodes = [];
+    let svgLinks = [];
+
+    treeNodes.forEach(node => {
+      const {depth, x} = levels[node];
+      svgNodes.push({
+        id: nodeMap.get(node),
+        char: node.char,
+        freq: node.freq,
+        x: x * horizontalSpacing + 20,
+        y: depth * verticalSpacing + 30,
+        node,
+      });
+      // Add links
+      if (node.left)
+        svgLinks.push({
+          from: nodeMap.get(node),
+          to: nodeMap.get(node.left)
+        });
+      if (node.right)
+        svgLinks.push({
+          from: nodeMap.get(node),
+          to: nodeMap.get(node.right)
+        });
+    });
+
+    // Build SVG markup
+    const w = Math.max(...svgNodes.map(n => n.x)) + 40;
+    const h = (maxDepth+1) * verticalSpacing + 60;
+
+    let svg = `<svg width="${w}" height="${h}" role="img" aria-label="Huffman tree visualization" >`;
+
+    // Draw links
+    svgLinks.forEach(link => {
+      const fromNode = svgNodes.find(n => n.id === link.from);
+      const toNode = svgNodes.find(n => n.id === link.to);
+      svg += `
+        <line x1="${fromNode.x}" y1="${fromNode.y + 15}" x2="${toNode.x}" y2="${toNode.y -15}" stroke="#888" stroke-width="2" />
+      `;
+    });
+
+    // Draw nodes
+    svgNodes.forEach(n => {
+      svg += `
+      <g>
+        <circle cx="${n.x}" cy="${n.y}" r="15" fill="#2980b9" />
+        <text x="${n.x}" y="${n.y+5}" fill="#fff" font-weight="bold" font-size="14" text-anchor="middle" font-family="monospace">
+          ${n.char === null ? '' : (n.char === ' ' ? '␣' : n.char)}
+        </text>
+        <text x="${n.x}" y="${n.y+30}" fill="#222" font-size="11" text-anchor="middle" font-family="monospace">
+          ${n.freq}
+        </text>
+      </g>
+      `;
+    });
+
+    svg += '</svg>';
+    return svg;
+  }
+
+  // Escape HTML for safe display
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  }
+
+  // Main function on button click
+  const encodeBtn = document.getElementById('encodeBtn');
+  const resultDiv = document.getElementById('result');
+
+  encodeBtn.addEventListener('click', () => {
+    const inputText = document.getElementById('inputText').value;
+    if (!inputText) {
+      resultDiv.innerHTML = "<p>Please enter some text to encode.</p>";
+      return;
+    }
+
+    // Build frequency map
+    const freqMap = buildFrequencyMap(inputText);
+    if (freqMap.size === 0) {
+      resultDiv.innerHTML = "<p>Please enter some valid characters.</p>";
+      return;
+    }
+
+    // Build Huffman Tree
+    const root = buildHuffmanTree(freqMap);
+
+    // Generate Codes
+    const codes = generateCodes(root);
+
+    // Encode text
+    const encoded = encodeText(inputText, codes);
+
+    // Decode text (to verify)
+    const decoded = decodeText(encoded, root);
+
+    // Efficiency calculations
+    const originalBits = inputText.length * 8;
+    const compressedBits = encoded.length;
+    const compressionRatio = (compressedBits / originalBits * 100).toFixed(2);
+
+    // Build character code table
+    let tableHtml = "<table aria-label='Huffman Code Table'>"
+      + "<thead><tr><th>Character</th><th>Frequency</th><th>Huffman Code</th></tr></thead><tbody>";
+    // Sort table by char code for consistent order
+    const sortedChars = [...freqMap.keys()].sort((a,b) => a.charCodeAt(0) - b.charCodeAt(0));
+    for (const ch of sortedChars) {
+      const repr = (ch === ' ') ? "␣ (space)" :
+                   (ch === '\n') ? "↵ (newline)" : escapeHtml(ch);
+      tableHtml += "<tr><td>" + repr + "</td><td>" + freqMap.get(ch) + "</td><td><code>" + codes[ch] + "</code></td></tr>";
+    }
+    tableHtml += "</tbody></table>";
+
+    // Build output HTML
+    resultDiv.innerHTML = `
+      <h2>Results</h2>
+      <p><strong>Original text length:</strong> ${inputText.length} characters</p>
+      <p><strong>Original size (assuming 8 bits/char):</strong> ${originalBits.toLocaleString()} bits</p>
+      <p><strong>Encoded bit length:</strong> ${compressedBits.toLocaleString()} bits</p>
+      <p><strong>Compression ratio:</strong> ${compressionRatio}% of original size</p>
+      ${tableHtml}
+      <h3>Encoded Bit String (first 200 bits)</h3>
+      <p style="word-wrap: break-word; font-family: monospace; background:#eee; padding:0.5rem; max-height:120px; overflow:auto;">${encoded.slice(0,200)}${encoded.length > 200 ? '...' : ''}</p>
+      <h3>Decoded Text</h3>
+      <p style="white-space: pre-wrap; background:#f0f8ff; border-left:4px solid #2980b9; padding:0.5rem; font-family: monospace;">${escapeHtml(decoded)}</p>
+      <h3>Huffman Tree Visualization</h3>
+      <div class="tree-container" role="img" aria-label="Visual representation of the Huffman tree">
+        ${visualizeTree(root)}
+      </div>
+      <small><em>Note: In the Huffman tree, blue circles represent nodes; top text inside the circle is character ('␣' means space), below is node frequency.</em></small>
+    `;
+  });
+
+  // Trigger initial encoding for default text
+  encodeBtn.click();
+})();
+</script>
+
+</body>
+</html>

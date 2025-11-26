@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interactive Graph (Directed / Undirected)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body { font-family: system-ui, -apple-system, Roboto, "Segoe UI", Arial; margin: 0; display: flex; height: 100vh; }
+  #sidebar { width: 320px; padding: 14px; box-sizing: border-box; border-right: 1px solid #ddd; background: #f8f9fb; overflow: auto; }
+  #canvasWrap { flex: 1; position: relative; }
+  canvas { width: 100%; height: 100%; display: block; background: #fff; cursor: crosshair; }
+  h2 { margin: 8px 0 12px; font-size: 16px; }
+  .control { margin-bottom: 10px; }
+  label { display: block; margin-bottom: 6px; font-size: 13px; color: #333; }
+  select, input[type="number"], input[type="text"] { width: 100%; padding: 6px 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+  button { padding: 8px 10px; margin-right: 8px; border-radius: 4px; border: 1px solid #5b8; background: #0b8c64; color: white; cursor: pointer; }
+  button.secondary { background: #fff; border: 1px solid #bbb; color: #222; }
+  .modes { display:flex; gap:6px; margin-bottom:10px; }
+  .modeBtn { flex:1; padding:8px; border-radius:4px; border:1px solid #bbb; background:#fff; cursor:pointer; text-align:center; }
+  .modeBtn.active { background: #0b8c64; color: #fff; border-color:#069154; }
+  .small { font-size:13px; color:#555; margin-top:6px; }
+  pre { background:#fff; border:1px solid #ddd; padding:8px; border-radius:4px; max-height:220px; overflow:auto; font-size:13px; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .row > * { flex: 1; }
+  footer { margin-top:12px; font-size:12px; color:#666; }
+  .hint { font-size:12px; color:#666; margin-bottom:8px; }
+</style>
+</head>
+<body>
+  <div id="sidebar">
+    <h2>Interactive Graph (Directed / Undirected)</h2>
+    <div class="hint">
+      Modes:
+      - Add Node: click canvas to add nodes.
+      - Add Edge: click source then target to add an edge (use Weight if needed).
+      - Move: drag nodes.
+      - Delete: click a node or edge to remove.
+    </div>
+
+    <div class="modes">
+      <div id="btnAddNode" class="modeBtn active">Add Node</div>
+      <div id="btnAddEdge" class="modeBtn">Add Edge</div>
+      <div id="btnMove" class="modeBtn">Move</div>
+      <div id="btnDelete" class="modeBtn">Delete</div>
+    </div>
+
+    <div class="control">
+      <label><input type="checkbox" id="directedCheck" checked> Directed graph</label>
+      <div class="small">Toggle whether the graph is directed. When undirected, edges are symmetric.</div>
+    </div>
+
+    <div class="control">
+      <label>Edge weight (used when adding edges)</label>
+      <input type="number" id="edgeWeight" value="1" />
+    </div>
+
+    <div class="control row">
+      <button id="clearBtn" class="secondary">Clear</button>
+      <button id="randomBtn">Random Graph</button>
+    </div>
+
+    <div class="control">
+      <label>Graph info</label>
+      <div class="small" id="infoNodes">Nodes: 0</div>
+      <div class="small" id="infoEdges">Edges: 0</div>
+    </div>
+
+    <div class="control">
+      <label>Adjacency List</label>
+      <pre id="adjList">[]</pre>
+    </div>
+
+    <div class="control">
+      <label>Adjacency Matrix</label>
+      <pre id="adjMatrix">[]</pre>
+    </div>
+
+    <footer>
+      Tip: Try switching between directed and undirected. When undirected, adding an edge creates symmetric entries. Reciprocal directed edges are drawn as curved pair.
+    </footer>
+  </div>
+
+  <div id="canvasWrap">
+    <canvas id="graphCanvas"></canvas>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+  let dpr = window.devicePixelRatio || 1;
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    draw();
+  }
+  window.addEventListener('resize', () => { dpr = window.devicePixelRatio || 1; resizeCanvas(); });
+  resizeCanvas();
+
+  // Graph data
+  let nodes = []; // {id, x, y}
+  let edges = []; // {from, to, weight}
+  let nextNodeId = 0;
+  let mode = 'addnode'; // addnode, addedge, move, delete
+  let isDirected = true;
+
+  // UI elements
+  const btnAddNode = document.getElementById('btnAddNode');
+  const btnAddEdge = document.getElementById('btnAddEdge');
+  const btnMove = document.getElementById('btnMove');
+  const btnDelete = document.getElementById('btnDelete');
+  const directedCheck = document.getElementById('directedCheck');
+  const edgeWeightInput = document.getElementById('edgeWeight');
+  const clearBtn = document.getElementById('clearBtn');
+  const randomBtn = document.getElementById('randomBtn');
+  const infoNodes = document.getElementById('infoNodes');
+  const infoEdges = document.getElementById('infoEdges');
+  const adjListPre = document.getElementById('adjList');
+  const adjMatrixPre = document.getElementById('adjMatrix');
+
+  function setMode(newMode) {
+    mode = newMode;
+    [btnAddNode, btnAddEdge, btnMove, btnDelete].forEach(b => b.classList.remove('active'));
+    if (mode === 'addnode') btnAddNode.classList.add('active');
+    if (mode === 'addedge') btnAddEdge.classList.add('active');
+    if (mode === 'move') btnMove.classList.add('active');
+    if (mode === 'delete') btnDelete.classList.add('active');
+    canvas.style.cursor = (mode === 'move') ? 'grab' : 'crosshair';
+    selectedForEdge = null;
+  }
+  btnAddNode.addEventListener('click', () => setMode('addnode'));
+  btnAddEdge.addEventListener('click', () => setMode('addedge'));
+  btnMove.addEventListener('click', () => setMode('move'));
+  btnDelete.addEventListener('click', () => setMode('delete'));
+  directedCheck.addEventListener('change', () => { isDirected = directedCheck.checked; draw(); updateInfo(); });
+
+  clearBtn.addEventListener('click', () => {
+    nodes = []; edges = []; nextNodeId = 0; selectedForEdge = null; draw(); updateInfo();
+  });
+
+  randomBtn.addEventListener('click', () => {
+    // create a small random graph
+    nodes = []; edges = []; nextNodeId = 0;
+    const rect = canvas.getBoundingClientRect();
+    const N = Math.floor(Math.random()*6)+4;
+    for (let i=0;i<N;i++){
+      addNode(Math.random()*(rect.width-80)+40, Math.random()*(rect.height-80)+40);
+    }
+    const M = Math.floor(Math.random()*(N*(N-1)/2));
+    for (let i=0;i<M;i++){
+      const a = nodes[Math.floor(Math.random()*nodes.length)];
+      const b = nodes[Math.floor(Math.random()*nodes.length)];
+      if (!a || !b || a.id===b.id) continue;
+      addEdgeInternal(a.id,b.id, Math.floor(Math.random()*9)+1);
+    }
+    draw(); updateInfo();
+  });
+
+  function addNode(x,y) {
+    nodes.push({id: nextNodeId++, x, y});
+  }
+
+  function addEdgeInternal(from, to, weight=1) {
+    // Add directed edge (from->to) if not duplicate
+    if (edges.some(e => e.from===from && e.to===to)) return;
+    edges.push({from, to, weight});
+    // If graph is undirected, keep symmetric by also adding reverse if missing
+    if (!isDirected) {
+      if (!edges.some(e => e.from===to && e.to===from)) {
+        edges.push({from: to, to: from, weight});
+      }
+    }
+  }
+
+  // For Add Edge mode click handling
+  let selectedForEdge = null;
+
+  // For Move mode
+  let draggingNode = null;
+  let dragOffset = {x:0,y:0};
+
+  // Utility
+  function getNodeAt(x,y) {
+    for (let i=nodes.length-1;i>=0;i--){
+      const n = nodes[i];
+      const dx = x-n.x, dy = y-n.y;
+      if (Math.hypot(dx,dy) <= 18) return n;
+    }
+    return null;
+  }
+
+  function drawArrowhead(x1,y1,x2,y2, size=8) {
+    const angle = Math.atan2(y2-y1, x2-x1);
+    ctx.save();
+    ctx.translate(x2, y2);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(-size, -size/2);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(-size, size/2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    ctx.clearRect(0,0,rect.width,rect.height);
+
+    // Edges first
+    // We'll draw undirected edges without arrowheads and deduplicate symmetric edges (draw once)
+    const drawnPairs = new Set();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#333';
+    ctx.fillStyle = '#333';
+
+    for (let e of edges) {
+      const a = nodes.find(n => n.id===e.from);
+      const b = nodes.find(n => n.id===e.to);
+      if (!a || !b) continue;
+      // For undirected view, only draw one segment for pair
+      if (!isDirected) {
+        const key = (a.id < b.id) ? `${a.id}-${b.id}` : `${b.id}-${a.id}`;
+        if (drawnPairs.has(key)) continue;
+        drawnPairs.add(key);
+        drawEdgeSegment(a,b, false, null);
+      } else {
+        // directed mode: if reciprocal exists, draw curved pair
+        const reciprocal = edges.find(x => x.from===b.id && x.to===a.id);
+        const pairKey = `${e.from}->${e.to}`;
+        if (reciprocal && e.from < e.to) {
+          // we'll draw both curves in one go: draw e.forward curved one way and reciprocal curved the other
+          drawCurvedPair(a,b);
+        } else if (!reciprocal) {
+          drawEdgeSegment(a,b, true, null);
+        } else if (e.from > e.to) {
+          // already drawn when e.from < e.to
+        }
+      }
+    }
+
+    // Node styling
+    for (const n of nodes) {
+      ctx.beginPath();
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#1b6';
+      ctx.lineWidth = 2;
+      ctx.arc(n.x, n.y, 18, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#333';
+      ctx.font = '13px system-ui,Segoe UI,Roboto,Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(n.id), n.x, n.y);
+    }
+
+    // If edge selected for creation, highlight source
+    if (selectedForEdge) {
+      ctx.beginPath();
+      ctx.strokeStyle = '#f39c12';
+      ctx.lineWidth = 2;
+      ctx.arc(selectedForEdge.x, selectedForEdge.y, 22, 0, Math.PI*2);
+      ctx.stroke();
+    }
+  }
+
+  function drawEdgeSegment(a,b, arrow=true, weight=null) {
+    // Straight line between centers, offset for loops
+    if (a.id === b.id) {
+      // self-loop: draw a circle arc
+      const x = a.x, y = a.y;
+      ctx.beginPath();
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 2;
+      ctx.arc(x+22, y-22, 16, 0.5, 2.5*Math.PI);
+      ctx.stroke();
+      if (arrow && isDirected) {
+        // draw small arrow on loop
+        drawArrowhead(x+22 + Math.cos(1.8)*16, y-22 + Math.sin(1.8)*16, x+22 + Math.cos(1.55)*16, y-22 + Math.sin(1.55)*16);
+      }
+      if (weight !== null) {
+        ctx.fillStyle = '#000';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(String(weight), x+22, y-22);
+      }
+      return;
+    }
+
+    const ax = a.x, ay = a.y, bx = b.x, by = b.y;
+    ctx.beginPath();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+
+    // Move endpoints slightly to be at node boundaries
+    const angle = Math.atan2(by - ay, bx - ax);
+    const offset = 18;
+    const sx = ax + Math.cos(angle) * offset;
+    const sy = ay + Math.sin(angle) * offset;
+    const ex = bx - Math.cos(angle) * offset;
+    const ey = by - Math.sin(angle) * offset;
+
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    if (arrow && isDirected) {
+      ctx.fillStyle = '#333';
+      drawArrowhead(sx, sy, ex, ey, 8);
+    }
+
+    if (weight !== null) {
+      ctx.fillStyle = '#000';
+      ctx.font = '12px sans-serif';
+      const midx = (sx+ex)/2 + (Math.random()*0.1);
+      const midy = (sy+ey)/2;
+      ctx.fillText(String(weight), midx, midy);
+    }
+  }
+
+  function drawCurvedPair(a,b) {
+    // Draw two curved directed edges between a and b (one in each direction)
+    const ax = a.x, ay = a.y, bx = b.x, by = b.y;
+    const dx = bx-ax, dy = by-ay;
+    const dist = Math.hypot(dx,dy);
+    if (dist < 30) { drawEdgeSegment(a,b,true,null); return; }
+
+    // Control point offset perpendicular
+    const mx = (ax+bx)/2, my = (ay+by)/2;
+    const nx = -dy/dist, ny = dx/dist;
+    const offset = Math.min(60, dist/3)+12;
+
+    // First curve: control point = mid + normal*offset
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ax + Math.cos(Math.atan2(dy,dx))*18, ay + Math.sin(Math.atan2(dy,dx))*18);
+    ctx.quadraticCurveTo(mx + nx*offset, my + ny*offset, bx - Math.cos(Math.atan2(dy,dx))*18, by - Math.sin(Math.atan2(dy,dx))*18);
+    ctx.stroke();
+
+    // Arrow for first
+    const t = 0.65;
+    const cp1x = mx + nx*offset, cp1y = my + ny*offset;
+    const p1x = quadraticPoint(ax + Math.cos(Math.atan2(dy,dx))*18, ay + Math.sin(Math.atan2(dy,dx))*18, cp1x, cp1y, bx - Math.cos(Math.atan2(dy,dx))*18, by - Math.sin(Math.atan2(dy,dx))*18, t);
+    const p1tx = quadraticTangent(ax + Math.cos(Math.atan2(dy,dx))*18, ay + Math.sin(Math.atan2(dy,dx))*18, cp1x, cp1y, bx - Math.cos(Math.atan2(dy,dx))*18, by - Math.sin(Math.atan2(dy,dx))*18, t);
+    ctx.fillStyle = '#333';
+    drawArrowhead(p1x.x - p1tx.x*6, p1x.y - p1tx.y*6, p1x.x, p1x.y, 8);
+
+    // Second curve: control point = mid - normal*offset
+    ctx.beginPath();
+    ctx.moveTo(ax + Math.cos(Math.atan2(dy,dx))*18, ay + Math.sin(Math.atan2(dy,dx))*18);
+    ctx.quadraticCurveTo(mx - nx*offset, my - ny*offset, bx - Math.cos(Math.atan2(dy,dx))*18, by - Math.sin(Math.atan2(dy,dx))*18);
+    ctx.stroke();
+
+    // Arrow for second (opposite direction)
+    const cp2x = mx - nx*offset, cp2y = my - ny*offset;
+    const t2 = 0.35;
+    const p2x = quadraticPoint(ax + Math.cos(Math.atan2(dy,dx))*18, ay + Math.sin(Math.atan2(dy,dx))*18, cp2x, cp2y, bx - Math.cos(Math.atan2(dy,dx))*18, by - Math.sin(Math.atan2(dy,dx))*18, t2);
+    const p2tx = quadraticTangent(ax + Math.cos(Math.atan2(dy,dx))*18, ay + Math.sin(Math.atan2(dy,dx))*18, cp2x, cp2y, bx - Math.cos(Math.atan2(dy,dx))*18, by - Math.sin(Math.atan2(dy,dx))*18, t2);
+    ctx.fillStyle = '#333';
+    drawArrowhead(p2x.x - p2tx.x*6, p2x.y - p2tx.y*6, p2x.x, p2x.y, 8);
+  }
+
+  function quadraticPoint(x0,y0, cx,cy, x1,y1, t) {
+    const x = (1-t)*(1-t)*x0 + 2*(1-t)*t*cx + t*t*x1;
+    const y = (1-t)*(1-t)*y0 + 2*(1-t)*t*cy + t*t*y1;
+    return {x,y};
+  }
+  function quadraticTangent(x0,y0, cx,cy, x1,y1, t) {
+    // derivative
+    const x = 2*(1-t)*(cx - x0) + 2*t*(x1 - cx);
+    const y = 2*(1-t)*(cy - y0) + 2*t*(y1 - cy);
+    const len = Math.hypot(x,y) || 1;
+    return {x: x/len, y: y/len};
+  }
+
+  // Canvas event handling
+  canvas.addEventListener('pointerdown', (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left);
+    const y = (ev.clientY - rect.top);
+    if (mode === 'addnode') {
+      addNode(x,y);
+      draw();
+      updateInfo();
+    } else if (mode === 'addedge') {
+      const n = getNodeAt(x,y);
+      if (n) {
+        if (!selectedForEdge) {
+          selectedForEdge = n;
+        } else {
+          const weight = parseFloat(edgeWeightInput.value) || 1;
+          if (selectedForEdge.id === n.id) {
+            // self loop
+            addEdgeInternal(selectedForEdge.id, n.id, weight);
+          } else {
+            addEdgeInternal(selectedForEdge.id, n.id, weight);
+          }
+          selectedForEdge = null;
+          updateInfo();
+        }
+        draw();
+      }
+    } else if (mode === 'move') {
+      const n = getNodeAt(x,y);
+      if (n) {
+        draggingNode = n;
+        dragOffset.x = x - n.x;
+        dragOffset.y = y - n.y;
+        canvas.setPointerCapture(ev.pointerId);
+        canvas.style.cursor = 'grabbing';
+      }
+    } else if (mode === 'delete') {
+      // check node first
+      const n = getNodeAt(x,y);
+      if (n) {
+        // remove node and incident edges
+        nodes = nodes.filter(nd => nd.id !== n.id);
+        edges = edges.filter(e => e.from !== n.id && e.to !== n.id);
+        updateInfo(); draw(); return;
+      }
+      // else check nearest edge within tolerance
+      const hit = findEdgeNear(x,y, 8);
+      if (hit) {
+        if (isDirected) {
+          // remove single edge
+          edges = edges.filter(e => !(e.from===hit.from && e.to===hit.to));
+        } else {
+          // remove both directions between these nodes
+          edges = edges.filter(e => !( (e.from===hit.from && e.to===hit.to) || (e.from===hit.to && e.to===hit.from) ));
+        }
+        updateInfo(); draw();
+      }
+    }
+  });
+
+  canvas.addEventListener('pointermove', (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left);
+    const y = (ev.clientY - rect.top);
+    if (draggingNode) {
+      draggingNode.x = x - dragOffset.x;
+      draggingNode.y = y - dragOffset.y;
+      draw();
+    }
+  });
+
+  canvas.addEventListener('pointerup', (ev) => {
+    if (draggingNode) {
+      draggingNode = null;
+      canvas.releasePointerCapture(ev.pointerId);
+      canvas.style.cursor = 'grab';
+      updateInfo();
+    }
+  });
+
+  // Clicking blank canvas in addedge mode should deselect source if clicking nowhere
+  canvas.addEventListener('dblclick', () => {
+    selectedForEdge = null; draw();
+  });
+
+  // Edge hit detection
+  function findEdgeNear(px,py, tol=6) {
+    // Return one edge {from,to} if within tol to any drawn segment/curve
+    // Check straight edges and curved pairs by sampling
+    for (const e of edges) {
+      const a = nodes.find(n => n.id===e.from);
+      const b = nodes.find(n => n.id===e.to);
+      if (!a || !b) continue;
+      if (a.id === b.id) {
+        // loop: approximate circle center
+        const cx = a.x+22, cy = a.y-22, r = 16;
+        const d = Math.abs(Math.hypot(px-cx, py-cy) - r);
+        if (d < tol) return {from:a.id, to:b.id};
+      } else {
+        const reciprocal = edges.find(x => x.from===b.id && x.to===a.id);
+        if (isDirected && reciprocal && e.from < e.to) {
+          // we drew two curves; sample points along each curve and check
+          const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+          const dist = Math.hypot(b.x-a.x, b.y-a.y);
+          const nx = -(b.y-a.y)/dist, ny = (b.x-a.x)/dist;
+          const offset = Math.min(60, dist/3)+12;
+          // first curve
+          for (let t=0.0;t<=1.0;t+=0.05) {
+            const pt = quadraticPoint(a.x + Math.cos(Math.atan2(b.y-a.y,b.x-a.x))*18, a.y + Math.sin(Math.atan2(b.y-a.y,b.x-a.x))*18, mx + nx*offset, my + ny*offset, b.x - Math.cos(Math.atan2(b.y-a.y,b.x-a.x))*18, b.y - Math.sin(Math.atan2(b.y-a.y,b.x-a.x))*18, t);
+            if (Math.hypot(pt.x-px, pt.y-py) < tol) return {from: e.from, to: e.to};
+          }
+          for (let t=0.0;t<=1.0;t+=0.05) {
+            const pt = quadraticPoint(a.x + Math.cos(Math.atan2(b.y-a.y,b.x-a.x))*18, a.y + Math.sin(Math.atan2(b.y-a.y,b.x-a.x))*18, mx - nx*offset, my - ny*offset, b.x - Math.cos(Math.atan2(b.y-a.y,b.x-a.x))*18, b.y - Math.sin(Math.atan2(b.y-a.y,b.x-a.x))*18, t);
+            if (Math.hypot(pt.x-px, pt.y-py) < tol) return {from: e.from, to: e.to};
+          }
+        } else {
+          // plain segment (or single of pair when e.from > e.to)
+          const angle = Math.atan2(b.y-a.y, b.x-a.x);
+          const sx = a.x + Math.cos(angle) * 18;
+          const sy = a.y + Math.sin(angle) * 18;
+          const ex = b.x - Math.cos(angle) * 18;
+          const ey = b.y - Math.sin(angle) * 18;
+          const d = pointToSegmentDistance({x:px,y:py},{x:sx,y:sy},{x:ex,y:ey});
+          if (d < tol) return {from: e.from, to: e.to};
+        }
+      }
+    }
+    return null;
+  }
+
+  function pointToSegmentDistance(p, v, w) {
+    // p and v,w are points {x,y}
+    const l2 = (v.x-w.x)*(v.x-w.x)+(v.y-w.y)*(v.y-w.y);
+    if (l2===0) return Math.hypot(p.x-v.x, p.y-v.y);
+    let t = ((p.x - v.x)*(w.x - v.x) + (p.y - v.y)*(w.y - v.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const proj = {x: v.x + t*(w.x-v.x), y: v.y + t*(w.y-v.y)};
+    return Math.hypot(p.x-proj.x, p.y-proj.y);
+  }
+
+  // Info & adjacency exporters
+  function buildAdjacency() {
+    const ids = nodes.map(n => n.id).sort((a,b)=>a-b);
+    const idIndex = new Map(ids.map((id,idx)=>[id,idx]));
+    const N = ids.length;
+    const matrix = Array.from({length:N}, ()=>Array(N).fill(0));
+    const list = {};
+    for (const id of ids) list[id] = [];
+    for (const e of edges) {
+      if (!idIndex.has(e.from) || !idIndex.has(e.to)) continue;
+      const i = idIndex.get(e.from), j = idIndex.get(e.to);
+      // For undirected view, show symmetric: but edges array may already contain symmetric entries
+      matrix[i][j] = e.weight;
+      list[e.from].push({to: e.to, w: e.weight});
+      if (!isDirected) {
+        // ensure symmetric in matrix/list display (if reverse missing, show same weight)
+        matrix[j][i] = Math.max(matrix[j][i], e.weight);
+        // add counterpart only if not already present
+        if (!list[e.to].some(x=>x.to===e.from)) list[e.to].push({to:e.from, w:e.weight});
+      }
+    }
+    return {ids, matrix, list};
+  }
+
+  function updateInfo() {
+    infoNodes.textContent = 'Nodes: ' + nodes.length;
+    // Count edges displayed (for undirected count unique pairs)
+    let edgeCount = 0;
+    if (isDirected) edgeCount = edges.length;
+    else {
+      const pairs = new Set();
+      for (const e of edges) {
+        const a = Math.min(e.from, e.to), b = Math.max(e.from, e.to);
+        pairs.add(`${a}-${b}`);
+      }
+      edgeCount = pairs.size;
+    }
+    infoEdges.textContent = 'Edges: ' + edgeCount;
+
+    const adj = buildAdjacency();
+    // Adjacency list as readable string
+    const listLines = adj.ids.map(id => {
+      const seg = adj.list[id].map(x => `${x.to}${(x.w!=null ? '('+x.w+')' : '')}`).join(', ');
+      return `${id}: [ ${seg} ]`;
+    }).join('\n');
+    adjListPre.textContent = listLines || '[]';
+
+    // Matrix display
+    const header = ['  ', ...adj.ids].join('\t');
+    const rows = adj.matrix.map((row, idx) => `${adj.ids[idx]}\t${row.map(v=>v||0).join('\t')}`).join('\n');
+    adjMatrixPre.textContent = header + '\n' + rows;
+  }
+
+  // Initialize with a small sample
+  (function initSample(){
+    addNode(120,120); addNode(260,80); addNode(320,220); addNode(160,260);
+    addEdgeInternal(0,1, 4);
+    addEdgeInternal(1,2, 2);
+    addEdgeInternal(2,0, 7);
+    addEdgeInternal(2,3, 1);
+    updateInfo();
+    draw();
+  })();
+
+  // Recompute on changes
+  function redrawAndUpdate() { draw(); updateInfo(); }
+  // Expose addEdgeInternal to canvas double click to finish if needed
+  // Keep UI responsive
+  // Final draw
+  draw();
+  updateInfo();
+
+  // Keyboard shortcut: Esc clears selectedForEdge
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { selectedForEdge = null; draw(); }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      // if in delete mode, allow deleting last node
+      if (mode === 'delete' && nodes.length) {
+        const last = nodes[nodes.length-1];
+        nodes = nodes.slice(0, -1);
+        edges = edges.filter(e => e.from !== last.id && e.to !== last.id);
+        updateInfo(); draw();
+      }
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

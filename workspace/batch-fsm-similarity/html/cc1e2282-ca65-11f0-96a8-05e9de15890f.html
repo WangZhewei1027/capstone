@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Depth-First Search (DFS) Visualizer</title>
+<style>
+  :root{
+    --bg:#0f1724;
+    --panel:#0b1220;
+    --accent:#3b82f6;
+    --muted:#94a3b8;
+    --card:#0f172c;
+    --ok:#16a34a;
+    --danger:#ef4444;
+    --edge:#6b7280;
+    --text:#e6eef8;
+  }
+  html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  body{background:linear-gradient(180deg,#061029 0%, #071220 100%); color:var(--text); display:flex; flex-direction:column; align-items:center; gap:12px; padding:18px;}
+  h1{margin:0;font-size:20px;letter-spacing:0.2px;}
+  .container{width:1100px; max-width:calc(100vw - 36px); display:grid; grid-template-columns: 720px 1fr; gap:14px;}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%); border:1px solid rgba(255,255,255,0.04); border-radius:10px; padding:12px; box-sizing:border-box;}
+  .left{height:640px; display:flex; flex-direction:column; gap:10px;}
+  #canvasWrap{flex:1; background:transparent; border-radius:8px; display:flex; align-items:center; justify-content:center; position:relative; min-height:0;}
+  svg{width:100%; height:100%; overflow:visible; touch-action:none;}
+  .controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .controls > *{font-size:13px;}
+  button, select, input[type="number"], input[type="range"]{background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--text); padding:6px 8px; border-radius:6px;}
+  button:hover{border-color:rgba(255,255,255,0.12);}
+  .small{font-size:12px;padding:6px;}
+  .panel{display:flex; flex-direction:column; gap:8px;}
+  .right{height:640px; overflow:auto;}
+  .legend{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .chip{display:inline-flex; gap:6px; align-items:center; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); font-size:13px;}
+  .chip .sw{width:14px; height:14px; border-radius:3px;}
+  #info{font-size:13px; color:var(--muted); line-height:1.3;}
+  .adj{font-family:monospace; font-size:13px; color:var(--muted); white-space:pre; overflow:auto; max-height:180px;}
+  .stackBox{font-family:monospace; background:rgba(255,255,255,0.02); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.03);}
+  .times{display:flex; gap:8px; flex-wrap:wrap;}
+  .nodeLabel{font-size:12px; fill:var(--text); pointer-events:none; text-anchor:middle; dominant-baseline:middle;}
+  .edgeLabel{font-size:12px; fill:var(--muted); pointer-events:none;}
+  .smallText{font-size:12px;color:var(--muted);}
+  .footer{display:flex; justify-content:space-between; align-items:center; gap:12px;margin-top:6px;}
+  .logo{font-weight:600; color:var(--muted); font-size:13px;}
+  input[type="color"]{padding:2px;border-radius:6px;}
+  .hint{font-size:12px;color:var(--muted);}
+  .btnPrimary{background:linear-gradient(180deg,var(--accent), #1e63d6);border:none;padding:8px 10px;border-radius:8px;color:white;font-weight:600;}
+  .btnDanger{background:linear-gradient(180deg,#ef4444,#c92b2b);border:none;padding:6px 8px;border-radius:8px;color:white;}
+  .controlsGroup{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
+  .nodeCircle{cursor:pointer; stroke:#111827; stroke-width:1.5px;}
+  .edgeLine{stroke-width:2.2px; stroke-linecap:round;}
+  .edgeArrow{fill:currentColor;}
+  /* responsive */
+  @media (max-width:1000px){ .container{grid-template-columns:1fr; } .left{order:1} .right{order:2} }
+</style>
+</head>
+<body>
+  <div style="width:100%; max-width:1100px; display:flex; justify-content:space-between; align-items:center;">
+    <h1>Depth-First Search (DFS) Visualizer</h1>
+    <div class="logo">Interactive demonstration — step, play, inspect edges</div>
+  </div>
+
+  <div class="container">
+    <div class="card left">
+      <div class="controls">
+        <div class="controlsGroup">
+          <label class="smallText">Mode:</label>
+          <select id="mode">
+            <option value="recursive">Recursive (generator)</option>
+            <option value="iterative">Iterative (explicit stack)</option>
+          </select>
+          <label class="smallText">Directed:</label>
+          <select id="directed">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+
+        <div class="controlsGroup">
+          <label class="smallText">Nodes:</label>
+          <input id="nodeCount" type="number" value="8" min="2" max="20" style="width:66px"/>
+          <label class="smallText">Density:</label>
+          <input id="density" type="range" min="0" max="1" step="0.05" value="0.25"/>
+          <button id="randomize" class="small">Random graph</button>
+        </div>
+
+        <div class="controlsGroup">
+          <label class="smallText">Start:</label>
+          <select id="startNode"></select>
+          <button id="run" class="btnPrimary">Run</button>
+          <button id="stepBtn">Step</button>
+          <button id="playBtn" class="small">Play</button>
+          <button id="pauseBtn" class="small">Pause</button>
+          <button id="resetBtn" class="small">Reset</button>
+        </div>
+
+        <div class="controlsGroup">
+          <label class="smallText">Speed:</label>
+          <input id="speed" type="range" min="100" max="2000" step="50" value="600"/>
+          <span class="smallText" id="speedLabel">600 ms</span>
+        </div>
+      </div>
+
+      <div id="canvasWrap">
+        <svg id="svg" viewBox="0 0 720 560" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div class="legend">
+          <div class="chip"><div class="sw" style="background:#ffffff;border:1px solid #94a3b8"></div> White (unvisited)</div>
+          <div class="chip"><div class="sw" style="background:#f59e0b"></div> Gray (discovered)</div>
+          <div class="chip"><div class="sw" style="background:#10b981"></div> Black (finished)</div>
+          <div class="chip"><div class="sw" style="background:#9ca3ff"></div> Tree edge</div>
+          <div class="chip"><div class="sw" style="background:#ef4444"></div> Back edge</div>
+          <div class="chip"><div class="sw" style="background:#06b6d4"></div> Forward edge</div>
+          <div class="chip"><div class="sw" style="background:#f97316"></div> Cross edge</div>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div class="hint">Click a node to drag. Shift+click two nodes to toggle an edge between them.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card right">
+      <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+        <div style="flex:1;">
+          <h3 style="margin:6px 0 4px 0">Status & Data</h3>
+          <div id="info">Press "Random graph" or create nodes/edges, choose start node and press Run. Use Step/Play to watch DFS explore the graph. The panel shows discovery/finish times, current stack, adjacency list and edge classifications.</div>
+        </div>
+        <div style="width:220px;">
+          <h3 style="margin:6px 0 4px 0">Execution</h3>
+          <div class="times">
+            <div class="stackBox" id="stackView">Stack: []</div>
+            <div class="stackBox" id="timeView">Time: 0</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:10px;">
+        <div style="flex:1;">
+          <h4 style="margin:6px 0">Discovery & Finish Times</h4>
+          <div id="timesList" class="adj">-</div>
+        </div>
+        <div style="width:260px;">
+          <h4 style="margin:6px 0">Adjacency List</h4>
+          <div id="adjList" class="adj">-</div>
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <button id="clearEdges" class="small">Clear Edges</button>
+            <button id="clearNodes" class="small">Clear Nodes</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <h4 style="margin:6px 0">Edge Classifications (so far)</h4>
+        <div id="edgeClasses" class="adj">-</div>
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <button id="explainBtn" class="small">Show explanation</button>
+        <div id="explainText" class="smallText" style="flex:1; display:none;">
+          Depth-First Search (DFS) is an algorithm for traversing or searching graph structures. It explores as far along each branch before backtracking. Time complexity is O(V+E). Use recursion or an explicit stack to implement it.
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="smallText">Edge types are determined using discovery/finish times: tree/back/forward/cross (for directed graphs). For undirected graphs, cross/forward edges are less meaningful.</div>
+        <div class="smallText">Built for demonstration — single-file.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/*
+  DFS Visualizer
+  - Single-file interactive demo
+  - Supports recursive (generator-based) and iterative DFS
+  - Visualizes node colors, discovery/finish times, stack, and edge classifications
+  - Simple graph editor: Shift+click two nodes to toggle an edge between them; drag nodes
+*/
+
+(() => {
+  // Utilities
+  const svg = document.getElementById('svg');
+  const NS = "http://www.w3.org/2000/svg";
+  const WIDTH = 720, HEIGHT = 560;
+  svg.setAttribute('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
+
+  let nodes = [], edges = []; // edges: {u,v,directed}
+  let dragging = null, dragOffset = {x:0,y:0};
+  let selectedForEdge = null;
+
+  // DOM controls
+  const nodeCountInput = document.getElementById('nodeCount');
+  const densityInput = document.getElementById('density');
+  const randomizeBtn = document.getElementById('randomize');
+  const directedSelect = document.getElementById('directed');
+  const startSelect = document.getElementById('startNode');
+  const runBtn = document.getElementById('run');
+  const stepBtn = document.getElementById('stepBtn');
+  const playBtn = document.getElementById('playBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const modeSelect = document.getElementById('mode');
+  const speedInput = document.getElementById('speed');
+  const speedLabel = document.getElementById('speedLabel');
+  const timesList = document.getElementById('timesList');
+  const adjList = document.getElementById('adjList');
+  const edgeClassesDiv = document.getElementById('edgeClasses');
+  const stackView = document.getElementById('stackView');
+  const timeView = document.getElementById('timeView');
+  const clearEdgesBtn = document.getElementById('clearEdges');
+  const clearNodesBtn = document.getElementById('clearNodes');
+  const explainBtn = document.getElementById('explainBtn');
+  const explainText = document.getElementById('explainText');
+
+  speedInput.addEventListener('input', ()=> speedLabel.textContent = `${speedInput.value} ms`);
+
+  // Graph drawing helpers
+  function createNode(id, x, y){
+    return {id, x, y, r:18};
+  }
+  function addNode(x,y){
+    const id = nodes.length;
+    nodes.push(createNode(id, x, y));
+    rebuildStartSelect();
+    render();
+  }
+  function removeAllNodes(){
+    nodes = [];
+    edges = [];
+    render();
+  }
+  function clearEdges(){
+    edges = [];
+    render();
+  }
+  function toggleEdge(u,v){
+    // check if exists (for directed graph consider either orientation for undirected)
+    const d = isDirected();
+    const found = edges.findIndex(e => e.u===u && e.v===v && e.directed===d);
+    if(found >= 0){
+      edges.splice(found,1);
+    } else {
+      // if undirected, ensure not duplicate both directions
+      if(!d){
+        // remove any existing undirected between these two
+        const existing = edges.findIndex(e => !e.directed && ((e.u===u && e.v===v) || (e.u===v && e.v===u)));
+        if(existing >= 0) return;
+      }
+      edges.push({u,v,directed:d});
+    }
+    render();
+  }
+  function isDirected(){ return directedSelect.value === "true"; }
+
+  // Layout: place nodes in a circle by default
+  function createRandomGraph(n,density){
+    nodes = [];
+    edges = [];
+    const cx = WIDTH/2, cy = HEIGHT/2;
+    const R = Math.min(WIDTH, HEIGHT)/2 - 60;
+    for(let i=0;i<n;i++){
+      const angle = (i/n) * Math.PI*2;
+      const jitter = (Math.random()*0.6 - 0.3) * 30;
+      const x = cx + (R + jitter) * Math.cos(angle);
+      const y = cy + (R + jitter) * Math.sin(angle);
+      nodes.push(createNode(i,x,y));
+    }
+    // Add edges based on density
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        if(i===j) continue;
+        if(Math.random() < density){
+          if(isDirected()){
+            edges.push({u:i,v:j,directed:true});
+          } else {
+            // undirected, add only once for i<j
+            if(i<j) edges.push({u:i,v:j,directed:false});
+          }
+        }
+      }
+    }
+    rebuildStartSelect();
+    render();
+  }
+
+  // Build adjacency list representation based on directed or not
+  function buildAdjacency(){
+    const n = nodes.length;
+    const adj = Array.from({length:n}, ()=>[]);
+    for(const e of edges){
+      adj[e.u].push(e.v);
+      if(!e.directed){
+        adj[e.v].push(e.u);
+      }
+    }
+    // sort neighbors for deterministic traversal
+    for(let i=0;i<n;i++){
+      adj[i].sort((a,b)=>a-b);
+    }
+    return adj;
+  }
+
+  // Rendering
+  function clearSVG(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+  }
+
+  function render(){
+    clearSVG();
+    const adj = buildAdjacency();
+    // draw arrow marker defs
+    const defs = document.createElementNS(NS,'defs');
+    const marker = document.createElementNS(NS,'marker');
+    marker.setAttribute('id','arrow');
+    marker.setAttribute('markerWidth','8');
+    marker.setAttribute('markerHeight','8');
+    marker.setAttribute('refX','8');
+    marker.setAttribute('refY','3');
+    marker.setAttribute('orient','auto');
+    marker.setAttribute('markerUnits','strokeWidth');
+    const path = document.createElementNS(NS,'path');
+    path.setAttribute('d','M0,0 L6,3 L0,6 z');
+    path.setAttribute('fill','#ffffff');
+    marker.appendChild(path);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    // draw edges (base)
+    edges.forEach((e,idx) => {
+      const u = nodes[e.u], v = nodes[e.v];
+      if(!u || !v) return;
+      // compute line endpoints offset from circle
+      const dx = v.x - u.x, dy = v.y - u.y;
+      const len = Math.hypot(dx,dy) || 1;
+      const ux = dx/len, uy = dy/len;
+      const startX = u.x + ux * u.r;
+      const startY = u.y + uy * u.r;
+      const endX = v.x - ux * v.r;
+      const endY = v.y - uy * v.r;
+
+      const g = document.createElementNS(NS,'g');
+      g.setAttribute('data-edge-idx', idx);
+
+      const line = document.createElementNS(NS,'line');
+      line.setAttribute('x1', startX);
+      line.setAttribute('y1', startY);
+      line.setAttribute('x2', endX);
+      line.setAttribute('y2', endY);
+      line.setAttribute('class','edgeLine');
+      line.setAttribute('stroke', '#8b95a6');
+      line.setAttribute('stroke-opacity', 0.9);
+      line.setAttribute('stroke-width', 2.2);
+      if(e.directed) {
+        line.setAttribute('marker-end', 'url(#arrow)');
+      }
+      g.appendChild(line);
+
+      // small label showing "u→v"
+      const mx = (startX+endX)/2, my = (startY+endY)/2;
+      const lbl = document.createElementNS(NS,'text');
+      lbl.setAttribute('x', mx + (-uy*8));
+      lbl.setAttribute('y', my + (ux*8));
+      lbl.setAttribute('class','edgeLabel');
+      lbl.textContent = `${e.u}→${e.v}`;
+      g.appendChild(lbl);
+
+      svg.appendChild(g);
+    });
+
+    // draw nodes
+    nodes.forEach((n) => {
+      const g = document.createElementNS(NS,'g');
+      g.setAttribute('transform', `translate(${n.x}, ${n.y})`);
+      g.setAttribute('data-node', n.id);
+
+      const circle = document.createElementNS(NS,'circle');
+      circle.setAttribute('r', n.r);
+      circle.setAttribute('class','nodeCircle');
+      circle.setAttribute('fill', '#ffffff');
+      circle.setAttribute('stroke', '#111827');
+      circle.setAttribute('stroke-width', '1.5');
+      circle.style.transition = 'fill 200ms, transform 100ms';
+      g.appendChild(circle);
+
+      const label = document.createElementNS(NS,'text');
+      label.setAttribute('class','nodeLabel');
+      label.textContent = n.id;
+      g.appendChild(label);
+
+      // event listeners for dragging & edge creation
+      g.addEventListener('mousedown', (ev) => {
+        ev.preventDefault();
+        const id = n.id;
+        if(ev.shiftKey){
+          // edge creation: select node or toggle edge if second selected
+          if(selectedForEdge === null){
+            selectedForEdge = id;
+            highlightNode(id, true);
+          } else if(selectedForEdge === id){
+            highlightNode(selectedForEdge, false);
+            selectedForEdge = null;
+          } else {
+            // toggle edge between selectedForEdge and id
+            toggleEdge(selectedForEdge, id);
+            highlightNode(selectedForEdge, false);
+            selectedForEdge = null;
+          }
+        } else {
+          dragging = id;
+          const pt = svgPoint(ev.clientX, ev.clientY);
+          dragOffset.x = n.x - pt.x;
+          dragOffset.y = n.y - pt.y;
+        }
+      });
+
+      g.addEventListener('dblclick', (ev) => {
+        // double click to remove node and incident edges
+        const id = n.id;
+        nodes = nodes.filter(no => no.id !== id).map((no,i) => ({...no, id:i}));
+        edges = edges.filter(e => e.u !== id && e.v !== id).map(e => {
+          // adjust indices down by 1 for nodes greater than removed id
+          const adj = (x) => x > id ? x-1 : x;
+          return {u:adj(e.u), v:adj(e.v), directed:e.directed};
+        });
+        rebuildStartSelect();
+        render();
+      });
+
+      svg.appendChild(g);
+    });
+
+    // attach mousemove/up to document for dragging
+    document.onmousemove = (ev) => {
+      if(dragging === null) return;
+      const pt = svgPoint(ev.clientX, ev.clientY);
+      const node = nodes.find(n => n.id === dragging);
+      if(!node) return;
+      node.x = Math.max(30, Math.min(WIDTH-30, pt.x + dragOffset.x));
+      node.y = Math.max(30, Math.min(HEIGHT-30, pt.y + dragOffset.y));
+      render(); // re-render edges/nodes positions
+    };
+    document.onmouseup = () => {
+      dragging = null;
+    };
+
+    updateInfoUI();
+  }
+
+  function highlightNode(id, on){
+    const el = svg.querySelector(`g[data-node="${id}"] circle`);
+    if(el) el.setAttribute('stroke', on ? '#f59e0b' : '#111827');
+  }
+
+  function svgPoint(clientX, clientY){
+    const pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    const ctm = svg.getScreenCTM().inverse();
+    const p = pt.matrixTransform(ctm);
+    return {x:p.x, y:p.y};
+  }
+
+  // DFS engine: produce a generator of step events to animate
+  function* dfsRecursive(start){
+    const n = nodes.length;
+    const adj = buildAdjacency();
+    const color = Array(n).fill('white');
+    const d = Array(n).fill(0), f = Array(n).fill(0);
+    let time = 0;
+    function* visit(u){
+      color[u] = 'gray'; time++; d[u]=time;
+      yield {type:'discover', node:u, time};
+      for(const v of adj[u]){
+        yield {type:'examine', u, v};
+        if(color[v] === 'white'){
+          yield {type:'edgeClass', u, v, cls:'tree'};
+          yield* visit(v);
+        } else if(color[v] === 'gray'){
+          yield {type:'edgeClass', u, v, cls:'back'};
+        } else { // black
+          // classify using d/f times
+          if(d[u] < d[v]) yield {type:'edgeClass', u, v, cls:'forward'};
+          else yield {type:'edgeClass', u, v, cls:'cross'};
+        }
+      }
+      color[u] = 'black'; time++; f[u]=time;
+      yield {type:'finish', node:u, time};
+    }
+
+    // Start at provided start; then continue with any remaining white nodes
+    if(start !== null) {
+      if(color[start] === 'white') yield* visit(start);
+    }
+    for(let u=0;u<n;u++){
+      if(color[u] === 'white') yield* visit(u);
+    }
+    yield {type:'done', d,f,time};
+  }
+
+  function* dfsIterative(start){
+    // We'll simulate an explicit stack of frames {u, iterIndex}
+    const n = nodes.length;
+    const adj = buildAdjacency();
+    const color = Array(n).fill('white');
+    const d = Array(n).fill(0), f = Array(n).fill(0);
+    let time = 0;
+    const stack = [];
+    function push(u){
+      stack.push({u, i:0});
+      color[u] = 'gray'; time++; d[u]=time;
+      return {type:'push', u, time, stack:[...stack.map(s=>s.u)]};
+    }
+    function pop(){
+      const frame = stack.pop();
+      color[frame.u] = 'black'; time++; f[frame.u]=time;
+      return {type:'pop', u:frame.u, time, stack:[...stack.map(s=>s.u)]};
+    }
+
+    if(start !== null){
+      if(color[start] === 'white'){
+        yield push(start);
+      }
+    }
+    // main loop
+    while(stack.length){
+      const top = stack[stack.length-1];
+      const u = top.u;
+      const neighbors = adj[u];
+      if(top.i < neighbors.length){
+        const v = neighbors[top.i++];
+        yield {type:'examine', u, v, stack:[...stack.map(s=>s.u)]};
+        if(color[v] === 'white'){
+          yield {type:'edgeClass', u, v, cls:'tree'};
+          yield push(v);
+        } else if(color[v] === 'gray'){
+          yield {type:'edgeClass', u, v, cls:'back'};
+        } else {
+          // black
+          if(d[u] < d[v]) yield {type:'edgeClass', u, v, cls:'forward'};
+          else yield {type:'edgeClass', u, v, cls:'cross'};
+        }
+      } else {
+        yield pop();
+      }
+    }
+
+    // continue with any remaining white nodes
+    for(let s=0;s<n;s++){
+      if(color[s] === 'white'){
+        yield push(s);
+        while(stack.length){
+          const top = stack[stack.length-1];
+          const u = top.u;
+          const neighbors = adj[u];
+          if(top.i < neighbors.length){
+            const v = neighbors[top.i++];
+            yield {type:'examine', u, v, stack:[...stack.map(s=>s.u)]};
+            if(color[v] === 'white'){
+              yield {type:'edgeClass', u, v, cls:'tree'};
+              yield push(v);
+            } else if(color[v] === 'gray'){
+              yield {type:'edgeClass', u, v, cls:'back'};
+            } else {
+              if(d[u] < d[v]) yield {type:'edgeClass', u, v, cls:'forward'};
+              else yield {type:'edgeClass', u, v, cls:'cross'};
+            }
+          } else {
+            yield pop();
+          }
+        }
+      }
+    }
+    yield {type:'done', d,f,time};
+  }
+
+  // Animation state
+  let animGen = null;
+  let automator = null;
+  let animState = {
+    colors: [], d:[], f:[], edgeClass: new Map(), stack:[]
+  };
+
+  function resetAnim(){
+    if(automator) { clearInterval(automator); automator = null; }
+    animGen = null;
+    animState = { colors: Array(nodes.length).fill('white'), d:Array(nodes.length).fill(0), f:Array(nodes.length).fill(0), edgeClass:new Map(), stack:[]};
+    updateUIFromState();
+    renderColorState();
+    edgeClassesDiv.textContent = '-';
+  }
+
+  function runDFS(startNodeIdx){
+    resetAnim();
+    const mode = modeSelect.value;
+    if(mode === 'recursive'){
+      animGen = dfsRecursive(startNodeIdx);
+    } else {
+      animGen = dfsIterative(startNodeIdx);
+    }
+    stepOnce(); // take first step
+  }
+
+  function stepOnce(){
+    if(!animGen) return;
+    const res = animGen.next();
+    if(res.done){
+      animGen = null;
+      return;
+    }
+    handleEvent(res.value);
+  }
+
+  function handleEvent(ev){
+    if(!ev) return;
+    switch(ev.type){
+      case 'discover':
+        animState.colors[ev.node] = 'gray';
+        animState.d[ev.node] = ev.time;
+        timeView.textContent = `Time: ${ev.time}`;
+        addLog(`Discover ${ev.node} (d=${ev.time})`);
+        break;
+      case 'finish':
+        animState.colors[ev.node] = 'black';
+        animState.f[ev.node] = ev.time;
+        timeView.textContent = `Time: ${ev.time}`;
+        addLog(`Finish ${ev.node} (f=${ev.time})`);
+        break;
+      case 'examine':
+        // highlight edge being examined temporarily
+        highlightEdge(ev.u, ev.v, '#ffffff', 3);
+        addLog(`Examine edge ${ev.u}→${ev.v}`);
+        break;
+      case 'edgeClass':
+        animState.edgeClass.set(`${ev.u}-${ev.v}`, ev.cls);
+        addLog(`Edge ${ev.u}→${ev.v} classified as ${ev.cls}`);
+        break;
+      case 'push':
+        animState.stack = ev.stack || [];
+        animState.colors[ev.u] = 'gray';
+        animState.d[ev.u] = ev.time;
+        timeView.textContent = `Time: ${ev.time}`;
+        addLog(`Push ${ev.u} onto stack`);
+        break;
+      case 'pop':
+        animState.stack = ev.stack || [];
+        animState.colors[ev.u] = 'black';
+        animState.f[ev.u] = ev.time;
+        timeView.textContent = `Time: ${ev.time}`;
+        addLog(`Pop ${ev.u} (finished)`);
+        break;
+      case 'done':
+        animState.d = ev.d; animState.f = ev.f;
+        addLog(`DFS complete. Time=${ev.time}`);
+        break;
+    }
+    updateUIFromState();
+    renderColorState();
+    renderEdgeClasses();
+  }
+
+  function highlightEdge(u,v,color, width=3){
+    // find matching edge element and color it briefly
+    const edgesEls = svg.querySelectorAll('g[data-edge-idx]');
+    edgesEls.forEach(g => {
+      const idx = +g.getAttribute('data-edge-idx');
+      const e = edges[idx];
+      if(!e) return;
+      if(e.u===u && e.v===v){
+        const line = g.querySelector('line');
+        if(line){
+          const prevCol = line.getAttribute('data-prev-stroke') || line.getAttribute('stroke');
+          line.setAttribute('data-prev-stroke', prevCol);
+          line.setAttribute('stroke', color);
+          line.setAttribute('stroke-width', width.toString());
+          setTimeout(()=> {
+            line.setAttribute('stroke', prevCol);
+            line.setAttribute('stroke-width', '2.2');
+          }, 400);
+        }
+      }
+    });
+  }
+
+  function renderColorState(){
+    // set node fill (white/gray/black) and show discovery/finish times
+    nodes.forEach(n => {
+      const g = svg.querySelector(`g[data-node="${n.id}"]`);
+      if(!g) return;
+      const circle = g.querySelector('circle');
+      const label = g.querySelector('text.nodeLabel') || g.querySelector('text');
+      const color = animState.colors[n.id] || 'white';
+      let fill = '#ffffff';
+      if(color === 'white') fill = '#ffffff';
+      if(color === 'gray') fill = '#f59e0b';
+      if(color === 'black') fill = '#10b981';
+      circle.setAttribute('fill', fill);
+      // show d/f small labels near node
+      // remove previous small time labels
+      const old = g.querySelectorAll('text.timeLabel');
+      old.forEach(x => x.remove());
+      const d = animState.d[n.id], f=animState.f[n.id];
+      if(d) {
+        const td = document.createElementNS(NS,'text');
+        td.setAttribute('x', 0);
+        td.setAttribute('y', -n.r - 10);
+        td.setAttribute('class','timeLabel');
+        td.setAttribute('font-size','11');
+        td.setAttribute('fill','#94a3b8');
+        td.setAttribute('text-anchor','middle');
+        td.textContent = `d=${d}`;
+        g.appendChild(td);
+      }
+      if(f){
+        const tf = document.createElementNS(NS,'text');
+        tf.setAttribute('x', 0);
+        tf.setAttribute('y', n.r + 14);
+        tf.setAttribute('class','timeLabel');
+        tf.setAttribute('font-size','11');
+        tf.setAttribute('fill','#94a3b8');
+        tf.setAttribute('text-anchor','middle');
+        tf.textContent = `f=${f}`;
+        g.appendChild(tf);
+      }
+    });
+  }
+
+  function renderEdgeClasses(){
+    // color edges by classification stored in animState.edgeClass
+    const edgesEls = svg.querySelectorAll('g[data-edge-idx]');
+    edgesEls.forEach(g => {
+      const idx = +g.getAttribute('data-edge-idx');
+      const e = edges[idx];
+      if(!e) return;
+      const cls = animState.edgeClass.get(`${e.u}-${e.v}`);
+      const line = g.querySelector('line');
+      let col = '#8b95a6';
+      if(cls === 'tree') col = '#9ca3ff';
+      if(cls === 'back') col = '#ef4444';
+      if(cls === 'forward') col = '#06b6d4';
+      if(cls === 'cross') col = '#f97316';
+      if(line) line.setAttribute('stroke', col);
+    });
+    updateEdgeClassesText();
+  }
+
+  // UI updates
+  function rebuildStartSelect(){
+    startSelect.innerHTML = '';
+    for(let i=0;i<nodes.length;i++){
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `Node ${i}`;
+      startSelect.appendChild(opt);
+    }
+  }
+  function updateInfoUI(){
+    // adjacency list
+    const n = nodes.length;
+    if(n === 0){
+      adjList.textContent = '-';
+      timesList.textContent = '-';
+      stackView.textContent = 'Stack: []';
+      timeView.textContent = 'Time: 0';
+      return;
+    }
+    const adj = buildAdjacency();
+    let s = '';
+    for(let i=0;i<n;i++){
+      s += `${i}: [${adj[i].join(', ')}]\n`;
+    }
+    adjList.textContent = s.trim();
+    // times display
+    let t = '';
+    for(let i=0;i<n;i++){
+      t += `${i}: d=${animState.d[i] || '-'} f=${animState.f[i] || '-'}\n`;
+    }
+    timesList.textContent = t.trim();
+  }
+  function updateUIFromState(){
+    updateInfoUI();
+    stackView.textContent = `Stack: [${animState.stack.join(', ')}]`;
+  }
+  function updateEdgeClassesText(){
+    if(animState.edgeClass.size === 0){
+      edgeClassesDiv.textContent = '-';
+      return;
+    }
+    let lines = [];
+    for(const [k,cls] of animState.edgeClass.entries()){
+      const [u,v] = k.split('-');
+      lines.push(`${u}→${v}: ${cls}`);
+    }
+    edgeClassesDiv.textContent = lines.join('\n');
+  }
+
+  // Logging small messages (append to info area temporarily)
+  function addLog(msg){
+    // Insert into info text briefly
+    const prev = document.getElementById('info');
+    if(prev){
+      prev.textContent = msg;
+      setTimeout(()=> {
+        prev.textContent = 'Press "Random graph" or create nodes/edges, choose start node and press Run. Use Step/Play to watch DFS explore the graph. The panel shows discovery/finish times, current stack, adjacency list and edge classifications.';
+      }, 2000);
+    }
+  }
+
+  // Controls wiring
+  randomizeBtn.addEventListener('click', ()=>{
+    const n = Math.max(2, Math.min(20, +nodeCountInput.value || 8));
+    const dens = +densityInput.value;
+    createRandomGraph(n,dens);
+    resetAnim();
+  });
+
+  runBtn.addEventListener('click', ()=>{
+    if(nodes.length === 0) { alert("No nodes to run DFS on."); return; }
+    const start = +startSelect.value;
+    runDFS(start);
+  });
+
+  stepBtn.addEventListener('click', ()=>{
+    if(!animGen){
+      // if none, start fresh from selected start
+      if(nodes.length === 0) return;
+      const start = +startSelect.value;
+      runDFS(start);
+      return;
+    }
+    stepOnce();
+  });
+
+  playBtn.addEventListener('click', ()=>{
+    if(!animGen){
+      if(nodes.length === 0) return;
+      const start = +startSelect.value;
+      runDFS(start);
+    }
+    if(automator) return;
+    automator = setInterval(() => {
+      if(!animGen){ clearInterval(automator); automator=null; return; }
+      stepOnce();
+    }, +speedInput.value);
+  });
+
+  pauseBtn.addEventListener('click', ()=>{
+    if(automator) { clearInterval(automator); automator=null; }
+  });
+
+  resetBtn.addEventListener('click', ()=>{
+    resetAnim();
+  });
+
+  directedSelect.addEventListener('change', ()=>{
+    // rebuilding edges to keep directed flag consistent (simple approach: remove edges when toggling)
+    // Instead, when switching to directed, keep edges but mark directed true; when switching to undirected, collapse duplicates.
+    const newDirected = isDirected();
+    if(newDirected){
+      edges = edges.map(e => ({...e, directed:true}));
+    } else {
+      // collapse to single undirected edges (u<v)
+      const s = new Set();
+      const ne = [];
+      edges.forEach(e=>{
+        const a = Math.min(e.u,e.v), b=Math.max(e.u,e.v);
+        const key = `${a}-${b}`;
+        if(!s.has(key)){
+          s.add(key);
+          ne.push({u:a,v:b,directed:false});
+        }
+      });
+      edges = ne;
+    }
+    render();
+    resetAnim();
+  });
+
+  clearEdgesBtn.addEventListener('click', ()=> { clearEdges(); resetAnim(); });
+  clearNodesBtn.addEventListener('click', ()=> { removeAllNodes(); rebuildStartSelect(); resetAnim(); });
+
+  explainBtn.addEventListener('click', ()=> {
+    explainText.style.display = explainText.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // Initial graph
+  createRandomGraph(8, 0.25);
+  resetAnim();
+
+  // Explanatory summary on load
+  // Provide keyboard shortcuts: space = step
+  window.addEventListener('keydown', (ev) => {
+    if(ev.code === 'Space') { ev.preventDefault(); stepBtn.click(); }
+  });
+
+  // Resize handling
+  window.addEventListener('resize', () => {
+    // nothing special since svg is responsive
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Adjacency Matrix Explorer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root{
+    --bg:#f6f8fa; --panel:#ffffff; --muted:#666; --accent:#0b78d1; --accent-2:#0b9bd1;
+    --ok:#198754; --danger:#d9534f;
+  }
+  html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); color:#111}
+  header{padding:14px 18px; display:flex; gap:12px; align-items:center; background:linear-gradient(90deg,#fff,#f7fbff); box-shadow:0 1px 0 rgba(0,0,0,0.05)}
+  header h1{font-size:18px;margin:0}
+  main{display:grid; grid-template-columns:420px 1fr 360px; gap:14px; padding:16px; align-items:start}
+  .panel{background:var(--panel); border-radius:10px; padding:12px; box-shadow:0 6px 18px rgba(20,30,50,0.06)}
+  .controls{display:flex; flex-direction:column; gap:10px}
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  label{font-size:13px; color:var(--muted)}
+  input[type=number], select, button, input[type=range]{font-size:13px; padding:6px 8px; border-radius:6px; border:1px solid #ddd; background:white}
+  button{cursor:pointer; border:none; background:var(--accent); color:white; padding:8px 10px}
+  button.ghost{background:transparent; color:var(--accent); border:1px solid #e1efff}
+  button.warn{background:var(--danger)}
+  .small{font-size:12px; padding:6px 8px}
+  .matrixWrap{overflow:auto; max-height:360px; border:1px dashed #eee; padding:8px; border-radius:8px}
+  table.matrix{border-collapse:collapse; font-family:monospace; font-size:13px}
+  table.matrix th, table.matrix td{border:1px solid #eee; padding:6px 8px; min-width:34px; text-align:center}
+  table.matrix th{background:#fbfdff; font-weight:600}
+  td.clickable{cursor:pointer}
+  td.loopCell{background:#fff7e6}
+  .vizWrap{display:flex; flex-direction:column; gap:8px}
+  svg{width:100%; height:520px; background:linear-gradient(180deg,#fbfdff,#ffffff)}
+  .rightPanel{display:flex; flex-direction:column; gap:10px}
+  pre{background:#0b1720; color:#bcd; padding:8px; border-radius:6px; margin:0; overflow:auto}
+  .muted{color:var(--muted); font-size:13px}
+  .stats{display:flex; gap:10px; flex-wrap:wrap}
+  .stat{background:#f7fbff; padding:8px 10px; border-radius:8px; font-size:13px}
+  .footer{padding:10px 16px; font-size:13px; color:var(--muted)}
+  a.link{color:var(--accent)}
+  .adjList{font-family:system-ui; font-size:13px}
+  .controls small{color:var(--muted)}
+  .help{font-size:13px; color:var(--muted); margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Adjacency Matrix Explorer</h1>
+  <div class="muted">Interactive visualizer: create matrices, toggle edges, see graph & adjacency list.</div>
+</header>
+
+<main>
+  <!-- Left: controls & matrix -->
+  <section class="panel">
+    <div class="controls">
+      <div class="row">
+        <label>Nodes:</label>
+        <input id="nodeCount" type="number" min="1" max="50" value="6" style="width:72px" />
+        <button id="addNode" class="small">Add</button>
+        <button id="removeNode" class="small ghost">Remove</button>
+        <label style="margin-left:8px"><input id="directed" type="checkbox" /> Directed</label>
+        <label><input id="weighted" type="checkbox" /> Weighted</label>
+      </div>
+
+      <div class="row">
+        <label>Randomize:</label>
+        <input id="prob" type="range" min="0" max="100" value="30" style="width:160px" />
+        <span id="probLabel" class="muted">30%</span>
+        <button id="randBtn" class="small ghost">Generate</button>
+        <button id="clearBtn" class="small warn">Clear</button>
+      </div>
+
+      <div class="row">
+        <button id="exportBtn" class="small">Export JSON</button>
+        <button id="importBtn" class="small ghost">Import JSON</button>
+        <button id="sampleBtn" class="small">Load Example</button>
+      </div>
+
+      <div class="help">Click cells in the matrix to toggle edges. If "Weighted" is on, clicking a cell will prompt for a numeric weight. In undirected mode the matrix is kept symmetric.</div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid #eef;margin:10px 0" />
+
+    <div class="matrixWrap panel" style="padding:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+        <strong>Adjacency Matrix</strong>
+        <div class="muted">Rows = from, Cols = to</div>
+      </div>
+      <div id="matrixContainer"></div>
+    </div>
+
+  </section>
+
+  <!-- Middle: visualization -->
+  <section class="panel vizWrap">
+    <div style="display:flex; justify-content:space-between; align-items:center">
+      <div><strong>Graph Visualization</strong><div class="muted" style="font-size:13px">Click edges on the SVG to toggle (or click matrix cells)</div></div>
+      <div class="stats">
+        <div class="stat">Nodes: <span id="statNodes">0</span></div>
+        <div class="stat">Edges: <span id="statEdges">0</span></div>
+        <div class="stat">Self-loops: <span id="statLoops">0</span></div>
+      </div>
+    </div>
+
+    <svg id="svgCanvas" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid meet"></svg>
+
+    <div class="muted">Tip: drag the window to resize the visualization. Node labels are A..Z then numbers.</div>
+  </section>
+
+  <!-- Right: adjacency list & properties -->
+  <aside class="panel rightPanel">
+    <div>
+      <strong>Adjacency List</strong>
+      <div id="adjList" class="adjList muted" style="margin-top:8px"></div>
+    </div>
+
+    <div>
+      <strong>Matrix Info</strong>
+      <div style="margin-top:8px" id="matrixInfo" class="muted"></div>
+    </div>
+
+    <div>
+      <strong>Actions / Utilities</strong>
+      <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap">
+        <button id="symCheck" class="small ghost">Check Symmetry</button>
+        <button id="degCalc" class="small">Compute Degrees</button>
+        <button id="floydWarshall" class="small ghost">Shortest paths (Floyd)</button>
+      </div>
+      <div id="utilityOutput" style="margin-top:8px"></div>
+    </div>
+  </aside>
+</main>
+
+<div class="footer panel" style="margin:16px">
+  This small tool demonstrates the adjacency matrix representation of graphs. The matrix cells represent edges (row = source, column = target). Undirected graphs keep the matrix symmetric. Directed graphs may have asymmetric entries. Weighted edges store numbers & influence edge thickness in the drawing.
+</div>
+
+<script>
+// Utility / state
+let n = 6;
+let directed = false;
+let weighted = false;
+let matrix = [];
+const svg = document.getElementById('svgCanvas');
+
+function initMatrix(size){
+  matrix = Array.from({length:size}, () => Array.from({length:size}, ()=>0));
+  n = size;
+  document.getElementById('nodeCount').value = size;
+  drawAll();
+}
+
+function labelFor(i){
+  if(i < 26) return String.fromCharCode(65 + i); // A-Z
+  return (i+1).toString();
+}
+
+// UI hooks
+document.getElementById('nodeCount').addEventListener('change', e=>{
+  let v = parseInt(e.target.value) || 1;
+  v = Math.max(1, Math.min(50, v));
+  if(v > n) {
+    // extend
+    for(let i=0;i<v-n;i++){
+      matrix.push(Array.from({length:n}, ()=>0));
+      n++;
+      for(let r=0;r<n;r++) if(matrix[r].length < n) matrix[r].push(0);
+    }
+  } else if(v < n) {
+    matrix = matrix.slice(0,v).map(r=>r.slice(0,v));
+    n = v;
+  }
+  drawAll();
+});
+document.getElementById('addNode').addEventListener('click', ()=>{
+  let newSize = n+1;
+  for(let r=0;r<n;r++) matrix[r].push(0);
+  matrix.push(Array.from({length:newSize}, ()=>0));
+  n = newSize;
+  document.getElementById('nodeCount').value = n;
+  drawAll();
+});
+document.getElementById('removeNode').addEventListener('click', ()=>{
+  if(n <= 1) return;
+  matrix = matrix.slice(0,n-1).map(r=>r.slice(0,n-1));
+  n--;
+  document.getElementById('nodeCount').value = n;
+  drawAll();
+});
+document.getElementById('directed').addEventListener('change', e=>{
+  directed = e.target.checked;
+  drawAll();
+});
+document.getElementById('weighted').addEventListener('change', e=>{
+  weighted = e.target.checked;
+  drawAll();
+});
+
+document.getElementById('prob').addEventListener('input', e=>{
+  document.getElementById('probLabel').textContent = e.target.value + '%';
+});
+document.getElementById('randBtn').addEventListener('click', ()=>{
+  const p = parseInt(document.getElementById('prob').value)/100;
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      if(i===j) {
+        // occasionally allow loops
+        matrix[i][j] = Math.random() < (p*0.15) ? (weighted ? Math.round(Math.random()*9)+1 : 1) : 0;
+      } else {
+        if(Math.random() < p) {
+          matrix[i][j] = weighted ? Math.round(Math.random()*9)+1 : 1;
+        } else matrix[i][j] = 0;
+      }
+    }
+  }
+  if(!directed) {
+    // symmetrize
+    for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+      matrix[j][i] = matrix[i][j] = (matrix[i][j] || matrix[j][i]) ? (weighted ? Math.max(matrix[i][j], matrix[j][i]) : 1) : 0;
+    }
+  }
+  drawAll();
+});
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++) matrix[i][j]=0;
+  drawAll();
+});
+
+// export/import
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const data = {n, directed, weighted, matrix};
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'adjacency_matrix.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = ()=>{
+    const file = input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const o = JSON.parse(reader.result);
+        if(!o.matrix || !Array.isArray(o.matrix)) throw new Error('Invalid file');
+        matrix = o.matrix;
+        n = matrix.length;
+        directed = !!o.directed;
+        weighted = !!o.weighted;
+        document.getElementById('directed').checked = directed;
+        document.getElementById('weighted').checked = weighted;
+        document.getElementById('nodeCount').value = n;
+        drawAll();
+      }catch(err){
+        alert('Failed to parse: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+});
+
+document.getElementById('sampleBtn').addEventListener('click', ()=>{
+  // small example with weights
+  n = 7;
+  matrix = [
+    [0,1,0,0,0,0,0],
+    [1,0,3,0,0,0,0],
+    [0,3,0,2,0,0,0],
+    [0,0,2,0,1,0,0],
+    [0,0,0,1,0,4,0],
+    [0,0,0,0,4,0,5],
+    [0,0,0,0,0,5,0]
+  ];
+  directed = false; weighted = true;
+  document.getElementById('nodeCount').value = n;
+  document.getElementById('directed').checked = directed;
+  document.getElementById('weighted').checked = weighted;
+  drawAll();
+});
+
+// matrix rendering & interactivity
+function buildMatrixTable(){
+  const container = document.getElementById('matrixContainer');
+  container.innerHTML = '';
+  const tbl = document.createElement('table');
+  tbl.className = 'matrix';
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  headerRow.appendChild(document.createElement('th')); // top-left empty
+  for(let j=0;j<n;j++){
+    const th = document.createElement('th');
+    th.textContent = labelFor(j);
+    headerRow.appendChild(th);
+  }
+  thead.appendChild(headerRow);
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  for(let i=0;i<n;i++){
+    const tr = document.createElement('tr');
+    const th = document.createElement('th'); th.textContent = labelFor(i);
+    tr.appendChild(th);
+    for(let j=0;j<n;j++){
+      const td = document.createElement('td');
+      td.className = 'clickable' + (i===j ? ' loopCell': '');
+      td.dataset.r = i; td.dataset.c = j;
+      td.addEventListener('click', onMatrixCellClick);
+      td.textContent = matrix[i][j];
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
+  container.appendChild(tbl);
+}
+
+function onMatrixCellClick(e){
+  const r = Number(this.dataset.r), c = Number(this.dataset.c);
+  if(weighted){
+    const val = prompt('Enter numeric weight (0 to remove):', String(matrix[r][c] || '1'));
+    if(val === null) return;
+    const num = Number(val);
+    if(isNaN(num)) return alert('Please enter a number.');
+    if(!directed && r!==c){
+      matrix[r][c] = matrix[c][r] = num;
+    } else {
+      matrix[r][c] = num;
+    }
+  } else {
+    // toggle 0/1
+    if(!directed && r!==c){
+      const set = matrix[r][c] ? 0 : 1;
+      matrix[r][c] = matrix[c][r] = set;
+    } else {
+      matrix[r][c] = matrix[r][c] ? 0 : 1;
+    }
+  }
+  drawAll();
+}
+
+// drawing graph in SVG
+function drawAll(){
+  buildMatrixTable();
+  renderSVG();
+  updateAdjList();
+  updateStats();
+  updateMatrixInfo();
+}
+
+function renderSVG(){
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  const W = svg.viewBox.baseVal.width || 800;
+  const H = svg.viewBox.baseVal.height || 520;
+  const cx = W/2, cy = H/2;
+  const radius = Math.min(W,H)/2 - 80;
+  const nodes = [];
+  for(let i=0;i<n;i++){
+    const angle = (i/n) * Math.PI*2 - Math.PI/2;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    nodes.push({x,y});
+  }
+
+  // arrow marker for directed edges
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  const marker = document.createElementNS('http://www.w3.org/2000/svg','marker');
+  marker.setAttribute('id','arrowhead');
+  marker.setAttribute('markerWidth','10');
+  marker.setAttribute('markerHeight','7');
+  marker.setAttribute('refX','10');
+  marker.setAttribute('refY','3.5');
+  marker.setAttribute('orient','auto');
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('d','M0,0 L10,3.5 L0,7 z');
+  path.setAttribute('fill', '#333');
+  marker.appendChild(path); defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  // edges group (below nodes)
+  const edgesG = document.createElementNS('http://www.w3.org/2000/svg','g');
+  edgesG.setAttribute('class','edges');
+  svg.appendChild(edgesG);
+
+  // For undirected graphs draw i<j edges to avoid duplicates
+  const edgeList = [];
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      const val = matrix[i][j];
+      if(!val) continue;
+      if(!directed && j < i) continue; // skip duplicate
+      edgeList.push({i,j,w:val});
+    }
+  }
+
+  edgeList.forEach((e, idx)=>{
+    const a = nodes[e.i], b = nodes[e.j];
+    if(e.i === e.j){
+      // self-loop: draw a circular loop
+      const loop = document.createElementNS('http://www.w3.org/2000/svg','path');
+      const loopR = 22 + Math.min(30, Math.abs(e.w || 0)*2);
+      const startX = a.x, startY = a.y - 8;
+      const d = `M ${startX} ${startY} C ${startX - loopR} ${startY - loopR}, ${startX + loopR} ${startY - loopR}, ${startX} ${startY}`;
+      loop.setAttribute('d', d);
+      loop.setAttribute('fill','none');
+      loop.setAttribute('stroke','#333');
+      loop.setAttribute('stroke-width', Math.max(1, (e.w || 1)));
+      loop.style.cursor = 'pointer';
+      loop.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        toggleEdge(e.i, e.j);
+      });
+      edgesG.appendChild(loop);
+
+      // weight label
+      if(weighted){
+        const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+        lbl.textContent = e.w;
+        lbl.setAttribute('x', a.x + 6);
+        lbl.setAttribute('y', a.y - loopR - 8);
+        lbl.setAttribute('font-size','12');
+        lbl.setAttribute('fill','#333');
+        edgesG.appendChild(lbl);
+      }
+      return;
+    }
+
+    // for non-self edges: draw line/curve
+    // To avoid overlapping when both (i,j) and (j,i) exist in directed graph, draw a slight arc
+    let line;
+    if(directed && matrix[e.j] && matrix[e.j][e.i]){
+      // both directions exist -> draw curved arc for unique orientation
+      const mx = (a.x + b.x)/2;
+      const my = (a.y + b.y)/2;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx,dy);
+      const nx = -dy/len, ny = dx/len; // normal
+      const arcOffset = 18;
+      const cx1 = mx + nx * arcOffset;
+      const cy1 = my + ny * arcOffset;
+      const d = `M ${a.x} ${a.y} Q ${cx1} ${cy1} ${b.x} ${b.y}`;
+      line = document.createElementNS('http://www.w3.org/2000/svg','path');
+      line.setAttribute('d', d);
+    } else {
+      // straight line
+      line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', a.x);
+      line.setAttribute('y1', a.y);
+      line.setAttribute('x2', b.x);
+      line.setAttribute('y2', b.y);
+    }
+    line.setAttribute('stroke','#333');
+    line.setAttribute('fill','none');
+    line.setAttribute('stroke-width', Math.max(1, (e.w || 1)));
+    line.style.cursor = 'pointer';
+
+    // add arrowheads for directed
+    if(directed){
+      line.setAttribute('marker-end', 'url(#arrowhead)');
+    }
+
+    line.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      toggleEdge(e.i, e.j);
+    });
+
+    edgesG.appendChild(line);
+
+    // optionally label weight
+    if(weighted){
+      // compute position
+      let tx, ty;
+      if(line.tagName === 'line'){
+        tx = (a.x + b.x)/2; ty = (a.y + b.y)/2;
+      } else {
+        // path with quadratic: approximate midpoint at t=0.5
+        const pathElem = line;
+        const pathLength = pathElem.getTotalLength ? pathElem.getTotalLength() : 0;
+        if(pathLength){
+          const pt = pathElem.getPointAtLength(pathLength/2);
+          tx = pt.x; ty = pt.y;
+        } else {
+          tx = (a.x + b.x)/2; ty = (a.y + b.y)/2;
+        }
+      }
+      const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+      lbl.textContent = e.w;
+      lbl.setAttribute('x', tx + 6);
+      lbl.setAttribute('y', ty - 6);
+      lbl.setAttribute('font-size','12');
+      lbl.setAttribute('fill','#111');
+      edgesG.appendChild(lbl);
+    }
+  });
+
+  // nodes
+  const nodesG = document.createElementNS('http://www.w3.org/2000/svg','g');
+  nodesG.setAttribute('class','nodes');
+  svg.appendChild(nodesG);
+  nodes.forEach((p,i)=>{
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('transform', `translate(${p.x},${p.y})`);
+    // circle
+    const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circ.setAttribute('r', 20);
+    circ.setAttribute('fill','#fff');
+    circ.setAttribute('stroke','#0b78d1');
+    circ.setAttribute('stroke-width',2);
+    circ.style.cursor = 'default';
+    g.appendChild(circ);
+    // label
+    const tx = document.createElementNS('http://www.w3.org/2000/svg','text');
+    tx.setAttribute('x',0); tx.setAttribute('y',6);
+    tx.setAttribute('text-anchor','middle');
+    tx.setAttribute('font-size','13');
+    tx.setAttribute('fill','#0b78d1');
+    tx.textContent = labelFor(i);
+    g.appendChild(tx);
+
+    nodesG.appendChild(g);
+  });
+}
+
+// toggle edge through UI (click events)
+function toggleEdge(i,j){
+  if(weighted){
+    const cur = matrix[i][j] || 0;
+    const val = prompt('Enter numeric weight (0 to remove):', String(cur || '1'));
+    if(val === null) return;
+    const num = Number(val);
+    if(isNaN(num)) return alert('Please enter a number.');
+    if(!directed && i!==j){
+      matrix[i][j] = matrix[j][i] = num;
+    } else {
+      matrix[i][j] = num;
+    }
+  } else {
+    if(!directed && i!==j){
+      const set = matrix[i][j] ? 0 : 1;
+      matrix[i][j] = matrix[j][i] = set;
+    } else {
+      matrix[i][j] = matrix[i][j] ? 0 : 1;
+    }
+  }
+  drawAll();
+}
+
+// adjacency list rendering
+function updateAdjList(){
+  const container = document.getElementById('adjList');
+  container.innerHTML = '';
+  for(let i=0;i<n;i++){
+    const line = document.createElement('div');
+    line.style.marginBottom = '6px';
+    const left = document.createElement('strong');
+    left.textContent = labelFor(i) + ': ';
+    left.style.marginRight = '6px';
+    const targets = [];
+    for(let j=0;j<n;j++){
+      if(matrix[i][j]){
+        if(weighted) targets.push(`${labelFor(j)}(${matrix[i][j]})`);
+        else targets.push(labelFor(j));
+      }
+    }
+    const span = document.createElement('span');
+    span.textContent = targets.length ? targets.join(', ') : '—';
+    span.className = 'muted';
+    line.appendChild(left); line.appendChild(span);
+    container.appendChild(line);
+  }
+}
+
+// stats and matrix info
+function updateStats(){
+  let edges = 0, loops = 0;
+  if(directed){
+    for(let i=0;i<n;i++) for(let j=0;j<n;j++) if(matrix[i][j]) {
+      edges++;
+      if(i===j) loops++;
+    }
+  } else {
+    for(let i=0;i<n;i++) for(let j=i;j<n;j++) if(matrix[i][j]) {
+      edges++;
+      if(i===j) loops++;
+    }
+  }
+  document.getElementById('statNodes').textContent = n;
+  document.getElementById('statEdges').textContent = edges;
+  document.getElementById('statLoops').textContent = loops;
+}
+
+function updateMatrixInfo(){
+  // check symmetry
+  let symmetric = true;
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++) if(matrix[i][j] !== matrix[j][i]) symmetric=false;
+  // degrees (if unweighted we treat non-zero as 1)
+  const degIn = Array(n).fill(0), degOut = Array(n).fill(0);
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      const val = matrix[i][j] || 0;
+      degOut[i] += val ? 1 : 0;
+      degIn[j] += val ? 1 : 0;
+    }
+  }
+  const info = document.getElementById('matrixInfo');
+  info.innerHTML = `
+    Directed: <strong>${directed ? 'Yes' : 'No'}</strong><br/>
+    Weighted: <strong>${weighted ? 'Yes' : 'No'}</strong><br/>
+    Symmetric: <strong>${symmetric ? 'Yes' : 'No'}</strong><br/>
+    Average out-degree: <strong>${(degOut.reduce((a,b)=>a+b,0)/n).toFixed(2)}</strong>
+  `;
+}
+
+// utilities
+document.getElementById('symCheck').addEventListener('click', ()=>{
+  let symmetric = true;
+  const mismatches = [];
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    if(matrix[i][j] !== matrix[j][i]) mismatches.push(`${labelFor(i)}↔${labelFor(j)}: ${matrix[i][j]} vs ${matrix[j][i]}`);
+  }
+  const out = document.getElementById('utilityOutput');
+  if(mismatches.length===0) out.innerHTML = '<div class="muted">Matrix is symmetric.</div>';
+  else out.innerHTML = `<div class="muted">Found ${mismatches.length} mismatches:<pre style="margin-top:6px">${mismatches.slice(0,20).join('\n')}</pre></div>`;
+});
+
+document.getElementById('degCalc').addEventListener('click', ()=>{
+  const degOut = Array(n).fill(0), degIn = Array(n).fill(0);
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    const val = matrix[i][j] || 0;
+    degOut[i] += val ? 1 : 0;
+    degIn[j] += val ? 1 : 0;
+  }
+  const lines = [];
+  for(let i=0;i<n;i++){
+    lines.push(`${labelFor(i)}: out=${degOut[i]} in=${degIn[i]}`);
+  }
+  document.getElementById('utilityOutput').innerHTML = `<pre style="margin:0">${lines.join('\n')}</pre>`;
+});
+
+// Floyd-Warshall for shortest paths (weights considered; 1 for unweighted edges)
+document.getElementById('floydWarshall').addEventListener('click', ()=>{
+  const INF = 1e9;
+  // build dist matrix
+  const dist = Array.from({length:n}, (_,i)=>Array.from({length:n}, (_,j)=> (i===j?0:INF)));
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    if(matrix[i][j]) dist[i][j] = weighted ? matrix[i][j] : 1;
+  }
+  for(let k=0;k<n;k++) for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    if(dist[i][k] + dist[k][j] < dist[i][j]) dist[i][j] = dist[i][k] + dist[k][j];
+  }
+  const lines = ['All-pairs shortest path distances (INF denotes unreachable):',''];
+  for(let i=0;i<n;i++){
+    const row = dist[i].map(v => v >= INF ? 'INF' : String(v)).join(' ');
+    lines.push(`${labelFor(i)}: ${row}`);
+  }
+  document.getElementById('utilityOutput').innerHTML = `<pre style="margin:0">${lines.join('\n')}</pre>`;
+});
+
+// initialize
+initMatrix(n);
+drawAll();
+
+</script>
+</body>
+</html>

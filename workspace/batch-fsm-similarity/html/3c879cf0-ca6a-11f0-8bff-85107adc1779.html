@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hash Table Demonstration</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 2rem;
+    max-width: 600px;
+  }
+  h1 {
+    text-align: center;
+  }
+  #hashTable {
+    margin-top: 1rem;
+    border-collapse: collapse;
+    width: 100%;
+  }
+  #hashTable th, #hashTable td {
+    border: 1px solid #aaa;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  #hashTable th {
+    background-color: #f4f4f4;
+  }
+  .bucket-items {
+    font-family: monospace;
+  }
+  label {
+    display: inline-block;
+    width: 50px;
+  }
+  input[type="text"] {
+    width: 150px;
+    padding: 4px;
+  }
+  button {
+    padding: 6px 12px;
+    margin-left: 0.5rem;
+  }
+  #message {
+    margin-top: 1rem;
+    min-height: 1.2em;
+    color: green;
+  }
+</style>
+</head>
+<body>
+<h1>Hash Table Demo</h1>
+
+<form id="form">
+  <div>
+    <label for="key">Key:</label>
+    <input type="text" id="key" required />
+    <label for="value" style="margin-left:1rem;">Value:</label>
+    <input type="text" id="value" />
+    <button type="submit">Insert / Update</button>
+  </div>
+  <div style="margin-top: 0.5rem;">
+    <label for="lookupKey">Lookup Key:</label>
+    <input type="text" id="lookupKey" />
+    <button type="button" id="lookupBtn">Lookup</button>
+    <button type="button" id="deleteBtn" style="margin-left: 1rem;">Delete Key</button>
+  </div>
+</form>
+
+<div id="message" aria-live="polite"></div>
+
+<table id="hashTable" aria-label="Hash Table buckets">
+<thead>
+  <tr>
+    <th>Bucket Index</th>
+    <th>Items (Key: Value)</th>
+  </tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+  /*
+    Simple hash table with separate chaining to handle collisions.
+    Keys and values are strings.
+  */
+
+  class HashTable {
+    constructor(size = 10) {
+      this.size = size;
+      this.buckets = Array(this.size).fill(null).map(() => []);
+    }
+
+    // Basic hash function for strings
+    // Sum char codes modulo size
+    _hash(key) {
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) {
+        hash = (hash + key.charCodeAt(i)) % this.size;
+      }
+      return hash;
+    }
+
+    set(key, value) {
+      const index = this._hash(key);
+      const bucket = this.buckets[index];
+      for (let i = 0; i < bucket.length; i++) {
+        if (bucket[i].key === key) {
+          bucket[i].value = value;
+          return false; // updated existing key
+        }
+      }
+      bucket.push({ key, value });
+      return true; // added new key
+    }
+
+    get(key) {
+      const index = this._hash(key);
+      const bucket = this.buckets[index];
+      for (const entry of bucket) {
+        if (entry.key === key) {
+          return entry.value;
+        }
+      }
+      return undefined;
+    }
+
+    delete(key) {
+      const index = this._hash(key);
+      const bucket = this.buckets[index];
+      for (let i = 0; i < bucket.length; i++) {
+        if (bucket[i].key === key) {
+          bucket.splice(i, 1);
+          return true;
+        }
+      }
+      return false;
+    }
+
+    entries() {
+      // Return array of objects: { index, items: [{key, value}, ...]}
+      return this.buckets.map((bucket, i) => ({ index: i, items: bucket.slice() }));
+    }
+  }
+
+  // Instantiate a hash table
+  const hashTable = new HashTable(10);
+
+  // DOM references
+  const form = document.getElementById('form');
+  const keyInput = document.getElementById('key');
+  const valueInput = document.getElementById('value');
+  const lookupKeyInput = document.getElementById('lookupKey');
+  const lookupBtn = document.getElementById('lookupBtn');
+  const deleteBtn = document.getElementById('deleteBtn');
+  const messageDiv = document.getElementById('message');
+  const tbody = document.querySelector('#hashTable tbody');
+
+  function renderTable() {
+    const entries = hashTable.entries();
+    tbody.innerHTML = '';
+    for (const { index, items } of entries) {
+      const tr = document.createElement('tr');
+      const tdIndex = document.createElement('td');
+      tdIndex.textContent = index;
+
+      const tdItems = document.createElement('td');
+      if (items.length === 0) {
+        tdItems.textContent = '-';
+      } else {
+        const fragments = [];
+        for (const entry of items) {
+          const span = document.createElement('span');
+          span.className = 'bucket-items';
+          span.textContent = `${entry.key}: ${entry.value}`;
+          fragments.push(span);
+          fragments.push(document.createElement('br'));
+        }
+        // Append all spans and line breaks
+        for (const f of fragments) {
+          tdItems.appendChild(f);
+        }
+      }
+      tr.appendChild(tdIndex);
+      tr.appendChild(tdItems);
+      tbody.appendChild(tr);
+    }
+  }
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const key = keyInput.value.trim();
+    const value = valueInput.value;
+
+    if (key === '') {
+      messageDiv.textContent = 'Key cannot be empty.';
+      messageDiv.style.color = 'red';
+      return;
+    }
+    const addedNew = hashTable.set(key, value);
+    if (addedNew) {
+      messageDiv.textContent = `Inserted key "${key}" with value "${value}".`;
+    } else {
+      messageDiv.textContent = `Updated key "${key}" with new value "${value}".`;
+    }
+    messageDiv.style.color = 'green';
+
+    keyInput.value = '';
+    valueInput.value = '';
+    renderTable();
+  });
+
+  lookupBtn.addEventListener('click', () => {
+    const key = lookupKeyInput.value.trim();
+    if (key === '') {
+      messageDiv.textContent = 'Please enter a key to lookup.';
+      messageDiv.style.color = 'red';
+      return;
+    }
+    const val = hashTable.get(key);
+    if (val === undefined) {
+      messageDiv.textContent = `Key "${key}" not found.`;
+      messageDiv.style.color = 'red';
+    } else {
+      messageDiv.textContent = `Value for key "${key}": "${val}".`;
+      messageDiv.style.color = 'green';
+    }
+  });
+
+  deleteBtn.addEventListener('click', () => {
+    const key = lookupKeyInput.value.trim();
+    if (key === '') {
+      messageDiv.textContent = 'Please enter a key to delete.';
+      messageDiv.style.color = 'red';
+      return;
+    }
+    const deleted = hashTable.delete(key);
+    if (deleted) {
+      messageDiv.textContent = `Key "${key}" deleted successfully.`;
+      messageDiv.style.color = 'green';
+      renderTable();
+    } else {
+      messageDiv.textContent = `Key "${key}" not found. Cannot delete.`;
+      messageDiv.style.color = 'red';
+    }
+  });
+
+  // Initial render
+  renderTable();
+</script>
+</body>
+</html>

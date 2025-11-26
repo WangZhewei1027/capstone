@@ -1,0 +1,803 @@
+{
+  "meta": {
+    "concept": "KruskalAlgorithm",
+    "topic": "Kruskal's Algorithm Visualizer",
+    "educational_goal": "Allow users to construct graphs, step through Kruskal's MST algorithm, visualize unions/accepts/rejects, and control execution (run/step/auto/back/reset).",
+    "expected_interactions": [
+      "add_node",
+      "add_edge",
+      "drag_node",
+      "edit_edge_weight",
+      "randomize_graph",
+      "clear_graph",
+      "run",
+      "step",
+      "back",
+      "auto",
+      "reset_algorithm",
+      "shuffle_edges",
+      "toggle_unions",
+      "change_speed",
+      "focus_edge"
+    ]
+  },
+  "states": [
+    {
+      "id": "S0_IDLE",
+      "label": "Idle",
+      "type": "idle",
+      "entry_actions": [
+        "setStatus(\"Ready\")",
+        "mode = null",
+        "running = false",
+        "stopAuto()",
+        "render()",
+        "updateEdgeList()",
+        "updateLog()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S1_ADD_NODE_MODE",
+      "label": "AddNodeMode",
+      "type": "atomic",
+      "entry_actions": [
+        "mode = \"add-node-click\"",
+        "document.querySelector(\"#addNodeBtn\").classList.add(\"active\")",
+        "document.querySelector(\"#addEdgeBtn\").classList.remove(\"active\")",
+        "setStatus(\"Click on canvas to add a node.\")"
+      ],
+      "exit_actions": [
+        "mode = null",
+        "document.querySelector(\"#addNodeBtn\").classList.remove(\"active\")"
+      ]
+    },
+    {
+      "id": "S2_ADD_EDGE_MODE",
+      "label": "AddEdgeMode",
+      "type": "atomic",
+      "entry_actions": [
+        "mode = \"add-edge\"",
+        "document.querySelector(\"#addEdgeBtn\").classList.add(\"active\")",
+        "document.querySelector(\"#addNodeBtn\").classList.remove(\"active\")",
+        "addEdgeState.firstNode = null",
+        "setStatus(\"Click first node to start edge creation.\")"
+      ],
+      "exit_actions": [
+        "mode = null",
+        "addEdgeState.firstNode = null",
+        "document.querySelector(\"#addEdgeBtn\").classList.remove(\"active\")",
+        "setStatus( statusEl.textContent || \"\" )"
+      ]
+    },
+    {
+      "id": "S3_DRAGGING_NODE",
+      "label": "DraggingNode",
+      "type": "atomic",
+      "entry_actions": [
+        "dragging = <node>",
+        "capture drag offset",
+        "setStatus(\"Dragging node...\")"
+      ],
+      "exit_actions": [
+        "dragging = null",
+        "render()",
+        "updateEdgeList()",
+        "setStatus(\"\")"
+      ]
+    },
+    {
+      "id": "S4_EDITING_EDGE_WEIGHT",
+      "label": "EditingEdgeWeight",
+      "type": "atomic",
+      "entry_actions": [
+        "prompt for new weight (via window.prompt)",
+        "if valid -> update edge weight, prepareAlgorithm(), render(), updateEdgeList()"
+      ],
+      "exit_actions": [
+        "close prompt (implicit)",
+        "setStatus(\"\")"
+      ]
+    },
+    {
+      "id": "S5_GRAPH_CLEARED",
+      "label": "GraphCleared",
+      "type": "atomic",
+      "entry_actions": [
+        "clearGraph()",
+        "setStatus(\"Cleared graph.\")"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S6_RANDOMIZING",
+      "label": "RandomizingGraph",
+      "type": "atomic",
+      "entry_actions": [
+        "randomGraph(nodeCountInput.value, edgeCountInput.value, maxWeightInput.value)",
+        "prepareAlgorithm()",
+        "render()",
+        "updateEdgeList()",
+        "setStatus(\"Random graph created.\")"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S7_SHUFFLING_EDGES",
+      "label": "ShufflingEdges",
+      "type": "atomic",
+      "entry_actions": [
+        "edges.sort(()=>Math.random()-0.5)",
+        "prepareAlgorithm()",
+        "render()",
+        "updateEdgeList()",
+        "setStatus(\"Edges shuffled.\")"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S8_ALGO_IDLE",
+      "label": "AlgorithmIdle",
+      "type": "atomic",
+      "entry_actions": [
+        "snapshots = []",
+        "currentStep = -1",
+        "setStatus(\"Algorithm ready.\")",
+        "updateEdgeList()",
+        "updateLog()",
+        "updateStats()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S9_RUNNING",
+      "label": "Running",
+      "type": "compound",
+      "entry_actions": [
+        "if(currentStep === -1) stepForward()",
+        "running = true",
+        "stopAuto()",
+        "autoTimer = setInterval(runIntervalFn, 150)",
+        "setStatus(\"Running KRUSKAL...\")"
+      ],
+      "exit_actions": [
+        "running = false",
+        "stopAuto()"
+      ]
+    },
+    {
+      "id": "S10_AUTO_STEPPING",
+      "label": "AutoStepping",
+      "type": "compound",
+      "entry_actions": [
+        "running = false",
+        "document.querySelector(\"#autoBtn\").textContent = \"Stop\"",
+        "autoTimer = setInterval(()=>{ stepForward(); }, parseInt(document.querySelector(\"#speedRange\").value) )",
+        "setStatus(\"Auto stepping...\")"
+      ],
+      "exit_actions": [
+        "stopAuto()",
+        "document.querySelector(\"#autoBtn\").textContent = \"Auto\"",
+        "setStatus(\"Auto stopped.\")"
+      ]
+    },
+    {
+      "id": "S11_PAUSED",
+      "label": "Paused",
+      "type": "atomic",
+      "entry_actions": [
+        "running = false",
+        "stopAuto()",
+        "setStatus(\"Paused.\")"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S12_STEP_SNAPSHOT",
+      "label": "StepSnapshot",
+      "type": "atomic",
+      "entry_actions": [
+        "compute next snapshot via stepForward()",
+        "updateVisualState()",
+        "updateEdgeList()",
+        "updateLog()",
+        "updateStats()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S13_FINISHED",
+      "label": "Finished",
+      "type": "atomic",
+      "entry_actions": [
+        "running = false",
+        "stopAuto()",
+        "setStatus(\"Algorithm complete.\")",
+        "updateVisualState()",
+        "updateStats()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S14_RESET_ALGORITHM",
+      "label": "ResetAlgorithm",
+      "type": "atomic",
+      "entry_actions": [
+        "resetAlgorithm()",
+        "setStatus(\"Algorithm reset.\")"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S15_FOCUS_EDGE",
+      "label": "FocusEdge",
+      "type": "atomic",
+      "entry_actions": [
+        "scroll edge line into view",
+        "pulse edge line (temporary strokeWidth change)"
+      ],
+      "exit_actions": []
+    }
+  ],
+  "events": [
+    {
+      "id": "CLICK_ADD_NODE",
+      "event_type": "user_action",
+      "description": "User clicks the Add Node button",
+      "triggers": "#addNodeBtn"
+    },
+    {
+      "id": "CLICK_ADD_EDGE",
+      "event_type": "user_action",
+      "description": "User clicks the Add Edge button",
+      "triggers": "#addEdgeBtn"
+    },
+    {
+      "id": "CLICK_RANDOM_GRAPH",
+      "event_type": "user_action",
+      "description": "User clicks the Random Graph button",
+      "triggers": "#randomBtn"
+    },
+    {
+      "id": "CLICK_CLEAR_GRAPH",
+      "event_type": "user_action",
+      "description": "User clicks the Clear button (prompts confirmation)",
+      "triggers": "#clearBtn"
+    },
+    {
+      "id": "CLICK_RUN",
+      "event_type": "user_action",
+      "description": "User clicks the Run Kruskal button",
+      "triggers": "#runBtn"
+    },
+    {
+      "id": "CLICK_STEP",
+      "event_type": "user_action",
+      "description": "User clicks the Step button",
+      "triggers": "#stepBtn"
+    },
+    {
+      "id": "CLICK_BACK",
+      "event_type": "user_action",
+      "description": "User clicks the Back button",
+      "triggers": "#backBtn"
+    },
+    {
+      "id": "CLICK_AUTO",
+      "event_type": "user_action",
+      "description": "User clicks the Auto button to toggle auto stepping",
+      "triggers": "#autoBtn"
+    },
+    {
+      "id": "CLICK_RESET_ALGO",
+      "event_type": "user_action",
+      "description": "User clicks Reset Algorithm",
+      "triggers": "#resetAlgoBtn"
+    },
+    {
+      "id": "CLICK_SHUFFLE",
+      "event_type": "user_action",
+      "description": "User clicks Shuffle Edge Order",
+      "triggers": "#shuffleBtn"
+    },
+    {
+      "id": "CLICK_TOGGLE_UNIONS",
+      "event_type": "user_action",
+      "description": "User clicks Show/Hide Unions button",
+      "triggers": "#autoUnionBtn"
+    },
+    {
+      "id": "INPUT_SPEED_CHANGE",
+      "event_type": "user_action",
+      "description": "User changes the speed slider",
+      "triggers": "#speedRange"
+    },
+    {
+      "id": "CANVAS_CLICK",
+      "event_type": "user_action",
+      "description": "User clicks the SVG canvas (for placing node or canceling add-edge)",
+      "triggers": "#svg"
+    },
+    {
+      "id": "NODE_CLICK",
+      "event_type": "user_action",
+      "description": "User clicks a node element (for dragging or add-edge selection)",
+      "triggers": ".node-g"
+    },
+    {
+      "id": "NODE_MOUSEDOWN",
+      "event_type": "user_action",
+      "description": "User mousedown on node (begin drag)",
+      "triggers": ".node-g"
+    },
+    {
+      "id": "NODE_TOUCHSTART",
+      "event_type": "user_action",
+      "description": "User touchstart on node (begin drag on touch)",
+      "triggers": ".node-g"
+    },
+    {
+      "id": "SVG_MOUSEMOVE",
+      "event_type": "user_action",
+      "description": "Mouse move on SVG while dragging node",
+      "triggers": "#svg"
+    },
+    {
+      "id": "EDGE_CLICK_EDIT",
+      "event_type": "user_action",
+      "description": "User clicks an edge line to edit weight (prompt)",
+      "triggers": ".edge-line"
+    },
+    {
+      "id": "EDGE_LIST_FOCUS_BUTTON",
+      "event_type": "user_action",
+      "description": "User clicks Focus button in edge list to highlight an edge on canvas",
+      "triggers": "#edgeList button"
+    },
+    {
+      "id": "WINDOW_RESIZE",
+      "event_type": "user_action",
+      "description": "Window resize triggers re-render",
+      "triggers": "window"
+    },
+    {
+      "id": "SYSTEM_STEP_COMPLETE",
+      "event_type": "system_event",
+      "description": "A step of Kruskal (snapshot) completed",
+      "triggers": "snapshots"
+    },
+    {
+      "id": "SYSTEM_ALGORITHM_FINISHED",
+      "event_type": "system_event",
+      "description": "Algorithm finished (no more edges to consider)",
+      "triggers": "snapshots"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0_IDLE",
+      "to": "S1_ADD_NODE_MODE",
+      "event": "CLICK_ADD_NODE",
+      "guard": "true",
+      "actions": [
+        "mode = \"add-node-click\"",
+        "document.querySelector(\"#addNodeBtn\").classList.add(\"active\")",
+        "document.querySelector(\"#addEdgeBtn\").classList.remove(\"active\")",
+        "setStatus(\"Click on canvas to add a node.\")"
+      ],
+      "expected_observables": [
+        "dom:#addNodeBtn:click"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S1_ADD_NODE_MODE",
+      "to": "S0_IDLE",
+      "event": "CANVAS_CLICK",
+      "guard": "mode === \"add-node-click\"",
+      "actions": [
+        "addNode(mouseX, mouseY)",
+        "mode = null",
+        "document.querySelector(\"#addNodeBtn\").classList.remove(\"active\")",
+        "prepareAlgorithm()",
+        "render()",
+        "updateEdgeList()",
+        "setStatus(\"Node added.\")"
+      ],
+      "expected_observables": [
+        "dom:#svg:click"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S2_ADD_EDGE_MODE",
+      "event": "CLICK_ADD_EDGE",
+      "guard": "true",
+      "actions": [
+        "mode = \"add-edge\"",
+        "addEdgeState.firstNode = null",
+        "document.querySelector(\"#addEdgeBtn\").classList.add(\"active\")",
+        "document.querySelector(\"#addNodeBtn\").classList.remove(\"active\")",
+        "setStatus(\"Click first node to start edge creation.\")"
+      ],
+      "expected_observables": [
+        "dom:#addEdgeBtn:click"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S2_ADD_EDGE_MODE",
+      "to": "S2_ADD_EDGE_MODE",
+      "event": "NODE_CLICK",
+      "guard": "mode === \"add-edge\" && addEdgeState.firstNode == null",
+      "actions": [
+        "addEdgeState.firstNode = parseInt(clickedNodeId)",
+        "setStatus(\"Select second node for edge.\")"
+      ],
+      "expected_observables": [
+        "dom:.node-g:click"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S2_ADD_EDGE_MODE",
+      "to": "S0_IDLE",
+      "event": "NODE_CLICK",
+      "guard": "mode === \"add-edge\" && addEdgeState.firstNode != null && addEdgeState.firstNode != clickedNodeId",
+      "actions": [
+        "const w = prompt(\"Edge weight:\", \"1\")",
+        "if(w === null){ setStatus(\"Edge creation cancelled.\"); addEdgeState.firstNode = null; mode = null; document.querySelector(\"#addEdgeBtn\").classList.remove(\"active\"); } else { const weight = parseFloat(w); if(!isNaN(weight)){ addEdge(addEdgeState.firstNode, clickedNodeId, weight); prepareAlgorithm(); render(); updateEdgeList(); setStatus(\"Edge added.\"); } else { setStatus(\"Invalid weight. Edge not created.\"); } addEdgeState.firstNode = null; mode = null; document.querySelector(\"#addEdgeBtn\").classList.remove(\"active\"); }"
+      ],
+      "expected_observables": [
+        "dom:.node-g:click",
+        "dom:window.prompt"
+      ],
+      "timeout": 5000
+    },
+    {
+      "from": "S2_ADD_EDGE_MODE",
+      "to": "S0_IDLE",
+      "event": "NODE_CLICK",
+      "guard": "mode === \"add-edge\" && addEdgeState.firstNode === clickedNodeId",
+      "actions": [
+        "setStatus(\"Can't connect node to itself. Choose another node or cancel.\")",
+        "addEdgeState.firstNode = null"
+      ],
+      "expected_observables": [
+        "dom:.node-g:click"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S5_GRAPH_CLEARED",
+      "event": "CLICK_CLEAR_GRAPH",
+      "guard": "confirm(\"Clear graph?\")",
+      "actions": [
+        "clearGraph()",
+        "prepareAlgorithm()",
+        "render()",
+        "updateEdgeList()",
+        "updateLog()",
+        "setStatus(\"Cleared graph.\")"
+      ],
+      "expected_observables": [
+        "dom:#clearBtn:click",
+        "dom:confirm"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S6_RANDOMIZING",
+      "event": "CLICK_RANDOM_GRAPH",
+      "guard": "true",
+      "actions": [
+        "const n = parseInt(document.querySelector(\"#nodeCountInput\").value) || 6",
+        "const m = parseInt(document.querySelector(\"#edgeCountInput\").value) || 10",
+        "const maxW = parseInt(document.querySelector(\"#maxWeightInput\").value) || 20",
+        "randomGraph(n,m,maxW)",
+        "prepareAlgorithm()",
+        "render()",
+        "updateEdgeList()",
+        "setStatus(\"Random graph created.\")"
+      ],
+      "expected_observables": [
+        "dom:#randomBtn:click"
+      ],
+      "timeout": 4000
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S7_SHUFFLING_EDGES",
+      "event": "CLICK_SHUFFLE",
+      "guard": "edges.length > 0",
+      "actions": [
+        "edges.sort(()=>Math.random()-0.5)",
+        "prepareAlgorithm()",
+        "render()",
+        "updateEdgeList()",
+        "setStatus(\"Edges shuffled.\")"
+      ],
+      "expected_observables": [
+        "dom:#shuffleBtn:click"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S8_ALGO_IDLE",
+      "event": "CLICK_RESET_ALGO",
+      "guard": "true",
+      "actions": [
+        "resetAlgorithm()",
+        "setStatus(\"Algorithm reset.\")"
+      ],
+      "expected_observables": [
+        "dom:#resetAlgoBtn:click"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S8_ALGO_IDLE",
+      "to": "S9_RUNNING",
+      "event": "CLICK_RUN",
+      "guard": "nodes.length > 0 && edges.length >= 0",
+      "actions": [
+        "if(currentStep === -1) stepForward()",
+        "running = true",
+        "stopAuto()",
+        "autoTimer = setInterval(()=>{ if(snapshots[snapshots.length-1].considered >= sortedEdges.length - 1){ stopAuto(); running=false; setStatus(\"Algorithm complete.\"); return; } stepForward(); }, 150)",
+        "setStatus(\"Running KRUSKAL...\")"
+      ],
+      "expected_observables": [
+        "dom:#runBtn:click"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S9_RUNNING",
+      "to": "S11_PAUSED",
+      "event": "CLICK_RUN",
+      "guard": "running === true",
+      "actions": [
+        "stopAuto()",
+        "running = false",
+        "setStatus(\"Paused.\")"
+      ],
+      "expected_observables": [
+        "dom:#runBtn:click"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S8_ALGO_IDLE",
+      "to": "S12_STEP_SNAPSHOT",
+      "event": "CLICK_STEP",
+      "guard": "true",
+      "actions": [
+        "stopAuto()",
+        "running = false",
+        "stepForward()"
+      ],
+      "expected_observables": [
+        "dom:#stepBtn:click"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S12_STEP_SNAPSHOT",
+      "to": "S13_FINISHED",
+      "event": "SYSTEM_ALGORITHM_FINISHED",
+      "guard": "snapshots.length>0 && snapshots[snapshots.length-1].considered >= sortedEdges.length - 1",
+      "actions": [
+        "running = false",
+        "stopAuto()",
+        "setStatus(\"Algorithm complete.\")",
+        "updateVisualState()"
+      ],
+      "expected_observables": [
+        "dom:snapshots",
+        "dom:sortedEdges"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S12_STEP_SNAPSHOT",
+      "to": "S11_PAUSED",
+      "event": "CLICK_BACK",
+      "guard": "currentStep > 0",
+      "actions": [
+        "stopAuto()",
+        "running = false",
+        "stepBack()"
+      ],
+      "expected_observables": [
+        "dom:#backBtn:click"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S8_ALGO_IDLE",
+      "to": "S10_AUTO_STEPPING",
+      "event": "CLICK_AUTO",
+      "guard": "autoTimer == null",
+      "actions": [
+        "running = false",
+        "document.querySelector(\"#autoBtn\").textContent = \"Stop\"",
+        "autoTimer = setInterval(()=>{ stepForward(); if(snapshots[snapshots.length-1].considered >= sortedEdges.length - 1){ stopAuto(); document.querySelector(\"#autoBtn\").textContent = \"Auto\"; } }, parseInt(document.querySelector(\"#speedRange\").value))",
+        "setStatus(\"Auto stepping...\")"
+      ],
+      "expected_observables": [
+        "dom:#autoBtn:click",
+        "dom:#speedRange:input"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S10_AUTO_STEPPING",
+      "to": "S11_PAUSED",
+      "event": "CLICK_AUTO",
+      "guard": "autoTimer != null",
+      "actions": [
+        "stopAuto()",
+        "running = false",
+        "document.querySelector(\"#autoBtn\").textContent = \"Auto\"",
+        "setStatus(\"Auto stopped.\")"
+      ],
+      "expected_observables": [
+        "dom:#autoBtn:click"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S9_RUNNING",
+      "to": "S13_FINISHED",
+      "event": "SYSTEM_ALGORITHM_FINISHED",
+      "guard": "snapshots.length>0 && snapshots[snapshots.length-1].considered >= sortedEdges.length - 1",
+      "actions": [
+        "stopAuto()",
+        "running = false",
+        "setStatus(\"Algorithm complete.\")"
+      ],
+      "expected_observables": [
+        "dom:snapshots",
+        "dom:sortedEdges"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S3_DRAGGING_NODE",
+      "event": "NODE_MOUSEDOWN",
+      "guard": "true",
+      "actions": [
+        "dragging = clickedNode",
+        "capture dragOffset",
+        "setStatus(\"Dragging node...\")"
+      ],
+      "expected_observables": [
+        "dom:.node-g:mousedown"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S3_DRAGGING_NODE",
+      "to": "S0_IDLE",
+      "event": "SVG_MOUSEMOVE",
+      "guard": "dragging != null && mouseup or mouseleave sets dragging=null",
+      "actions": [
+        "update dragging.x/y based on pointer and dragOffset",
+        "render()",
+        "updateEdgeList()"
+      ],
+      "expected_observables": [
+        "dom:#svg:mousemove",
+        "dom:#svg:mouseup",
+        "dom:#svg:mouseleave"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S4_EDITING_EDGE_WEIGHT",
+      "event": "EDGE_CLICK_EDIT",
+      "guard": "true",
+      "actions": [
+        "evt.stopPropagation()",
+        "const w = prompt('Edge weight:', String(e.weight))",
+        "if(w !== null && !isNaN(parseFloat(w))){ e.weight = parseFloat(w); prepareAlgorithm(); render(); updateEdgeList(); }",
+        "setStatus('Edge weight updated.' )"
+      ],
+      "expected_observables": [
+        "dom:.edge-line:click",
+        "dom:window.prompt"
+      ],
+      "timeout": 5000
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S15_FOCUS_EDGE",
+      "event": "EDGE_LIST_FOCUS_BUTTON",
+      "guard": "true",
+      "actions": [
+        "const line = svg.querySelector(`.edge-line[data-edge-id=\"${edgeId}\"]`)",
+        "if(line){ line.scrollIntoView({behavior:'smooth'}); line.style.transition='stroke-width 0.2s'; line.style.strokeWidth='8px'; setTimeout(()=>line.style.strokeWidth='',400); }"
+      ],
+      "expected_observables": [
+        "dom:#edgeList button:click"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S14_RESET_ALGORITHM",
+      "event": "CLICK_RESET_ALGO",
+      "guard": "true",
+      "actions": [
+        "resetAlgorithm()",
+        "setStatus('Algorithm reset.')"
+      ],
+      "expected_observables": [
+        "dom:#resetAlgoBtn:click"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S0_IDLE",
+      "event": "INPUT_SPEED_CHANGE",
+      "guard": "true",
+      "actions": [
+        "if(autoTimer){ stopAuto(); autoTimer = setInterval(()=>{ stepForward(); }, parseInt(document.querySelector('#speedRange').value)); }"
+      ],
+      "expected_observables": [
+        "dom:#speedRange:input"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S8_ALGO_IDLE",
+      "to": "S8_ALGO_IDLE",
+      "event": "WINDOW_RESIZE",
+      "guard": "true",
+      "actions": [
+        "render()"
+      ],
+      "expected_observables": [
+        "dom:window:resize"
+      ],
+      "timeout": 500
+    }
+  ],
+  "components": [
+    "#addNodeBtn",
+    "#addEdgeBtn",
+    "#randomBtn",
+    "#clearBtn",
+    "#runBtn",
+    "#stepBtn",
+    "#backBtn",
+    "#autoBtn",
+    "#resetAlgoBtn",
+    "#shuffleBtn",
+    "#autoUnionBtn",
+    "#speedRange",
+    "#nodeCountInput",
+    "#edgeCountInput",
+    "#maxWeightInput",
+    "#svg",
+    "#canvasWrap",
+    "#edgeList",
+    "#logList",
+    "#status",
+    "#mstWeight",
+    "#mstCount",
+    "#needCount",
+    ".node-g",
+    ".edge-line",
+    ".edge-item",
+    "#edgeList button"
+  ]
+}

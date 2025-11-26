@@ -1,0 +1,781 @@
+{
+  "meta": {
+    "concept": "LinearSearch",
+    "topic": "Linear Search Visualizer",
+    "educational_goal": "Demonstrate step-by-step linear search comparisons, finding or not finding a target in an array, with play/step/back controls and visual highlights",
+    "expected_interactions": [
+      "apply_array",
+      "randomize_array",
+      "reset",
+      "step",
+      "back",
+      "play",
+      "stop",
+      "click_array_element",
+      "change_speed",
+      "edit_array",
+      "enter_target"
+    ]
+  },
+  "states": [
+    {
+      "id": "S0_Idle",
+      "label": "Idle",
+      "type": "idle",
+      "entry_actions": [
+        "resetRun()",
+        "renderArray()",
+        "clearHighlights()",
+        "safeSetStatus('Idle','No search running')",
+        "updateStats()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S1_GeneratorReady",
+      "label": "GeneratorReady",
+      "type": "atomic",
+      "entry_actions": [
+        "startGenerator()",
+        "safeSetStatus('Ready','Press Step or Play to run')",
+        "updateStats()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S2_Comparing",
+      "label": "Comparing",
+      "type": "atomic",
+      "entry_actions": [
+        "handleState(compare) // apply compare visuals: mark active, mark previous as nope",
+        "safeSetStatus('Comparing','arr[i] .. compare')",
+        "highlightCode(2)",
+        "traceInsertCompare()"
+      ],
+      "exit_actions": [
+        "clearHighlights()"
+      ]
+    },
+    {
+      "id": "S3_Found",
+      "label": "Found",
+      "type": "atomic",
+      "entry_actions": [
+        "handleState(found) // mark found, set result text",
+        "safeSetStatus('Found','Value at index')",
+        "highlightCode(3)",
+        "gen.done = true",
+        "updateStats()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S4_NotFound",
+      "label": "NotFound",
+      "type": "atomic",
+      "entry_actions": [
+        "handleState(notfound) // mark all as nope, set result to -1",
+        "safeSetStatus('Not found','Target not present')",
+        "highlightCode(4)",
+        "gen.done = true",
+        "updateStats()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S5_Playing",
+      "label": "Playing",
+      "type": "atomic",
+      "entry_actions": [
+        "play() // starts interval timer and auto advances",
+        "safeSetStatus('Playing','Auto advancing comparisons')"
+      ],
+      "exit_actions": [
+        "clearInterval(playTimer)",
+        "playing = false",
+        "safeSetStatus('Stopped','Playback paused')"
+      ]
+    },
+    {
+      "id": "S6_Stopped",
+      "label": "Stopped",
+      "type": "atomic",
+      "entry_actions": [
+        "stop()",
+        "safeSetStatus('Stopped','Playback paused')"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S7_Rewound",
+      "label": "Rewound",
+      "type": "atomic",
+      "entry_actions": [
+        "stepBack()",
+        "safeSetStatus('Rewound','Viewing previous state')"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S8_InputEditing",
+      "label": "InputEditing",
+      "type": "atomic",
+      "entry_actions": [
+        "user is editing arrInput or targetInput",
+        "if(recordedSteps.length>0) resetRun()"
+      ],
+      "exit_actions": []
+    }
+  ],
+  "events": [
+    {
+      "id": "USER_CLICK_APPLY",
+      "event_type": "user_action",
+      "description": "User clicks Apply button to parse array and set target",
+      "triggers": "#applyBtn"
+    },
+    {
+      "id": "USER_CLICK_RANDOMIZE",
+      "event_type": "user_action",
+      "description": "User clicks Randomize to create a random array and set target",
+      "triggers": "#randomBtn"
+    },
+    {
+      "id": "USER_CLICK_RESET",
+      "event_type": "user_action",
+      "description": "User clicks Reset (clear highlights and inputs)",
+      "triggers": "#clearBtn"
+    },
+    {
+      "id": "USER_CLICK_STEP",
+      "event_type": "user_action",
+      "description": "User clicks Step to advance one generator yield",
+      "triggers": "#stepBtn"
+    },
+    {
+      "id": "USER_CLICK_BACK",
+      "event_type": "user_action",
+      "description": "User clicks Back to rewind one recorded step",
+      "triggers": "#backBtn"
+    },
+    {
+      "id": "USER_CLICK_PLAY",
+      "event_type": "user_action",
+      "description": "User clicks Play to start automatic stepping",
+      "triggers": "#playBtn"
+    },
+    {
+      "id": "USER_CLICK_STOP",
+      "event_type": "user_action",
+      "description": "User clicks Stop to pause automatic stepping",
+      "triggers": "#stopBtn"
+    },
+    {
+      "id": "USER_CHANGE_SPEED",
+      "event_type": "user_action",
+      "description": "User changes playback speed slider",
+      "triggers": "#speed"
+    },
+    {
+      "id": "USER_PRESS_ENTER_TARGET",
+      "event_type": "user_action",
+      "description": "User presses Enter in the target input to start search",
+      "triggers": "#targetInput"
+    },
+    {
+      "id": "USER_PRESS_ENTER_ARRAY",
+      "event_type": "user_action",
+      "description": "User presses Enter in the array input to apply array",
+      "triggers": "#arrInput"
+    },
+    {
+      "id": "USER_CLICK_ARRAY_SLOT",
+      "event_type": "user_action",
+      "description": "User clicks an array element (slot) to set the target to that value",
+      "triggers": "#arrayContainer .slot"
+    },
+    {
+      "id": "USER_KEY_ALT_P",
+      "event_type": "user_action",
+      "description": "User presses Alt+P to toggle play/pause",
+      "triggers": "document"
+    },
+    {
+      "id": "USER_KEY_ARROW_RIGHT",
+      "event_type": "user_action",
+      "description": "User presses ArrowRight to step forward",
+      "triggers": "document"
+    },
+    {
+      "id": "USER_KEY_ARROW_LEFT",
+      "event_type": "user_action",
+      "description": "User presses ArrowLeft to step back",
+      "triggers": "document"
+    },
+    {
+      "id": "ARRAY_INPUT_MODIFIED",
+      "event_type": "user_action",
+      "description": "User edits the array input; if a run exists, reset automatically",
+      "triggers": "#arrInput"
+    },
+    {
+      "id": "GENERATOR_YIELD_COMPARE",
+      "event_type": "system_event",
+      "description": "The generator yields a compare step (type:'compare')",
+      "triggers": "internal:generator.next()"
+    },
+    {
+      "id": "GENERATOR_YIELD_FOUND",
+      "event_type": "system_event",
+      "description": "The generator yields a found step (type:'found')",
+      "triggers": "internal:generator.next()"
+    },
+    {
+      "id": "GENERATOR_YIELD_NOTFOUND",
+      "event_type": "system_event",
+      "description": "The generator yields a notfound step (type:'notfound')",
+      "triggers": "internal:generator.next()"
+    },
+    {
+      "id": "PLAY_TIMER_TICK",
+      "event_type": "system_event",
+      "description": "Interval tick during Play which triggers stepForward()",
+      "triggers": "internal:setInterval"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0_Idle",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_APPLY",
+      "guard": "true",
+      "actions": [
+        "safelyApplyInputs()"
+      ],
+      "triggers": "#applyBtn",
+      "expected_observables": [
+        "dom:#applyBtn:click",
+        "dom:#arrInput:valueChanged",
+        "dom:#arrayContainer:rendered"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_RANDOMIZE",
+      "guard": "true",
+      "actions": [
+        "setRandomArray()",
+        "safelyApplyInputs()"
+      ],
+      "triggers": "#randomBtn",
+      "expected_observables": [
+        "dom:#randomBtn:click",
+        "dom:#arrInput:valueChanged",
+        "dom:#targetInput:valueChanged"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_RESET",
+      "guard": "true",
+      "actions": [
+        "clearInputs()",
+        "safelyApplyInputs()"
+      ],
+      "triggers": "#clearBtn",
+      "expected_observables": [
+        "dom:#clearBtn:click",
+        "dom:#arrInput:value==''",
+        "dom:#targetInput:value==''"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S1_GeneratorReady",
+      "event": "USER_CLICK_STEP",
+      "guard": "true",
+      "actions": [
+        "stop()",
+        "startGenerator()"
+      ],
+      "triggers": "#stepBtn",
+      "expected_observables": [
+        "dom:#stepBtn:click",
+        "internal:gen.created"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S1_GeneratorReady",
+      "to": "S2_Comparing",
+      "event": "GENERATOR_YIELD_COMPARE",
+      "guard": "value.type==='compare'",
+      "actions": [
+        "handleState(value)"
+      ],
+      "triggers": "internal:generator.next()",
+      "expected_observables": [
+        "dom:#arrayContainer .slot.active",
+        "dom:#comparisons:textChanged"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S1_GeneratorReady",
+      "to": "S3_Found",
+      "event": "GENERATOR_YIELD_FOUND",
+      "guard": "value.type==='found'",
+      "actions": [
+        "handleState(value)"
+      ],
+      "triggers": "internal:generator.next()",
+      "expected_observables": [
+        "dom:.slot.found",
+        "dom:#result:textChanged"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S1_GeneratorReady",
+      "to": "S4_NotFound",
+      "event": "GENERATOR_YIELD_NOTFOUND",
+      "guard": "value.type==='notfound'",
+      "actions": [
+        "handleState(value)"
+      ],
+      "triggers": "internal:generator.next()",
+      "expected_observables": [
+        "dom:.slot.nope",
+        "dom:#result:textChanged"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S2_Comparing",
+      "to": "S2_Comparing",
+      "event": "USER_CLICK_STEP",
+      "guard": "true",
+      "actions": [
+        "stop()",
+        "stepForward()"
+      ],
+      "triggers": "#stepBtn,document:ArrowRight",
+      "expected_observables": [
+        "dom:#stepBtn:click",
+        "internal:generator.next()"
+      ],
+      "timeout": 1200
+    },
+    {
+      "from": "S2_Comparing",
+      "to": "S3_Found",
+      "event": "GENERATOR_YIELD_FOUND",
+      "guard": "value.type==='found'",
+      "actions": [
+        "handleState(value)"
+      ],
+      "triggers": "internal:generator.next()",
+      "expected_observables": [
+        "dom:.slot.found",
+        "dom:#result:textChanged"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S2_Comparing",
+      "to": "S4_NotFound",
+      "event": "GENERATOR_YIELD_NOTFOUND",
+      "guard": "value.type==='notfound'",
+      "actions": [
+        "handleState(value)"
+      ],
+      "triggers": "internal:generator.next()",
+      "expected_observables": [
+        "dom:.slot.nope",
+        "dom:#result:textChanged"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S2_Comparing",
+      "to": "S5_Playing",
+      "event": "USER_CLICK_PLAY",
+      "guard": "true",
+      "actions": [
+        "play()"
+      ],
+      "triggers": "#playBtn",
+      "expected_observables": [
+        "dom:#playBtn:click",
+        "internal:setInterval:started"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S5_Playing",
+      "to": "S2_Comparing",
+      "event": "PLAY_TIMER_TICK",
+      "guard": "gen && !gen.done",
+      "actions": [
+        "stepForward()"
+      ],
+      "triggers": "internal:setInterval",
+      "expected_observables": [
+        "internal:generator.next()",
+        "dom:#comparisons:textChanged"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S5_Playing",
+      "to": "S3_Found",
+      "event": "GENERATOR_YIELD_FOUND",
+      "guard": "value.type==='found'",
+      "actions": [
+        "handleState(value)",
+        "clearInterval(playTimer)"
+      ],
+      "triggers": "internal:generator.next()",
+      "expected_observables": [
+        "dom:.slot.found",
+        "dom:#genState:text=='done'"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S5_Playing",
+      "to": "S4_NotFound",
+      "event": "GENERATOR_YIELD_NOTFOUND",
+      "guard": "value.type==='notfound'",
+      "actions": [
+        "handleState(value)",
+        "clearInterval(playTimer)"
+      ],
+      "triggers": "internal:generator.next()",
+      "expected_observables": [
+        "dom:#result:text=='-1'",
+        "dom:#genState:text=='done'"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S5_Playing",
+      "to": "S6_Stopped",
+      "event": "USER_CLICK_STOP",
+      "guard": "true",
+      "actions": [
+        "stop()"
+      ],
+      "triggers": "#stopBtn",
+      "expected_observables": [
+        "dom:#stopBtn:click",
+        "internal:clearInterval"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S6_Stopped",
+      "to": "S5_Playing",
+      "event": "USER_CLICK_PLAY",
+      "guard": "true",
+      "actions": [
+        "play()"
+      ],
+      "triggers": "#playBtn",
+      "expected_observables": [
+        "dom:#playBtn:click",
+        "internal:setInterval:started"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S3_Found",
+      "to": "S7_Rewound",
+      "event": "USER_CLICK_BACK",
+      "guard": "recordedSteps.length>0",
+      "actions": [
+        "stepBack()"
+      ],
+      "triggers": "#backBtn",
+      "expected_observables": [
+        "dom:#backBtn:click",
+        "dom:#trace:updated"
+      ],
+      "timeout": 300
+    },
+    {
+      "from": "S4_NotFound",
+      "to": "S7_Rewound",
+      "event": "USER_CLICK_BACK",
+      "guard": "recordedSteps.length>0",
+      "actions": [
+        "stepBack()"
+      ],
+      "triggers": "#backBtn",
+      "expected_observables": [
+        "dom:#backBtn:click",
+        "dom:#trace:updated"
+      ],
+      "timeout": 300
+    },
+    {
+      "from": "S7_Rewound",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_APPLY",
+      "guard": "true",
+      "actions": [
+        "safelyApplyInputs()"
+      ],
+      "triggers": "#applyBtn",
+      "expected_observables": [
+        "dom:#applyBtn:click",
+        "dom:#arrayContainer:rendered"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S1_GeneratorReady",
+      "event": "USER_PRESS_ENTER_TARGET",
+      "guard": "true",
+      "actions": [
+        "stop()",
+        "startGenerator()",
+        "stepForward()"
+      ],
+      "triggers": "#targetInput",
+      "expected_observables": [
+        "dom:#targetInput:keydown:Enter",
+        "internal:generator.yield"
+      ],
+      "timeout": 300
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S0_Idle",
+      "event": "USER_PRESS_ENTER_ARRAY",
+      "guard": "true",
+      "actions": [
+        "safelyApplyInputs()"
+      ],
+      "triggers": "#arrInput",
+      "expected_observables": [
+        "dom:#arrInput:keydown:Enter",
+        "dom:#arrayContainer:rendered"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_ARRAY_SLOT",
+      "guard": "true",
+      "actions": [
+        "setTargetFromSlot()",
+        "safelyApplyInputs()"
+      ],
+      "triggers": "#arrayContainer .slot",
+      "expected_observables": [
+        "dom:#arrayContainer .slot:click",
+        "dom:#targetInput:valueChanged"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S5_Playing",
+      "to": "S5_Playing",
+      "event": "USER_CHANGE_SPEED",
+      "guard": "true",
+      "actions": [
+        "updateSpeedDisplay()",
+        "if(playing){ stop(); play(); }"
+      ],
+      "triggers": "#speed",
+      "expected_observables": [
+        "dom:#speed:valueChanged",
+        "dom:#speedVal:textChanged"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S0_Idle",
+      "event": "ARRAY_INPUT_MODIFIED",
+      "guard": "recordedSteps.length>0",
+      "actions": [
+        "resetRun()"
+      ],
+      "triggers": "#arrInput",
+      "expected_observables": [
+        "dom:#arrInput:input",
+        "dom:#genState:text=='not started'"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S2_Comparing",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_RESET",
+      "guard": "true",
+      "actions": [
+        "clearInputs()",
+        "safelyApplyInputs()"
+      ],
+      "triggers": "#clearBtn",
+      "expected_observables": [
+        "dom:#clearBtn:click",
+        "dom:#arrayContainer:rendered"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S3_Found",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_APPLY",
+      "guard": "true",
+      "actions": [
+        "safelyApplyInputs()"
+      ],
+      "triggers": "#applyBtn",
+      "expected_observables": [
+        "dom:#applyBtn:click"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S4_NotFound",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_APPLY",
+      "guard": "true",
+      "actions": [
+        "safelyApplyInputs()"
+      ],
+      "triggers": "#applyBtn",
+      "expected_observables": [
+        "dom:#applyBtn:click"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S6_Stopped",
+      "event": "USER_CLICK_STOP",
+      "guard": "true",
+      "actions": [
+        "stop()"
+      ],
+      "triggers": "#stopBtn",
+      "expected_observables": [
+        "dom:#stopBtn:click"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S6_Stopped",
+      "to": "S2_Comparing",
+      "event": "USER_CLICK_STEP",
+      "guard": "true",
+      "actions": [
+        "stepForward()"
+      ],
+      "triggers": "#stepBtn",
+      "expected_observables": [
+        "dom:#stepBtn:click",
+        "internal:generator.next()"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S5_Playing",
+      "event": "USER_KEY_ALT_P",
+      "guard": "if(playing) false else true",
+      "actions": [
+        "play()"
+      ],
+      "triggers": "document",
+      "expected_observables": [
+        "dom:document:keydown:Alt+P"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S5_Playing",
+      "to": "S6_Stopped",
+      "event": "USER_KEY_ALT_P",
+      "guard": "if(playing) true else false",
+      "actions": [
+        "stop()"
+      ],
+      "triggers": "document",
+      "expected_observables": [
+        "dom:document:keydown:Alt+P"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_Comparing",
+      "event": "USER_KEY_ARROW_RIGHT",
+      "guard": "true",
+      "actions": [
+        "stop()",
+        "stepForward()"
+      ],
+      "triggers": "document",
+      "expected_observables": [
+        "dom:document:keydown:ArrowRight"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S7_Rewound",
+      "event": "USER_KEY_ARROW_LEFT",
+      "guard": "true",
+      "actions": [
+        "stop()",
+        "stepBack()"
+      ],
+      "triggers": "document",
+      "expected_observables": [
+        "dom:document:keydown:ArrowLeft"
+      ],
+      "timeout": 200
+    }
+  ],
+  "components": [
+    "#arrInput",
+    "#targetInput",
+    "#applyBtn",
+    "#randomBtn",
+    "#clearBtn",
+    "#arrayContainer",
+    ".slot",
+    "#stepBtn",
+    "#backBtn",
+    "#playBtn",
+    "#stopBtn",
+    "#speed",
+    "#speedVal",
+    "#randSize",
+    "#trace",
+    "#status",
+    "#subStatus",
+    "#comparisons",
+    "#result",
+    "#resultDetail",
+    "#code0",
+    "#code1",
+    "#code2",
+    "#code3",
+    "#code4",
+    "#stepsCount",
+    "#genState"
+  ]
+}

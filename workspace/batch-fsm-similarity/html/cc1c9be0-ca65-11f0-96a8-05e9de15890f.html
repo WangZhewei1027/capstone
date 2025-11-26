@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Queue Demo — Interactive Visualization</title>
+<style>
+  :root{
+    --bg:#0f1724; --card:#0b1220; --accent:#06b6d4; --muted:#94a3b8; --tile:#0f172a;
+    --cell:#081227; --text:#e6eef8;
+  }
+  *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+  body{margin:0;background:linear-gradient(180deg,#061026 0%, #041124 100%);color:var(--text);min-height:100vh;padding:28px}
+  .wrap{max-width:1100px;margin:0 auto}
+  header{display:flex;gap:18px;align-items:center;margin-bottom:18px}
+  h1{font-size:20px;margin:0}
+  p.lead{margin:0;color:var(--muted);font-size:13px}
+  .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:14px;border-radius:10px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+  label{font-size:13px;color:var(--muted)}
+  select,input[type=text]{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 10px;border-radius:8px;color:var(--text)}
+  input[type=range]{accent-color:var(--accent)}
+  button{background:linear-gradient(180deg,#075a66,#044e58);color:#fff;border:0;padding:9px 12px;border-radius:8px;cursor:pointer}
+  button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+  .layout{display:grid;grid-template-columns:1fr 360px;gap:14px;margin-top:16px}
+  .visual{padding:18px;min-height:260px}
+  .queue-area{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .cell{width:62px;height:62px;border-radius:8px;background:var(--cell);display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--text);position:relative;border:1px solid rgba(255,255,255,0.04)}
+  .cell.empty{color:var(--muted);font-weight:500}
+  .cell .idx{position:absolute;left:6px;top:6px;font-size:11px;color:var(--muted)}
+  .pointer{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:12px;padding:2px 6px;border-radius:6px;background:linear-gradient(180deg,#0ea5a8aa,#059fa4aa);color:#042427}
+  .pointer.rear{background:linear-gradient(180deg,#60a5faaa,#3b82f6aa);color:#021528;top:auto;bottom:-18px}
+  .meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+  .stat{background:rgba(255,255,255,0.02);padding:8px 10px;border-radius:8px;font-size:13px;color:var(--muted)}
+  .log{height:320px;overflow:auto;padding:12px;background:linear-gradient(180deg,#031528,#021122);border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
+  .log p{margin:6px 0;font-size:13px;color:var(--muted)}
+  .log p span{color:var(--text)}
+  .controls .small{font-size:13px}
+  .help{font-size:13px;color:var(--muted);margin-top:8px}
+  .anim{transition:all 420ms cubic-bezier(.2,.9,.2,1)}
+  .flash{animation:flash 700ms ease}
+  @keyframes flash{0%{transform:scale(1);}50%{transform:scale(1.08);}100%{transform:scale(1);}}
+  footer{margin-top:14px;color:var(--muted);font-size:13px}
+  .caption{font-size:12px;color:var(--muted);margin-top:8px}
+  .small-muted{font-size:12px;color:var(--muted)}
+  .row{display:flex;gap:8px;align-items:center}
+  .switch{display:flex;gap:8px;align-items:center}
+  .badge{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;color:var(--muted);font-size:13px}
+  .code{background:#021220;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.025);font-family:monospace;font-size:12px;color:#bfefff;white-space:pre-wrap}
+  @media (max-width:980px){.layout{grid-template-columns:1fr;}.queue-area{justify-content:flex-start;overflow:auto;padding-bottom:6px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Queue — Interactive Visualization</h1>
+      <p class="lead">Explore the FIFO queue concept. Enqueue, dequeue, peek and watch the internal state update.</p>
+    </div>
+  </header>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="row">
+        <label class="small-muted">Implementation</label>
+        <select id="implSelect" title="Choose implementation">
+          <option value="circular">Circular Buffer (fixed capacity)</option>
+          <option value="array">Array (push/shift)</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label class="small-muted">Capacity</label>
+        <input id="capacity" type="number" min="1" value="6" style="width:86px"/>
+      </div>
+
+      <div class="row">
+        <input id="itemInput" type="text" placeholder="Value (string/number)" style="width:160px"/>
+        <button id="enqueueBtn">Enqueue</button>
+        <button id="dequeueBtn" class="secondary">Dequeue</button>
+        <button id="peekBtn" class="secondary">Peek</button>
+      </div>
+
+      <div class="row">
+        <button id="clearBtn" class="secondary">Clear</button>
+        <button id="bulkBtn" class="secondary">Bulk add 3</button>
+      </div>
+
+      <div class="row">
+        <label class="small-muted">Auto Enqueue</label>
+        <button id="autoToggle" class="secondary">Start</button>
+        <label class="small-muted">rate</label>
+        <input id="rate" type="range" min="200" max="2000" value="800"/>
+      </div>
+    </div>
+
+    <div class="layout" style="margin-top:12px">
+      <div class="visual panel" id="visualPanel">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="small-muted">Visualized storage</div>
+          <div class="caption">Click a cell to remove that item (array impl only)</div>
+        </div>
+
+        <div id="visual" style="margin-top:12px"></div>
+
+        <div class="meta" id="metaArea">
+          <div class="stat">Size: <strong id="size">0</strong></div>
+          <div class="stat">Capacity: <strong id="capacityDisplay">6</strong></div>
+          <div class="stat">Front index: <strong id="frontIdx">—</strong></div>
+          <div class="stat">Rear index: <strong id="rearIdx">—</strong></div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="caption">Explanation</div>
+          <div class="small-muted" style="margin-top:6px">
+            Queue = First-In First-Out (FIFO). Enqueue adds to the rear, dequeue removes from the front.
+            Circular buffer keeps a fixed-size array and reuses slots (O(1)), while the simple array plan uses push/shift (shift is O(n) in JS).
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="log" id="log"></div>
+        <div style="margin-top:10px" class="panel">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="small-muted">Representative code (simplified)</div>
+            <div class="badge" id="implBadge">Circular</div>
+          </div>
+          <pre class="code" id="codeArea" style="margin-top:8px"></pre>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Tip: Try toggling implementations and observe how internal indices and storage change.
+    </footer>
+  </div>
+</div>
+
+<script>
+/*
+  Interactive Queue Demo
+  - Two implementations: CircularBuffer (fixed capacity) and ArrayQueue (unbounded).
+  - Visualizes internal storage and front/rear indices.
+*/
+
+(function(){
+  // Utilities
+  function $(id){return document.getElementById(id)}
+  function log(msg, type='info'){
+    const el = document.createElement('p')
+    const d = new Date().toLocaleTimeString()
+    el.innerHTML = '<span>['+d+']</span> — ' + msg
+    if(type==='warn') el.style.color = '#ffb86b'
+    else if(type==='error') el.style.color = '#ff6b6b'
+    $('log').prepend(el)
+  }
+
+  // Queue Implementations
+  class ArrayQueue {
+    constructor(){
+      this.arr = []
+    }
+    enqueue(v){ this.arr.push(v) }
+    dequeue(){ return this.arr.length? this.arr.shift(): undefined }
+    peek(){ return this.arr.length? this.arr[0]: undefined }
+    clear(){ this.arr = [] }
+    size(){ return this.arr.length }
+    toArray(){ return this.arr.slice() }
+    capacity(){ return Infinity }
+    frontIdx(){ return this.arr.length? 0 : null }
+    rearIdx(){ return this.arr.length? this.arr.length - 1 : null }
+    removeAt(i){ // helper for clicking a cell (not typical queue op)
+      if (i>=0 && i < this.arr.length) this.arr.splice(i,1)
+    }
+  }
+
+  class CircularQueue {
+    constructor(capacity){
+      this.setCapacity(capacity||6)
+    }
+    setCapacity(n){
+      if (n < 1) n = 1
+      this.cap = Math.floor(n)
+      this.data = Array(this.cap).fill(null)
+      this.head = 0  // index of front item
+      this.tail = 0  // index where next enqueue will write
+      this.count = 0
+    }
+    enqueue(v){
+      if (this.count === this.cap) return false // full
+      this.data[this.tail] = v
+      this.tail = (this.tail + 1) % this.cap
+      this.count++
+      return true
+    }
+    dequeue(){
+      if (this.count === 0) return undefined
+      const v = this.data[this.head]
+      this.data[this.head] = null
+      this.head = (this.head + 1) % this.cap
+      this.count--
+      return v
+    }
+    peek(){ return this.count? this.data[this.head] : undefined }
+    clear(){
+      this.data = Array(this.cap).fill(null)
+      this.head = 0; this.tail = 0; this.count = 0
+    }
+    size(){ return this.count }
+    toArray(){
+      const out = []
+      for(let i=0;i<this.count;i++){
+        out.push(this.data[(this.head + i) % this.cap])
+      }
+      return out
+    }
+    capacity(){ return this.cap }
+    frontIdx(){ return this.count? this.head : null }
+    rearIdx(){ return this.count? (this.tail - 1 + this.cap) % this.cap : null }
+  }
+
+  // App state & UI
+  const implSelect = $('implSelect')
+  const capacityInput = $('capacity')
+  const itemInput = $('itemInput')
+  const enqueueBtn = $('enqueueBtn')
+  const dequeueBtn = $('dequeueBtn')
+  const peekBtn = $('peekBtn')
+  const clearBtn = $('clearBtn')
+  const bulkBtn = $('bulkBtn')
+  const autoBtn = $('autoToggle')
+  const rateSlider = $('rate')
+  const visual = $('visual')
+  const sizeLabel = $('size')
+  const capacityLabel = $('capacityDisplay')
+  const frontIdxLabel = $('frontIdx')
+  const rearIdxLabel = $('rearIdx')
+  const codeArea = $('codeArea')
+  const implBadge = $('implBadge')
+
+  let impl = 'circular'
+  let queue = new CircularQueue(Number(capacityInput.value)||6)
+  let autoInterval = null
+
+  function render(){
+    visual.innerHTML = ''
+    const cap = queue.capacity()
+    capacityLabel.textContent = (cap === Infinity) ? '∞' : cap
+    sizeLabel.textContent = queue.size()
+    frontIdxLabel.textContent = queue.frontIdx() === null ? '—' : queue.frontIdx()
+    rearIdxLabel.textContent = queue.rearIdx() === null ? '—' : queue.rearIdx()
+    implBadge.textContent = (impl === 'circular') ? 'Circular' : 'Array'
+
+    // Show representative code snippet
+    if (impl==='circular'){
+      codeArea.textContent = [
+        '// Circular buffer (fixed capacity)',
+        'enqueue(v): if size==cap => fail',
+        '  data[tail] = v; tail = (tail+1)%cap; size++',
+        'dequeue(): if size==0 => undefined',
+        '  v = data[head]; data[head]=null; head=(head+1)%cap; size--'
+      ].join('\n')
+    } else {
+      codeArea.textContent = [
+        '// Simple array queue (unbounded)',
+        'enqueue(v): arr.push(v)',
+        'dequeue(): if arr.length==0 => undefined',
+        '  return arr.shift()   // shift is O(n)'
+      ].join('\n')
+    }
+
+    // Render cells
+    if (impl === 'circular'){
+      const box = document.createElement('div')
+      box.style.display = 'flex'
+      box.style.gap = '10px'
+      for(let i=0;i<cap;i++){
+        const c = document.createElement('div')
+        c.className = 'cell anim' + (queue.data[i] === null ? ' empty' : '')
+        c.innerHTML = ''
+        const idx = document.createElement('div')
+        idx.className = 'idx'
+        idx.textContent = i
+        c.appendChild(idx)
+        const val = document.createElement('div')
+        val.style.textAlign = 'center'
+        val.style.fontSize = '15px'
+        val.textContent = queue.data[i] === null ? '-' : String(queue.data[i])
+        c.appendChild(val)
+
+        // front/rear pointers
+        if (queue.frontIdx() === i){
+          const p = document.createElement('div')
+          p.className = 'pointer'
+          p.textContent = 'front'
+          c.appendChild(p)
+        }
+        if (queue.rearIdx() === i){
+          const p = document.createElement('div')
+          p.className = 'pointer rear'
+          p.textContent = 'rear'
+          c.appendChild(p)
+        }
+        box.appendChild(c)
+      }
+      visual.appendChild(box)
+    } else {
+      // array view: show current array elements in order (front at left)
+      const arr = queue.toArray()
+      const container = document.createElement('div')
+      container.style.display = 'flex'
+      container.style.gap = '10px'
+      arr.forEach((v,i)=>{
+        const c = document.createElement('div')
+        c.className = 'cell anim'
+        c.textContent = String(v)
+        const idx = document.createElement('div')
+        idx.className = 'idx'
+        idx.textContent = i
+        c.appendChild(idx)
+        // allow clicking to remove arbitrary element (for demo)
+        c.title = 'Click to remove this element (not a typical queue op)'
+        c.style.cursor = 'pointer'
+        c.addEventListener('click', ()=>{
+          queue.removeAt(i)
+          log('Removed element at index ' + i + ' (' + v + ') via click', 'warn')
+          render()
+        })
+        if (i === 0){
+          const p = document.createElement('div')
+          p.className = 'pointer'
+          p.textContent = 'front'
+          c.appendChild(p)
+        }
+        if (i === arr.length - 1){
+          const p = document.createElement('div')
+          p.className = 'pointer rear'
+          p.textContent = 'rear'
+          c.appendChild(p)
+        }
+        container.appendChild(c)
+      })
+      if(arr.length===0){
+        const emptyBox = document.createElement('div')
+        emptyBox.className = 'small-muted'
+        emptyBox.textContent = 'Queue is empty'
+        visual.appendChild(emptyBox)
+      } else {
+        visual.appendChild(container)
+      }
+    }
+  }
+
+  // Actions
+  function enqueueValue(val){
+    if (val === '') { log('Cannot enqueue empty string', 'error'); return }
+    if (impl === 'circular'){
+      const ok = queue.enqueue(val)
+      if (!ok){
+        log('Enqueue failed: queue is full (capacity ' + queue.capacity() + ')', 'error')
+      } else {
+        log('Enqueued: ' + val)
+      }
+    } else {
+      queue.enqueue(val)
+      log('Enqueued: ' + val)
+    }
+    render()
+    itemInput.value = ''
+    itemInput.focus()
+  }
+
+  function dequeueValue(){
+    const v = queue.dequeue()
+    if (v === undefined){
+      log('Dequeue attempted on empty queue', 'error')
+    } else {
+      log('Dequeued: ' + v)
+    }
+    render()
+  }
+
+  function peekValue(){
+    const v = queue.peek()
+    if (v === undefined){
+      log('Peek: queue empty', 'warn')
+    } else {
+      log('Peek: ' + v)
+    }
+  }
+
+  // Bulk add
+  function bulkAdd(n=3){
+    for(let i=0;i<n;i++){
+      const v = 'v' + Math.floor(Math.random()*90+10)
+      // try to enqueue, stop if circular and full
+      if (impl==='circular'){
+        if (!queue.enqueue(v)){
+          log('Stopped bulk add: queue full', 'warn')
+          break
+        } else log('Enqueued: ' + v)
+      } else {
+        queue.enqueue(v); log('Enqueued: ' + v)
+      }
+    }
+    render()
+  }
+
+  // Auto enqueue
+  function toggleAuto(){
+    if (autoInterval){
+      clearInterval(autoInterval); autoInterval = null
+      autoBtn.textContent = 'Start'
+      log('Auto enqueue stopped')
+      return
+    }
+    const rate = Number(rateSlider.value)
+    autoBtn.textContent = 'Stop'
+    autoInterval = setInterval(() => {
+      const v = 'a' + Math.floor(Math.random()*900 + 100)
+      if (impl === 'circular'){
+        if (!queue.enqueue(v)){
+          log('Auto enqueue: stopped because queue is full', 'warn'); toggleAuto()
+          return
+        } else log('Auto enqueued: ' + v)
+      } else {
+        queue.enqueue(v); log('Auto enqueued: ' + v)
+      }
+      render()
+    }, rate)
+    log('Auto enqueue started (rate ' + rate + ' ms)')
+  }
+
+  // Wire up UI
+  enqueueBtn.addEventListener('click', ()=> enqueueValue(itemInput.value.trim()))
+  itemInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') enqueueValue(itemInput.value.trim()) })
+  dequeueBtn.addEventListener('click', ()=> dequeueValue())
+  peekBtn.addEventListener('click', ()=> peekValue())
+  clearBtn.addEventListener('click', ()=>{
+    queue.clear()
+    log('Queue cleared', 'warn')
+    render()
+  })
+  bulkBtn.addEventListener('click', ()=> bulkAdd(3))
+  implSelect.addEventListener('change', ()=>{
+    const prevData = queue.toArray()
+    impl = implSelect.value
+    if (impl === 'circular'){
+      const cap = Number(capacityInput.value) || 6
+      queue = new CircularQueue(cap)
+      // try to copy previous items into new circular queue up to capacity
+      for(const v of prevData){
+        if (!queue.enqueue(v)) break
+      }
+    } else {
+      queue = new ArrayQueue()
+      // copy items
+      for(const v of prevData) queue.enqueue(v)
+    }
+    log('Switched implementation to ' + impl, 'warn')
+    render()
+  })
+  capacityInput.addEventListener('change', ()=>{
+    const n = Number(capacityInput.value) || 1
+    if (impl === 'circular'){
+      // resize circular buffer keeping existing contents (up to new capacity)
+      const items = queue.toArray()
+      queue = new CircularQueue(n)
+      for(const v of items) {
+        if (!queue.enqueue(v)) break
+      }
+      log('Circular capacity set to ' + n)
+    } else {
+      log('Capacity ignored for array implementation (unbounded)', 'warn')
+    }
+    render()
+  })
+  autoBtn.addEventListener('click', toggleAuto)
+  rateSlider.addEventListener('input', ()=>{
+    if (autoInterval){
+      toggleAuto(); toggleAuto() // restart with new rate
+    }
+  })
+
+  // initial render and sample operations
+  render()
+  log('Demo ready — current implementation: Circular Buffer (capacity ' + queue.capacity() + ')')
+
+  // seed with a couple values for clarity
+  queue.enqueue('A'); queue.enqueue('B'); queue.enqueue('C')
+  render()
+  log('Seeded A, B, C')
+})();
+</script>
+</body>
+</html>

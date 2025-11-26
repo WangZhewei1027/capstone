@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Topological Sort Visualizer (Kahn & DFS)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; display:flex; height:100vh; }
+    #left { width:370px; padding:14px; box-sizing:border-box; border-right:1px solid #e0e0e0; background:#fafafa; overflow:auto;}
+    #canvasWrap { flex:1; display:flex; flex-direction:column; }
+    h2 { margin:6px 0 12px 0; font-size:18px; }
+    label { display:block; margin:8px 0 4px 0; font-size:13px; color:#333; }
+    button, input[type="range"], select { margin-right:8px; }
+    .modeBtn { padding:8px 10px; margin:4px 4px 8px 0; cursor:pointer; border:1px solid #bbb; background:white; border-radius:6px; }
+    .modeBtn.active { background:#e6f4ff; border-color:#7fc1ff; }
+    #svgArea { flex:1; background:linear-gradient(180deg,#fff,#fbfbff); }
+    svg { width:100%; height:100%; display:block; }
+    .panel { background:white; padding:10px; border-radius:8px; box-shadow:0 1px 2px rgba(0,0,0,0.04); margin-bottom:12px; }
+    .small { font-size:13px; color:#555; }
+    .status { margin-top:8px; padding:8px; border-radius:6px; background:#fffbe6; color:#5a4a00; display:inline-block; }
+    .listBox { max-height:120px; overflow:auto; background:#fff; border:1px solid #eee; padding:8px; border-radius:6px; font-family:monospace; font-size:13px; }
+    .infoRow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .footer { padding:8px; text-align:right; font-size:12px; color:#666; }
+    .hint { font-size:12px; color:#777; margin-top:6px; }
+    .smallBtn { padding:6px 8px; font-size:13px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <h2>Topological Sort Visualizer</h2>
+
+    <div class="panel">
+      <div class="small">Graph editing</div>
+      <div style="margin-top:8px;">
+        <button id="addNodeBtn" class="modeBtn">Add Node</button>
+        <button id="addEdgeBtn" class="modeBtn">Add Edge</button>
+        <button id="removeNodeBtn" class="modeBtn">Delete Node</button>
+        <button id="removeEdgeBtn" class="modeBtn">Delete Edge</button>
+      </div>
+      <div class="hint">Click on the canvas to add nodes. In "Add Edge" click source then target. Use Delete modes to remove.</div>
+    </div>
+
+    <div class="panel">
+      <div class="small">Random DAG</div>
+      <div style="margin-top:8px;">
+        <label>Nodes: <input id="rndNodes" type="number" min="1" max="20" value="8" style="width:70px"></label>
+        <label>Edge density: <input id="rndDensity" type="range" min="0" max="1" step="0.05" value="0.25" style="width:150px; vertical-align:middle"></label>
+        <span id="densityLabel" style="font-size:13px; color:#444;">25%</span>
+      </div>
+      <div style="margin-top:8px;">
+        <button id="randomDagBtn" class="smallBtn">Generate Random DAG</button>
+        <button id="clearBtn" class="smallBtn">Clear All</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="small">Kahn's Algorithm (BFS)</div>
+      <div style="margin-top:8px;" class="infoRow">
+        <button id="kahnStartBtn" class="smallBtn">Initialize</button>
+        <button id="kahnStepBtn" class="smallBtn" disabled>Step</button>
+        <button id="kahnAutoBtn" class="smallBtn" disabled>Auto</button>
+        <button id="kahnFinishBtn" class="smallBtn" disabled>Finish</button>
+        <button id="kahnResetBtn" class="smallBtn">Reset</button>
+      </div>
+      <div style="margin-top:8px;">
+        <label>Speed: <input id="speedKahn" type="range" min="100" max="1500" step="100" value="600"></label>
+      </div>
+      <div style="margin-top:8px;">
+        <div class="small">Queue: <span id="kahnQueue" class="listBox" style="display:inline-block; width:100%;"></span></div>
+        <div class="small" style="margin-top:6px;">Output order: <div id="kahnOutput" class="listBox" style="margin-top:6px;"></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="small">DFS-based Topological Sort</div>
+      <div style="margin-top:8px;" class="infoRow">
+        <button id="dfsStartBtn" class="smallBtn">Start</button>
+        <button id="dfsAutoBtn" class="smallBtn" disabled>Auto</button>
+        <button id="dfsFinishBtn" class="smallBtn" disabled>Finish</button>
+        <button id="dfsResetBtn" class="smallBtn">Reset</button>
+      </div>
+      <div style="margin-top:8px;">
+        <label>Speed: <input id="speedDfs" type="range" min="100" max="1500" step="100" value="700"></label>
+      </div>
+      <div style="margin-top:8px;">
+        <div class="small">Visited order (finish times): <div id="dfsOutput" class="listBox" style="margin-top:6px;"></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="small">Graph Info</div>
+      <div style="margin-top:8px;">
+        <div class="small">Adjacency:</div>
+        <pre id="adjPre" class="listBox" style="white-space:pre-wrap;"></pre>
+        <div class="small" style="margin-top:6px;">Indegrees:</div>
+        <pre id="indegPre" class="listBox" style="white-space:pre-wrap;"></pre>
+      </div>
+    </div>
+
+    <div class="footer">Tips: Use random DAG to quickly test. Visual cues: green = ready (in queue), blue = processed, orange = DFS visiting, red = cycle.</div>
+  </div>
+
+  <div id="canvasWrap">
+    <div id="svgArea">
+      <svg id="svg" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"></path>
+          </marker>
+          <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#c33"></path>
+          </marker>
+        </defs>
+        <!-- edges and nodes inserted here -->
+      </svg>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // Basic structures
+  let nodes = []; // {id, x, y}
+  let edges = []; // {from, to}
+  let nextNodeId = 0;
+
+  const svg = document.getElementById('svg');
+  const NS = "http://www.w3.org/2000/svg";
+  const R = 20; // node radius
+
+  // UI elements
+  const addNodeBtn = document.getElementById('addNodeBtn');
+  const addEdgeBtn = document.getElementById('addEdgeBtn');
+  const removeNodeBtn = document.getElementById('removeNodeBtn');
+  const removeEdgeBtn = document.getElementById('removeEdgeBtn');
+  const randomDagBtn = document.getElementById('randomDagBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const rndNodes = document.getElementById('rndNodes');
+  const rndDensity = document.getElementById('rndDensity');
+  const densityLabel = document.getElementById('densityLabel');
+
+  const kahnStartBtn = document.getElementById('kahnStartBtn');
+  const kahnStepBtn = document.getElementById('kahnStepBtn');
+  const kahnAutoBtn = document.getElementById('kahnAutoBtn');
+  const kahnFinishBtn = document.getElementById('kahnFinishBtn');
+  const kahnResetBtn = document.getElementById('kahnResetBtn');
+  const speedKahn = document.getElementById('speedKahn');
+  const kahnQueue = document.getElementById('kahnQueue');
+  const kahnOutput = document.getElementById('kahnOutput');
+
+  const dfsStartBtn = document.getElementById('dfsStartBtn');
+  const dfsAutoBtn = document.getElementById('dfsAutoBtn');
+  const dfsFinishBtn = document.getElementById('dfsFinishBtn');
+  const dfsResetBtn = document.getElementById('dfsResetBtn');
+  const speedDfs = document.getElementById('speedDfs');
+  const dfsOutput = document.getElementById('dfsOutput');
+
+  const adjPre = document.getElementById('adjPre');
+  const indegPre = document.getElementById('indegPre');
+
+  // Modes: 'addNode', 'addEdge', 'removeNode', 'removeEdge', null
+  let mode = null;
+  let selectedNodeForEdge = null;
+  let selectedNodeForDelete = null;
+
+  // SVG elements containers
+  const edgeLayer = document.createElementNS(NS, 'g');
+  const nodeLayer = document.createElementNS(NS, 'g');
+  svg.appendChild(edgeLayer);
+  svg.appendChild(nodeLayer);
+
+  // Kahn algorithm state
+  let kahnState = null; // {indeg, queue, output, active, timer}
+  // DFS state
+  let dfsState = null; // {color, output, timer, active, stackSim?}
+
+  // Utility: compute adjacency and indegree
+  function buildAdjacency() {
+    const adj = {};
+    nodes.forEach(n => adj[n.id] = []);
+    edges.forEach(e => {
+      if(adj[e.from]) adj[e.from].push(e.to);
+    });
+    const indeg = {};
+    nodes.forEach(n => indeg[n.id] = 0);
+    edges.forEach(e => {
+      indeg[e.to] = (indeg[e.to] || 0) + 1;
+    });
+    return {adj, indeg};
+  }
+
+  function updateInfoPanels() {
+    const {adj, indeg} = buildAdjacency();
+    let s = '';
+    Object.keys(adj).sort((a,b)=>+a-+b).forEach(k=>{
+      s += k + ' -> [' + adj[k].join(', ') + ']\n';
+    });
+    adjPre.textContent = s || '(empty)';
+    let t = '';
+    Object.keys(indeg).sort((a,b)=>+a-+b).forEach(k=>{
+      t += k + ': ' + indeg[k] + '\n';
+    });
+    indegPre.textContent = t || '(empty)';
+  }
+
+  // Drawing
+  function clearSvg() {
+    while(edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
+    while(nodeLayer.firstChild) nodeLayer.removeChild(nodeLayer.firstChild);
+  }
+
+  function drawGraph(highlight = {}) {
+    // highlight can have keys: queueSet, processedSet, visitingSet, cycleSet, edgeRemovedSet
+    clearSvg();
+    const {adj} = buildAdjacency();
+    // draw edges first
+    edges.forEach((e, idx) => {
+      const from = nodes.find(n => n.id === e.from);
+      const to = nodes.find(n => n.id === e.to);
+      if(!from || !to) return;
+      const g = document.createElementNS(NS,'g');
+      g.setAttribute('data-edge-index', idx);
+      let stroke = '#666';
+      let marker = 'arrow';
+      if(highlight.cycleEdges && highlight.cycleEdges.has(idx)) { stroke = '#c33'; marker = 'arrowRed'; }
+      else if(highlight.edgeRemovedSet && highlight.edgeRemovedSet.has(idx)) { stroke = '#bbb'; }
+      const path = document.createElementNS(NS,'path');
+      path.setAttribute('fill','none');
+      path.setAttribute('stroke', stroke);
+      path.setAttribute('stroke-width','2');
+      path.setAttribute('marker-end', 'url(#' + marker + ')');
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const offset = R;
+      const sx = from.x + (dx/dist) * offset;
+      const sy = from.y + (dy/dist) * offset;
+      const ex = to.x - (dx/dist) * offset;
+      const ey = to.y - (dy/dist) * offset;
+      // simple quadratic curve offset for clarity
+      const mx = (sx+ex)/2 + (-dy/dist) * 30; // perpendicular offset
+      const my = (sy+ey)/2 + (dx/dist) * 30;
+      const d = `M ${sx} ${sy} Q ${mx} ${my} ${ex} ${ey}`;
+      path.setAttribute('d', d);
+      path.style.cursor = 'pointer';
+      // allow clicking to delete edge in removeEdge mode
+      path.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if(mode === 'removeEdge') {
+          // select this edge to delete
+          edges.splice(idx,1);
+          drawGraph();
+          updateInfoPanels();
+        }
+      });
+      g.appendChild(path);
+      edgeLayer.appendChild(g);
+    });
+
+    // draw nodes
+    nodes.forEach(n => {
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('transform', `translate(${n.x},${n.y})`);
+      g.setAttribute('data-id', n.id);
+      g.style.cursor = 'pointer';
+      const circle = document.createElementNS(NS,'circle');
+      circle.setAttribute('r', R);
+      circle.setAttribute('cx', 0);
+      circle.setAttribute('cy', 0);
+      circle.setAttribute('stroke', '#333');
+      circle.setAttribute('stroke-width', 1.5);
+      circle.setAttribute('fill', '#fff');
+      // coloring
+      if(highlight.queueSet && highlight.queueSet.has(n.id)) {
+        circle.setAttribute('fill', '#e6ffec');
+        circle.setAttribute('stroke','#1b9a60');
+      } else if(highlight.processedSet && highlight.processedSet.has(n.id)) {
+        circle.setAttribute('fill', '#e8f4ff');
+        circle.setAttribute('stroke','#2a75b8');
+      } else if(highlight.visitingSet && highlight.visitingSet.has(n.id)) {
+        circle.setAttribute('fill', '#ffe9c9');
+        circle.setAttribute('stroke','#d37a00');
+      } else if(highlight.cycleSet && highlight.cycleSet.has(n.id)) {
+        circle.setAttribute('fill', '#ffdfe0');
+        circle.setAttribute('stroke','#c33');
+      } else {
+        circle.setAttribute('fill', '#fff');
+        circle.setAttribute('stroke','#333');
+      }
+      // selected node for edge
+      if(selectedNodeForEdge === n.id && (mode === 'addEdge' || mode === 'removeEdge')) {
+        circle.setAttribute('stroke-width', 3);
+        circle.setAttribute('stroke', '#3b82f6');
+      }
+      g.appendChild(circle);
+      const text = document.createElementNS(NS,'text');
+      text.setAttribute('x', 0);
+      text.setAttribute('y', 6);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('font-size', 13);
+      text.setAttribute('fill', '#111');
+      text.textContent = n.id;
+      g.appendChild(text);
+
+      // Node click behavior
+      g.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if(mode === 'addEdge') {
+          if(selectedNodeForEdge == null) {
+            selectedNodeForEdge = n.id;
+            drawGraph(currentHighlights());
+          } else {
+            const src = selectedNodeForEdge;
+            const dst = n.id;
+            selectedNodeForEdge = null;
+            if(src !== dst) {
+              // prevent duplicate edges
+              if(!edges.some(e=>e.from===src && e.to===dst)) {
+                edges.push({from:src, to:dst});
+              }
+            }
+            drawGraph();
+            updateInfoPanels();
+          }
+        } else if(mode === 'removeNode') {
+          // remove node and any incident edges
+          nodes = nodes.filter(x=>x.id !== n.id);
+          edges = edges.filter(e => e.from !== n.id && e.to !== n.id);
+          drawGraph();
+          updateInfoPanels();
+        } else if(mode === 'removeEdge') {
+          // select edge by clicking node? Not needed; edges clickable.
+        } else if(mode === 'addNode') {
+          // do nothing
+        } else {
+          // maybe allow dragging (handled separately)
+        }
+      });
+
+      // dragging
+      let dragging = false;
+      let offset = {x:0,y:0};
+      g.addEventListener('mousedown', (ev) => {
+        ev.stopPropagation();
+        if(mode === 'addNode' || mode === 'addEdge' || mode === 'removeNode' || mode === 'removeEdge') {
+          // not dragging in modes; only in normal mode
+        } else {
+          dragging = true;
+          offset.x = ev.clientX;
+          offset.y = ev.clientY;
+          selectedDragNode = n.id;
+        }
+      });
+      nodeLayer.appendChild(g);
+    });
+  }
+
+  // SVG click to add node when mode addNode
+  svg.addEventListener('click', (ev) => {
+    const pt = svg.createSVGPoint();
+    pt.x = ev.clientX;
+    pt.y = ev.clientY;
+    const ctm = svg.getScreenCTM();
+    const svgP = pt.matrixTransform(ctm.inverse());
+    if(mode === 'addNode') {
+      const id = nextNodeId++;
+      nodes.push({id:id, x: svgP.x, y: svgP.y});
+      drawGraph();
+      updateInfoPanels();
+    } else {
+      // if not adding, clear selected edge node
+      if(selectedNodeForEdge != null) {
+        selectedNodeForEdge = null;
+        drawGraph(currentHighlights());
+      }
+    }
+  });
+
+  // drag handling across whole svg
+  let selectedDragNode = null;
+  function onPointerMove(ev) {
+    if(selectedDragNode != null) {
+      // compute svg coordinates
+      const pt = svg.createSVGPoint();
+      pt.x = ev.clientX;
+      pt.y = ev.clientY;
+      const ctm = svg.getScreenCTM();
+      const svgP = pt.matrixTransform(ctm.inverse());
+      const node = nodes.find(n => n.id === selectedDragNode);
+      if(node) {
+        node.x = svgP.x;
+        node.y = svgP.y;
+        drawGraph(currentHighlights());
+      }
+    }
+  }
+  function onPointerUp(ev) {
+    if(selectedDragNode != null) {
+      selectedDragNode = null;
+      updateInfoPanels();
+    }
+  }
+  window.addEventListener('mousemove', onPointerMove);
+  window.addEventListener('mouseup', onPointerUp);
+
+  // Mode buttons
+  function setMode(m) {
+    mode = m;
+    [addNodeBtn, addEdgeBtn, removeNodeBtn, removeEdgeBtn].forEach(b=>b.classList.remove('active'));
+    if(m === 'addNode') addNodeBtn.classList.add('active');
+    if(m === 'addEdge') addEdgeBtn.classList.add('active');
+    if(m === 'removeNode') removeNodeBtn.classList.add('active');
+    if(m === 'removeEdge') removeEdgeBtn.classList.add('active');
+    selectedNodeForEdge = null;
+    drawGraph(currentHighlights());
+  }
+  addNodeBtn.addEventListener('click', ()=> setMode('addNode'));
+  addEdgeBtn.addEventListener('click', ()=> setMode('addEdge'));
+  removeNodeBtn.addEventListener('click', ()=> setMode('removeNode'));
+  removeEdgeBtn.addEventListener('click', ()=> setMode('removeEdge'));
+  // clicking outside resets mode
+  svg.addEventListener('dblclick', ()=> setMode(null));
+
+  // Random DAG generator
+  rndDensity.addEventListener('input', () => {
+    densityLabel.textContent = Math.round(rndDensity.value * 100) + '%';
+  });
+  randomDagBtn.addEventListener('click', ()=> {
+    const n = Math.max(1, Math.min(20, parseInt(rndNodes.value||8)));
+    nodes = [];
+    edges = [];
+    nextNodeId = 0;
+    // Create nodes with positions (spread)
+    const margin = 60;
+    const W = 900, H = 600;
+    // generate a random topological order
+    const order = [];
+    for(let i=0;i<n;i++) order.push(nextNodeId++);
+    // shuffle order slightly
+    for(let i=order.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    // assign nodes with positions along left->right
+    for(let i=0;i<n;i++){
+      const x = margin + (i/(Math.max(1,n-1))) * (W - 2*margin) + (Math.random()-0.5)*40;
+      const y = margin + Math.random() * (H - 2*margin);
+      nodes.push({id: order[i], x, y});
+    }
+    // Add edges only from earlier in top order to later (to ensure acyclic)
+    const p = parseFloat(rndDensity.value);
+    for(let i=0;i<n;i++){
+      for(let j=i+1;j<n;j++){
+        if(Math.random() < p) {
+          edges.push({from: order[i], to: order[j]});
+        }
+      }
+    }
+    nextNodeId = Math.max(...order)+1;
+    drawGraph();
+    updateInfoPanels();
+    setMode(null);
+  });
+
+  clearBtn.addEventListener('click', ()=> {
+    nodes = [];
+    edges = [];
+    nextNodeId = 0;
+    drawGraph();
+    updateInfoPanels();
+    setMode(null);
+  });
+
+  // Kahn's algorithm implementation (step-by-step)
+  function resetKahn() {
+    if(kahnState && kahnState.timer) clearInterval(kahnState.timer);
+    kahnState = null;
+    kahnQueue.textContent = '';
+    kahnOutput.textContent = '';
+    kahnStepBtn.disabled = true;
+    kahnAutoBtn.disabled = true;
+    kahnFinishBtn.disabled = true;
+    // clear highlights
+    drawGraph({});
+  }
+
+  kahnResetBtn.addEventListener('click', () => {
+    resetKahn();
+  });
+
+  kahnStartBtn.addEventListener('click', () => {
+    if(nodes.length === 0) { alert('Graph is empty'); return; }
+    const {adj, indeg} = buildAdjacency();
+    const q = [];
+    Object.keys(indeg).forEach(k => {
+      if(indeg[k] === 0) q.push(+k);
+    });
+    kahnState = {
+      indeg: Object.assign({}, indeg),
+      queue: q,
+      output: [],
+      active: true,
+      edgeRemovedSet: new Set()
+    };
+    updateKahnUI();
+    kahnStepBtn.disabled = false;
+    kahnAutoBtn.disabled = false;
+    kahnFinishBtn.disabled = false;
+    drawGraph(currentHighlights());
+  });
+
+  function updateKahnUI() {
+    if(!kahnState) return;
+    kahnQueue.textContent = '[' + kahnState.queue.join(', ') + ']';
+    kahnOutput.textContent = kahnState.output.join(' ➜ ') || '(empty)';
+    updateInfoPanels();
+  }
+
+  function currentHighlights() {
+    const h = {};
+    if(kahnState) {
+      h.queueSet = new Set(kahnState.queue);
+      h.processedSet = new Set(kahnState.output);
+      h.edgeRemovedSet = kahnState.edgeRemovedSet;
+    }
+    if(dfsState) {
+      h.visitingSet = new Set(Object.keys(dfsState.color || {}).filter(k=>dfsState.color[k]==='gray').map(x=>+x));
+      // finished nodes in dfsState.output are processed
+      h.processedSet = new Set((h.processedSet ? Array.from(h.processedSet) : []).concat(dfsState.output || []));
+    }
+    return h;
+  }
+
+  kahnStepBtn.addEventListener('click', () => {
+    if(!kahnState) return;
+    stepKahn();
+  });
+
+  kahnAutoBtn.addEventListener('click', () => {
+    if(!kahnState) return;
+    if(kahnState.timer) {
+      clearInterval(kahnState.timer); kahnState.timer = null; kahnAutoBtn.textContent = 'Auto';
+    } else {
+      kahnAutoBtn.textContent = 'Stop';
+      kahnState.timer = setInterval(() => {
+        if(!stepKahn()) {
+          clearInterval(kahnState.timer); kahnState.timer = null; kahnAutoBtn.textContent = 'Auto';
+        }
+      }, parseInt(speedKahn.value));
+    }
+  });
+
+  kahnFinishBtn.addEventListener('click', () => {
+    if(!kahnState) return;
+    while(stepKahn()) { /* run to finish */ }
+  });
+
+  function stepKahn() {
+    if(!kahnState) return false;
+    const {adj} = buildAdjacency();
+    if(kahnState.queue.length === 0) {
+      const remaining = nodes.map(n=>n.id).filter(id => !kahnState.output.includes(id));
+      if(remaining.length === 0) {
+        // finished successfully
+        drawGraph(currentHighlights());
+        kahnQueue.textContent = '[]';
+        kahnOutput.textContent = kahnState.output.join(' ➜ ');
+        alert('Kahn: Topological order found:\n' + kahnState.output.join(' -> '));
+        kahnStepBtn.disabled = true;
+        kahnAutoBtn.disabled = true;
+        kahnFinishBtn.disabled = true;
+        return false;
+      } else {
+        // cycle detected
+        // highlight nodes with remaining indegree
+        const cycleNodes = new Set(remaining);
+        // find edges connecting cycle nodes to highlight
+        const cycleEdges = new Set();
+        edges.forEach((e, idx) => {
+          if(cycleNodes.has(e.from) && cycleNodes.has(e.to)) cycleEdges.add(idx);
+        });
+        drawGraph({cycleSet: cycleNodes, cycleEdges});
+        kahnQueue.textContent = '[]';
+        kahnOutput.textContent = kahnState.output.join(' ➜ ');
+        alert('Kahn: Cycle detected — no topological ordering exists.');
+        kahnStepBtn.disabled = true;
+        kahnAutoBtn.disabled = true;
+        kahnFinishBtn.disabled = true;
+        return false;
+      }
+    }
+    // pop front
+    const u = kahnState.queue.shift();
+    // mark u as processed
+    kahnState.output.push(u);
+    // remove outgoing edges conceptually: reduce indegrees
+    edges.forEach((e, idx) => {
+      if(e.from === u) {
+        const v = e.to;
+        kahnState.indeg[v]--;
+        // optionally mark this edge as removed (for visuals)
+        kahnState.edgeRemovedSet.add(idx);
+        if(kahnState.indeg[v] === 0) {
+          kahnState.queue.push(v);
+        }
+      }
+    });
+    updateKahnUI();
+    drawGraph(currentHighlights());
+    return true;
+  }
+
+  // DFS-based topo sort with animation
+  function resetDfs() {
+    if(dfsState && dfsState.timer) clearInterval(dfsState.timer);
+    dfsState = null;
+    dfsOutput.textContent = '';
+    dfsAutoBtn.disabled = true;
+    dfsFinishBtn.disabled = true;
+    drawGraph(currentHighlights());
+  }
+  dfsResetBtn.addEventListener('click', resetDfs);
+
+  dfsStartBtn.addEventListener('click', () => {
+    if(nodes.length === 0) { alert('Graph is empty'); return; }
+    const {adj} = buildAdjacency();
+    dfsState = {
+      color: {}, // white/gray/black
+      output: [],
+      stack: [], // manual stack frames for iterative stepping
+      active: true,
+      timer: null,
+      cycleDetected: false,
+      cycleEdges: new Set()
+    };
+    nodes.forEach(n => dfsState.color[n.id] = 'white');
+    // prepare stack by pushing all nodes as start options
+    // We'll perform iterative DFS: for each white node, push frame {v, iterIndex}
+    const todo = nodes.map(n => n.id);
+    // Start first node when stepping
+    dfsAutoBtn.disabled = false;
+    dfsFinishBtn.disabled = false;
+    dfsOutput.textContent = '';
+    drawGraph(currentHighlights());
+  });
+
+  dfsAutoBtn.addEventListener('click', ()=> {
+    if(!dfsState) return;
+    if(dfsState.timer) {
+      clearInterval(dfsState.timer); dfsState.timer = null; dfsAutoBtn.textContent = 'Auto';
+    } else {
+      dfsAutoBtn.textContent = 'Stop';
+      dfsState.timer = setInterval(() => {
+        if(!stepDfs()) {
+          clearInterval(dfsState.timer); dfsState.timer = null; dfsAutoBtn.textContent = 'Auto';
+        }
+      }, parseInt(speedDfs.value));
+    }
+  });
+
+  dfsFinishBtn.addEventListener('click', ()=> {
+    if(!dfsState) return;
+    while(stepDfs()) { /* run to finish */ }
+  });
+
+  function stepDfs() {
+    if(!dfsState) return false;
+    const {adj} = buildAdjacency();
+    // find any white node to start if stack empty
+    if(dfsState.stack.length === 0) {
+      const white = nodes.map(n=>n.id).find(id => dfsState.color[id] === 'white');
+      if(white === undefined) {
+        // finished
+        dfsOutput.textContent = dfsState.output.join(' ← ') || '(empty)';
+        if(dfsState.cycleDetected) {
+          drawGraph({cycleSet: new Set(dfsState.cycleNodes || []), cycleEdges: dfsState.cycleEdges});
+          alert('DFS: Cycle detected.');
+        } else {
+          // Topological order is reverse of finishing times
+          const order = [...dfsState.output].reverse();
+          alert('DFS: Topological order (one possible):\n' + order.join(' -> '));
+        }
+        dfsAutoBtn.disabled = true;
+        dfsFinishBtn.disabled = true;
+        return false;
+      } else {
+        // push frame to start DFS from this node
+        dfsState.stack.push({v: white, iter: 0});
+      }
+    }
+
+    // simulate recursion with stack frames
+    const frame = dfsState.stack[dfsState.stack.length - 1];
+    const v = frame.v;
+    if(dfsState.color[v] === 'white') {
+      dfsState.color[v] = 'gray'; // discovered
+      drawGraph(currentHighlights());
+      // continue to process neighbors
+      return true;
+    }
+    const neighbors = adj[v] || [];
+    if(frame.iter < neighbors.length) {
+      const to = neighbors[frame.iter++];
+      if(dfsState.color[to] === 'white') {
+        dfsState.stack.push({v: to, iter: 0});
+      } else if(dfsState.color[to] === 'gray') {
+        // back edge -> cycle
+        dfsState.cycleDetected = true;
+        dfsState.cycleNodes = dfsState.stack.map(f=>f.v);
+        // find edges among cycle nodes to highlight
+        edges.forEach((e, idx) => {
+          if(dfsState.cycleNodes.includes(e.from) && dfsState.cycleNodes.includes(e.to)) {
+            dfsState.cycleEdges.add(idx);
+          }
+        });
+        drawGraph({cycleSet: new Set(dfsState.cycleNodes), cycleEdges: dfsState.cycleEdges});
+        dfsOutput.textContent = dfsState.output.join(' ← ');
+        return false;
+      } else {
+        // already black, continue
+      }
+      drawGraph(currentHighlights());
+      return true;
+    } else {
+      // finished all neighbors
+      dfsState.stack.pop();
+      dfsState.color[v] = 'black';
+      dfsState.output.push(v); // append at finish time
+      dfsOutput.textContent = dfsState.output.join(' ← ');
+      drawGraph(currentHighlights());
+      return true;
+    }
+  }
+
+  // Initialize with a small sample graph
+  function initSample() {
+    nodes = [{id:0,x:120,y:100},{id:1,x:240,y:60},{id:2,x:240,y:180},{id:3,x:380,y:60},{id:4,x:380,y:180},{id:5,x:520,y:120}];
+    edges = [{from:0,to:1},{from:0,to:2},{from:1,to:3},{from:2,to:4},{from:3,to:5},{from:4,to:5}];
+    nextNodeId = 6;
+    drawGraph();
+    updateInfoPanels();
+  }
+
+  // kick off
+  initSample();
+
+  // expose some helpful console utilities if needed
+  window._topo = {nodes, edges, drawGraph, buildAdjacency};
+})();
+</script>
+</body>
+</html>
