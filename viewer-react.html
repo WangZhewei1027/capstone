@@ -499,6 +499,7 @@
         margin-bottom: 20px;
       }
 
+      /* FSM Node Styles */
       .state-node {
         cursor: pointer;
         transition: all 0.3s ease;
@@ -508,6 +509,32 @@
         filter: brightness(1.1);
       }
 
+      .node-idle {
+        fill: #4caf50;
+        stroke: #2e7d32;
+      }
+
+      .node-atomic {
+        fill: #2196f3;
+        stroke: #1565c0;
+      }
+
+      .node-composite {
+        fill: #ff9800;
+        stroke: #ef6c00;
+      }
+
+      .node-error {
+        fill: #f44336;
+        stroke: #c62828;
+      }
+
+      .node-final {
+        fill: #607d8b;
+        stroke: #455a64;
+      }
+
+      /* Edge Styles */
       .edge {
         fill: none;
         stroke: #666;
@@ -521,8 +548,9 @@
         stroke-width: 3;
       }
 
-      .legend {
-        background: rgba(255, 255, 255, 0.9);
+      /* Graph Legend Styles */
+      .graph-legend {
+        background: rgba(255, 255, 255, 0.95);
         border-radius: 10px;
         padding: 15px;
         position: absolute;
@@ -530,27 +558,49 @@
         right: 10px;
         z-index: 100;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        min-width: 140px;
       }
 
       .legend-title {
         font-weight: 600;
         margin-bottom: 10px;
         color: #333;
+        font-size: 0.9rem;
       }
 
       .legend-item {
         display: flex;
         align-items: center;
         margin-bottom: 5px;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
       }
 
       .legend-color {
-        width: 16px;
-        height: 16px;
+        width: 14px;
+        height: 14px;
         border-radius: 50%;
         margin-right: 8px;
         border: 2px solid #333;
+      }
+
+      /* Tooltip Styles */
+      .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        pointer-events: none;
+        font-size: 12px;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.2s;
+        max-width: 200px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+
+      .tooltip.show {
+        opacity: 1;
       }
 
       .screenshot-panel {
@@ -1569,7 +1619,7 @@
         );
       };
 
-      // FSMGraph Component
+      // Universal FSMGraph Component
       const FSMGraph = ({ fsmData, screenshots, onStateClick }) => {
         const svgRef = useRef();
         const [graphData, setGraphData] = useState({ nodes: [], links: [] });
@@ -1577,30 +1627,78 @@
         useEffect(() => {
           if (!fsmData) return;
 
-          // 构建图数据
-          const nodes = fsmData.states.map((state) => ({
-            id: state.name,
-            name: state.name,
-            onEnter: state.onEnter,
-            color: STATE_COLORS[state.name] || "#666",
-            hasScreenshots: screenshots.some((img) => {
-              // 更智能的截图-状态匹配
-              return isScreenshotForState(img, state.name);
-            }),
-          }));
+          // Build graph data from the new JSON structure, with fallbacks for old format
+          let nodes = [];
+          let links = [];
 
-          const links = [];
-          fsmData.states.forEach((state) => {
-            if (state.on) {
-              Object.entries(state.on).forEach(([event, target]) => {
-                links.push({
-                  source: state.name,
-                  target: target,
-                  event: event,
+          // Handle new JSON structure
+          if (fsmData.states && Array.isArray(fsmData.states)) {
+            nodes = fsmData.states.map((state) => ({
+              id: state.id || state.name || state.label,
+              label: state.label || state.name || state.id,
+              type: state.type || "atomic",
+              entryActions: state.entry_actions || state.onEnter || [],
+              exitActions: state.exit_actions || state.onExit || [],
+              hasScreenshots: screenshots.some((img) => {
+                const stateIdentifier = state.id || state.name || state.label;
+                return isScreenshotForState(img, stateIdentifier);
+              }),
+            }));
+          }
+          // Handle old XState format as fallback
+          else if (fsmData.states && typeof fsmData.states === "object") {
+            nodes = Object.entries(fsmData.states).map(([key, state]) => ({
+              id: key,
+              label: state.meta?.label || key,
+              type: state.type || "atomic",
+              entryActions: state.onEnter || [],
+              exitActions: state.onExit || [],
+              hasScreenshots: screenshots.some((img) =>
+                isScreenshotForState(img, key)
+              ),
+            }));
+          }
+
+          // Handle transitions for new format
+          if (fsmData.transitions && Array.isArray(fsmData.transitions)) {
+            links = fsmData.transitions.map((transition) => ({
+              source: transition.from,
+              target: transition.to,
+              event: transition.event,
+              guard: transition.guard,
+              actions: transition.actions || [],
+              timeout: transition.timeout,
+            }));
+          }
+          // Handle old format transitions
+          else if (fsmData.states) {
+            const stateEntries = Array.isArray(fsmData.states)
+              ? fsmData.states.map((s) => [s.id, s])
+              : Object.entries(fsmData.states);
+
+            stateEntries.forEach(([stateKey, state]) => {
+              if (state.on || state.transitions) {
+                const transitions = state.on || state.transitions || {};
+                Object.entries(transitions).forEach(([event, target]) => {
+                  if (typeof target === "string") {
+                    links.push({
+                      source: stateKey,
+                      target: target,
+                      event: event,
+                    });
+                  } else if (target && target.target) {
+                    links.push({
+                      source: stateKey,
+                      target: target.target,
+                      event: event,
+                      guard: target.cond,
+                      actions: target.actions || [],
+                    });
+                  }
                 });
-              });
-            }
-          });
+              }
+            });
+          }
 
           setGraphData({ nodes, links });
         }, [fsmData, screenshots]);
@@ -1611,16 +1709,29 @@
           const svg = d3.select(svgRef.current);
           svg.selectAll("*").remove();
 
+          // Validate that we have nodes and at least try to render
+          if (graphData.nodes.length === 0) {
+            svg
+              .append("text")
+              .attr("x", 500)
+              .attr("y", 300)
+              .attr("text-anchor", "middle")
+              .attr("fill", "#666")
+              .attr("font-size", "16px")
+              .text("暂无FSM数据可显示");
+            return;
+          }
+
           const width = 1000;
           const height = 550;
 
-          // 定义箭头标记
+          // Define arrow markers
           svg
             .append("defs")
             .append("marker")
             .attr("id", "arrowhead")
             .attr("viewBox", "0 -5 10 10")
-            .attr("refX", 25)
+            .attr("refX", 30)
             .attr("refY", 0)
             .attr("markerWidth", 6)
             .attr("markerHeight", 6)
@@ -1641,121 +1752,134 @@
             .force("charge", d3.forceManyBody().strength(-800))
             .force("center", d3.forceCenter(width / 2, height / 2))
             .force("collision", d3.forceCollide().radius(60))
-            .alpha(0.1) // 降低初始能量，减少动画
-            .alphaDecay(0.1) // 快速衰减
-            .velocityDecay(0.9); // 增加阻尼
+            .alpha(0.1)
+            .alphaDecay(0.1)
+            .velocityDecay(0.9);
 
-          // 智能布局节点位置 - 根据状态类型分组
+          // Smart node positioning by state type and semantic analysis
           const layoutNodesByType = (nodes, width, height) => {
-            // 根据状态名称分类
             const categories = {
-              start: [], // 开始状态
-              input: [], // 输入处理
-              action: [], // 执行动作
-              display: [], // 显示更新
-              error: [], // 错误处理
-              end: [], // 结束状态
+              idle: [],
+              atomic: [],
+              composite: [],
+              error: [],
+              final: [],
             };
 
             nodes.forEach((node) => {
-              const name = node.name.toLowerCase();
-              if (name.includes("idle") || name.includes("initial")) {
-                categories.start.push(node);
-              } else if (
-                name.includes("validating") ||
-                name.includes("input")
+              const type = node.type.toLowerCase();
+              const label = (node.label || node.id).toLowerCase();
+
+              // Categorize by type first, then by semantic meaning
+              if (
+                type === "idle" ||
+                label.includes("idle") ||
+                label.includes("initial") ||
+                label.includes("start")
               ) {
-                categories.input.push(node);
+                categories.idle.push(node);
               } else if (
-                name.includes("adding") ||
-                name.includes("removing") ||
-                name.includes("inserting") ||
-                name.includes("performing")
+                type === "error" ||
+                label.includes("error") ||
+                label.includes("alert") ||
+                label.includes("exception")
               ) {
-                categories.action.push(node);
-              } else if (
-                name.includes("updating") ||
-                name.includes("drawing") ||
-                name.includes("display") ||
-                name.includes("clearing")
-              ) {
-                categories.display.push(node);
-              } else if (name.includes("error") || name.includes("alert")) {
                 categories.error.push(node);
               } else if (
-                name.includes("resetting") ||
-                name.includes("done") ||
-                name.includes("complete")
+                label.includes("final") ||
+                label.includes("complete") ||
+                label.includes("reset") ||
+                label.includes("done") ||
+                label.includes("end") ||
+                label.includes("finish")
               ) {
-                categories.end.push(node);
+                categories.final.push(node);
+              } else if (
+                type === "composite" ||
+                label.includes("composite") ||
+                label.includes("complex")
+              ) {
+                categories.composite.push(node);
               } else {
-                // 默认放入action分类
-                categories.action.push(node);
+                // Default to atomic for processing states
+                categories.atomic.push(node);
               }
             });
 
-            // 定义各分类的布局区域
+            // Enhanced layouts with better spacing
             const layouts = {
-              start: { x: width * 0.15, y: height * 0.5, spread: 80 },
-              input: { x: width * 0.35, y: height * 0.25, spread: 100 },
-              action: { x: width * 0.5, y: height * 0.5, spread: 140 },
-              display: { x: width * 0.75, y: height * 0.65, spread: 100 },
-              error: { x: width * 0.25, y: height * 0.8, spread: 80 },
-              end: { x: width * 0.85, y: height * 0.4, spread: 80 },
+              idle: {
+                x: width * 0.15,
+                y: height * 0.5,
+                spread: 80,
+                color: "#4caf50",
+              },
+              atomic: {
+                x: width * 0.5,
+                y: height * 0.5,
+                spread: 160,
+                color: "#2196f3",
+              },
+              composite: {
+                x: width * 0.75,
+                y: height * 0.35,
+                spread: 100,
+                color: "#ff9800",
+              },
+              error: {
+                x: width * 0.25,
+                y: height * 0.8,
+                spread: 80,
+                color: "#f44336",
+              },
+              final: {
+                x: width * 0.85,
+                y: height * 0.65,
+                spread: 80,
+                color: "#607d8b",
+              },
             };
 
-            // 为每个分类中的节点分配位置
             Object.keys(categories).forEach((category) => {
               const categoryNodes = categories[category];
               const layout = layouts[category];
 
               if (categoryNodes.length === 0) return;
 
-              if (categoryNodes.length === 1) {
-                // 单个节点放在中心，添加轻微随机偏移
-                categoryNodes[0].x = layout.x + (Math.random() - 0.5) * 30;
-                categoryNodes[0].y = layout.y + (Math.random() - 0.5) * 30;
-              } else {
-                // 多个节点按照优化的分布
-                categoryNodes.forEach((node, i) => {
-                  if (categoryNodes.length === 2) {
-                    // 两个节点水平或垂直排列
-                    const isVertical =
-                      category === "input" || category === "display";
-                    if (isVertical) {
-                      node.x = layout.x + (Math.random() - 0.5) * 40;
-                      node.y = layout.y + (i - 0.5) * 60;
-                    } else {
-                      node.x = layout.x + (i - 0.5) * 80;
-                      node.y = layout.y + (Math.random() - 0.5) * 40;
-                    }
-                  } else if (categoryNodes.length === 3) {
-                    // 三个节点三角形排列
-                    const angles = [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3];
-                    const radius = 50;
-                    node.x = layout.x + Math.cos(angles[i]) * radius;
-                    node.y = layout.y + Math.sin(angles[i]) * radius;
+              categoryNodes.forEach((node, i) => {
+                if (categoryNodes.length === 1) {
+                  node.x = layout.x + (Math.random() - 0.5) * 30;
+                  node.y = layout.y + (Math.random() - 0.5) * 30;
+                } else if (categoryNodes.length === 2) {
+                  // Two nodes: place them vertically or horizontally
+                  const isVertical =
+                    category === "atomic" || category === "composite";
+                  if (isVertical) {
+                    node.x = layout.x + (Math.random() - 0.5) * 40;
+                    node.y = layout.y + (i - 0.5) * 80;
                   } else {
-                    // 多个节点小圆形排列，添加随机偏移
-                    const angle = (i / categoryNodes.length) * 2 * Math.PI;
-                    const radius =
-                      layout.spread / 3 + (Math.random() - 0.5) * 20;
-                    node.x = layout.x + Math.cos(angle) * radius;
-                    node.y = layout.y + Math.sin(angle) * radius;
+                    node.x = layout.x + (i - 0.5) * 100;
+                    node.y = layout.y + (Math.random() - 0.5) * 40;
                   }
-                });
-              }
+                } else {
+                  // Multiple nodes: circular or grid arrangement
+                  const angle = (i / categoryNodes.length) * 2 * Math.PI;
+                  const radius = layout.spread / 3 + (Math.random() - 0.5) * 20;
+                  node.x = layout.x + Math.cos(angle) * radius;
+                  node.y = layout.y + Math.sin(angle) * radius;
+                }
+                node.color = layout.color;
+              });
             });
           };
 
-          // 应用智能布局
           layoutNodesByType(graphData.nodes, width, height);
 
-          // 添加分组背景区域
+          // Add category background areas
           const addGroupBackgrounds = () => {
             const groupAreas = [
               {
-                name: "开始",
+                name: "起始状态",
                 x: width * 0.05,
                 y: height * 0.35,
                 w: width * 0.2,
@@ -1764,16 +1888,7 @@
                 opacity: 0.1,
               },
               {
-                name: "输入验证",
-                x: width * 0.25,
-                y: height * 0.1,
-                w: width * 0.2,
-                h: height * 0.3,
-                color: "#ff9800",
-                opacity: 0.1,
-              },
-              {
-                name: "执行动作",
+                name: "原子状态",
                 x: width * 0.4,
                 y: height * 0.3,
                 w: width * 0.2,
@@ -1782,16 +1897,16 @@
                 opacity: 0.1,
               },
               {
-                name: "显示更新",
+                name: "组合状态",
                 x: width * 0.65,
-                y: height * 0.45,
+                y: width * 0.2,
                 w: width * 0.2,
                 h: height * 0.3,
-                color: "#9c27b0",
+                color: "#ff9800",
                 opacity: 0.1,
               },
               {
-                name: "错误处理",
+                name: "错误状态",
                 x: width * 0.15,
                 y: height * 0.65,
                 w: width * 0.2,
@@ -1802,7 +1917,7 @@
               {
                 name: "结束状态",
                 x: width * 0.75,
-                y: height * 0.25,
+                y: height * 0.5,
                 w: width * 0.2,
                 h: height * 0.3,
                 color: "#607d8b",
@@ -1810,7 +1925,6 @@
               },
             ];
 
-            // 添加背景矩形
             svg
               .append("g")
               .attr("class", "group-backgrounds")
@@ -1830,7 +1944,6 @@
               .attr("stroke-width", 1)
               .attr("stroke-opacity", 0.3);
 
-            // 添加分组标签
             svg
               .append("g")
               .attr("class", "group-labels")
@@ -1848,34 +1961,40 @@
           };
 
           addGroupBackgrounds();
-
-          // 立即停止模拟以固定位置
           simulation.stop();
 
-          // 创建连线
-          const link = svg
-            .append("g")
-            .selectAll("path")
-            .data(graphData.links)
-            .join("path")
-            .attr("class", "edge")
-            .attr("stroke", "#666")
-            .attr("stroke-width", 2)
-            .attr("fill", "none")
-            .attr("marker-end", "url(#arrowhead)");
+          // Create links (only if we have valid transitions)
+          let link, linkLabel;
+          if (graphData.links && graphData.links.length > 0) {
+            link = svg
+              .append("g")
+              .selectAll("path")
+              .data(graphData.links)
+              .join("path")
+              .attr("class", "edge")
+              .attr("stroke", "#666")
+              .attr("stroke-width", 2)
+              .attr("fill", "none")
+              .attr("marker-end", "url(#arrowhead)");
 
-          // 创建连线标签
-          const linkLabel = svg
-            .append("g")
-            .selectAll("text")
-            .data(graphData.links)
-            .join("text")
-            .attr("font-size", "10px")
-            .attr("text-anchor", "middle")
-            .attr("fill", "#333")
-            .text((d) => d.event);
+            // Create link labels
+            linkLabel = svg
+              .append("g")
+              .selectAll("text")
+              .data(graphData.links)
+              .join("text")
+              .attr("font-size", "10px")
+              .attr("text-anchor", "middle")
+              .attr("fill", "#333")
+              .attr("font-weight", "bold")
+              .text((d) => d.event || "transition");
+          } else {
+            // Create empty groups to prevent errors
+            link = svg.append("g").selectAll("path");
+            linkLabel = svg.append("g").selectAll("text");
+          }
 
-          // 创建节点
+          // Create nodes
           const node = svg
             .append("g")
             .selectAll("g")
@@ -1884,16 +2003,16 @@
             .attr("class", "state-node")
             .style("cursor", "pointer");
 
-          // 节点圆圈
+          // Node circles with type-based styling
           node
             .append("circle")
             .attr("r", (d) => (d.hasScreenshots ? 35 : 30))
-            .attr("fill", (d) => d.color)
+            .attr("fill", (d) => d.color || "#666")
             .attr("stroke", (d) => (d.hasScreenshots ? "#fff" : "none"))
             .attr("stroke-width", (d) => (d.hasScreenshots ? 3 : 0))
             .attr("opacity", 0.9);
 
-          // 截图指示器
+          // Screenshot indicator
           node
             .filter((d) => d.hasScreenshots)
             .append("circle")
@@ -1916,59 +2035,137 @@
             .attr("font-weight", "bold")
             .text("📷");
 
-          // 节点标签
-          node
-            .append("text")
-            .attr("font-size", "11px")
-            .attr("font-weight", "600")
-            .attr("fill", "white")
-            .attr("text-anchor", "middle")
-            .text((d) => d.name);
+          // Node labels - split long labels
+          node.each(function (d) {
+            const nodeGroup = d3.select(this);
+            const label = d.label || d.id;
 
-          // 节点交互
-          node.on("click", (event, d) => {
-            // 重置所有节点样式
-            node
-              .select("circle")
-              .attr("stroke-width", (d) => (d.hasScreenshots ? 3 : 0));
+            if (label.length > 12) {
+              // Split long labels into multiple lines
+              const words = label.split(/(?=[A-Z])|_|-/);
+              const lines = [];
+              let currentLine = "";
 
-            // 高亮当前节点
-            d3.select(event.currentTarget)
-              .select("circle")
-              .attr("stroke", "#ff6b6b")
-              .attr("stroke-width", 5);
+              words.forEach((word) => {
+                if (
+                  (currentLine + word).length > 10 &&
+                  currentLine.length > 0
+                ) {
+                  lines.push(currentLine);
+                  currentLine = word;
+                } else {
+                  currentLine += word;
+                }
+              });
+              if (currentLine) lines.push(currentLine);
 
-            onStateClick(d.name);
+              lines.forEach((line, i) => {
+                nodeGroup
+                  .append("text")
+                  .attr("font-size", "10px")
+                  .attr("font-weight", "600")
+                  .attr("fill", "white")
+                  .attr("text-anchor", "middle")
+                  .attr("y", (i - (lines.length - 1) / 2) * 12)
+                  .text(line);
+              });
+            } else {
+              nodeGroup
+                .append("text")
+                .attr("font-size", "11px")
+                .attr("font-weight", "600")
+                .attr("fill", "white")
+                .attr("text-anchor", "middle")
+                .text(label);
+            }
           });
 
-          // 立即更新位置函数
-          const updatePositions = () => {
-            link.attr("d", (d) => {
-              const dx = d.target.x - d.source.x;
-              const dy = d.target.y - d.source.y;
-              const dr = Math.sqrt(dx * dx + dy * dy);
+          // Node interactions with tooltips
+          node
+            .on("click", (event, d) => {
+              node
+                .select("circle")
+                .attr("stroke-width", (d) => (d.hasScreenshots ? 3 : 0));
 
-              // 计算圆圈边缘的点
-              const sourceX = d.source.x + (dx * 35) / dr;
-              const sourceY = d.source.y + (dy * 35) / dr;
-              const targetX = d.target.x - (dx * 35) / dr;
-              const targetY = d.target.y - (dy * 35) / dr;
+              d3.select(event.currentTarget)
+                .select("circle")
+                .attr("stroke", "#ff6b6b")
+                .attr("stroke-width", 5);
 
-              return `M${sourceX},${sourceY}L${targetX},${targetY}`;
+              onStateClick(d.id);
+            })
+            .on("mouseover", (event, d) => {
+              // Create tooltip
+              const tooltip = d3
+                .select("body")
+                .selectAll(".fsm-tooltip")
+                .data([1]);
+
+              const tooltipEnter = tooltip
+                .enter()
+                .append("div")
+                .attr("class", "tooltip fsm-tooltip");
+
+              const tooltipUpdate = tooltipEnter.merge(tooltip);
+
+              tooltipUpdate
+                .style("left", event.pageX + 10 + "px")
+                .style("top", event.pageY - 10 + "px")
+                .style("opacity", 1).html(`
+                  <div><strong>${d.label || d.id}</strong></div>
+                  <div>类型: ${d.type}</div>
+                  ${
+                    d.entryActions.length > 0
+                      ? `<div>入口动作: ${d.entryActions
+                          .slice(0, 2)
+                          .join(", ")}${
+                          d.entryActions.length > 2 ? "..." : ""
+                        }</div>`
+                      : ""
+                  }
+                  ${d.hasScreenshots ? "<div>📷 有截图可查看</div>" : ""}
+                `);
+            })
+            .on("mouseout", () => {
+              d3.select(".fsm-tooltip").style("opacity", 0);
             });
 
-            linkLabel
-              .attr("x", (d) => (d.source.x + d.target.x) / 2)
-              .attr("y", (d) => (d.source.y + d.target.y) / 2);
+          // Position update function
+          const updatePositions = () => {
+            // Update links only if they exist
+            if (link && !link.empty()) {
+              link.attr("d", (d) => {
+                const dx = d.target.x - d.source.x;
+                const dy = d.target.y - d.source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy);
 
+                if (dr === 0)
+                  return `M${d.source.x},${d.source.y}L${d.source.x},${d.source.y}`;
+
+                const sourceX = d.source.x + (dx * 35) / dr;
+                const sourceY = d.source.y + (dy * 35) / dr;
+                const targetX = d.target.x - (dx * 35) / dr;
+                const targetY = d.target.y - (dy * 35) / dr;
+
+                return `M${sourceX},${sourceY}L${targetX},${targetY}`;
+              });
+            }
+
+            // Update link labels only if they exist
+            if (linkLabel && !linkLabel.empty()) {
+              linkLabel
+                .attr("x", (d) => (d.source.x + d.target.x) / 2)
+                .attr("y", (d) => (d.source.y + d.target.y) / 2 - 5);
+            }
+
+            // Always update nodes
             node.attr("transform", (d) => `translate(${d.x},${d.y})`);
           };
 
-          // 拖拽功能（优化为静态模式）
+          // Drag functionality
           const drag = d3
             .drag()
             .on("start", (event, d) => {
-              // 仅在拖拽时启动微弱的模拟
               simulation.alpha(0.1).restart();
               d.fx = d.x;
               d.fy = d.y;
@@ -1976,28 +2173,85 @@
             .on("drag", (event, d) => {
               d.fx = event.x;
               d.fy = event.y;
-              // 立即更新位置
               updatePositions();
             })
             .on("end", (event, d) => {
-              // 停止模拟并释放固定位置
               simulation.alpha(0);
               d.fx = null;
               d.fy = null;
             });
 
           node.call(drag);
-
-          // 立即更新位置，无动画
           updatePositions();
-
-          // 只在拖拽时使用tick更新
           simulation.on("tick", updatePositions);
         }, [graphData, onStateClick]);
 
         return (
           <div className="graph-container">
             <svg ref={svgRef} width="100%" height="100%"></svg>
+            <div className="graph-legend">
+              <div className="legend-title">状态类型</div>
+              <div className="legend-item">
+                <div
+                  className="legend-color"
+                  style={{
+                    backgroundColor: "#4caf50",
+                    marginRight: "8px",
+                    borderRadius: "3px",
+                  }}
+                ></div>
+                <span>空闲状态</span>
+              </div>
+              <div className="legend-item">
+                <div
+                  className="legend-color"
+                  style={{
+                    backgroundColor: "#2196f3",
+                    marginRight: "8px",
+                    borderRadius: "3px",
+                  }}
+                ></div>
+                <span>原子状态</span>
+              </div>
+              <div className="legend-item">
+                <div
+                  className="legend-color"
+                  style={{
+                    backgroundColor: "#ff9800",
+                    marginRight: "8px",
+                    borderRadius: "3px",
+                  }}
+                ></div>
+                <span>组合状态</span>
+              </div>
+              <div className="legend-item">
+                <div
+                  className="legend-color"
+                  style={{
+                    backgroundColor: "#f44336",
+                    marginRight: "8px",
+                    borderRadius: "3px",
+                  }}
+                ></div>
+                <span>错误状态</span>
+              </div>
+              <div className="legend-item">
+                <div
+                  className="legend-color"
+                  style={{
+                    backgroundColor: "#607d8b",
+                    marginRight: "8px",
+                    borderRadius: "3px",
+                  }}
+                ></div>
+                <span>结束状态</span>
+              </div>
+              <div
+                style={{ marginTop: "8px", fontSize: "0.75rem", color: "#666" }}
+              >
+                📷 = 有截图
+              </div>
+            </div>
             <div className="legend">
               <div className="legend-title">状态分类布局</div>
               <div className="legend-item">
@@ -2079,24 +2333,55 @@
           setError("");
 
           try {
-            // 加载FSM数据
-            const fsmResponse = await fetch(
-              `http://localhost:3000/api/fsm-data/${workspace}/${fileId}.html`
-            );
+            console.log("Loading FSM data for:", { workspace, fileId });
+
+            // Use the correct API endpoint for FSM JSON files
+            const fsmApiEndpoint = `http://localhost:3000/api/fsm/${workspace}/${fileId}`;
+            console.log("Trying FSM API endpoint:", fsmApiEndpoint);
+
+            const fsmResponse = await fetch(fsmApiEndpoint);
+
             if (fsmResponse.ok) {
               const fsm = await fsmResponse.json();
+              console.log("FSM data loaded successfully:", fsm);
               setFsmData(fsm);
             } else {
-              throw new Error("无法加载FSM数据");
+              const errorText = await fsmResponse.text();
+              throw new Error(
+                `无法加载FSM数据 (${fsmResponse.status}): ${errorText}`
+              );
             }
 
-            // 加载截图
-            const screenshotResponse = await fetch(
-              `http://localhost:3000/api/screenshots/${workspace}/${fileId}.html`
-            );
-            if (screenshotResponse.ok) {
-              const screenshots = await screenshotResponse.json();
-              setScreenshots(screenshots);
+            // Load screenshots (optional)
+            try {
+              const screenshotEndpoints = [
+                `http://localhost:3000/api/screenshots/${workspace}/${fileId}`,
+                `http://localhost:3000/workspace/${workspace}/screenshots/${fileId}/`,
+                `workspace/${workspace}/screenshots/${fileId}/`,
+              ];
+
+              let screenshotResponse = null;
+              for (const endpoint of screenshotEndpoints) {
+                try {
+                  screenshotResponse = await fetch(endpoint);
+                  if (screenshotResponse.ok) break;
+                } catch (e) {
+                  // Continue to next endpoint
+                }
+              }
+
+              if (screenshotResponse && screenshotResponse.ok) {
+                const screenshots = await screenshotResponse.json();
+                setScreenshots(screenshots);
+              } else {
+                console.warn(
+                  "Could not load screenshots, continuing without them"
+                );
+                setScreenshots([]);
+              }
+            } catch (screenshotError) {
+              console.warn("Screenshot loading failed:", screenshotError);
+              setScreenshots([]);
             }
           } catch (error) {
             setError(error.message);
@@ -2152,11 +2437,21 @@
                       <div className="info-panel">
                         <div className="info-title">📋 FSM 信息</div>
                         <div className="info-content">
-                          <strong>主题:</strong> {fsmData.topic}
+                          <strong>概念:</strong>{" "}
+                          {fsmData.meta?.concept || "N/A"}
+                          <br />
+                          <strong>主题:</strong>{" "}
+                          {fsmData.meta?.topic || fsmData.topic || "N/A"}
                           <br />
                           <strong>状态数:</strong> {fsmData.states?.length || 0}
                           <br />
                           <strong>事件数:</strong> {fsmData.events?.length || 0}
+                          <br />
+                          <strong>转换数:</strong>{" "}
+                          {fsmData.transitions?.length || 0}
+                          <br />
+                          <strong>组件数:</strong>{" "}
+                          {fsmData.components?.length || 0}
                           <br />
                           <strong>截图数:</strong> {screenshots.length}
                         </div>
