@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kruskal's Algorithm Visualization</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    background: #003366;
+    color: white;
+    padding: 0.75rem 1rem;
+    text-align: center;
+  }
+  #container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #canvas-container {
+    flex: 2;
+    background: #f4f7f9;
+    position: relative;
+  }
+  canvas {
+    display: block;
+    margin: 0 auto;
+    background: white;
+    box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
+  }
+  #controls {
+    flex: 1;
+    background: #e8eff7;
+    border-left: 1px solid #ccc;
+    padding: 1rem;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+  h2 {
+    margin-top: 0;
+  }
+  label, button {
+    display: block;
+    margin-top: 0.8rem;
+  }
+  input[type="number"], textarea {
+    width: 100%;
+    font-size: 1rem;
+    padding: 0.4rem;
+    box-sizing: border-box;
+    margin-top: 0.2rem;
+    font-family: monospace;
+  }
+  textarea {
+    resize: vertical;
+    height: 130px;
+  }
+  button {
+    font-size: 1.1rem;
+    background-color: #003366;
+    color: white;
+    border: none;
+    padding: 0.6rem;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background-color 0.3s;
+  }
+  button:hover:not(:disabled) {
+    background-color: #0054b3;
+  }
+  button:disabled {
+    background-color: #999;
+    cursor: not-allowed;
+  }
+  #log {
+    background: white;
+    margin-top: 1rem;
+    height: 150px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    font-size: 0.9rem;
+    font-family: monospace;
+    white-space: pre-wrap;
+  }
+  #legend {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+  }
+  .color-box {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    margin-right: 5px;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kruskal's Algorithm Visualization</h1>
+  <p>Minimum Spanning Tree (MST) finder using Kruskal’s Algorithm</p>
+</header>
+<div id="container">
+  <div id="canvas-container">
+    <canvas id="graphCanvas" width="700" height="600" aria-label="Graph visualization"></canvas>
+  </div>
+  <div id="controls">
+    <h2>Input Graph</h2>
+    <label for="numVertices">Number of vertices (max 20):</label>
+    <input type="number" id="numVertices" min="2" max="20" value="7" />
+    
+    <label for="edgesInput">Edges (format: u v weight):</label>
+    <textarea id="edgesInput" aria-describedby="edgeFormatHelp">0 1 7
+0 3 5
+1 2 8
+1 3 9
+1 4 7
+2 4 5
+3 4 15
+3 5 6
+4 5 8
+4 6 9
+5 6 11</textarea>
+    <div id="edgeFormatHelp" style="font-size:0.85rem; color:#555;">
+      One edge per line. Vertices are numbered from 0 to n-1.
+    </div>
+
+    <button id="generateRandom">Generate Random Graph</button>
+    <button id="startBtn">Start Kruskal's Algorithm</button>
+    <button id="stepBtn" disabled>Next Step</button>
+    <button id="resetBtn" disabled>Reset</button>
+
+    <h2>Legend</h2>
+    <div id="legend">
+      <div><span class="color-box" style="background-color:#666;">&nbsp;</span>Unselected Edge</div>
+      <div><span class="color-box" style="background-color:#3a86ff;">&nbsp;</span>Edge Currently Considered</div>
+      <div><span class="color-box" style="background-color:#06d6a0;">&nbsp;</span>Edge Added to MST</div>
+      <div><span class="color-box" style="background-color:#ef476f;">&nbsp;</span>Edge Skipped (creates cycle)</div>
+      <div><span class="color-box" style="background-color:#ffd166;">&nbsp;</span>Vertices connected by MST edges</div>
+    </div>
+
+    <h2>Log</h2>
+    <div id="log" aria-live="polite"></div>
+  </div>
+</div>
+
+<script>
+/**
+ * Kruskal's Algorithm Visualization
+ * 
+ * Graph representation:
+ * - Vertices 0 to n-1, placed evenly around a circle
+ * - Edges with weights, drawn as lines between vertices
+ * 
+ * Visual states for edges:
+ * - Normal: gray
+ * - Current considered edge: blue
+ * - Added to MST: green
+ * - Skipped (cycle): red
+ * 
+ * Vertices included in MST edges are highlighted yellow.
+ * 
+ * Controls:
+ * - Input number of vertices and edges manually
+ * - Generate random graph button
+ * - Start algorithm
+ * - Next step (step through sorting edges and union-find decisions)
+ * - Reset
+ */
+
+(() => {
+  // Canvas setup
+  const canvas = document.getElementById("graphCanvas");
+  const ctx = canvas.getContext("2d");
+
+  // UI Elements
+  const numVerticesInput = document.getElementById("numVertices");
+  const edgesInput = document.getElementById("edgesInput");
+  const generateRandomBtn = document.getElementById("generateRandom");
+  const startBtn = document.getElementById("startBtn");
+  const stepBtn = document.getElementById("stepBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const logDiv = document.getElementById("log");
+
+  // Constants for drawing
+  const WIDTH = canvas.width;
+  const HEIGHT = canvas.height;
+  const RADIUS = Math.min(WIDTH, HEIGHT) / 2 - 60;
+  const VERTEX_RADIUS = 20;
+
+  // Colors
+  const COLOR_EDGE_NORMAL = "#666666";
+  const COLOR_EDGE_CURRENT = "#3a86ff";
+  const COLOR_EDGE_MST = "#06d6a0";
+  const COLOR_EDGE_SKIPPED = "#ef476f";
+  const COLOR_VERTEX_MST = "#ffd166";
+  const COLOR_VERTEX_NORMAL = "#888";
+  const COLOR_VERTEX_LABEL = "#111";
+
+  // State variables
+  let vertices = []; // {x, y}
+  let edges = []; // {u, v, weight, state} - state: normal, current, mst, skipped
+  let numVertices = 0;
+
+  // Kruskal's algorithm state
+  let sortedEdges = [];
+  let edgeIndex = 0;
+  let unionFind = null;
+  let mstEdges = [];
+  let isRunning = false;
+
+  function log(msg) {
+    logDiv.textContent += msg + "\n";
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  // Union-Find (Disjoint Set) Data Structure
+  class UnionFind {
+    constructor(n) {
+      this.parent = new Array(n);
+      this.rank = new Array(n);
+      for (let i = 0; i < n; i++) {
+        this.parent[i] = i;
+        this.rank[i] = 0;
+      }
+    }
+    find(x) {
+      if (this.parent[x] !== x) {
+        this.parent[x] = this.find(this.parent[x]);
+      }
+      return this.parent[x];
+    }
+    union(a, b) {
+      let rootA = this.find(a);
+      let rootB = this.find(b);
+      if (rootA === rootB) return false;
+      if (this.rank[rootA] < this.rank[rootB]) {
+        this.parent[rootA] = rootB;
+      } else if (this.rank[rootB] < this.rank[rootA]) {
+        this.parent[rootB] = rootA;
+      } else {
+        this.parent[rootB] = rootA;
+        this.rank[rootA]++;
+      }
+      return true;
+    }
+    connected(a, b) {
+      return this.find(a) === this.find(b);
+    }
+  }
+
+  // Calculate vertex positions in circle layout
+  function calculateVerticesPositions(n) {
+    // Center of canvas
+    const cx = WIDTH / 2;
+    const cy = HEIGHT / 2;
+    const positions = [];
+    for (let i = 0; i < n; i++) {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+      const x = cx + RADIUS * Math.cos(angle);
+      const y = cy + RADIUS * Math.sin(angle);
+      positions.push({ x, y });
+    }
+    return positions;
+  }
+
+  // Draw single vertex
+  function drawVertex(i, includedInMST) {
+    const v = vertices[i];
+    ctx.beginPath();
+    ctx.fillStyle = includedInMST ? COLOR_VERTEX_MST : COLOR_VERTEX_NORMAL;
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 2;
+    ctx.arc(v.x, v.y, VERTEX_RADIUS, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = COLOR_VERTEX_LABEL;
+    ctx.font = "bold 16px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(i, v.x, v.y);
+  }
+
+  // Draw single edge
+  function drawEdge(edge) {
+    const { u, v, weight, state } = edge;
+    const A = vertices[u];
+    const B = vertices[v];
+
+    // Choose color
+    let color = COLOR_EDGE_NORMAL;
+    switch (state) {
+      case "current":
+        color = COLOR_EDGE_CURRENT;
+        break;
+      case "mst":
+        color = COLOR_EDGE_MST;
+        break;
+      case "skipped":
+        color = COLOR_EDGE_SKIPPED;
+        break;
+    }
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = state === "current" ? 4 : (state === "mst" ? 5 : 2);
+    
+    // Draw edge line
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.stroke();
+
+    // Draw weight label
+    const midX = (A.x + B.x) / 2;
+    const midY = (A.y + B.y) / 2;
+    ctx.fillStyle = "#222";
+    ctx.font = "14px monospace";
+    // Offset slightly perpendicular to line for clarity
+    const dx = B.x - A.x;
+    const dy = B.y - A.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const offsetX = (-dy / len) * 12;
+    const offsetY = (dx / len) * 12;
+    ctx.fillText(weight, midX + offsetX, midY + offsetY);
+  }
+
+  // Draw entire graph
+  function drawGraph() {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+    // Determine which vertices are in MST
+    let vertexInMST = new Array(numVertices).fill(false);
+    for (const e of edges) {
+      if (e.state === "mst") {
+        vertexInMST[e.u] = true;
+        vertexInMST[e.v] = true;
+      }
+    }
+    
+    // Draw edges first (underneath vertices)
+    for (const edge of edges) {
+      drawEdge(edge);
+    }
+    // Draw vertices on top
+    for (let i = 0; i < numVertices; i++) {
+      drawVertex(i, vertexInMST[i]);
+    }
+  }
+
+  // Parse edges input and validate
+  function parseEdges(text, n) {
+    const lines = text.trim().split("\n");
+    const parsedEdges = [];
+    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+      let line = lines[lineNum].trim();
+      if (!line) continue;
+      const parts = line.split(/\s+/);
+      if (parts.length !== 3) {
+        throw new Error(`Invalid edge format at line ${lineNum + 1}. Expected 3 values.`);
+      }
+      let [u, v, w] = parts;
+      u = Number(u);
+      v = Number(v);
+      w = Number(w);
+      if (
+        !Number.isInteger(u) || !Number.isInteger(v) ||
+        u < 0 || v < 0 || u >= n || v >= n ||
+        isNaN(w) || w <= 0
+      ) {
+        throw new Error(`Invalid edge values at line ${lineNum + 1}. Vertex indices must be integers [0, ${n - 1}] and weight positive number.`);
+      }
+      // Disallow self loops
+      if (u === v) {
+        throw new Error(`Self loop edge at line ${lineNum + 1} is not allowed.`);
+      }
+      parsedEdges.push({ u, v, weight: w, state: "normal" });
+    }
+    // Optional: Remove duplicate edges (u,v) and (v,u)
+    let seen = new Set();
+    let filteredEdges = [];
+    for (const e of parsedEdges) {
+      const key = e.u < e.v ? e.u + "," + e.v : e.v + "," + e.u;
+      if (!seen.has(key)) {
+        seen.add(key);
+        filteredEdges.push(e);
+      } else {
+        // Duplicate ignored
+      }
+    }
+    return filteredEdges;
+  }
+
+  // Generate random connected graph
+  function generateRandomGraph(n) {
+    // Create a connected graph first (spanning tree)
+    let generatedEdges = [];
+    for (let i = 1; i < n; i++) {
+      const connectTo = Math.floor(Math.random() * i); // connect i to some vertex less than i
+      const weight = Math.floor(Math.random() * 20) + 1;
+      generatedEdges.push({ u: i, v: connectTo, weight, state: "normal" });
+    }
+    // Add some random extra edges
+    let extraEdgesCount = Math.min(n * 2, 30);
+    let edgeSet = new Set();
+    for (const e of generatedEdges) {
+      const key = e.u < e.v ? `${e.u},${e.v}` : `${e.v},${e.u}`;
+      edgeSet.add(key);
+    }
+    while (extraEdgesCount > 0) {
+      const u = Math.floor(Math.random() * n);
+      let v = Math.floor(Math.random() * n);
+      if (v === u) continue;
+      const a = u < v ? u : v;
+      const b = u < v ? v : u;
+      const key = `${a},${b}`;
+      if (edgeSet.has(key)) continue;
+      const weight = Math.floor(Math.random() * 20) + 1;
+      generatedEdges.push({ u: a, v: b, weight, state: "normal" });
+      edgeSet.add(key);
+      extraEdgesCount--;
+    }
+    return generatedEdges;
+  }
+
+  // Reset states
+  function resetState() {
+    isRunning = false;
+    edgeIndex = 0;
+    mstEdges = [];
+    unionFind = null;
+    for (const e of edges) {
+      e.state = "normal";
+    }
+    logDiv.textContent = "";
+    stepBtn.disabled = true;
+    resetBtn.disabled = true;
+    startBtn.disabled = false;
+    drawGraph();
+  }
+
+  // Start algorithm
+  function startAlgorithm() {
+    // Sort edges by weight ascending
+    sortedEdges = edges.slice().sort((a, b) => a.weight - b.weight);
+    edgeIndex = 0;
+    unionFind = new UnionFind(numVertices);
+    isRunning = true;
+    stepBtn.disabled = false;
+    resetBtn.disabled = false;
+    startBtn.disabled = true;
+    logDiv.textContent = "";
+    log("Starting Kruskal's Algorithm:");
+    for (const e of edges) e.state = "normal";
+    drawGraph();
+  }
+
+  // Perform one step of Kruskal
+  function stepAlgorithm() {
+    // Clear previous current highlight
+    for (const e of edges) {
+      if (e.state === "current") e.state = "normal";
+    }
+
+    if (edgeIndex >= sortedEdges.length) {
+      log("All edges processed. MST complete.");
+      stepBtn.disabled = true;
+      isRunning = false;
+      drawGraph();
+      return;
+    }
+
+    const edge = sortedEdges[edgeIndex];
+    // Find the corresponding edge in edges array by u,v and weight
+    // Because edges are objects, they match — but safer to find.
+    const realEdge = edges.find(
+      e => ( (e.u === edge.u && e.v === edge.v) || (e.u === edge.v && e.v === edge.u) ) && e.weight === edge.weight
+    );
+    if (!realEdge) throw new Error("Edge mismatch in algorithm step.");
+
+    realEdge.state = "current";
+    drawGraph();
+
+    log(`Considering edge (${realEdge.u}, ${realEdge.v}) with weight ${realEdge.weight}`);
+    // Check if adding it forms cycle
+    if (unionFind.connected(realEdge.u, realEdge.v)) {
+      realEdge.state = "skipped";
+      log(`Edge creates a cycle. Skipping it.`);
+    } else {
+      unionFind.union(realEdge.u, realEdge.v);
+      realEdge.state = "mst";
+      mstEdges.push(realEdge);
+      log(`Edge added to MST.`);
+    }
+
+    edgeIndex++;
+
+    // If MST completed (n-1 edges), disable next step
+    if (mstEdges.length === numVertices - 1) {
+      log("Minimum Spanning Tree completed.");
+      stepBtn.disabled = true;
+      isRunning = false;
+    }
+    drawGraph();
+  }
+
+  // Load graph from inputs
+  function loadGraphFromInput() {
+    const n = Number(numVerticesInput.value);
+    if (!Number.isInteger(n) || n < 2 || n > 20) {
+      alert("Number of vertices must be an integer between 2 and 20.");
+      return false;
+    }
+    let parsedEdges;
+    try {
+      parsedEdges = parseEdges(edgesInput.value, n);
+    } catch (err) {
+      alert("Error parsing edges:\n" + err.message);
+      return false;
+    }
+    if (parsedEdges.length === 0) {
+      alert("No valid edges parsed from input.");
+      return false;
+    }
+    // Save state
+    numVertices = n;
+    vertices = calculateVerticesPositions(numVertices);
+    edges = parsedEdges;
+    resetState();
+    return true;
+  }
+
+  // Initialize Random graph
+  function initializeRandomGraph() {
+    const n = Number(numVerticesInput.value);
+    if (!Number.isInteger(n) || n < 2 || n > 20) {
+      alert("Number of vertices must be an integer between 2 and 20.");
+      return;
+    }
+    const randomEdges = generateRandomGraph(n);
+    edgesInput.value = randomEdges
+      .map(e => `${e.u} ${e.v} ${e.weight}`)
+      .join("\n");
+    if (loadGraphFromInput()) {
+      log("Random graph generated and loaded.");
+    }
+  }
+
+  // Initial setup
+  function init() {
+    if (loadGraphFromInput()) {
+      log("Graph loaded. Ready to start.");
+    }
+  }
+
+  // Event listeners
+  startBtn.addEventListener("click", () => {
+    if (isRunning) return;
+    if (loadGraphFromInput()) {
+      startAlgorithm();
+    }
+  });
+
+  stepBtn.addEventListener("click", () => {
+    if (!isRunning) return;
+    stepAlgorithm();
+  });
+
+  resetBtn.addEventListener("click", () => {
+    resetState();
+    log("Algorithm reset.");
+  });
+
+  generateRandomBtn.addEventListener("click", () => {
+    initializeRandomGraph();
+  });
+
+  numVerticesInput.addEventListener("change", () => {
+    // Reload graph with new size but keep edges text intact
+    if (loadGraphFromInput()) {
+      log("Graph reloaded after changing number of vertices.");
+    }
+  });
+
+  edgesInput.addEventListener("input", () => {
+    // Just clear logs and reset state when edges input changes to avoid confusion
+    resetState();
+    log("Graph changed. Please start the algorithm.");
+  });
+
+  // On load
+  window.onload = () => {
+    vertices = calculateVerticesPositions(numVerticesInput.value);
+    if (loadGraphFromInput()) {
+      log("Ready. Configure the graph and start the algorithm.");
+    }
+    drawGraph();
+  };
+})();
+</script>
+</body>
+</html>

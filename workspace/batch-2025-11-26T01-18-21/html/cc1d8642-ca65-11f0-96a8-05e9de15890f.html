@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Union-Find (Disjoint Set) Visualizer</title>
+<style>
+  :root{ --bg:#0f1724; --card:#0b1220; --accent:#38bdf8; --muted:#94a3b8; color-scheme: dark;}
+  body{font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:linear-gradient(180deg,#071021 0%, #081428 60%); color:#e6eef6;}
+  .wrap{max-width:1100px;margin:24px auto;padding:20px;}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  h1{font-size:20px;margin:0;color:var(--accent)}
+  p.lead{margin:6px 0 0;color:var(--muted);font-size:13px}
+  .controls{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:12px;border-radius:10px}
+  .control-group{display:flex;gap:8px;align-items:center}
+  label{font-size:13px;color:var(--muted)}
+  input[type=range]{accent-color:var(--accent)}
+  button{background:linear-gradient(90deg,#0b1422,#08131a);border:1px solid rgba(255,255,255,0.04);color:#dbeeff;padding:8px 10px;border-radius:8px;cursor:pointer}
+  button.primary{background:linear-gradient(90deg,#06b6d4,#0ea5a4);color:#002126}
+  .canvas-wrap{display:flex;gap:12px;margin-top:14px}
+  canvas{background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
+  .sidebar{width:340px;min-width:260px; background:var(--card); border-radius:10px;padding:12px;box-sizing:border-box}
+  .info{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .arrays{font-family:monospace;background:rgba(255,255,255,0.02);padding:8px;border-radius:8px; font-size:13px; color:#eaf6ff}
+  .log{max-height:260px;overflow:auto;margin-top:8px;padding:8px;background:rgba(255,255,255,0.02);border-radius:6px;font-size:13px}
+  .small{font-size:12px;color:var(--muted)}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.02);font-size:12px}
+  .status{margin-top:8px;font-size:13px}
+  .footer{margin-top:16px;color:var(--muted);font-size:12px}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap}
+  .center{display:flex;align-items:center;justify-content:center}
+  .muted{color:var(--muted)}
+  .selected{outline:3px solid rgba(99,102,241,0.12);box-shadow:0 0 0 3px rgba(99,102,241,0.06);border-radius:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Union-Find (Disjoint Set) Visualizer</h1>
+      <p class="lead">Interactive demo: create elements, perform union/find operations, see trees, path compression and union-by-rank/size in action.</p>
+    </div>
+    <div class="small muted">Click nodes to select. First click = A, second click = B → union(A,B). Click a node and press "Find" to run find(A).</div>
+  </header>
+
+  <div class="controls">
+    <div class="control-group">
+      <label>Elements:</label>
+      <input id="nRange" type="range" min="2" max="60" value="12">
+      <div id="nVal" class="small muted">12</div>
+      <button id="resetBtn" class="primary">Reset</button>
+    </div>
+
+    <div class="control-group">
+      <label><input type="checkbox" id="useRank" checked> Union by rank</label>
+      <label><input type="checkbox" id="compressDuringFind" checked> Path compression</label>
+    </div>
+
+    <div class="control-group">
+      <label>Speed:</label>
+      <input id="speedRange" type="range" min="50" max="1200" value="350">
+      <div id="speedVal" class="small muted">350ms</div>
+    </div>
+
+    <div class="control-group">
+      <button id="randomUnionBtn">Random union</button>
+      <button id="autoUnionBtn">Auto-union until one set</button>
+    </div>
+
+    <div class="control-group">
+      <button id="findBtn">Find</button>
+      <button id="clearSelectionBtn">Clear sel</button>
+    </div>
+
+    <div style="margin-left:auto" class="small muted">Visualization: arrows point from node → parent. Roots point to themselves.</div>
+  </div>
+
+  <div class="canvas-wrap" style="margin-top:12px">
+    <canvas id="canvas" width="700" height="520"></canvas>
+    <div class="sidebar">
+      <div class="info">Selected: <span id="selText">none</span></div>
+      <div class="btn-row">
+        <button id="shuffleBtn">Shuffle positions</button>
+        <button id="randomizeBtn">Random components</button>
+      </div>
+
+      <div style="margin-top:10px">
+        <div class="arrays">
+          <div>parent[]: <span id="parentArr"></span></div>
+          <div id="rankLabel">rank[]: <span id="rankArr"></span></div>
+        </div>
+        <div class="legend" id="compLegend"></div>
+      </div>
+
+      <div class="status" id="status">Sets: <strong id="setsCount">0</strong> · Ops: <span id="opsCount">0</span></div>
+
+      <div style="margin-top:8px" class="small muted">Log (latest at top):</div>
+      <div id="log" class="log"></div>
+
+      <div class="footer">Try turning off "Path compression" to see deeper trees. Use union-by-rank to reduce height growth.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Configuration and state
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const nRange = document.getElementById('nRange');
+  const nVal = document.getElementById('nVal');
+  const resetBtn = document.getElementById('resetBtn');
+  const useRankCb = document.getElementById('useRank');
+  const compressCb = document.getElementById('compressDuringFind');
+  const speedRange = document.getElementById('speedRange');
+  const speedVal = document.getElementById('speedVal');
+  const randomUnionBtn = document.getElementById('randomUnionBtn');
+  const autoUnionBtn = document.getElementById('autoUnionBtn');
+  const findBtn = document.getElementById('findBtn');
+  const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+  const selText = document.getElementById('selText');
+  const parentArrEl = document.getElementById('parentArr');
+  const rankArrEl = document.getElementById('rankArr');
+  const rankLabel = document.getElementById('rankLabel');
+  const setsCountEl = document.getElementById('setsCount');
+  const opsCountEl = document.getElementById('opsCount');
+  const logEl = document.getElementById('log');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const randomizeBtn = document.getElementById('randomizeBtn');
+  const compLegend = document.getElementById('compLegend');
+
+  let N = Number(nRange.value);
+  let parent = [];
+  let rank = []; // rank or size depending on flag
+  let positions = [];
+  let colors = [];
+  let selected = []; // up to two for union [a, b] or single for find
+  let ops = 0;
+  let animQueue = [];
+  let animRunning = false;
+
+  const nodeRadius = 18;
+  let animSpeed = Number(speedRange.value);
+
+  // Utilities
+  function randColor(seed) {
+    // pick from a palette
+    const palette = ['#60a5fa','#f97316','#f472b6','#34d399','#c084fc','#f59e0b','#06b6d4','#fb7185','#a3e635','#7dd3fc'];
+    return palette[seed % palette.length];
+  }
+
+  function log(msg) {
+    const time = new Date().toLocaleTimeString();
+    const el = document.createElement('div');
+    el.innerHTML = `<span style="color:var(--muted);font-size:11px">[${time}]</span> ${msg}`;
+    logEl.prepend(el);
+  }
+
+  function resetArrays(n) {
+    parent = new Array(n);
+    rank = new Array(n);
+    for (let i=0;i<n;i++){ parent[i]=i; rank[i]=0; }
+    positions = computeCirclePositions(n);
+    colors = new Array(n).fill(0).map((_,i)=>randColor(i));
+    selected = [];
+    ops = 0;
+    updateUI();
+    draw();
+    log(`Reset with ${n} elements.`);
+  }
+
+  function computeCirclePositions(n) {
+    const w = canvas.width, h = canvas.height;
+    if (n<=12) {
+      const cx = w/2, cy = h/2, r = Math.min(w,h)/2 - 80;
+      const arr = [];
+      for (let i=0;i<n;i++){
+        const a = (i/n)*Math.PI*2 - Math.PI/2;
+        arr.push({x: cx + r*Math.cos(a), y: cy + r*Math.sin(a)});
+      }
+      return arr;
+    } else {
+      // grid-ish layout
+      const cols = Math.ceil(Math.sqrt(n));
+      const rows = Math.ceil(n/cols);
+      const pad = 30;
+      const cellW = (w - pad*2) / cols;
+      const cellH = (h - pad*2) / rows;
+      const arr = [];
+      for (let i=0;i<n;i++){
+        const c = i % cols;
+        const r = Math.floor(i/cols);
+        const x = pad + c*cellW + cellW/2 + (Math.random()-0.5)*20;
+        const y = pad + r*cellH + cellH/2 + (Math.random()-0.5)*20;
+        arr.push({x,y});
+      }
+      return arr;
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // compute components for coloring
+    const compRoot = new Array(N);
+    for (let i=0;i<N;i++) compRoot[i] = findNoCompress(i);
+    // map root to color
+    const rootToColor = {};
+    let colorIdx=0;
+    for (let i=0;i<N;i++){
+      const r = compRoot[i];
+      if (!(r in rootToColor)) rootToColor[r] = randColor(colorIdx++);
+    }
+    // draw parent arrows (child -> parent)
+    ctx.lineWidth = 2;
+    for (let i=0;i<N;i++){
+      const p = parent[i];
+      if (p === i) continue;
+      const a = positions[i];
+      const b = positions[p];
+      // line with slight curve
+      const midx = (a.x + b.x)/2 + (a.y - b.y)*0.12;
+      const midy = (a.y + b.y)/2 + (b.x - a.x)*0.12;
+      ctx.beginPath();
+      ctx.strokeStyle = hexToRgba(rootToColor[compRoot[i]], 0.9);
+      ctx.moveTo(a.x, a.y);
+      ctx.quadraticCurveTo(midx, midy, b.x, b.y);
+      ctx.stroke();
+
+      // draw small arrowhead near parent
+      const t = 0.85; // position along curve
+      const qx = (1-t)*(1-t)*a.x + 2*(1-t)*t*midx + t*t*b.x;
+      const qy = (1-t)*(1-t)*a.y + 2*(1-t)*t*midy + t*t*b.y;
+      drawArrowhead(qx, qy, Math.atan2(b.y - a.y, b.x - a.x));
+    }
+
+    // draw nodes
+    for (let i=0;i<N;i++){
+      const pos = positions[i];
+      const root = compRoot[i];
+      const color = rootToColor[root];
+      // node circle
+      ctx.beginPath();
+      ctx.fillStyle = hexToRgba(color, 0.14);
+      ctx.strokeStyle = hexToRgba(color, 0.9);
+      ctx.lineWidth = (selected.includes(i) ? 3.2 : 1.5);
+      ctx.ellipse(pos.x, pos.y, nodeRadius, nodeRadius, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+
+      // inner circle for root nodes
+      if (parent[i] === i) {
+        ctx.beginPath();
+        ctx.fillStyle = hexToRgba(color, 0.22);
+        ctx.ellipse(pos.x, pos.y, nodeRadius-6, nodeRadius-6, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // label
+      ctx.fillStyle = '#e6f0ff';
+      ctx.font = '13px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(i, pos.x, pos.y);
+    }
+
+    // highlight selection markers
+    if (selected.length > 0) {
+      selected.forEach((i, idx) => {
+        const p = positions[i];
+        ctx.beginPath();
+        ctx.strokeStyle = idx===0 ? '#7c3aed' : '#06b6d4';
+        ctx.lineWidth = 3;
+        ctx.ellipse(p.x, p.y, nodeRadius+6, nodeRadius+6, 0, 0, Math.PI*2);
+        ctx.stroke();
+      });
+    }
+  }
+
+  function hexToRgba(hex, alpha=1) {
+    // simple hex to rgba
+    const h = hex.replace('#','');
+    const r = parseInt(h.substring(0,2),16);
+    const g = parseInt(h.substring(2,4),16);
+    const b = parseInt(h.substring(4,6),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function drawArrowhead(x,y, angle) {
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.moveTo(0,0);
+    ctx.lineTo(-8,-4);
+    ctx.lineTo(-8,4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Find without compression, used for display
+  function findNoCompress(a) {
+    while (parent[a] !== a) a = parent[a];
+    return a;
+  }
+
+  // Animation queue system
+  function enqueue(stepFn) {
+    animQueue.push(stepFn);
+    if (!animRunning) {
+      processQueue();
+    }
+  }
+
+  function processQueue() {
+    if (animQueue.length === 0) { animRunning = false; return; }
+    animRunning = true;
+    const fn = animQueue.shift();
+    fn();
+    // schedule next
+    setTimeout(processQueue, animSpeed);
+  }
+
+  // Find with optional animation and compression
+  function find(a, animate=true) {
+    return new Promise(resolve => {
+      let path = [];
+      let cur = a;
+      while (parent[cur] !== cur) {
+        path.push(cur);
+        cur = parent[cur];
+      }
+      path.push(cur); // include root
+      const root = cur;
+      ops++; updateUI(`find(${a}) -> ${root}`);
+      if (!animate || !compressCb.checked) {
+        // if no compression, we can just show highlighting then finish
+        enqueue(() => {
+          selected = [...new Set([a])];
+          draw();
+          highlightPath(path);
+        });
+        setTimeout(()=>{ resolve(root); }, animSpeed);
+        return;
+      }
+
+      // Animate path compression: set parent of intermediate nodes to root, one by one
+      enqueue(() => {
+        selected = [a];
+        draw();
+      });
+      // show path highlight
+      enqueue(()=>highlightPath(path));
+
+      // compress step by step
+      const intermediates = path.slice(0, -1); // exclude root at end
+      intermediates.forEach((v, idx) => {
+        enqueue(() => {
+          parent[v] = root;
+          log(`Compressed: parent[${v}] = ${root}`);
+          updateUI();
+          draw();
+        });
+      });
+
+      // final draw
+      enqueue(() => {
+        selected = [];
+        draw();
+      });
+
+      // resolve after queue has processed all steps; estimate time by queue length * speed
+      const wait = (animQueue.length + intermediates.length + 3) * animSpeed;
+      setTimeout(()=>{ resolve(root); }, wait+50);
+    });
+  }
+
+  function highlightPath(path) {
+    // quick visual effect: draw thicker stroke for nodes in path
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineWidth = 4;
+    path.forEach((i, idx) => {
+      const pos = positions[i];
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.ellipse(pos.x, pos.y, nodeRadius+10 - idx*2, nodeRadius+10 - idx*2, 0, 0, Math.PI*2);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  // Union entrypoint; animate steps
+  async function union(a,b) {
+    if (a === undefined || b === undefined) return;
+    if (a < 0 || b < 0 || a>=N || b>=N) return;
+    ops++;
+    log(`union(${a}, ${b})`);
+    updateUI();
+    // find roots (use animated find)
+    const ra = await find(a, true);
+    const rb = await find(b, true);
+    if (ra === rb) {
+      log(`Already in same set (root ${ra}).`);
+      return;
+    }
+
+    // attach based on chosen strategy
+    if (useRankCb.checked) {
+      // union by rank
+      if (rank[ra] < rank[rb]) {
+        parent[ra] = rb;
+        log(`parent[${ra}] -> ${rb} (attached lower rank under higher)`);
+      } else if (rank[ra] > rank[rb]) {
+        parent[rb] = ra;
+        log(`parent[${rb}] -> ${ra}`);
+      } else {
+        parent[rb] = ra;
+        rank[ra] += 1;
+        log(`ranks equal: parent[${rb}] -> ${ra}, rank[${ra}]++`);
+      }
+    } else {
+      // union by size (we store size as negative in rank array? We'll use rank[] as size)
+      // ensure rank contains sizes (if toggled, we interpret rank[] accordingly)
+      // We'll maintain rank as size if useRankCb is false
+      if (rank[ra] < rank[rb]) {
+        // ra smaller size -> attach ra under rb
+        parent[ra] = rb;
+        rank[rb] += rank[ra];
+        log(`parent[${ra}] -> ${rb}, size[${rb}] += ${rank[ra]}`);
+      } else {
+        parent[rb] = ra;
+        rank[ra] += rank[rb];
+        log(`parent[${rb}] -> ${ra}, size[${ra}] += ${rank[rb]}`);
+      }
+    }
+    updateUI();
+    draw();
+  }
+
+  // Helpers for UI updates
+  function updateUI(statusText) {
+    nVal.textContent = N;
+    selText.textContent = selected.length===0 ? 'none' : selected.join(', ');
+    parentArrEl.textContent = '[' + parent.join(', ') + ']';
+    rankArrEl.textContent = '[' + rank.join(', ') + ']';
+    setsCountEl.textContent = countSets();
+    opsCountEl.textContent = ops;
+    speedVal.textContent = animSpeed + 'ms';
+    rankLabel.textContent = useRankCb.checked ? 'rank[]:' : 'size[]:';
+    if (statusText) {
+      document.getElementById('status').title = statusText;
+    }
+    updateLegend();
+  }
+
+  function countSets() {
+    const s = new Set();
+    for (let i=0;i<N;i++) s.add(findNoCompress(i));
+    return s.size;
+  }
+
+  function updateLegend() {
+    compLegend.innerHTML = '';
+    const roots = [...new Set(parent.map((_,i)=>findNoCompress(i)))];
+    roots.forEach((r, idx) => {
+      const color = randColor(idx);
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${color}"></span> root ${r}`;
+      compLegend.appendChild(chip);
+    });
+  }
+
+  // Canvas mouse interactions
+  canvas.addEventListener('click', (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+    const hit = hitTest(x,y);
+    if (hit === null) return;
+    if (selected.length === 0) {
+      selected.push(hit);
+    } else if (selected.length === 1) {
+      if (selected[0] === hit) {
+        // interpret as find
+        selected = [hit];
+      } else selected.push(hit);
+    } else {
+      selected = [hit];
+    }
+    updateUI();
+    draw();
+    // If two selected, perform union automatically
+    if (selected.length === 2) {
+      union(selected[0], selected[1]);
+      selected = [];
+    }
+  });
+
+  function hitTest(x,y) {
+    for (let i=0;i<N;i++) {
+      const p = positions[i];
+      const dx = x - p.x, dy = y - p.y;
+      if (dx*dx + dy*dy <= (nodeRadius+8)*(nodeRadius+8)) return i;
+    }
+    return null;
+  }
+
+  // UI wiring
+  nRange.addEventListener('input', () => {
+    N = Number(nRange.value);
+    nVal.textContent = N;
+  });
+
+  resetBtn.addEventListener('click', ()=> {
+    N = Number(nRange.value);
+    init(N);
+  });
+
+  speedRange.addEventListener('input', ()=> {
+    animSpeed = Number(speedRange.value);
+    speedVal.textContent = animSpeed + 'ms';
+  });
+
+  findBtn.addEventListener('click', async ()=> {
+    if (selected.length === 0) {
+      log('No node selected for find.');
+      return;
+    }
+    await find(selected[0], true);
+    selected = [];
+    updateUI();
+    draw();
+  });
+
+  clearSelectionBtn.addEventListener('click', ()=>{ selected=[]; updateUI(); draw(); });
+
+  randomUnionBtn.addEventListener('click', ()=>{
+    // perform one random union
+    const a = randInt(0,N-1), b = randInt(0,N-1);
+    if (a===b) { log('Random pick same index; try again.'); return; }
+    union(a,b);
+  });
+
+  autoUnionBtn.addEventListener('click', ()=> {
+    // continue performing random unions until one set remains
+    const iter = () => {
+      if (countSets() <= 1) {
+        log('Single set achieved.');
+        return;
+      }
+      const a = randInt(0,N-1), b = randInt(0,N-1);
+      if (a!==b) union(a,b);
+      setTimeout(iter, animSpeed + 10);
+    };
+    iter();
+  });
+
+  shuffleBtn.addEventListener('click', ()=> {
+    positions = computeCirclePositions(N).map(p => ({x: p.x + (Math.random()-0.5)*40, y: p.y + (Math.random()-0.5)*40}));
+    draw();
+  });
+
+  randomizeBtn.addEventListener('click', ()=> {
+    // create some random unions to produce random components
+    const m = Math.max(1, Math.floor(N * 0.6));
+    for (let i=0;i<m;i++){
+      const a = randInt(0,N-1), b = randInt(0,N-1);
+      if (a!==b) {
+        // quick union without animation: use settings
+        const ra = findNoCompress(a), rb = findNoCompress(b);
+        if (ra===rb) continue;
+        if (useRankCb.checked) {
+          if (rank[ra] < rank[rb]) parent[ra] = rb;
+          else if (rank[ra] > rank[rb]) parent[rb] = ra;
+          else { parent[rb]=ra; rank[ra]++; }
+        } else {
+          // assume rank[] used as size currently; ensure min size 1
+          if (rank[ra] < rank[rb]) { parent[ra] = rb; rank[rb] += rank[ra]; }
+          else { parent[rb] = ra; rank[ra] += rank[rb]; }
+        }
+      }
+    }
+    log('Randomized components.');
+    updateUI();
+    draw();
+  });
+
+  useRankCb.addEventListener('change', ()=> {
+    // When toggling between rank and size, we convert rank[] meaning
+    if (useRankCb.checked) {
+      // convert sizes to ranks heuristically: set all ranks to 0
+      for (let i=0;i<N;i++) rank[i] = 0;
+      log('Switched to union-by-rank (rank[] reset).');
+    } else {
+      // convert ranks to sizes: compute subtree sizes
+      const sizes = new Array(N).fill(0);
+      for (let i=0;i<N;i++) sizes[findNoCompress(i)]++;
+      for (let i=0;i<N;i++) {
+        if (findNoCompress(i) === i) rank[i] = sizes[i] || 1;
+        else rank[i] = 1;
+      }
+      log('Switched to union-by-size (size[] set for roots).');
+    }
+    updateUI();
+  });
+
+  // Small helpers
+  function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+  // Initialization
+  function init(n) {
+    N = n;
+    // initial arrays
+    parent = new Array(N);
+    rank = new Array(N);
+    for (let i=0;i<N;i++){ parent[i]=i; rank[i]=1; } // by default size=1; if useRank true we'll override to 0
+    if (useRankCb.checked) for (let i=0;i<N;i++) rank[i]=0;
+    positions = computeCirclePositions(N);
+    selected = [];
+    ops = 0;
+    updateUI();
+    draw();
+  }
+
+  // Start
+  init(N);
+
+  // expose some debug functions
+  window.__uf = { get parent(){return parent}, get rank(){return rank}, findNoCompress };
+
+  // initial drawing
+  draw();
+})();
+</script>
+</body>
+</html>

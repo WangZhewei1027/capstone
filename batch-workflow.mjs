@@ -9,6 +9,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { runWorkflow } from "./workflow.mjs";
+import { generateIdealFSM } from "./lib/ideal-fsm-agent.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,6 +53,194 @@ class ConcurrencyLimiter {
       this.tryNext();
     }
   }
+}
+
+/**
+ * 批量生成理想 FSMs
+ * @param {Object} config - 配置参数
+ * @param {string} config.workspace - 工作空间名称
+ * @param {string} config.model - 默认模型
+ * @param {string} [config.questionListPath] - 问题列表文件路径
+ * @param {number} [config.concurrency] - 并发数量限制
+ */
+export async function runIdealFSMBatch(config) {
+  const {
+    workspace,
+    model,
+    questionListPath = "./question-list.json",
+    concurrency = 3,
+  } = config;
+
+  console.log(`
+╔════════════════════════════════════════════════════════════════════════╗
+║  理想 FSM 批量生成器 - Ideal FSM Batch Generator                      ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+配置信息:
+  • 工作空间: ${workspace}
+  • 模型: ${model}
+  • 并发数: ${concurrency}
+  • 问题列表: ${questionListPath}
+`);
+
+  // 读取问题列表
+  let questions;
+  try {
+    const questionsData = await fs.readFile(questionListPath, "utf-8");
+    questions = JSON.parse(questionsData);
+
+    if (!Array.isArray(questions)) {
+      throw new Error("问题列表必须是数组格式");
+    }
+
+    console.log(`📋 已加载 ${questions.length} 个概念\n`);
+  } catch (error) {
+    console.error(`❌ 读取问题列表失败: ${error.message}`);
+    process.exit(1);
+  }
+
+  // 初始化并发限制器
+  const limiter = new ConcurrencyLimiter(concurrency);
+
+  // 统计信息
+  const stats = {
+    total: questions.length,
+    completed: 0,
+    success: 0,
+    failed: 0,
+    startTime: Date.now(),
+  };
+
+  // 结果收集
+  const results = [];
+
+  // 创建输出目录
+  const outputDir = `./workspace/${workspace}`;
+  const idealFsmDir = `${outputDir}/ideal-fsm`;
+  await fs.mkdir(idealFsmDir, { recursive: true });
+
+  // 创建理想 FSM 生成任务
+  const tasks = questions.map((concept, index) => {
+    return limiter.add(async () => {
+      const taskId = `IdealFSM-${(index + 1).toString().padStart(3, "0")}`;
+
+      console.log(`🚀 [${taskId}] 开始生成理想 FSM: ${concept}`);
+
+      try {
+        const idealFsmData = await generateIdealFSM(model, concept, {
+          showProgress: false,
+          taskId,
+          temperature: 0.2,
+        });
+
+        // 保存理想 FSM 文件
+        const fileName = `${concept.replace(/[^a-zA-Z0-9]/g, "_")}.json`;
+        const filePath = `${idealFsmDir}/${fileName}`;
+        await fs.writeFile(filePath, JSON.stringify(idealFsmData, null, 2));
+
+        stats.success++;
+        console.log(`✅ [${taskId}] ${concept} - 完成`);
+        console.log(`   📄 理想 FSM: ${fileName}`);
+
+        results.push({
+          taskId,
+          concept,
+          fileName,
+          filePath,
+          success: true,
+          idealFsmData,
+        });
+      } catch (error) {
+        stats.failed++;
+        console.error(`❌ [${taskId}] ${concept} - 失败: ${error.message}`);
+        results.push({
+          taskId,
+          concept,
+          success: false,
+          error: error.message,
+        });
+      } finally {
+        stats.completed++;
+        const progress = ((stats.completed / stats.total) * 100).toFixed(1);
+        const elapsed = ((Date.now() - stats.startTime) / 1000).toFixed(1);
+        console.log(
+          `📊 进度: ${stats.completed}/${stats.total} (${progress}%) - 用时: ${elapsed}s\n`
+        );
+      }
+    });
+  });
+
+  // 等待所有任务完成
+  console.log(
+    `⚡ 开始执行 ${questions.length} 个理想 FSM 生成任务 (并发数: ${concurrency})\n`
+  );
+
+  try {
+    await Promise.all(tasks);
+  } catch (error) {
+    console.error(`理想 FSM 批量生成过程中发生错误: ${error.message}`);
+  }
+
+  // 生成执行报告
+  await generateIdealFSMReport(results, stats, workspace);
+
+  // 输出最终统计
+  const totalTime = ((Date.now() - stats.startTime) / 1000 / 60).toFixed(2);
+
+  console.log(`
+╔════════════════════════════════════════════════════════════════════════╗
+║  理想 FSM 批量生成完成 - Ideal FSM Batch Completed                    ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+📊 执行统计:
+  • 总概念数: ${stats.total}
+  • 成功: ${stats.success} ✅
+  • 失败: ${stats.failed} ❌
+  • 成功率: ${((stats.success / stats.total) * 100).toFixed(1)}%
+  • 总耗时: ${totalTime} 分钟
+  • 平均耗时: ${((parseFloat(totalTime) * 60) / stats.total).toFixed(1)} 秒/概念
+
+📁 输出位置: ./workspace/${workspace}/ideal-fsm/
+📋 详细报告: ./workspace/${workspace}/ideal-fsm-report.json
+`);
+
+  return {
+    stats,
+    results,
+    workspace,
+  };
+}
+
+/**
+ * 生成理想 FSM 批量执行报告
+ */
+async function generateIdealFSMReport(results, stats, workspace) {
+  const reportDir = `./workspace/${workspace}`;
+  const reportPath = `${reportDir}/ideal-fsm-report.json`;
+
+  const report = {
+    timestamp: new Date().toISOString(),
+    type: "ideal-fsm-batch",
+    stats,
+    results: results.map((r) => ({
+      taskId: r.taskId,
+      concept: r.concept,
+      fileName: r.fileName,
+      success: r.success,
+      ...(r.error && { error: r.error }),
+      ...(r.idealFsmData && {
+        stateCount: r.idealFsmData.states?.length || 0,
+        eventCount: r.idealFsmData.events?.length || 0,
+        transitionCount: r.idealFsmData.transitions?.length || 0,
+        componentCount: r.idealFsmData.components?.length || 0,
+      }),
+    })),
+  };
+
+  await fs.mkdir(reportDir, { recursive: true });
+  await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
+
+  console.log(`📋 理想 FSM 批量报告已生成: ${reportPath}`);
 }
 
 /**
@@ -271,6 +460,7 @@ function parseArgs() {
     concurrency: 3,
     enableFSM: true,
     enableTests: true,
+    mode: "full", // "full" or "ideal-fsm"
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -278,6 +468,10 @@ function parseArgs() {
     const next = args[i + 1];
 
     switch (arg) {
+      case "--ideal-fsm":
+        config.mode = "ideal-fsm";
+        config.workspace = "ideal-fsm-" + timestamp;
+        break;
       case "-w":
       case "--workspace":
         config.workspace = next;
@@ -324,22 +518,29 @@ function parseArgs() {
         console.log(`
 用法: node batch-workflow.mjs [选项]
 
-选项:
+模式选项:
+  --ideal-fsm                仅生成理想 FSM 模式 (不生成 HTML 和测试)
+
+基本选项:
   -w, --workspace <名称>     工作空间名称 (默认: batch-YYYY-MM-DDTHH-MM-SS-mmm)
   -m, --model <模型>         默认 AI 模型名称 (默认: gpt-4o)
   --html-model <模型>        HTML Agent 专用模型
   --fsm-model <模型>         FSM Agent 专用模型
   --playwright-model <模型>  Playwright Agent 专用模型
-  -c, --concurrency <数量>   并发任务数 (默认: 10)
+  -c, --concurrency <数量>   并发任务数 (默认: 3)
   -q, --questions <路径>     问题列表文件路径 (默认: ./question-list.json)
   --no-fsm                   禁用 FSM 生成
   --no-tests                 禁用测试生成
   -h, --help                 显示帮助信息
 
 示例:
+  # 完整工作流
   node batch-workflow.mjs -w "algorithm-demos" -c 5
   node batch-workflow.mjs --model "gpt-4o" --fsm-model "gpt-3.5-turbo"
-  node batch-workflow.mjs --html-model "gpt-4o" --playwright-model "claude-3-sonnet" --no-tests
+  
+  # 仅生成理想 FSM
+  node batch-workflow.mjs --ideal-fsm --model "gpt-4o" -c 5
+  node batch-workflow.mjs --ideal-fsm -w "ideal-fsms-2024" -q "./question-list-short.json"
         `);
         process.exit(0);
     }
@@ -352,13 +553,20 @@ function parseArgs() {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const config = parseArgs();
 
-  runBatchWorkflow(config)
+  // 根据模式选择执行函数
+  const executionFunction =
+    config.mode === "ideal-fsm" ? runIdealFSMBatch : runBatchWorkflow;
+
+  const modeDescription =
+    config.mode === "ideal-fsm" ? "理想 FSM 批量生成" : "完整批量工作流";
+
+  executionFunction(config)
     .then((result) => {
-      console.log("🎉 批量工作流执行完成！");
+      console.log(`🎉 ${modeDescription}执行完成！`);
       process.exit(0);
     })
     .catch((error) => {
-      console.error("💥 批量工作流执行失败:", error);
+      console.error(`💥 ${modeDescription}执行失败:`, error);
       process.exit(1);
     });
 }

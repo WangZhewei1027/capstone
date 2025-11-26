@@ -1,0 +1,838 @@
+{
+  "meta": {
+    "concept": "Bellman-Ford",
+    "topic": "Bellman-Ford Algorithm Visualization",
+    "educational_goal": "Demonstrate Bellman-Ford shortest path relaxations, step-by-step execution, detection of negative-weight cycles, and interactive graph editing (nodes/edges).",
+    "expected_interactions": [
+      "add_node",
+      "add_edge",
+      "remove_node",
+      "delete_edge",
+      "generate_random_graph",
+      "set_source",
+      "drag_node",
+      "select_node",
+      "start_auto",
+      "step",
+      "pause",
+      "reset",
+      "detect_negative_cycle",
+      "adjust_speed"
+    ]
+  },
+  "states": [
+    {
+      "id": "S0_Idle",
+      "label": "Idle",
+      "type": "idle",
+      "entry_actions": [
+        "setStatus('Idle. Add nodes and edges, pick a source, then Start or Step.')",
+        "updateLists()",
+        "refreshNodeDistances()",
+        "clearEdgeHighlights()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S1_AddEdgeMode",
+      "label": "AddEdgeMode",
+      "type": "atomic",
+      "entry_actions": [
+        "edgeTmpFrom = null",
+        "addEdgeMode = true",
+        "document.getElementById('addEdgeModeBtn').classList.add('active')",
+        "setStatus('Edge creation mode: click source then destination')"
+      ],
+      "exit_actions": [
+        "addEdgeMode = false",
+        "edgeTmpFrom = null",
+        "document.getElementById('addEdgeModeBtn').classList.remove('active')",
+        "setStatus('Edge creation canceled or finished')"
+      ]
+    },
+    {
+      "id": "S2_NodeSelected",
+      "label": "NodeSelected",
+      "type": "atomic",
+      "entry_actions": [
+        "selectedNode = getNode(<id>)",
+        "highlightSelection()",
+        "setStatus('Node selected')"
+      ],
+      "exit_actions": [
+        "selectedNode = null",
+        "highlightSelection()"
+      ]
+    },
+    {
+      "id": "S3_AddingNode",
+      "label": "AddingNode",
+      "type": "atomic",
+      "entry_actions": [
+        "createNode(randomX, randomY, newLabel)",
+        "log('Node <label> added')",
+        "updateLists()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S4_AddingEdge",
+      "label": "AddingEdge",
+      "type": "atomic",
+      "entry_actions": [
+        "edgeTmpFrom = <sourceId> (on first click)",
+        "setStatus('Pick destination node (from <label>)')"
+      ],
+      "exit_actions": [
+        "createEdge(edgeTmpFrom, <destId>, weight)",
+        "log('Added edge <u> → <v> (w=<w>)')",
+        "edgeTmpFrom = null",
+        "addEdgeMode = false",
+        "document.getElementById('addEdgeModeBtn').classList.remove('active')",
+        "setStatus('Edge created (if accepted).')"
+      ]
+    },
+    {
+      "id": "S5_RandomGenerating",
+      "label": "RandomGraphGenerating",
+      "type": "atomic",
+      "entry_actions": [
+        "clear existing nodes/edges",
+        "createNode(...) for each generated node",
+        "createEdge(...) for each generated edge",
+        "log('Random graph generated')",
+        "updateLists()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S6_AlgInitialized",
+      "label": "AlgorithmInitialized",
+      "type": "atomic",
+      "entry_actions": [
+        "initAlgorithm()",
+        "refreshNodeDistances()",
+        "setStatus(`Initialized. Starting from ${getNode(sourceNode).label}. Iteration ${currIter} of ${nodes.length-1}`)",
+        "log(`Algorithm initialized. Source ${getNode(sourceNode).label}`)"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S7_RunningAuto",
+      "label": "RunningAuto",
+      "type": "atomic",
+      "entry_actions": [
+        "startAuto()",
+        "document.getElementById('pauseBtn').disabled = false",
+        "autoTimer = setTimeout(autoStep, speedRange.value)"
+      ],
+      "exit_actions": [
+        "clearTimeout(autoTimer)",
+        "autoTimer = null",
+        "document.getElementById('pauseBtn').disabled = true"
+      ]
+    },
+    {
+      "id": "S8_Paused",
+      "label": "Paused",
+      "type": "atomic",
+      "entry_actions": [
+        "clearTimeout(autoTimer)",
+        "autoTimer = null",
+        "algoRunning = false",
+        "setStatus('Paused.')",
+        "document.getElementById('pauseBtn').disabled = true"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S9_StepMode",
+      "label": "StepMode",
+      "type": "atomic",
+      "entry_actions": [
+        "stepMode = true",
+        "initAlgorithm() (if first step)",
+        "setStatus(`Step mode. Iteration ${currIter} of ${nodes.length-1}, edge ${currEdgeIndex}/${edges.length}`)"
+      ],
+      "exit_actions": [
+        "stepMode = false"
+      ]
+    },
+    {
+      "id": "S10_RelaxingEdge",
+      "label": "RelaxingEdge",
+      "type": "atomic",
+      "entry_actions": [
+        "clearEdgeHighlights()",
+        "edge.line.classList.add('highlight-active')",
+        "updateEdgeMarker(edge)",
+        "setStatus(`Relaxing edge ${getNode(edge.u).label}→${getNode(edge.v).label} (w=${edge.w})`)",
+        "log(`Relaxing edge ${getNode(edge.u).label}→${getNode(edge.v).label} (w=${edge.w}). dist[u]=${dist[edge.u]}, dist[v]=${dist[edge.v]}`)"
+      ],
+      "exit_actions": [
+        "on success: edge.line.classList.add('highlight-success'), update dist and prev, nv.circle flash",
+        "on fail: edge.line.classList.add('highlight-fail')",
+        "after delay: edge.line.classList.remove('highlight-success','highlight-fail','highlight-active')",
+        "updateEdgeMarker(edge)"
+      ]
+    },
+    {
+      "id": "S11_AlgFinished",
+      "label": "AlgorithmFinished",
+      "type": "atomic",
+      "entry_actions": [
+        "algoRunning = false",
+        "setStatus('Main relaxations finished. You can detect negative cycles or inspect results.')",
+        "log('Main relaxations finished (|V|-1 iterations)')",
+        "document.getElementById('pauseBtn').disabled = true"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S12_DetectingNegCycle",
+      "label": "DetectingNegativeCycle",
+      "type": "atomic",
+      "entry_actions": [
+        "detectNegativeCycle()",
+        "setStatus('Detecting negative-weight cycles...')"
+      ],
+      "exit_actions": [
+        "if found: edges[].classList.add('neg-cycle'), setStatus('Negative-weight cycle(s) detected (highlighted in red).')",
+        "if not found: setStatus('No negative-weight cycles detected reachable from the source.')"
+      ]
+    },
+    {
+      "id": "S13_Reset",
+      "label": "ResettingAlgorithm",
+      "type": "atomic",
+      "entry_actions": [
+        "resetAlgorithm()",
+        "clearTimeout(autoTimer)",
+        "autoTimer = null",
+        "setStatus('Reset complete.')"
+      ],
+      "exit_actions": []
+    }
+  ],
+  "events": [
+    {
+      "id": "USER_CLICK_ADD_NODE",
+      "event_type": "user_action",
+      "description": "User clicks Add Node button (#addNodeBtn)",
+      "triggers": "#addNodeBtn"
+    },
+    {
+      "id": "USER_CLICK_ADD_EDGE_MODE",
+      "event_type": "user_action",
+      "description": "User toggles Add Edge mode button (#addEdgeModeBtn)",
+      "triggers": "#addEdgeModeBtn"
+    },
+    {
+      "id": "USER_CLICK_REMOVE_SELECTED",
+      "event_type": "user_action",
+      "description": "User clicks Remove Selected button (#removeSelectedBtn)",
+      "triggers": "#removeSelectedBtn"
+    },
+    {
+      "id": "USER_CLICK_RANDOM_GENERATE",
+      "event_type": "user_action",
+      "description": "User clicks Generate random graph (#rndGen)",
+      "triggers": "#rndGen"
+    },
+    {
+      "id": "USER_CLICK_START",
+      "event_type": "user_action",
+      "description": "User clicks Start (Auto) (#startBtn)",
+      "triggers": "#startBtn"
+    },
+    {
+      "id": "USER_CLICK_STEP",
+      "event_type": "user_action",
+      "description": "User clicks Step (#stepBtn) or presses Space",
+      "triggers": "#stepBtn, window (keydown code=Space)"
+    },
+    {
+      "id": "USER_CLICK_PAUSE",
+      "event_type": "user_action",
+      "description": "User clicks Pause (#pauseBtn)",
+      "triggers": "#pauseBtn"
+    },
+    {
+      "id": "USER_CLICK_RESET",
+      "event_type": "user_action",
+      "description": "User clicks Reset (#resetBtn)",
+      "triggers": "#resetBtn"
+    },
+    {
+      "id": "USER_CLICK_DETECT_NEG",
+      "event_type": "user_action",
+      "description": "User clicks Detect Negative Cycle (#detectNegBtn)",
+      "triggers": "#detectNegBtn"
+    },
+    {
+      "id": "USER_CLICK_NODE",
+      "event_type": "user_action",
+      "description": "User clicks a node (SVG group with data-id) (#svgCanvas g[data-id])",
+      "triggers": "#svgCanvas g[data-id]"
+    },
+    {
+      "id": "USER_DRAG_NODE",
+      "event_type": "user_action",
+      "description": "User drags a node (mousedown on g, mousemove, mouseup)",
+      "triggers": "#svgCanvas g[data-id], window (mousemove), window (mouseup)"
+    },
+    {
+      "id": "USER_CLICK_BACKGROUND",
+      "event_type": "user_action",
+      "description": "User clicks SVG background to deselect (#svgCanvas)",
+      "triggers": "#svgCanvas"
+    },
+    {
+      "id": "USER_CLICK_NODELIST_SET_SOURCE",
+      "event_type": "user_action",
+      "description": "User clicks Set as source in nodes list (#nodesList button[data-action=\"setSource\"])",
+      "triggers": "#nodesList button[data-action=\"setSource\"]"
+    },
+    {
+      "id": "USER_CLICK_NODELIST_DELETE",
+      "event_type": "user_action",
+      "description": "User clicks Del in nodes list (#nodesList button[data-action=\"delNode\"])",
+      "triggers": "#nodesList button[data-action=\"delNode\"]"
+    },
+    {
+      "id": "USER_CLICK_EDGELIST_DELETE",
+      "event_type": "user_action",
+      "description": "User clicks Del in edges list (#edgesList button[data-action=\"delEdge\"])",
+      "triggers": "#edgesList button[data-action=\"delEdge\"]"
+    },
+    {
+      "id": "USER_ADJUST_SPEED",
+      "event_type": "user_action",
+      "description": "User adjusts speed slider (#speedRange)",
+      "triggers": "#speedRange"
+    },
+    {
+      "id": "SYSTEM_EDGE_RELAX_COMPLETE",
+      "event_type": "system_event",
+      "description": "Relaxation animation/timeout callback completes (relaxEdgeVisual cb)",
+      "triggers": "relaxEdgeVisual callback"
+    },
+    {
+      "id": "SYSTEM_ITERATION_COMPLETE",
+      "event_type": "system_event",
+      "description": "One iteration over all edges completed (currEdgeIndex reset triggers iteration increment)",
+      "triggers": "internal algorithm state change"
+    },
+    {
+      "id": "SYSTEM_ALGORITHM_FINISHED",
+      "event_type": "system_event",
+      "description": "Main relaxations finished after |V|-1 iterations",
+      "triggers": "internal algorithm state change"
+    },
+    {
+      "id": "SYSTEM_NEG_DETECTION_COMPLETE",
+      "event_type": "system_event",
+      "description": "Negative cycle detection completed",
+      "triggers": "detectNegativeCycle() completion"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0_Idle",
+      "to": "S3_AddingNode",
+      "event": "USER_CLICK_ADD_NODE",
+      "guard": "true",
+      "actions": [
+        "createNode(random position, label)",
+        "log('Node <label> added')",
+        "updateLists()"
+      ],
+      "triggers": "#addNodeBtn",
+      "expected_observables": [
+        "dom:#addNodeBtn clicked",
+        "dom:svg g[data-id] appended"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S1_AddEdgeMode",
+      "event": "USER_CLICK_ADD_EDGE_MODE",
+      "guard": "true",
+      "actions": [
+        "edgeTmpFrom = null",
+        "addEdgeMode = true",
+        "document.getElementById('addEdgeModeBtn').classList.toggle('active', true)",
+        "setStatus('Edge creation mode: click source then destination')"
+      ],
+      "triggers": "#addEdgeModeBtn",
+      "expected_observables": [
+        "dom:#addEdgeModeBtn.active",
+        "internal:addEdgeMode === true"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S1_AddEdgeMode",
+      "to": "S4_AddingEdge",
+      "event": "USER_CLICK_NODE",
+      "guard": "edgeTmpFrom == null",
+      "actions": [
+        "edgeTmpFrom = <clickedNodeId>",
+        "setStatus(`Pick destination node (from ${getNode(edgeTmpFrom).label}).`)"
+      ],
+      "triggers": "#svgCanvas g[data-id]",
+      "expected_observables": [
+        "dom:g[data-id] clicked",
+        "internal:edgeTmpFrom set"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S4_AddingEdge",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_NODE",
+      "guard": "edgeTmpFrom != null",
+      "actions": [
+        "const to = <clickedNodeId>",
+        "const weight = prompt('Edge weight (integer or decimal):','1')",
+        "if(weight accepted) createEdge(edgeTmpFrom, to, Number(weight))",
+        "log(`Added edge ${getNode(edgeTmpFrom).label} → ${getNode(to).label} (w=${weight})`)",
+        "edgeTmpFrom = null",
+        "addEdgeMode = false",
+        "document.getElementById('addEdgeModeBtn').classList.remove('active')",
+        "setStatus('Edge created (if accepted).')",
+        "updateLists()"
+      ],
+      "triggers": "#svgCanvas g[data-id]",
+      "expected_observables": [
+        "dom:path and dom:text appended for edge",
+        "dom:#addEdgeModeBtn no longer active"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S1_AddEdgeMode",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_ADD_EDGE_MODE",
+      "guard": "true",
+      "actions": [
+        "addEdgeMode = false",
+        "edgeTmpFrom = null",
+        "document.getElementById('addEdgeModeBtn').classList.remove('active')",
+        "setStatus('Edge creation canceled')"
+      ],
+      "triggers": "#addEdgeModeBtn",
+      "expected_observables": [
+        "dom:#addEdgeModeBtn not active",
+        "internal:addEdgeMode === false"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_NodeSelected",
+      "event": "USER_CLICK_NODE",
+      "guard": "addEdgeMode == false",
+      "actions": [
+        "selectedNode = getNode(<clickedId>)",
+        "highlightSelection()",
+        "setStatus('Node selected')"
+      ],
+      "triggers": "#svgCanvas g[data-id]",
+      "expected_observables": [
+        "dom:g[data-id] has stroke var(--accent)",
+        "internal:selectedNode set"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S2_NodeSelected",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_BACKGROUND",
+      "guard": "true",
+      "actions": [
+        "selectedNode = null",
+        "highlightSelection()",
+        "setStatus('Idle')"
+      ],
+      "triggers": "#svgCanvas",
+      "expected_observables": [
+        "dom:g[data-id] stroke reset"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S2_NodeSelected",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_REMOVE_SELECTED",
+      "guard": "selectedNode != null",
+      "actions": [
+        "removeNode(selectedNode.id)",
+        "selectedNode = null",
+        "setStatus('Selected node removed')",
+        "updateLists()"
+      ],
+      "triggers": "#removeSelectedBtn",
+      "expected_observables": [
+        "dom:node group removed from #svgCanvas",
+        "dom:#nodesList updated"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S5_RandomGenerating",
+      "event": "USER_CLICK_RANDOM_GENERATE",
+      "guard": "true",
+      "actions": [
+        "parse rndN, rndP, rndRange",
+        "clear existing nodes and edges",
+        "createNode(...) multiple times",
+        "createEdge(...) with probability p",
+        "log('Random graph generated: n nodes, p, weights range')",
+        "updateLists()"
+      ],
+      "triggers": "#rndGen",
+      "expected_observables": [
+        "dom:#nodesList updated",
+        "dom:#edgesList updated",
+        "dom:svg g[data-id] appended multiple times"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S6_AlgInitialized",
+      "event": "USER_CLICK_START",
+      "guard": "nodes.length>0 && edges.length>0 && sourceNode!=null",
+      "actions": [
+        "initAlgorithm()",
+        "algoRunning = true",
+        "stepMode = false"
+      ],
+      "triggers": "#startBtn",
+      "expected_observables": [
+        "internal:dist and prev initialized",
+        "dom:#statusText updated"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S6_AlgInitialized",
+      "to": "S7_RunningAuto",
+      "event": "SYSTEM_ALGORITHM_FINISHED",
+      "guard": "false",
+      "actions": [],
+      "triggers": "none",
+      "expected_observables": [],
+      "timeout": 0
+    },
+    {
+      "from": "S6_AlgInitialized",
+      "to": "S7_RunningAuto",
+      "event": "USER_CLICK_START",
+      "guard": "true",
+      "actions": [
+        "startAuto()",
+        "document.getElementById('pauseBtn').disabled = false",
+        "autoTimer = setTimeout(autoStep, speedRange.value)"
+      ],
+      "triggers": "#startBtn",
+      "expected_observables": [
+        "internal:autoTimer scheduled",
+        "dom:#pauseBtn.disabled === false"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S7_RunningAuto",
+      "to": "S10_RelaxingEdge",
+      "event": "SYSTEM_ITERATION_COMPLETE",
+      "guard": "currIter <= nodes.length-1 && currEdgeIndex < edges.length",
+      "actions": [
+        "relaxEdgeVisual(edges[currEdgeIndex], callback)",
+        "setStatus(`Relaxing edge ...`)"
+      ],
+      "triggers": "internal:autoStep -> relaxEdgeVisual call",
+      "expected_observables": [
+        "dom:edge gets class highlight-active",
+        "dom:#statusText updated"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S10_RelaxingEdge",
+      "to": "S7_RunningAuto",
+      "event": "SYSTEM_EDGE_RELAX_COMPLETE",
+      "guard": "algoRunning == true && stepMode == false && currIter <= nodes.length-1",
+      "actions": [
+        "currEdgeIndex++",
+        "autoTimer = setTimeout(autoStep, speedRange.value)"
+      ],
+      "triggers": "relaxEdgeVisual callback",
+      "expected_observables": [
+        "dom:edge highlight cleared/updated",
+        "internal:currEdgeIndex incremented"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S10_RelaxingEdge",
+      "to": "S9_StepMode",
+      "event": "SYSTEM_EDGE_RELAX_COMPLETE",
+      "guard": "stepMode == true",
+      "actions": [
+        "currEdgeIndex++",
+        "setStatus(`Iteration ${currIter} of ${nodes.length-1}, edge ${currEdgeIndex}/${edges.length}`)"
+      ],
+      "triggers": "relaxEdgeVisual callback",
+      "expected_observables": [
+        "dom:#statusText updated",
+        "internal:currEdgeIndex incremented"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S7_RunningAuto",
+      "to": "S8_Paused",
+      "event": "USER_CLICK_PAUSE",
+      "guard": "autoTimer != null",
+      "actions": [
+        "clearTimeout(autoTimer)",
+        "autoTimer = null",
+        "algoRunning = false",
+        "setStatus('Paused.')",
+        "document.getElementById('pauseBtn').disabled = true"
+      ],
+      "triggers": "#pauseBtn",
+      "expected_observables": [
+        "dom:#pauseBtn.disabled === true",
+        "internal:autoTimer === null"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S9_StepMode",
+      "event": "USER_CLICK_STEP",
+      "guard": "true",
+      "actions": [
+        "if(!algoRunning) initAlgorithm()",
+        "stepMode = true",
+        "setStatus(`Step mode. Iteration ${currIter} of ${nodes.length-1}, edge ${currEdgeIndex}/${edges.length}`)",
+        "relaxEdgeVisual(edges[currEdgeIndex], callback) if edges.length>0"
+      ],
+      "triggers": "#stepBtn, window (keydown code=Space)",
+      "expected_observables": [
+        "dom:#statusText updated",
+        "dom:edge highlight-active"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S9_StepMode",
+      "to": "S9_StepMode",
+      "event": "USER_CLICK_STEP",
+      "guard": "currIter <= nodes.length-1",
+      "actions": [
+        "relaxEdgeVisual(edges[currEdgeIndex], ()=> { currEdgeIndex++; setStatus(`Iteration ${currIter} of ${nodes.length-1}, edge ${currEdgeIndex}/${edges.length}`); })"
+      ],
+      "triggers": "#stepBtn, window (keydown code=Space)",
+      "expected_observables": [
+        "dom:edge highlight transitions",
+        "internal:currEdgeIndex incremented"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S9_StepMode",
+      "to": "S11_AlgFinished",
+      "event": "SYSTEM_ITERATION_COMPLETE",
+      "guard": "currIter > nodes.length-1",
+      "actions": [
+        "algoRunning = false",
+        "setStatus('Main relaxations finished. You can detect negative cycles or inspect results.')",
+        "log('Main relaxations finished (|V|-1 iterations)')"
+      ],
+      "triggers": "internal algorithm state",
+      "expected_observables": [
+        "dom:#statusText updated",
+        "internal:algoRunning === false"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S12_DetectingNegCycle",
+      "event": "USER_CLICK_DETECT_NEG",
+      "guard": "Object.keys(dist).length>0",
+      "actions": [
+        "detectNegativeCycle()"
+      ],
+      "triggers": "#detectNegBtn",
+      "expected_observables": [
+        "dom:edges with neg-cycle class if found",
+        "dom:#statusText updated"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S12_DetectingNegCycle",
+      "to": "S0_Idle",
+      "event": "SYSTEM_NEG_DETECTION_COMPLETE",
+      "guard": "true",
+      "actions": [
+        "setStatus(...) based on detection result",
+        "log(...)"
+      ],
+      "triggers": "detectNegativeCycle completion",
+      "expected_observables": [
+        "dom:edge classes changed (neg-cycle or not)"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S13_Reset",
+      "event": "USER_CLICK_RESET",
+      "guard": "true",
+      "actions": [
+        "resetAlgorithm()",
+        "setStatus('Reset complete.')",
+        "document.getElementById('pauseBtn').disabled = true"
+      ],
+      "triggers": "#resetBtn",
+      "expected_observables": [
+        "dom:#logArea appended 'Algorithm reset.'",
+        "dom:#statusText updated"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S13_Reset",
+      "to": "S0_Idle",
+      "event": "SYSTEM_ALGORITHM_FINISHED",
+      "guard": "true",
+      "actions": [
+        "updateLists()",
+        "refreshNodeDistances()"
+      ],
+      "triggers": "resetAlgorithm() completion",
+      "expected_observables": [
+        "dom:#nodesList updated",
+        "dom:#edgesList updated"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_NodeSelected",
+      "event": "USER_CLICK_NODELIST_SET_SOURCE",
+      "guard": "true",
+      "actions": [
+        "sourceNode = Number(<button data-id>)",
+        "sourceSelect.value = String(sourceNode)",
+        "setStatus(`Source set to ${getNode(sourceNode).label}`)"
+      ],
+      "triggers": "#nodesList button[data-action=\"setSource\"]",
+      "expected_observables": [
+        "dom:#sourceSelect value changed",
+        "internal:sourceNode set"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_NODELIST_DELETE",
+      "guard": "true",
+      "actions": [
+        "removeNode(Number(<button data-id>))",
+        "updateLists()"
+      ],
+      "triggers": "#nodesList button[data-action=\"delNode\"]",
+      "expected_observables": [
+        "dom:node removed",
+        "dom:#nodesList updated"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_EDGELIST_DELETE",
+      "guard": "true",
+      "actions": [
+        "removeEdgeById(Number(<button data-id>))",
+        "updateLists()"
+      ],
+      "triggers": "#edgesList button[data-action=\"delEdge\"]",
+      "expected_observables": [
+        "dom:edge removed from svg",
+        "dom:#edgesList updated"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S7_RunningAuto",
+      "to": "S11_AlgFinished",
+      "event": "SYSTEM_ALGORITHM_FINISHED",
+      "guard": "currIter > nodes.length-1",
+      "actions": [
+        "algoRunning = false",
+        "document.getElementById('pauseBtn').disabled = true",
+        "setStatus('Main relaxations finished. You can detect negative cycles or inspect results.')",
+        "log('Main relaxations finished (|V|-1 iterations).')"
+      ],
+      "triggers": "internal algorithm state",
+      "expected_observables": [
+        "dom:#statusText updated",
+        "internal:algoRunning === false"
+      ],
+      "timeout": 0
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S0_Idle",
+      "event": "USER_ADJUST_SPEED",
+      "guard": "true",
+      "actions": [
+        "speedVal.textContent = speedRange.value + 'ms'",
+        "adjust internal timers delay (autoStep uses new speedRange.value)"
+      ],
+      "triggers": "#speedRange",
+      "expected_observables": [
+        "dom:#speedVal updated"
+      ],
+      "timeout": 0
+    }
+  ],
+  "components": [
+    "#addNodeBtn",
+    "#addEdgeModeBtn",
+    "#removeSelectedBtn",
+    "#rndN",
+    "#rndP",
+    "#rndRange",
+    "#rndGen",
+    "#nodesList",
+    "#edgesList",
+    "#sourceSelect",
+    "#startBtn",
+    "#stepBtn",
+    "#pauseBtn",
+    "#resetBtn",
+    "#speedRange",
+    "#speedVal",
+    "#detectNegBtn",
+    "#statusText",
+    "#logArea",
+    "#svgCanvas",
+    "#svgCanvas g[data-id]",
+    "svg circle.node-circle",
+    "path.edge-line",
+    "text.edge-label",
+    "text.distance"
+  ]
+}

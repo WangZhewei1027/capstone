@@ -322,6 +322,80 @@ app.get("/api/workspaces/:workspace/data/:uuid", async (req, res) => {
   }
 });
 
+// 检查工作空间是否有理想FSM文件夹
+app.get("/api/workspace/:workspace/has-ideal-fsm", async (req, res) => {
+  try {
+    const { workspace } = req.params;
+    const idealFsmPath = `./workspace/${workspace}/ideal-fsm`;
+
+    try {
+      await fs.access(idealFsmPath);
+      res.json({ exists: true });
+    } catch (error) {
+      res.json({ exists: false });
+    }
+  } catch (error) {
+    console.error("检查理想FSM文件夹失败:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取理想FSM数据
+app.get("/api/ideal-fsm/:workspace/:topic", async (req, res) => {
+  try {
+    const { workspace, topic } = req.params;
+    const decodedTopic = decodeURIComponent(topic);
+
+    // 清理主题名称，替换特殊字符为下划线
+    const cleanTopic = decodedTopic.replace(/[^a-zA-Z0-9]/g, "_");
+    const idealFsmPath = `./workspace/${workspace}/ideal-fsm/${cleanTopic}.json`;
+
+    console.log("Looking for ideal FSM at:", idealFsmPath);
+
+    try {
+      const data = await fs.readFile(idealFsmPath, "utf-8");
+      const jsonData = JSON.parse(data);
+      res.json(jsonData);
+    } catch (error) {
+      console.warn("Ideal FSM not found:", idealFsmPath);
+      res.status(404).json({
+        error: "理想FSM不存在",
+        message: `主题 "${decodedTopic}" 对应的理想FSM文件不存在`,
+        searchPath: idealFsmPath,
+      });
+    }
+  } catch (error) {
+    console.error("获取理想FSM数据失败:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取数据文件（用于提取主题信息）
+app.get("/api/data/:workspace/:fileId", async (req, res) => {
+  try {
+    const { workspace, fileId } = req.params;
+    const dataPath = `./workspace/${workspace}/data/${fileId}.json`;
+
+    console.log("Looking for data file at:", dataPath);
+
+    try {
+      const data = await fs.readFile(dataPath, "utf-8");
+      const jsonData = JSON.parse(data);
+      res.json(jsonData);
+    } catch (error) {
+      console.warn("Data file not found:", dataPath);
+      res.status(404).json({
+        error: "数据文件不存在",
+        message: `文件 "${fileId}" 对应的数据文件不存在`,
+        searchPath: dataPath,
+      });
+    }
+  } catch (error) {
+    console.error("获取数据文件失败:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 获取截图列表
 app.get("/api/screenshots/:workspace/:filename", async (req, res) => {
   try {

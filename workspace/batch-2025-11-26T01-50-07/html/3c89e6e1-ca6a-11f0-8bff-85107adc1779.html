@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prim's Algorithm Demonstration</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #f0f0f0;
+  }
+  h1 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+  }
+  #canvas-container {
+    position: relative;
+    background: #fff;
+    border: 1px solid #ccc;
+    margin-top: 10px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.15);
+  }
+  canvas {
+    display: block;
+    background: #fafafa;
+  }
+  #controls {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #controls button, #controls select {
+    padding: 8px 15px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #log {
+    margin-top: 15px;
+    width: 800px;
+    max-width: 95vw;
+    height: 160px;
+    overflow-y: auto;
+    background: #111;
+    color: #0f0;
+    font-family: monospace, monospace;
+    font-size: 13px;
+    border-radius: 5px;
+    padding: 10px;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    user-select: text;
+  }
+  #graph-size {
+    margin-left: 10px;
+  }
+  @media (max-width: 850px) {
+    #log, #canvas-container {
+      width: 95vw;
+    }
+  }
+</style>
+</head>
+<body>
+<h1>Prim's Algorithm Visualization</h1>
+<div id="canvas-container">
+  <canvas id="graph-canvas" width="800" height="600"></canvas>
+</div>
+
+<div id="controls">
+  <button id="generate-graph">Generate Random Graph</button>
+  <label for="graph-size">Number of vertices:
+    <select id="graph-size">
+      <option value="5">5</option>
+      <option value="7" selected>7</option>
+      <option value="9">9</option>
+      <option value="12">12</option>
+      <option value="15">15</option>
+    </select>
+  </label>
+  <button id="start-prim" disabled>Start Prim's Algorithm</button>
+  <button id="next-step" disabled>Next Step</button>
+  <button id="reset" disabled>Reset</button>
+</div>
+
+<div id="log" aria-live="polite" aria-label="Algorithm execution log"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('graph-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const generateBtn = document.getElementById('generate-graph');
+  const startBtn = document.getElementById('start-prim');
+  const nextBtn = document.getElementById('next-step');
+  const resetBtn = document.getElementById('reset');
+  const sizeSelect = document.getElementById('graph-size');
+  const logDiv = document.getElementById('log');
+
+  const WIDTH = canvas.width;
+  const HEIGHT = canvas.height;
+
+  // Graph data structures
+  let vertices = []; // {id, x, y}
+  // edges: adjacency list: { [vertexId]: [ {to, weight} ]}
+  let edges = {};
+
+  // Prim's algorithm state:
+  let primStarted = false;
+  let primVisited = new Set();
+  let primEdges = []; // {from, to, weight} edges in MST
+  let primEdgeCandidates = []; // edges connecting visited to unvisited: min heap property by weight
+  
+  // To step through the algorithm
+  let sequenceSteps = [];
+  let stepIndex = 0;
+
+  // Utility: log message to #log and scroll bottom
+  function log(msg) {
+    logDiv.textContent += msg + "\n";
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+  function clearLog() {
+    logDiv.textContent = "";
+  }
+
+  // Draw functions
+  const RADIUS = 18;
+  function drawGraph() {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    // Draw edges
+    ctx.lineCap = 'round';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = "14px Arial";
+
+    // Draw all edges (thin gray)
+    for (const fromId in edges) {
+      for (const edge of edges[fromId]) {
+        if (parseInt(fromId) < edge.to) { // undirected, avoid duplicates
+          const v1 = vertices[fromId];
+          const v2 = vertices[edge.to];
+          drawLine(v1, v2, '#bbb', 1);
+          drawWeightLabel(v1, v2, edge.weight, '#666');
+        }
+      }
+    }
+
+    // Draw MST edges (highlighted thick green)
+    primEdges.forEach(({from, to, weight}) => {
+      const v1 = vertices[from];
+      const v2 = vertices[to];
+      drawLine(v1, v2, '#28a745', 4);
+      drawWeightLabel(v1, v2, weight, '#155724', true);
+    });
+
+    // Draw edges candidates (blue dashed)
+    if (primStarted) {
+      primEdgeCandidates.forEach(({from, to, weight}) => {
+        const v1 = vertices[from];
+        const v2 = vertices[to];
+        drawLine(v1, v2, '#1e90ff', 2, [5,5]);
+        drawWeightLabel(v1, v2, weight, '#004080');
+      });
+    }
+
+    // Draw nodes
+    vertices.forEach(v => {
+      let fillColor = '#eee';
+      let borderColor = '#aaa';
+      if (primVisited.has(v.id)) {
+        fillColor = '#28a745';
+        borderColor = '#155724';
+      }
+      drawNode(v, fillColor, borderColor);
+    });
+  }
+
+  function drawNode(v, fill, stroke) {
+    ctx.beginPath();
+    ctx.arc(v.x, v.y, RADIUS, 0, 2 * Math.PI);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+
+    // Draw id inside circle
+    ctx.fillStyle = stroke;
+    ctx.font = "bold 16px Arial";
+    ctx.fillText(v.id, v.x, v.y);
+  }
+
+  function drawLine(v1, v2, color, width=1, dash=[]) {
+    ctx.beginPath();
+    ctx.setLineDash(dash);
+    ctx.moveTo(v1.x, v1.y);
+    ctx.lineTo(v2.x, v2.y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawWeightLabel(v1, v2, weight, color, bold = false) {
+    const midX = (v1.x + v2.x) / 2;
+    const midY = (v1.y + v2.y) / 2;
+    ctx.fillStyle = color;
+    ctx.font = (bold ? "bold 16px Arial" : "14px Arial");
+    ctx.fillText(weight, midX, midY - 12);
+  }
+
+  // Random graph generator (connected graph)
+  // We'll use a method: generate vertices, then connect them with a random spanning tree,
+  // then add some random extra edges.
+  function generateRandomGraph(vertexCount) {
+    vertices = [];
+    edges = {};
+
+    // Generate vertices positions on canvas with padding
+    const padding = 50;
+    for (let i = 0; i < vertexCount; i++) {
+      let x, y;
+      let attempts = 0;
+      // Avoid overlapping nodes roughly
+      do {
+        x = Math.random() * (WIDTH - 2*padding) + padding;
+        y = Math.random() * (HEIGHT - 2*padding) + padding;
+        attempts++;
+        if (attempts > 30) break; // break to avoid infinite loop
+      } while(vertices.some(v => dist(v.x, v.y, x, y) < RADIUS*3));
+
+      vertices.push({id: i, x, y});
+      edges[i] = [];
+    }
+
+    // Helper: Euclidean distance rounded and min 1
+    function edgeWeight(v1, v2) {
+      return Math.max(1, Math.round(dist(v1.x, v1.y, v2.x, v2.y)));
+    }
+
+    // Create a connected spanning tree first:
+    const connected = new Set();
+    connected.add(0);
+    const unconnected = new Set(vertices.slice(1).map(v => v.id));
+
+    while (unconnected.size > 0) {
+      const from = randomChoice([...connected]);
+      const to = randomChoice([...unconnected]);
+      const weight = edgeWeight(vertices[from], vertices[to]);
+      addEdge(from, to, weight);
+      connected.add(to);
+      unconnected.delete(to);
+    }
+
+    // Add some extra edges randomly for complexity (around 30% more edges)
+    const edgeLimit = Math.floor(vertexCount * 1.3);
+    let currentEdges = vertexCount - 1; // spanning tree edges count
+    while (currentEdges < edgeLimit) {
+      let v1 = getRandomInt(0, vertexCount - 1);
+      let v2 = getRandomInt(0, vertexCount - 1);
+      if (v1 === v2) continue;
+      if (hasEdge(v1, v2)) continue;
+      let weight = edgeWeight(vertices[v1], vertices[v2]);
+      addEdge(v1, v2, weight);
+      currentEdges++;
+    }
+  }
+
+  // Add undirected edge
+  function addEdge(from, to, weight) {
+    edges[from].push({to, weight});
+    edges[to].push({to: from, weight});
+  }
+  // Check if edge exists
+  function hasEdge(v1, v2) {
+    return edges[v1].some(e => e.to === v2);
+  }
+
+  // Distance helper
+  function dist(x1, y1, x2, y2) {
+    return Math.sqrt((x1-x2)**2 + (y1-y2)**2);
+  }
+
+  // Random element from array
+  function randomChoice(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+  // Random int inclusive
+  function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min +1)) + min;
+  }
+
+  // Prim's Algorithm Implementation (stepwise)
+  /*
+    General idea:
+    - Start from vertex 0.
+    - Keep track of visited vertices.
+    - Maintain a priority queue of edges crossing the cut.
+    - At each step:
+      1. Pick the minimum weight edge from candidates connecting visited to unvisited.
+      2. Add new vertex and edge.
+      3. Add new edges from the newly visited vertex to candidates.
+  */
+
+  // Priority queue based on weight
+  class MinHeap {
+    constructor() { this.heap = []; }
+    size() { return this.heap.length; }
+    push(e) {
+      this.heap.push(e);
+      this._bubbleUp(this.heap.length - 1);
+    }
+    pop() {
+      if (this.heap.length === 0) return null;
+      const min = this.heap[0];
+      const end = this.heap.pop();
+      if (this.heap.length > 0) {
+        this.heap[0] = end;
+        this._sinkDown(0);
+      }
+      return min;
+    }
+    _bubbleUp(n) {
+      const e = this.heap[n];
+      while (n > 0) {
+        let parentN = Math.floor((n - 1) / 2);
+        let parent = this.heap[parentN];
+        if (e.weight >= parent.weight) break;
+        this.heap[parentN] = e;
+        this.heap[n] = parent;
+        n = parentN;
+      }
+    }
+    _sinkDown(n) {
+      const length = this.heap.length;
+      const e = this.heap[n];
+      while(true) {
+        let leftN = 2*n + 1;
+        let rightN = 2*n + 2;
+        let swapN = null;
+
+        if (leftN < length) {
+          let left = this.heap[leftN];
+          if(left.weight < e.weight) swapN = leftN;
+        }
+        if (rightN < length) {
+          let right = this.heap[rightN];
+          if ((swapN === null && right.weight < e.weight) ||
+              (swapN !== null && right.weight < this.heap[swapN].weight)) {
+            swapN = rightN;
+          }
+        }
+        if (swapN === null) break;
+        this.heap[n] = this.heap[swapN];
+        this.heap[swapN] = e;
+        n = swapN;
+      }
+    }
+  }
+
+  // Prepare the sequence of steps for visualization
+  function preparePrimSteps() {
+    primVisited = new Set();
+    primEdges = [];
+    primEdgeCandidates = [];
+
+    const vertexCount = vertices.length;
+    const visited = new Set();
+    const mstEdges = [];
+
+    // MinHeap for edges: stores objects {from, to, weight}
+    const edgeHeap = new MinHeap();
+
+    // Start from vertex 0
+    const start = 0;
+    visited.add(start);
+
+    // Add initial edges from start
+    edges[start].forEach(e => {
+      edgeHeap.push({from: start, to: e.to, weight: e.weight});
+    });
+
+    sequenceSteps = [];
+
+    // Log initial step
+    sequenceSteps.push({
+      type: "start",
+      visited: new Set(visited),
+      mstEdges: mstEdges.slice(),
+      candidates: edgeHeap.heap.slice(),
+      message: `Start from vertex ${start}.`
+    });
+
+    while(visited.size < vertexCount) {
+      if (edgeHeap.size() === 0) {
+        // Graph disconnected (shouldn't happen here)
+        sequenceSteps.push({
+          type: "error",
+          visited: new Set(visited),
+          mstEdges: mstEdges.slice(),
+          candidates: [],
+          message: `No connecting edges left. Graph might be disconnected.`
+        });
+        break;
+      }
+
+      // Take min edge connecting visited to unvisited
+      let minEdge = null;
+      while(edgeHeap.size() > 0) {
+        const candidate = edgeHeap.pop();
+        if (!visited.has(candidate.to)) {
+          minEdge = candidate;
+          break;
+        }
+      }
+      if (!minEdge) {
+        // No new edges found
+        sequenceSteps.push({
+          type: "error",
+          visited: new Set(visited),
+          mstEdges: mstEdges.slice(),
+          candidates: [],
+          message: `No new connecting edges to unvisited vertices.`
+        });
+        break;
+      }
+
+      // Add edge and vertex to MST
+      visited.add(minEdge.to);
+      mstEdges.push(minEdge);
+
+      // Add new candidate edges from this vertex
+      edges[minEdge.to].forEach(e => {
+        if (!visited.has(e.to)) {
+          edgeHeap.push({from: minEdge.to, to: e.to, weight: e.weight});
+        }
+      });
+
+      // Save step state
+      sequenceSteps.push({
+        type: "add_edge",
+        visited: new Set(visited),
+        mstEdges: mstEdges.slice(),
+        candidates: edgeHeap.heap.slice(),
+        newEdge: minEdge,
+        message: `Add edge (${minEdge.from} -> ${minEdge.to}) with weight ${minEdge.weight}.`
+      });
+    }
+
+    // Final step: MST complete
+    sequenceSteps.push({
+      type: "complete",
+      visited: new Set(visited),
+      mstEdges: mstEdges.slice(),
+      candidates: [],
+      message: `Minimum Spanning Tree completed with ${mstEdges.length} edges.`
+    });
+  }
+
+  // Update visual state for one step
+  function updateStateFromStep(step) {
+    primVisited = step.visited;
+    primEdges = step.mstEdges;
+    primEdgeCandidates = step.candidates;
+
+    drawGraph();
+    log(step.message);
+  }
+
+  // Controls logic
+  function resetState() {
+    primStarted = false;
+    primVisited.clear();
+    primEdges = [];
+    primEdgeCandidates = [];
+    sequenceSteps = [];
+    stepIndex = 0;
+    startBtn.disabled = false;
+    nextBtn.disabled = true;
+    resetBtn.disabled = true;
+    clearLog();
+    drawGraph();
+  }
+
+  generateBtn.addEventListener('click', () => {
+    const vcount = parseInt(sizeSelect.value);
+    generateRandomGraph(vcount);
+    resetState();
+  });
+
+  startBtn.addEventListener('click', () => {
+    clearLog();
+    preparePrimSteps();
+    primStarted = true;
+    stepIndex = 0;
+    updateStateFromStep(sequenceSteps[stepIndex]);
+
+    startBtn.disabled = true;
+    nextBtn.disabled = false;
+    resetBtn.disabled = false;
+  });
+
+  nextBtn.addEventListener('click', () => {
+    stepIndex++;
+    if (stepIndex < sequenceSteps.length) {
+      updateStateFromStep(sequenceSteps[stepIndex]);
+      if (sequenceSteps[stepIndex].type === "complete" || sequenceSteps[stepIndex].type === "error") {
+        nextBtn.disabled = true;
+      }
+    } else {
+      nextBtn.disabled = true;
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    resetState();
+  });
+
+  // Initial draw
+  generateRandomGraph(parseInt(sizeSelect.value));
+  resetState();
+
+  // Accessibility: add keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (primStarted && !nextBtn.disabled && (e.key === 'n' || e.key === 'ArrowRight')) {
+      nextBtn.click();
+    }
+    if (!primStarted && e.key === 's') {
+      startBtn.click();
+    }
+    if (e.key === 'r') {
+      resetBtn.click();
+    }
+  });
+
+  // Informative title / instructions
+  const instructions = 
+`Controls:
+- Generate Random Graph: Generates a new random connected graph.
+- Number of vertices: Select how many vertices to generate.
+- Start Prim's Algorithm: Begin step-by-step MST construction.
+- Next Step: Execute the next step of Prim's algorithm.
+- Reset: Reset to initial newly generated graph state.
+
+Keyboard Shortcuts:
+- 's': Start Prim's algorithm
+- 'n' or Right Arrow: Next step
+- 'r': Reset
+
+Prim's Algorithm:
+Builds a Minimum Spanning Tree (MST) starting from vertex 0,
+adding the cheapest edge that connects already visited vertices
+to an unvisited vertex until all vertices are included.`;
+
+  logDiv.textContent = instructions;
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Red-Black Tree Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; display: flex; height: 100vh; }
+    #left { width: 360px; padding: 16px; box-sizing: border-box; background: #f7f9fb; border-right: 1px solid #ddd; overflow:auto; }
+    #main { flex: 1; position: relative; display:flex; flex-direction:column; }
+    h1 { font-size: 18px; margin: 4px 0 8px; }
+    label { display:block; margin-top:8px; font-weight:600; }
+    input[type="number"], input[type="text"] { width: 100%; padding:8px; box-sizing:border-box; margin-top:6px; border:1px solid #bbb; border-radius:4px; }
+    button { padding:8px 10px; margin-top:10px; border-radius:4px; border:1px solid #2b6cb0; background:linear-gradient(#3182CE,#2B6CB0); color:white; cursor:pointer; }
+    button.secondary { background:linear-gradient(#e7e7e7,#dcdcdc); color:#222; border:1px solid #bbb; margin-left:8px; }
+    #controls { display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap; }
+    .row { margin-top:12px; }
+    #svgwrap { flex:1; background:linear-gradient(#fff,#f2f8ff); position:relative; }
+    svg { width:100%; height:100%; }
+    .node circle { stroke:#333; stroke-width:2px; }
+    .node text { font-size:12px; font-weight:700; fill:#fff; pointer-events:none; text-anchor:middle; dominant-baseline:central; }
+    .node.black text { fill:#fff; }
+    .node.red text { fill:#fff; }
+    .edge { stroke:#666; stroke-width:2px; stroke-linecap:round; }
+    #info { margin-top:14px; font-size:13px; }
+    .prop { margin-top:6px; padding:8px; background:#fff; border-radius:6px; border:1px solid #eee; }
+    .ok { color:green; font-weight:700; }
+    .bad { color:red; font-weight:700; }
+    #legend { margin-top:10px; }
+    .legendItem { display:flex; align-items:center; gap:8px; margin-top:6px; }
+    .sample { width:20px; height:20px; border-radius:50%; display:inline-block; border:2px solid #333; vertical-align:middle; }
+    #footer { padding:8px 12px; font-size:12px; color:#444; border-top:1px solid #eee; background:#fafafa; }
+    .small { font-size:12px; color:#555; margin-top:6px; }
+    input[type="range"] { width:100%; }
+    .muted { color:#666; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <h1>Red-Black Tree Visualizer</h1>
+    <div class="muted">Insert, delete and watch balancing (rotations and recolorings). Animation steps are highlighted.</div>
+
+    <div class="row">
+      <label>Value to Insert</label>
+      <input id="insertVal" type="number" placeholder="e.g. 42">
+      <div style="display:flex; gap:8px;">
+        <button id="btnInsert">Insert</button>
+        <button id="btnInsertStep" class="secondary">Insert (animated)</button>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button id="btnRandom" class="secondary">Insert Random</button>
+        <button id="btnBulk" class="secondary">Bulk Insert (10)</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Value to Delete</label>
+      <input id="deleteVal" type="number" placeholder="e.g. 42">
+      <div style="display:flex; gap:8px;">
+        <button id="btnDelete" class="secondary">Delete (animated)</button>
+        <button id="btnClear" class="secondary">Clear</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Animation Speed (ms)</label>
+      <input id="speed" type="range" min="100" max="1500" value="600">
+      <div class="small">Step duration: <span id="speedVal">600</span> ms</div>
+    </div>
+
+    <div id="legend">
+      <div class="legendItem"><div class="sample" style="background:red;"></div><div>Red node</div></div>
+      <div class="legendItem"><div class="sample" style="background:black;"></div><div>Black node</div></div>
+    </div>
+
+    <div id="info">
+      <div class="prop">
+        <div><strong>Properties</strong></div>
+        <div id="propContent" class="small">Tree is empty</div>
+      </div>
+
+      <div class="prop" style="margin-top:10px;">
+        <div><strong>Last action</strong></div>
+        <div id="lastAction" class="small">—</div>
+      </div>
+
+      <div class="prop" style="margin-top:10px;">
+        <div><strong>Tips</strong></div>
+        <ul class="small" style="margin:6px 0 0 18px; padding:0;">
+          <li>Insertions recolor and rotate to keep black-depth balanced.</li>
+          <li>Try insert sequences that cause rotations: 10, 20, 30, ...</li>
+          <li>Deletion is animated and follows classic RB-Tree fix-up rules.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <button id="btnExample" class="secondary">Load Example (classic)</button>
+    </div>
+
+    <div id="footer">Interactive implementation — shows rotations and recolorings step-by-step.</div>
+  </div>
+
+  <div id="main">
+    <div id="svgwrap">
+      <svg id="svg" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    // Colors
+    const RED = true, BLACK = false;
+
+    let nodeIdCounter = 1;
+
+    class Node {
+      constructor(value){
+        this.value = value;
+        this.left = null;
+        this.right = null;
+        this.parent = null;
+        this.color = RED;
+        this.id = nodeIdCounter++;
+        // visualization state
+        this.x = 0; this.y = 0;
+      }
+    }
+
+    class RBTree {
+      constructor(svg){
+        this.root = null;
+        this.svg = svg;
+        this.nodeMap = new Map(); // node -> DOM group
+        this.running = false;
+        this.stepDuration = 600;
+      }
+
+      setSpeed(ms){ this.stepDuration = ms; }
+
+      async insertValue(value, animated=true){
+        if(this.running) return;
+        this.running = true;
+        try {
+          if(this.find(value)) {
+            this.setLast(`Value ${value} already present`);
+            this.running = false; return;
+          }
+          let z = new Node(value);
+          // BST insert
+          let y = null;
+          let x = this.root;
+          while(x !== null){
+            y = x;
+            if(z.value < x.value) x = x.left;
+            else x = x.right;
+          }
+          z.parent = y;
+          if(y === null){
+            this.root = z;
+          } else if(z.value < y.value){
+            y.left = z;
+          } else {
+            y.right = z;
+          }
+          z.left = null; z.right = null; z.color = RED;
+          this.updateVisualization();
+          await this.animateFlashNode(z, 'inserting', this.stepDuration/2);
+
+          await this.insertFixup(z, animated);
+          this.setLast(`Inserted ${value}`);
+        } catch(e){
+          console.error(e);
+        }
+        this.running = false;
+        this.updateVisualization();
+      }
+
+      async insertFixup(z, animated=true){
+        while(z.parent && z.parent.color === RED){
+          let p = z.parent;
+          let g = p.parent;
+          if(!g) break;
+          if(p === g.left){
+            let y = g.right;
+            if(y && y.color === RED){
+              // case 1
+              p.color = BLACK;
+              y.color = BLACK;
+              g.color = RED;
+              this.updateVisualization();
+              if(animated) await this.animateRecolor([p,y,g], this.stepDuration);
+              z = g;
+            } else {
+              if(z === p.right){
+                // case 2
+                z = p;
+                await this.leftRotate(z, animated);
+              }
+              // case 3
+              p.color = BLACK;
+              g.color = RED;
+              await this.rightRotate(g, animated);
+            }
+          } else {
+            // mirror
+            let y = g.left;
+            if(y && y.color === RED){
+              p.color = BLACK;
+              y.color = BLACK;
+              g.color = RED;
+              this.updateVisualization();
+              if(animated) await this.animateRecolor([p,y,g], this.stepDuration);
+              z = g;
+            } else {
+              if(z === p.left){
+                z = p;
+                await this.rightRotate(z, animated);
+              }
+              p.color = BLACK;
+              g.color = RED;
+              await this.leftRotate(g, animated);
+            }
+          }
+        }
+        if(this.root) {
+          this.root.color = BLACK;
+          this.updateVisualization();
+          if(animated) await this.animateRecolor([this.root], this.stepDuration/2);
+        }
+      }
+
+      async deleteValue(val, animated=true){
+        if(this.running) return;
+        this.running = true;
+        try {
+          let z = this.find(val);
+          if(!z){
+            this.setLast(`Value ${val} not found`);
+            this.running = false;
+            return;
+          }
+          await this.animateFlashNode(z, 'deleting', this.stepDuration);
+          await this.deleteNode(z, animated);
+          this.setLast(`Deleted ${val}`);
+        } catch(e){
+          console.error(e);
+        }
+        this.running = false;
+        this.updateVisualization();
+      }
+
+      // Helper to transplant subtree u into v's place
+      transplant(u, v){
+        if(u.parent === null) {
+          this.root = v;
+        } else if(u === u.parent.left) {
+          u.parent.left = v;
+        } else {
+          u.parent.right = v;
+        }
+        if(v) v.parent = u.parent;
+      }
+
+      minimum(x){
+        while(x.left) x = x.left;
+        return x;
+      }
+
+      async deleteNode(z, animated=true){
+        // Standard CLRS delete
+        let y = z;
+        let yOriginalColor = y.color;
+        let x = null;
+        if(!z.left){
+          x = z.right;
+          this.transplant(z, z.right);
+        } else if(!z.right){
+          x = z.left;
+          this.transplant(z, z.left);
+        } else {
+          y = this.minimum(z.right);
+          yOriginalColor = y.color;
+          x = y.right;
+          if(y.parent === z){
+            if(x) x.parent = y;
+          } else {
+            this.transplant(y, y.right);
+            y.right = z.right;
+            if(y.right) y.right.parent = y;
+          }
+          this.transplant(z, y);
+          y.left = z.left;
+          if(y.left) y.left.parent = y;
+          y.color = z.color;
+        }
+        this.updateVisualization();
+        if(animated) await this.sleep(this.stepDuration/2);
+        if(yOriginalColor === BLACK){
+          await this.deleteFixup(x, animated);
+        }
+      }
+
+      async deleteFixup(x, animated=true){
+        // x may be null (treated as black)
+        while(x !== this.root && this.getColor(x) === BLACK){
+          if(x === (x && x.parent && x.parent.left)){
+            let w = x.parent.right;
+            // Case 1
+            if(this.getColor(w) === RED){
+              w.color = BLACK;
+              x.parent.color = RED;
+              this.updateVisualization();
+              if(animated) await this.animateRecolor([w, x.parent], this.stepDuration);
+              await this.leftRotate(x.parent, animated);
+              w = x.parent.right;
+            }
+            if(this.getColor(w.left) === BLACK && this.getColor(w.right) === BLACK){
+              // Case 2
+              if(w) w.color = RED;
+              this.updateVisualization();
+              if(animated) await this.animateRecolor([w], this.stepDuration);
+              x = x.parent;
+            } else {
+              if(this.getColor(w.right) === BLACK){
+                // Case 3
+                if(w.left) w.left.color = BLACK;
+                w.color = RED;
+                this.updateVisualization();
+                if(animated) await this.animateRecolor([w, w.left], this.stepDuration);
+                await this.rightRotate(w, animated);
+                w = x.parent.right;
+              }
+              // Case 4
+              if(w) w.color = x.parent.color;
+              x.parent.color = BLACK;
+              if(w && w.right) w.right.color = BLACK;
+              this.updateVisualization();
+              if(animated) await this.animateRecolor([x.parent, w, (w && w.right)], this.stepDuration);
+              await this.leftRotate(x.parent, animated);
+              x = this.root;
+            }
+          } else {
+            // mirror
+            let w = x.parent.left;
+            if(this.getColor(w) === RED){
+              w.color = BLACK;
+              x.parent.color = RED;
+              this.updateVisualization();
+              if(animated) await this.animateRecolor([w, x.parent], this.stepDuration);
+              await this.rightRotate(x.parent, animated);
+              w = x.parent.left;
+            }
+            if(this.getColor(w.right) === BLACK && this.getColor(w.left) === BLACK){
+              if(w) w.color = RED;
+              this.updateVisualization();
+              if(animated) await this.animateRecolor([w], this.stepDuration);
+              x = x.parent;
+            } else {
+              if(this.getColor(w.left) === BLACK){
+                if(w.right) w.right.color = BLACK;
+                w.color = RED;
+                this.updateVisualization();
+                if(animated) await this.animateRecolor([w, w.right], this.stepDuration);
+                await this.leftRotate(w, animated);
+                w = x.parent.left;
+              }
+              if(w) w.color = x.parent.color;
+              x.parent.color = BLACK;
+              if(w && w.left) w.left.color = BLACK;
+              this.updateVisualization();
+              if(animated) await this.animateRecolor([x.parent, w, (w && w.left)], this.stepDuration);
+              await this.rightRotate(x.parent, animated);
+              x = this.root;
+            }
+          }
+        }
+        if(x) x.color = BLACK;
+        this.updateVisualization();
+        if(animated) await this.animateRecolor([x], this.stepDuration/2);
+      }
+
+      getColor(node){
+        return node ? node.color : BLACK;
+      }
+
+      async leftRotate(x, animated=true){
+        if(!x || !x.right) return;
+        let y = x.right;
+        // visualization: highlight rotation
+        this.setLast(`Left rotate at ${x.value}`);
+        // perform rotation
+        x.right = y.left;
+        if(y.left) y.left.parent = x;
+        y.parent = x.parent;
+        if(!x.parent) this.root = y;
+        else if(x === x.parent.left) x.parent.left = y;
+        else x.parent.right = y;
+        y.left = x;
+        x.parent = y;
+        this.updateVisualization();
+        if(animated) await this.animateRotation(x,y,this.stepDuration);
+      }
+
+      async rightRotate(x, animated=true){
+        if(!x || !x.left) return;
+        let y = x.left;
+        this.setLast(`Right rotate at ${x.value}`);
+        x.left = y.right;
+        if(y.right) y.right.parent = x;
+        y.parent = x.parent;
+        if(!x.parent) this.root = y;
+        else if(x === x.parent.right) x.parent.right = y;
+        else x.parent.left = y;
+        y.right = x;
+        x.parent = y;
+        this.updateVisualization();
+        if(animated) await this.animateRotation(x,y,this.stepDuration);
+      }
+
+      find(value){
+        let x = this.root;
+        while(x){
+          if(value === x.value) return x;
+          x = value < x.value ? x.left : x.right;
+        }
+        return null;
+      }
+
+      // Visualization utilities
+
+      updateVisualization(){
+        // compute positions via inorder layout
+        const positions = [];
+        let xCounter = 0;
+        const assign = (node, depth=0) => {
+          if(!node) return;
+          assign(node.left, depth+1);
+          node.x = ++xCounter;
+          node.y = depth;
+          positions.push(node);
+          assign(node.right, depth+1);
+        };
+        assign(this.root, 0);
+
+        // compute scale to SVG width
+        const view = this.svg.viewBox.baseVal;
+        const width = view.width || 1200;
+        const height = view.height || 600;
+        const levelHeight = 80;
+        let maxX = Math.max(1, xCounter);
+        // map logical x (1..maxX) to pixel x range with padding
+        const pad = 40;
+        const xFor = ix => pad + (ix-1) * ((width-2*pad)/(maxX-1 || 1));
+        const yFor = depth => pad + depth * levelHeight;
+
+        // ensure DOM nodes exist
+        const existing = new Set();
+        // create groups for nodes
+        const gParent = this.svg;
+        // draw edges first or reuse
+        // update/create node groups
+        const nodesToRender = [];
+        const collect = (n) => { if(!n) return; nodesToRender.push(n); collect(n.left); collect(n.right); };
+        collect(this.root);
+        // create missing node groups
+        nodesToRender.forEach(n=>{
+          if(!this.nodeMap.has(n)){
+            const g = document.createElementNS("http://www.w3.org/2000/svg","g");
+            g.setAttribute("class","node");
+            g.setAttribute("data-id", n.id);
+            const circle = document.createElementNS("http://www.w3.org/2000/svg","circle");
+            circle.setAttribute("r", 18);
+            circle.setAttribute("cx", 0);
+            circle.setAttribute("cy", 0);
+            const text = document.createElementNS("http://www.w3.org/2000/svg","text");
+            text.textContent = String(n.value);
+            g.appendChild(circle);
+            g.appendChild(text);
+            // tooltip
+            g.addEventListener('mouseenter', ()=>{ g.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'; });
+            g.addEventListener('mouseleave', ()=>{ g.style.filter = 'none'; });
+            gParent.appendChild(g);
+            this.nodeMap.set(n, g);
+          } else {
+            const g = this.nodeMap.get(n);
+            // update label if needed
+            const txt = g.querySelector('text');
+            if(txt && txt.textContent !== String(n.value)) txt.textContent = String(n.value);
+          }
+        });
+
+        // Remove DOM nodes that are no longer in the tree
+        Array.from(this.nodeMap.keys()).forEach(k=>{
+          if(!nodesToRender.includes(k)){
+            const g = this.nodeMap.get(k);
+            if(g && g.parentNode) g.parentNode.removeChild(g);
+            this.nodeMap.delete(k);
+          }
+        });
+
+        // draw edges: remove all edges and recreate for simplicity
+        // remove existing edges
+        Array.from(gParent.querySelectorAll('.edge')).forEach(e=> e.parentNode.removeChild(e));
+        // create lines
+        nodesToRender.forEach(n=>{
+          if(n.left){
+            const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+            line.setAttribute("class","edge");
+            line.setAttribute("data-from", n.id);
+            line.setAttribute("data-to", n.left.id);
+            line.setAttribute("x1", xFor(n.x));
+            line.setAttribute("y1", yFor(n.y));
+            line.setAttribute("x2", xFor(n.left.x));
+            line.setAttribute("y2", yFor(n.left.y));
+            gParent.insertBefore(line, gParent.firstChild);
+          }
+          if(n.right){
+            const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+            line.setAttribute("class","edge");
+            line.setAttribute("data-from", n.id);
+            line.setAttribute("data-to", n.right.id);
+            line.setAttribute("x1", xFor(n.x));
+            line.setAttribute("y1", yFor(n.y));
+            line.setAttribute("x2", xFor(n.right.x));
+            line.setAttribute("y2", yFor(n.right.y));
+            gParent.insertBefore(line, gParent.firstChild);
+          }
+        });
+
+        // place nodes groups at new coords (immediately)
+        nodesToRender.forEach(n=>{
+          const g = this.nodeMap.get(n);
+          if(!g) return;
+          const cx = xFor(n.x);
+          const cy = yFor(n.y);
+          g.setAttribute('transform', `translate(${cx},${cy})`);
+          g.dataset.cx = cx; g.dataset.cy = cy;
+          // color classes
+          if(n.color === RED){
+            g.classList.remove('black'); g.classList.add('red');
+            const circle = g.querySelector('circle');
+            circle.style.fill = '#e53e3e';
+            circle.style.stroke = '#6b0000';
+            const txt = g.querySelector('text'); txt.style.fill = '#fff';
+          } else {
+            g.classList.remove('red'); g.classList.add('black');
+            const circle = g.querySelector('circle');
+            circle.style.fill = '#111';
+            circle.style.stroke = '#333';
+            const txt = g.querySelector('text'); txt.style.fill = '#fff';
+          }
+        });
+
+        // update edges positions (immediate)
+        Array.from(gParent.querySelectorAll('.edge')).forEach(line=>{
+          const fromId = Number(line.getAttribute('data-from'));
+          const toId = Number(line.getAttribute('data-to'));
+          const fromNode = nodesToRender.find(n=>n.id===fromId);
+          const toNode = nodesToRender.find(n=>n.id===toId);
+          if(fromNode && toNode){
+            line.setAttribute('x1', xFor(fromNode.x));
+            line.setAttribute('y1', yFor(fromNode.y));
+            line.setAttribute('x2', xFor(toNode.x));
+            line.setAttribute('y2', yFor(toNode.y));
+          }
+        });
+
+        // update properties inspection
+        this.updateProperties();
+      }
+
+      async animateRotation(xNode, yNode, duration=600){
+        // animate nodes moving to new positions after rotation.
+        // We'll call updateVisualization to compute positions and then tween positions for smooth effect.
+        this.updateVisualization(); // positions set after rotation (since rotation changed tree structure)
+        await this.sleep(duration);
+      }
+
+      async animateRecolor(nodes, duration=600){
+        // briefly highlight recolored nodes
+        const doms = nodes.filter(Boolean).map(n=>this.nodeMap.get(n)).filter(Boolean);
+        doms.forEach(g=> {
+          g.style.outline = '3px solid rgba(255,215,0,0.8)';
+          g.style.transition = `outline ${Math.min(200,duration/3)}ms ease`;
+        });
+        await this.sleep(Math.min(200,duration/3));
+        doms.forEach(g=> g.style.outline = 'none');
+        await this.sleep(duration - Math.min(200,duration/3));
+        this.updateVisualization();
+      }
+
+      async animateFlashNode(node, purpose, duration=400){
+        const g = this.nodeMap.get(node);
+        if(!g) return;
+        const orig = g.style.transform;
+        g.style.transition = `transform ${duration/2}ms ease`;
+        g.style.transform += ' scale(1.14)';
+        await this.sleep(duration/2);
+        g.style.transform = orig;
+        await this.sleep(duration/2);
+      }
+
+      sleep(ms){ return new Promise(res=>setTimeout(res, ms)); }
+
+      setLast(msg){
+        const el = document.getElementById('lastAction');
+        if(el) el.textContent = msg;
+      }
+
+      updateProperties(){
+        const el = document.getElementById('propContent');
+        if(!el) return;
+        if(!this.root){ el.innerHTML = 'Tree is empty'; return; }
+        // check property 1: root is black
+        const prop = [];
+        prop.push({ok: this.root.color === BLACK, text: 'Root is black'});
+        // property 2: red nodes have black children
+        let redOk = true; const reds = [];
+        const check = (n) => {
+          if(!n) return;
+          if(n.color === RED){
+            if((n.left && n.left.color === RED) || (n.right && n.right.color === RED)) redOk = false;
+            reds.push(n.value);
+          }
+          check(n.left); check(n.right);
+        };
+        check(this.root);
+        prop.push({ok: redOk, text: 'No red node has a red child'});
+        // property 3: every path from root to leaves has same number of black nodes
+        const blackHeights = new Set();
+        const compute = (n, count) => {
+          if(n === null){ blackHeights.add(count); return; }
+          if(n.color === BLACK) count++;
+          compute(n.left, count); compute(n.right, count);
+        };
+        compute(this.root, 0);
+        prop.push({ok: blackHeights.size === 1, text: 'Equal black-height on all root-leaf paths (' + Array.from(blackHeights).join(',') + ')'});
+        el.innerHTML = prop.map(p => `<div class="${p.ok ? 'ok' : 'bad'}">${p.text}</div>`).join('');
+      }
+    }
+
+    // UI wiring
+    const svg = document.getElementById('svg');
+    const tree = new RBTree(svg);
+
+    const speedInput = document.getElementById('speed');
+    const speedVal = document.getElementById('speedVal');
+    speedInput.addEventListener('input', ()=>{
+      const ms = Number(speedInput.value);
+      speedVal.textContent = ms;
+      tree.setSpeed(ms);
+    });
+    tree.setSpeed(Number(speedInput.value));
+
+    document.getElementById('btnInsert').addEventListener('click', ()=>{
+      const v = Number(document.getElementById('insertVal').value);
+      if(Number.isFinite(v)) tree.insertValue(v, false);
+    });
+    document.getElementById('btnInsertStep').addEventListener('click', ()=>{
+      const v = Number(document.getElementById('insertVal').value);
+      if(Number.isFinite(v)) tree.insertValue(Number(v), true);
+    });
+    document.getElementById('btnRandom').addEventListener('click', ()=>{
+      const v = Math.floor(Math.random()*100);
+      document.getElementById('insertVal').value = v;
+      tree.insertValue(v, true);
+    });
+    document.getElementById('btnBulk').addEventListener('click', async ()=>{
+      for(let i=0;i<10;i++){
+        const v = Math.floor(Math.random()*200);
+        document.getElementById('insertVal').value = v;
+        await tree.insertValue(v, true);
+        await tree.sleep(120);
+      }
+    });
+    document.getElementById('btnDelete').addEventListener('click', ()=>{
+      const v = Number(document.getElementById('deleteVal').value);
+      if(Number.isFinite(v)) tree.deleteValue(v, true);
+    });
+    document.getElementById('btnClear').addEventListener('click', ()=>{
+      // clear svg and tree
+      tree.root = null;
+      tree.nodeMap.forEach(g=>{ if(g.parentNode) g.parentNode.removeChild(g); });
+      tree.nodeMap.clear();
+      Array.from(svg.querySelectorAll('.edge')).forEach(e=> e.parentNode.removeChild(e));
+      tree.updateVisualization();
+      tree.setLast('Cleared tree');
+    });
+
+    document.getElementById('btnExample').addEventListener('click', async ()=>{
+      // classic example causing rotations: 11, 2, 14, 1, 7, 15, 5, 8, 4
+      const seq = [11,2,14,1,7,15,5,8,4];
+      for(let v of seq){ await tree.insertValue(v, true); await tree.sleep(150); }
+    });
+
+    // Initialize with small example
+    (async function init(){
+      tree.updateVisualization();
+      tree.setLast('Ready');
+    })();
+
+    // make svg responsive resizing
+    function fitView(){
+      svg.setAttribute('viewBox', '0 0 1200 600');
+    }
+    window.addEventListener('resize', fitView);
+    fitView();
+
+  })();
+  </script>
+</body>
+</html>

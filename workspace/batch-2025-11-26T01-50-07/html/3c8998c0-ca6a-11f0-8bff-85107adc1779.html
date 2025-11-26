@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Breadth-First Search (BFS) Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #leftPanel {
+    width: 320px;
+    background: #f7f7f7;
+    padding: 20px;
+    box-sizing: border-box;
+    border-right: 1px solid #ccc;
+    overflow-y: auto;
+  }
+  #graphCanvas {
+    flex-grow: 1;
+    background: #222;
+    display: block;
+  }
+  h1 {
+    font-size: 1.5rem;
+    margin-top: 0;
+  }
+  label {
+    display: block;
+    margin-top: 15px;
+    font-weight: bold;
+  }
+  input[type="text"], select {
+    width: 100%;
+    padding: 7px;
+    margin-top: 5px;
+    box-sizing: border-box;
+    font-family: monospace;
+  }
+  button {
+    margin-top: 20px;
+    background: #0078d7;
+    border: none;
+    color: white;
+    font-size: 1rem;
+    padding: 10px;
+    width: 100%;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.3s;
+  }
+  button:hover {
+    background: #005ea1;
+  }
+  #steps {
+    margin-top: 20px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    user-select: none;
+  }
+  #legend {
+    margin-top: 20px;
+    font-size: 0.9rem;
+    background: #fff;
+    padding: 10px;
+    border: 1px solid #ccc;
+    line-height: 1.4;
+  }
+  .color-box {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    vertical-align: middle;
+    margin-right: 6px;
+    border-radius: 3px;
+  }
+  #info {
+    margin-top: 20px;
+    font-size: 0.9rem;
+    color: #555;
+  }
+  a {
+    color: #0078d7;
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+<div id="leftPanel">
+  <h1>Breadth-First Search (BFS) Demo</h1>
+  <label for="graphInput">Graph Adjacency List (JSON)</label>
+  <textarea id="graphInput" rows="10" style="width:100%; font-family: monospace; font-size:14px;">{
+  "A": ["B", "C"],
+  "B": ["A", "D", "E"],
+  "C": ["A", "F"],
+  "D": ["B"],
+  "E": ["B", "F"],
+  "F": ["C", "E"]
+}</textarea>
+
+  <label for="startNode">Start Node</label>
+  <input type="text" id="startNode" value="A" maxlength="2" />
+
+  <button id="runBFS">Run BFS</button>
+
+  <div id="info">
+    Edit the graph adjacency list in JSON format.<br />
+    Each key is a node and its value is an array of neighboring nodes.<br />
+    Maximum 15 nodes recommended.<br />
+    <br />
+    Nodes are automatically laid out in a circle.<br />
+    Click "Run BFS" to see the order in which nodes are visited.<br />
+  </div>
+
+  <div id="legend">
+    <div><span class="color-box" style="background:#555;"></span> Unvisited node</div>
+    <div><span class="color-box" style="background:#f39c12;"></span> In queue (frontier)</div>
+    <div><span class="color-box" style="background:#27ae60;"></span> Visited node</div>
+    <div><span class="color-box" style="background:#2980b9;"></span> Current processing node</div>
+  </div>
+
+  <div id="steps"></div>
+</div>
+
+<canvas id="graphCanvas"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById("graphCanvas");
+  const ctx = canvas.getContext("2d");
+  const graphInput = document.getElementById("graphInput");
+  const startNodeInput = document.getElementById("startNode");
+  const runBtn = document.getElementById("runBFS");
+  const stepsDiv = document.getElementById("steps");
+
+  let WIDTH, HEIGHT;
+  const nodeRadius = 22;
+
+  let graph = {};
+  let nodes = []; // sorted list of nodes
+  let positions = {}; // node => {x,y}
+
+  // BFS state
+  let queue = [];
+  let visited = new Set();
+  let processing = null;
+  let bfsSteps = [];
+  let stepIndex = 0;
+  let timer = null;
+
+  function resize() {
+    WIDTH = window.innerWidth - 320;
+    HEIGHT = window.innerHeight;
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  function parseGraph(input) {
+    try {
+      const obj = JSON.parse(input);
+      // Validate: keys and neighbors are strings, neighbors is array
+      for (const k in obj) {
+        if (!Array.isArray(obj[k])) throw new Error("Neighbors must be arrays.");
+        for (const n of obj[k]) {
+          if (typeof n !== "string") throw new Error("Neighbor nodes must be strings.");
+        }
+      }
+      return obj;
+    } catch (e) {
+      alert("Invalid JSON adjacency list:\n" + e.message);
+      return null;
+    }
+  }
+
+  // Automatically compute positions in a circle centered inside canvas
+  function layoutNodes(nodes) {
+    const centerX = WIDTH / 2;
+    const centerY = HEIGHT / 2;
+    const radius = Math.min(WIDTH, HEIGHT) / 2 - 80;
+    const pos = {};
+    const count = nodes.length;
+    nodes.forEach((node, i) => {
+      const angle = (2 * Math.PI * i) / count - Math.PI / 2; // start at top
+      pos[node] = {
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+      };
+    });
+    return pos;
+  }
+
+  function drawNode(node, color, borderColor) {
+    const { x, y } = positions[node];
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = borderColor || "#111";
+    ctx.lineWidth = 2;
+    ctx.shadowColor = "rgba(0,0,0,0.6)";
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+    ctx.arc(x, y, nodeRadius, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Text (node label)
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 18px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(node, x, y);
+  }
+
+  function drawEdge(n1, n2, color, width = 2) {
+    const p1 = positions[n1];
+    const p2 = positions[n2];
+
+    // Draw line with arrow
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+
+    // Draw arrowhead
+    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    const arrowLength = 10;
+    ctx.beginPath();
+    ctx.moveTo(p2.x, p2.y);
+    ctx.lineTo(p2.x - arrowLength * Math.cos(angle - Math.PI / 6), p2.y - arrowLength * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(p2.x - arrowLength * Math.cos(angle + Math.PI / 6), p2.y - arrowLength * Math.sin(angle + Math.PI / 6));
+    ctx.lineTo(p2.x, p2.y);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  // For an undirected graph, draw each edge once.
+  function drawGraph(currentNode = null, queueSet = new Set(), visitedSet = new Set()) {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    // Draw edges
+    const drawnEdges = new Set();
+    for (const node of nodes) {
+      for (const neighbor of graph[node]) {
+        // Create a unique id for edge so we don't draw twice in undirected graph
+        const edgeId = [node, neighbor].sort().join("__");
+        if (!drawnEdges.has(edgeId)) {
+          drawnEdges.add(edgeId);
+          drawEdge(node, neighbor, "#ccc", 1.5);
+        }
+      }
+    }
+
+    // Draw nodes with colors based on state
+    for (const node of nodes) {
+      if (node === currentNode) {
+        drawNode(node, "#2980b9");
+      } else if (visitedSet.has(node)) {
+        drawNode(node, "#27ae60");
+      } else if (queueSet.has(node)) {
+        drawNode(node, "#f39c12");
+      } else {
+        drawNode(node, "#555");
+      }
+    }
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function animateBFS(start) {
+    const visitedSet = new Set();
+    const queueArr = [];
+    const stepsLog = [];
+
+    if (!graph.hasOwnProperty(start)) {
+      alert("Start node not found in graph.");
+      return;
+    }
+
+    queueArr.push(start);
+    visitedSet.add(start);
+
+    stepsLog.push(`Enqueued start node: ${start}`);
+    drawGraph(null, new Set(queueArr), visitedSet);
+    await sleep(1000);
+
+    while (queueArr.length > 0) {
+      const current = queueArr.shift();
+      stepsLog.push(`Dequeued node: ${current} (processing)`);
+      drawGraph(current, new Set(queueArr), visitedSet);
+      stepsDiv.textContent = stepsLog.join("\n");
+      await sleep(1200);
+
+      for (const neighbor of graph[current]) {
+        if (!visitedSet.has(neighbor)) {
+          visitedSet.add(neighbor);
+          queueArr.push(neighbor);
+          stepsLog.push(`  -> Enqueued neighbor: ${neighbor}`);
+          drawGraph(current, new Set(queueArr), visitedSet);
+          stepsDiv.textContent = stepsLog.join("\n");
+          await sleep(1000);
+        }
+      }
+      stepsLog.push(`Finished processing node: ${current}\n`);
+      drawGraph(null, new Set(queueArr), visitedSet);
+      stepsDiv.textContent = stepsLog.join("\n");
+      await sleep(800);
+    }
+
+    stepsLog.push("BFS complete! All reachable nodes visited.");
+    stepsDiv.textContent = stepsLog.join("\n");
+    drawGraph(null, new Set(), visitedSet);
+  }
+
+  runBtn.addEventListener("click", () => {
+    if (timer) {
+      // Cancel any ongoing animation
+      timer = null;
+    }
+    const g = parseGraph(graphInput.value);
+    if (!g) return;
+
+    graph = g;
+    // Sort nodes by name for consistency
+    nodes = Object.keys(graph).sort();
+    if (nodes.length > 15) {
+      alert("Warning: too many nodes might slow down the visualization (max 15 recommended).");
+    }
+    positions = layoutNodes(nodes);
+
+    stepsDiv.textContent = "";
+    drawGraph();
+
+    const start = startNodeInput.value.trim();
+    if (!start) {
+      alert("Please enter a start node.");
+      return;
+    }
+
+    animateBFS(start);
+  });
+
+  // Initial draw
+  graph = parseGraph(graphInput.value);
+  nodes = Object.keys(graph).sort();
+  positions = layoutNodes(nodes);
+  drawGraph();
+})();
+</script>
+</body>
+</html>

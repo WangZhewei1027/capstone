@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Depth-First Search (DFS) Demonstration</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+  }
+  #graph {
+    margin: 20px 0;
+  }
+  svg {
+    border: 1px solid #ccc;
+    background: #fafafa;
+  }
+  circle.node {
+    fill: #ddd;
+    stroke: #666;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: fill 0.3s;
+  }
+  circle.node.visited {
+    fill: #4caf50;
+    stroke: #2e7d32;
+  }
+  circle.node.current {
+    fill: #ff9800;
+    stroke: #ef6c00;
+  }
+  line.edge {
+    stroke: #999;
+    stroke-width: 2px;
+    transition: stroke 0.3s;
+  }
+  line.edge.visited {
+    stroke: #4caf50;
+    stroke-width: 3px;
+  }
+  #controls {
+    margin: 10px 0;
+  }
+  #log {
+    background: #222;
+    color: #eee;
+    height: 150px;
+    overflow-y: auto;
+    padding: 10px;
+    border-radius: 5px;
+    font-family: monospace;
+    white-space: pre-wrap;
+  }
+  button {
+    padding: 8px 14px;
+    margin-right: 10px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  select {
+    font-size: 14px;
+    padding: 6px;
+  }
+  #title {
+    margin-bottom: 5px;
+  }
+</style>
+</head>
+<body>
+<h1 id="title">Depth-First Search (DFS) Visualization</h1>
+
+<div id="controls">
+  <label for="startNode">Select start node:</label>
+  <select id="startNode"></select>
+  <button id="startDFS">Start DFS</button>
+  <button id="reset">Reset</button>
+</div>
+
+<div id="graph">
+<!-- SVG graph will be rendered here -->
+<svg width="600" height="400" aria-label="Graph visualization"></svg>
+</div>
+
+<h3>DFS Log</h3>
+<div id="log" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+// Graph data: nodes and edges
+// We'll define a sample connected graph
+const nodes = [
+  { id: 'A', x: 100, y: 80 },
+  { id: 'B', x: 250, y: 50 },
+  { id: 'C', x: 250, y: 150 },
+  { id: 'D', x: 400, y: 90 },
+  { id: 'E', x: 400, y: 210 },
+  { id: 'F', x: 550, y: 50 },
+  { id: 'G', x: 550, y: 150 },
+];
+
+const edges = [
+  { from: 'A', to: 'B' },
+  { from: 'A', to: 'C' },
+  { from: 'B', to: 'D' },
+  { from: 'C', to: 'E' },
+  { from: 'D', to: 'F' },
+  { from: 'E', to: 'G' },
+  { from: 'F', to: 'G' }
+];
+
+// Build adjacency list for DFS
+const adjacency = {};
+nodes.forEach(n => adjacency[n.id] = []);
+edges.forEach(({from, to}) => {
+  adjacency[from].push(to);
+  adjacency[to].push(from); // Undirected graph
+});
+
+// Sort adjacency lists for consistent traversal order
+for (const k in adjacency) {
+  adjacency[k].sort();
+}
+
+const svg = document.querySelector('svg');
+const LOG = document.getElementById('log');
+const startSelect = document.getElementById('startNode');
+const startBtn = document.getElementById('startDFS');
+const resetBtn = document.getElementById('reset');
+
+let nodeElements = {};
+let edgeElements = {};
+let running = false;
+let visited = new Set();
+let stack = [];
+
+// Populate start node selector
+function populateStartNodes() {
+  startSelect.innerHTML = '';
+  for (const node of nodes) {
+    const option = document.createElement('option');
+    option.value = node.id;
+    option.textContent = node.id;
+    startSelect.appendChild(option);
+  }
+}
+populateStartNodes();
+
+function log(message) {
+  LOG.textContent += message + '\n';
+  LOG.scrollTop = LOG.scrollHeight;
+}
+
+// Create SVG graph elements
+function drawGraph() {
+  svg.innerHTML = '';
+  nodeElements = {};
+  edgeElements = {};
+
+  // Draw edges first
+  for (const e of edges) {
+    const fromNode = nodes.find(n => n.id === e.from);
+    const toNode = nodes.find(n => n.id === e.to);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute('x1', fromNode.x);
+    line.setAttribute('y1', fromNode.y);
+    line.setAttribute('x2', toNode.x);
+    line.setAttribute('y2', toNode.y);
+    line.classList.add('edge');
+    // Store for easy reference, edge key: "A-B" sorted
+    let key = [e.from, e.to].sort().join('-');
+    edgeElements[key] = line;
+    svg.appendChild(line);
+  }
+
+  // Draw nodes
+  for (const n of nodes) {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute('tabindex', '0'); // Make focusable
+    g.setAttribute('role', 'button');
+    g.setAttribute('aria-label', `Node ${n.id}`);
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute('cx', n.x);
+    circle.setAttribute('cy', n.y);
+    circle.setAttribute('r', 20);
+    circle.classList.add('node');
+    g.appendChild(circle);
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute('x', n.x);
+    text.setAttribute('y', n.y + 6);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('font-size', '16px');
+    text.setAttribute('pointer-events', 'none');
+    text.textContent = n.id;
+    g.appendChild(text);
+
+    nodeElements[n.id] = circle;
+    svg.appendChild(g);
+
+    // Clicking a node selects it as start node if DFS not running
+    g.addEventListener('click', () => {
+      if (!running) {
+        startSelect.value = n.id;
+      }
+    });
+  }
+}
+
+drawGraph();
+
+function resetGraph() {
+  visited.clear();
+  stack = [];
+  running = false;
+  LOG.textContent = '';
+  for (const nId in nodeElements) {
+    nodeElements[nId].classList.remove('visited', 'current');
+  }
+  for (const eKey in edgeElements) {
+    edgeElements[eKey].classList.remove('visited');
+  }
+  startBtn.disabled = false;
+  startSelect.disabled = false;
+  resetBtn.disabled = false;
+}
+
+resetBtn.addEventListener('click', () => {
+  resetGraph();
+});
+
+// Utility function to get edge between two nodes (undirected)
+function getEdgeElement(a, b) {
+  const key = [a, b].sort().join('-');
+  return edgeElements[key];
+}
+
+// Async DFS function to animate steps with delay
+async function dfs(start) {
+  running = true;
+  startBtn.disabled = true;
+  startSelect.disabled = true;
+  resetBtn.disabled = true;
+
+  log(`Starting DFS from node ${start}`);
+  stack.push(start);
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!visited.has(current)) {
+      // Visit current node
+      visited.add(current);
+      log(`Visited node ${current}`);
+      // Visually mark node as visited
+      if (nodeElements[current]) {
+        nodeElements[current].classList.add('current');
+        // Pause to highlight current node
+        await new Promise(r => setTimeout(r, 700));
+        nodeElements[current].classList.remove('current');
+        nodeElements[current].classList.add('visited');
+      }
+
+      // Get neighbors in reverse order to get lex order with stack
+      const neighbors = adjacency[current].slice().reverse();
+      for (const neighbor of neighbors) {
+        if (!visited.has(neighbor)) {
+          stack.push(neighbor);
+          // Visually mark the edge traversed
+          const edge = getEdgeElement(current, neighbor);
+          if (edge) {
+            edge.classList.add('visited');
+          }
+          log(`Add neighbor ${neighbor} to stack`);
+          // Small pause to show edge highlight
+          await new Promise(r => setTimeout(r, 300));
+        }
+      }
+    } else {
+      log(`Node ${current} already visited, skipping.`);
+    }
+  }
+  log('DFS complete.');
+  running = false;
+  startBtn.disabled = false;
+  startSelect.disabled = false;
+  resetBtn.disabled = false;
+}
+
+startBtn.addEventListener('click', () => {
+  if (running) return;
+  resetGraph();
+  const start = startSelect.value;
+  dfs(start);
+});
+
+// Initial reset to clear any highlights
+resetGraph();
+
+</script>
+</body>
+</html>

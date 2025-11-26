@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Weighted Graph Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    background: #f0f0f0;
+    display: flex; flex-direction: column; align-items: center;
+    height: 100vh;
+  }
+  h1 {
+    margin-top: 1rem;
+    color: #333;
+  }
+  #graphCanvas {
+    border: 1px solid #999;
+    background: #fff;
+    margin-top: 1rem;
+    cursor: pointer;
+  }
+  #info {
+    margin-top: 10px;
+    width: 600px;
+    text-align: center;
+    color: #555;
+  }
+  #controls {
+    margin-top: 10px;
+  }
+  button {
+    margin: 0 5px;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #pathResult {
+    margin-top: 15px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #222;
+  }
+</style>
+</head>
+<body>
+<h1>Weighted Graph Visualization & Dijkstra's Shortest Path</h1>
+<canvas id="graphCanvas" width="600" height="600" aria-label="Weighted graph visualization"></canvas>
+<div id="info">
+  <p><strong>Instructions:</strong> Click on nodes to set <em>Start</em> and <em>End</em> nodes for shortest path.</p>
+  <p>Edges show their weights. The shortest path (if calculated) is highlighted in red.</p>
+</div>
+<div id="controls">
+  <button id="resetSelection">Reset Start/End Selection</button>
+  <button id="randomizeGraph">Randomize Graph</button>
+</div>
+<div id="pathResult" aria-live="polite"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("graphCanvas");
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // Parameters for graph layout & nodes
+  const nodeRadius = 20;
+  const numNodes = 9;
+
+  // Graph data structures
+  // nodes: array of {id, x, y}
+  // edges: array of {from, to, weight}
+
+  // Generate a weighted graph arranged roughly in a circle but can randomize positions
+  function generateGraph() {
+    const nodes = [];
+    const edges = [];
+    // Place nodes evenly around a circle
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = 220;
+
+    for (let i = 0; i < numNodes; i++) {
+      let angle = (2 * Math.PI * i) / numNodes;
+      // Slight random offset for more organic feel
+      let x = centerX + radius * Math.cos(angle) + (Math.random() - 0.5) * 30;
+      let y = centerY + radius * Math.sin(angle) + (Math.random() - 0.5) * 30;
+      nodes.push({ id: i, x, y });
+    }
+
+    // Connect nodes with weighted edges to form a connected graph
+    // We'll create edges to neighbors + some random other edges
+
+    // Ensuring the graph is connected by connecting nodes in a ring first
+    for (let i = 0; i < numNodes; i++) {
+      let from = i;
+      let to = (i + 1) % numNodes;
+      let weight = Math.floor(1 + Math.random() * 15);
+      edges.push({ from, to, weight });
+      edges.push({ from: to, to: from, weight }); // undirected graph so add both directions
+    }
+
+    // Add some random extra edges for complexity
+    for (let i = 0; i < numNodes * 2; i++) {
+      let from = Math.floor(Math.random() * numNodes);
+      let to = Math.floor(Math.random() * numNodes);
+      if (from !== to && !edges.find(e => e.from === from && e.to === to)) {
+        let weight = Math.floor(1 + Math.random() * 15);
+        edges.push({ from, to, weight });
+        edges.push({ from: to, to: from, weight });
+      }
+    }
+
+    return { nodes, edges };
+  }
+
+  // Draw node as circle with label
+  function drawNode(node, highlight = false, role = null) {
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
+    ctx.fillStyle = highlight ? "#ff6666" : "#4a90e2";
+    ctx.fill();
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    if (role === "start") {
+      ctx.fillStyle = "#0a0";
+      ctx.font = "bold 16px Arial";
+      ctx.fillText("S", node.x - 7, node.y + 6);
+    } else if (role === "end") {
+      ctx.fillStyle = "#a00";
+      ctx.font = "bold 16px Arial";
+      ctx.fillText("E", node.x - 7, node.y + 6);
+    } else {
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 14px Arial";
+      ctx.fillText(node.id, node.x - 5, node.y + 5);
+    }
+  }
+
+  // Draw edge as line with weight label
+  function drawEdge(edge, highlight = false) {
+    const fromNode = nodes[edge.from];
+    const toNode = nodes[edge.to];
+
+    // Draw line
+    ctx.strokeStyle = highlight ? "#ff0000" : "#666";
+    ctx.lineWidth = highlight ? 4 : 1.8;
+    ctx.beginPath();
+    ctx.moveTo(fromNode.x, fromNode.y);
+    ctx.lineTo(toNode.x, toNode.y);
+    ctx.stroke();
+
+    // Draw arrowhead for direction (optional, but undirected graph so skip arrow)
+
+    // Draw weight label midway
+    const midX = (fromNode.x + toNode.x) / 2;
+    const midY = (fromNode.y + toNode.y) / 2;
+
+    // Offset text slightly perpendicular to edge direction
+    const dx = toNode.x - fromNode.x;
+    const dy = toNode.y - fromNode.y;
+    const offset = 12;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const textX = midX - (dy / len) * offset;
+    const textY = midY + (dx / len) * offset;
+
+    ctx.fillStyle = highlight ? "#ff0000" : "#222";
+    ctx.font = "14px Arial";
+    ctx.fillText(edge.weight, textX, textY);
+  }
+
+  // Draw entire graph
+  function drawGraph() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Draw edges first
+    for (const edge of edges) {
+      // To avoid double drawing weights on undirected edges, draw only if from < to
+      // (But since stored both directions, skip duplicates)
+      if (edge.from < edge.to) {
+        let highlighting = false;
+        if (shortestPathEdges.has(edgeKey(edge.from, edge.to))) {
+          highlighting = true;
+        }
+        drawEdge(edge, highlighting);
+      }
+    }
+
+    // Draw nodes
+    for (const node of nodes) {
+      let role = null;
+      if (startNode !== null && node.id === startNode) role = "start";
+      if (endNode !== null && node.id === endNode) role = "end";
+      let highlight = false;
+      // Highlight nodes on shortest path also
+      if (shortestPathNodes.has(node.id)) highlight = true;
+      drawNode(node, highlight, role);
+    }
+  }
+
+  // Utility to generate a unique key for an edge ignoring direction since graph is undirected
+  function edgeKey(a, b) {
+    return a < b ? `${a}-${b}` : `${b}-${a}`;
+  }
+
+  // Find node under mouse position
+  function getNodeAtPosition(x, y) {
+    for (const node of nodes) {
+      const dx = x - node.x;
+      const dy = y - node.y;
+      if (dx * dx + dy * dy <= nodeRadius * nodeRadius) return node;
+    }
+    return null;
+  }
+
+  // Dijkstra's shortest path algorithm
+  function dijkstra(nodes, edges, source, target) {
+    const dist = new Array(nodes.length).fill(Infinity);
+    const prev = new Array(nodes.length).fill(null);
+    dist[source] = 0;
+
+    // Build adjacency list
+    const adj = new Map();
+    for(let n=0;n<nodes.length;n++){
+      adj.set(n, []);
+    }
+    for (const e of edges) {
+      adj.get(e.from).push({ node: e.to, weight: e.weight });
+    }
+
+    const visited = new Set();
+
+    while (true) {
+      // select unvisited node with smallest dist
+      let u = null;
+      let uDist = Infinity;
+      for (let i = 0; i < nodes.length; i++) {
+        if (!visited.has(i) && dist[i] < uDist) {
+          uDist = dist[i];
+          u = i;
+        }
+      }
+      if (u === null || u === target) break;
+      visited.add(u);
+
+      // relax edges
+      for (const neighbor of adj.get(u)) {
+        if (visited.has(neighbor.node)) continue;
+        const alt = dist[u] + neighbor.weight;
+        if (alt < dist[neighbor.node]) {
+          dist[neighbor.node] = alt;
+          prev[neighbor.node] = u;
+        }
+      }
+    }
+
+    // Reconstruct path
+    if (dist[target] === Infinity) {
+      return { distance: Infinity, path: [] };
+    }
+    const path = [];
+    for (let at = target; at !== null; at = prev[at]) {
+      path.push(at);
+    }
+    path.reverse();
+    return { distance: dist[target], path };
+  }
+
+  // Variables 
+  let { nodes, edges } = generateGraph();
+
+  // State for start and end selection
+  let startNode = null;
+  let endNode = null;
+
+  // To highlight shortest path edges and nodes
+  let shortestPathEdges = new Set();
+  let shortestPathNodes = new Set();
+
+  // Draw initial graph
+  drawGraph();
+
+  // Handle canvas clicks
+  canvas.addEventListener("click", e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const clicked = getNodeAtPosition(mx, my);
+    if (clicked === null) return;
+
+    if (startNode === null) {
+      startNode = clicked.id;
+      shortestPathEdges.clear();
+      shortestPathNodes.clear();
+      drawGraph();
+      updatePathResult();
+    } else if (endNode === null && clicked.id !== startNode) {
+      endNode = clicked.id;
+      calculateAndShowPath();
+    } else {
+      // Both start and end set -> reset and start new start selection with clicked node
+      startNode = clicked.id;
+      endNode = null;
+      shortestPathEdges.clear();
+      shortestPathNodes.clear();
+      drawGraph();
+      updatePathResult();
+    }
+  });
+
+  // Calculate and highlight shortest path
+  function calculateAndShowPath() {
+    if (startNode === null || endNode === null) return;
+
+    const result = dijkstra(nodes, edges, startNode, endNode);
+    shortestPathEdges.clear();
+    shortestPathNodes.clear();
+
+    if (result.distance === Infinity) {
+      // no path
+      updatePathResult("No path found between selected nodes.");
+    } else {
+      // highlight nodes and edges in path
+      result.path.forEach(n => shortestPathNodes.add(n));
+      // add edges between path nodes
+      for (let i = 0; i < result.path.length - 1; i++) {
+        shortestPathEdges.add(edgeKey(result.path[i], result.path[i + 1]));
+      }
+
+      updatePathResult(`Shortest path distance: ${result.distance}, Path: ${result.path.join(" → ")}`);
+    }
+    drawGraph();
+  }
+
+  // Update textual path result info
+  function updatePathResult(msg = "") {
+    const div = document.getElementById("pathResult");
+    if (msg) {
+      div.textContent = msg;
+    } else if (startNode === null) {
+      div.textContent = "Click a node to select Start node.";
+    } else if (endNode === null) {
+      div.textContent = `Start node selected: ${startNode}. Click another node to select End node.`;
+    } else {
+      div.textContent = "";
+    }
+  }
+
+  // Initial info message
+  updatePathResult();
+
+  // Reset selection button
+  document.getElementById("resetSelection").addEventListener("click", () => {
+    startNode = null;
+    endNode = null;
+    shortestPathEdges.clear();
+    shortestPathNodes.clear();
+    drawGraph();
+    updatePathResult();
+  });
+
+  // Randomize graph button
+  document.getElementById("randomizeGraph").addEventListener("click", () => {
+    startNode = null;
+    endNode = null;
+    shortestPathEdges.clear();
+    shortestPathNodes.clear();
+    const g = generateGraph();
+    nodes = g.nodes;
+    edges = g.edges;
+    drawGraph();
+    updatePathResult();
+  });
+})();
+</script>
+</body>
+</html>

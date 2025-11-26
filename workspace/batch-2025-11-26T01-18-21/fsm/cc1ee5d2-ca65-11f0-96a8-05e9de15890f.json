@@ -1,0 +1,533 @@
+{
+  "meta": {
+    "concept": "RecursionExplorer",
+    "topic": "Recursion — Call stack & event trace visualization",
+    "educational_goal": "Generate and replay instrumented recursive traces (call/return/draw/memo) to visualize how the call stack grows and shrinks and how drawing occurs for graphical recursion",
+    "expected_interactions": [
+      "generate_trace",
+      "play",
+      "pause",
+      "step",
+      "reset",
+      "change_example",
+      "change_param",
+      "change_speed"
+    ]
+  },
+  "states": [
+    {
+      "id": "S0_Idle",
+      "label": "Idle",
+      "type": "idle",
+      "entry_actions": [
+        "enableControls()",
+        "clearCanvas()",
+        "clearLog()",
+        "clearStack()",
+        "setResult('—')",
+        "pauseBtn.disabled = true",
+        "playBtn.disabled = false",
+        "stepBtn.disabled = false"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S1_Generating",
+      "label": "GeneratingTrace",
+      "type": "atomic",
+      "entry_actions": [
+        "disableControls()",
+        "clearCanvas()",
+        "clearLog()",
+        "clearStack()",
+        "idCounter = 1",
+        "callGenerator(example, param)"
+      ],
+      "exit_actions": [
+        "enableControlsExceptPlayPauseDuringGeneration()"
+      ]
+    },
+    {
+      "id": "S2_Ready",
+      "label": "TraceLoaded",
+      "type": "atomic",
+      "entry_actions": [
+        "events = generatedEvents",
+        "playIdx = 0",
+        "log(`Generated ${events.length} events for ${example}(${param}).`)",
+        "preDrawBackground()",
+        "playBtn.disabled = false",
+        "stepBtn.disabled = false",
+        "pauseBtn.disabled = true"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S3_Playing",
+      "label": "Playing",
+      "type": "atomic",
+      "entry_actions": [
+        "playing = true",
+        "playBtn.disabled = true",
+        "stepBtn.disabled = true",
+        "pauseBtn.disabled = false",
+        "schedulePlaybackLoop()"
+      ],
+      "exit_actions": [
+        "clearPlaybackTimer()",
+        "playing = false",
+        "playBtn.disabled = false",
+        "stepBtn.disabled = false",
+        "pauseBtn.disabled = true"
+      ]
+    },
+    {
+      "id": "S4_Paused",
+      "label": "Paused",
+      "type": "atomic",
+      "entry_actions": [
+        "playing = false",
+        "clearPlaybackTimer()",
+        "playBtn.disabled = false",
+        "stepBtn.disabled = false",
+        "pauseBtn.disabled = true"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S5_Stepping",
+      "label": "SteppingOneEvent",
+      "type": "atomic",
+      "entry_actions": [
+        "processSingleEvent()",
+        "advancePlayIdx()"
+      ],
+      "exit_actions": [
+        "if_playbackFinished_then_stop_and_publishResult()"
+      ]
+    },
+    {
+      "id": "S6_Resetting",
+      "label": "Resetting",
+      "type": "atomic",
+      "entry_actions": [
+        "events = []",
+        "playIdx = 0",
+        "stack = []",
+        "if(timer) clearTimeout(timer)",
+        "clearCanvas()",
+        "clearLog()",
+        "clearStack()",
+        "setResult('—')",
+        "playBtn.disabled = false",
+        "stepBtn.disabled = false",
+        "pauseBtn.disabled = true",
+        "idCounter = 1"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S7_Finished",
+      "label": "FinishedPlayback",
+      "type": "atomic",
+      "entry_actions": [
+        "playing = false",
+        "clearPlaybackTimer()",
+        "playBtn.disabled = false",
+        "stepBtn.disabled = false",
+        "pauseBtn.disabled = true",
+        "ensureFinalResultDisplayed()"
+      ],
+      "exit_actions": []
+    }
+  ],
+  "events": [
+    {
+      "id": "USER_CLICK_GENERATE",
+      "event_type": "user_action",
+      "description": "User clicks Generate Trace button (#generate)"
+    },
+    {
+      "id": "USER_CLICK_RESET",
+      "event_type": "user_action",
+      "description": "User clicks Reset button (#reset)"
+    },
+    {
+      "id": "USER_CLICK_PLAY",
+      "event_type": "user_action",
+      "description": "User clicks Play button (#play)"
+    },
+    {
+      "id": "USER_CLICK_PAUSE",
+      "event_type": "user_action",
+      "description": "User clicks Pause button (#pause)"
+    },
+    {
+      "id": "USER_CLICK_STEP",
+      "event_type": "user_action",
+      "description": "User clicks Step button (#step)"
+    },
+    {
+      "id": "USER_CHANGE_EXAMPLE",
+      "event_type": "user_action",
+      "description": "User changes example select (#example)"
+    },
+    {
+      "id": "USER_CHANGE_PARAM",
+      "event_type": "user_action",
+      "description": "User changes numeric parameter (#param)"
+    },
+    {
+      "id": "USER_CHANGE_SPEED",
+      "event_type": "user_action",
+      "description": "User adjusts playback speed slider (#speed)"
+    },
+    {
+      "id": "GENERATION_COMPLETE",
+      "event_type": "system_event",
+      "description": "Event trace generation finished (genFactorial/genFib/genFractal) (internal)"
+    },
+    {
+      "id": "PLAYBACK_STEP_PROCESSED",
+      "event_type": "system_event",
+      "description": "One playback event processed (call/return/draw/memo) (internal)"
+    },
+    {
+      "id": "PLAYBACK_FINISHED",
+      "event_type": "system_event",
+      "description": "Playback reached end of events (internal)"
+    },
+    {
+      "id": "AUTO_GENERATE_TRIGGER",
+      "event_type": "system_event",
+      "description": "Initial auto-generate timer fired (setTimeout auto-generate) which programmatically clicks generate"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0_Idle",
+      "to": "S1_Generating",
+      "event": "USER_CLICK_GENERATE",
+      "guard": "params_within_safety_caps",
+      "actions": [
+        "disableControls()",
+        "clearCanvas()",
+        "clearLog()",
+        "clearStack()",
+        "idCounter = 1",
+        "callGenerator(exampleEl.value, Number(paramEl.value))"
+      ],
+      "triggers": "#generate",
+      "expected_observables": [
+        "dom:#generate:click",
+        "dom:#example:value",
+        "dom:#param:value"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S6_Resetting",
+      "event": "USER_CLICK_RESET",
+      "guard": "true",
+      "actions": [
+        "events = []",
+        "playIdx = 0",
+        "stack = []",
+        "clearCanvas()",
+        "clearLog()",
+        "clearStack()",
+        "setResult('—')",
+        "idCounter = 1"
+      ],
+      "triggers": "#reset",
+      "expected_observables": [
+        "dom:#reset:click"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S1_Generating",
+      "to": "S2_Ready",
+      "event": "GENERATION_COMPLETE",
+      "guard": "generated_events_exists",
+      "actions": [
+        "events = generatedEvents",
+        "playIdx = 0",
+        "log(`Generated ${events.length} events for ${exampleEl.value}(${paramEl.value}).`)",
+        "preDrawBackground()",
+        "playBtn.disabled = false",
+        "stepBtn.disabled = false",
+        "pauseBtn.disabled = true"
+      ],
+      "triggers": "#generate,#example,#param",
+      "expected_observables": [
+        "dom:#generate:click",
+        "dom:#example:value",
+        "dom:#param:value"
+      ],
+      "timeout": 5000
+    },
+    {
+      "from": "S2_Ready",
+      "to": "S3_Playing",
+      "event": "USER_CLICK_PLAY",
+      "guard": "events_length_gt_zero",
+      "actions": [
+        "playing = true",
+        "playBtn.disabled = true",
+        "stepBtn.disabled = true",
+        "pauseBtn.disabled = false",
+        "schedulePlaybackLoop()"
+      ],
+      "triggers": "#play",
+      "expected_observables": [
+        "dom:#play:click",
+        "dom:events_array_present"
+      ],
+      "timeout": 100
+    },
+    {
+      "from": "S2_Ready",
+      "to": "S5_Stepping",
+      "event": "USER_CLICK_STEP",
+      "guard": "events_length_gt_zero",
+      "actions": [
+        "processEvent(events[playIdx])",
+        "playIdx++",
+        "if(playIdx >= events.length) publish PLAYBACK_FINISHED"
+      ],
+      "triggers": "#step",
+      "expected_observables": [
+        "dom:#step:click"
+      ],
+      "timeout": 100
+    },
+    {
+      "from": "S2_Ready",
+      "to": "S6_Resetting",
+      "event": "USER_CLICK_RESET",
+      "guard": "true",
+      "actions": [
+        "events = []",
+        "playIdx = 0",
+        "stack = []",
+        "clearCanvas()",
+        "clearLog()",
+        "clearStack()",
+        "setResult('—')"
+      ],
+      "triggers": "#reset",
+      "expected_observables": [
+        "dom:#reset:click"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S3_Playing",
+      "to": "S4_Paused",
+      "event": "USER_CLICK_PAUSE",
+      "guard": "playing_true",
+      "actions": [
+        "stop()",
+        "clearTimeout(timer)"
+      ],
+      "triggers": "#pause",
+      "expected_observables": [
+        "dom:#pause:click"
+      ],
+      "timeout": 100
+    },
+    {
+      "from": "S3_Playing",
+      "to": "S7_Finished",
+      "event": "PLAYBACK_FINISHED",
+      "guard": "true",
+      "actions": [
+        "stop()",
+        "ensureFinalResultDisplayed()"
+      ],
+      "triggers": "#play,#canvas",
+      "expected_observables": [
+        "dom:playback_reached_end",
+        "dom:canvas_draws_done"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S4_Paused",
+      "to": "S3_Playing",
+      "event": "USER_CLICK_PLAY",
+      "guard": "events_length_gt_zero",
+      "actions": [
+        "play()"
+      ],
+      "triggers": "#play",
+      "expected_observables": [
+        "dom:#play:click"
+      ],
+      "timeout": 100
+    },
+    {
+      "from": "S4_Paused",
+      "to": "S5_Stepping",
+      "event": "USER_CLICK_STEP",
+      "guard": "events_length_gt_zero",
+      "actions": [
+        "processEvent(events[playIdx])",
+        "playIdx++",
+        "if(playIdx >= events.length) publish PLAYBACK_FINISHED"
+      ],
+      "triggers": "#step",
+      "expected_observables": [
+        "dom:#step:click"
+      ],
+      "timeout": 100
+    },
+    {
+      "from": "S5_Stepping",
+      "to": "S2_Ready",
+      "event": "PLAYBACK_STEP_PROCESSED",
+      "guard": "playIdx < events.length",
+      "actions": [
+        "updateUIAfterEvent()",
+        "enableControlsIfNeeded()"
+      ],
+      "triggers": "#step",
+      "expected_observables": [
+        "dom:log_updated",
+        "dom:stack_updated"
+      ],
+      "timeout": 100
+    },
+    {
+      "from": "S5_Stepping",
+      "to": "S7_Finished",
+      "event": "PLAYBACK_FINISHED",
+      "guard": "playIdx >= events.length",
+      "actions": [
+        "ensureFinalResultDisplayed()",
+        "playBtn.disabled = false",
+        "stepBtn.disabled = false",
+        "pauseBtn.disabled = true"
+      ],
+      "triggers": "#step",
+      "expected_observables": [
+        "dom:playback_reached_end"
+      ],
+      "timeout": 100
+    },
+    {
+      "from": "S6_Resetting",
+      "to": "S0_Idle",
+      "event": "USER_CLICK_RESET",
+      "guard": "true",
+      "actions": [
+        "enableControls()",
+        "clearCanvas()",
+        "clearLog()",
+        "clearStack()",
+        "setResult('—')"
+      ],
+      "triggers": "#reset",
+      "expected_observables": [
+        "dom:#reset:click"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S7_Finished",
+      "to": "S2_Ready",
+      "event": "USER_CLICK_GENERATE",
+      "guard": "true",
+      "actions": [
+        "trigger generate flow (reset + generate)"
+      ],
+      "triggers": "#generate",
+      "expected_observables": [
+        "dom:#generate:click"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S1_Generating",
+      "event": "AUTO_GENERATE_TRIGGER",
+      "guard": "true",
+      "actions": [
+        "exampleEl.value = 'factorial'",
+        "paramEl.value = 6",
+        "generateBtn.click()"
+      ],
+      "triggers": "#example,#param,#generate",
+      "expected_observables": [
+        "dom:setTimeout_auto_generate"
+      ],
+      "timeout": 1000
+    },
+    {
+      "from": "S2_Ready",
+      "to": "S2_Ready",
+      "event": "USER_CHANGE_EXAMPLE",
+      "guard": "true",
+      "actions": [
+        "updateParamLabel()",
+        "setCodeForSelectedExample()"
+      ],
+      "triggers": "#example",
+      "expected_observables": [
+        "dom:#example:change"
+      ],
+      "timeout": 50
+    },
+    {
+      "from": "S2_Ready",
+      "to": "S2_Ready",
+      "event": "USER_CHANGE_PARAM",
+      "guard": "true",
+      "actions": [
+        "clampParamToBounds()",
+        "updateUIParamValue()"
+      ],
+      "triggers": "#param",
+      "expected_observables": [
+        "dom:#param:input"
+      ],
+      "timeout": 50
+    },
+    {
+      "from": "S2_Ready",
+      "to": "S2_Ready",
+      "event": "USER_CHANGE_SPEED",
+      "guard": "true",
+      "actions": [
+        "stepDelay = Number(speedEl.value)",
+        "speedVal.textContent = `${stepDelay} ms / step`"
+      ],
+      "triggers": "#speed",
+      "expected_observables": [
+        "dom:#speed:input",
+        "dom:#speedVal:text"
+      ],
+      "timeout": 50
+    }
+  ],
+  "components": [
+    "#example",
+    "#param",
+    "#paramLabel",
+    "#generate",
+    "#reset",
+    ".small",
+    "#play",
+    "#pause",
+    "#step",
+    "#speed",
+    "#speedVal",
+    "#canvas",
+    "#log",
+    "#code",
+    "#stack",
+    "#result"
+  ]
+}

@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Stack Visualizer — LIFO Data Structure</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --accent:#38bdf8;
+      --muted:#94a3b8;
+      --ok:#10b981;
+      --danger:#fb7185;
+      --glass: rgba(255,255,255,0.03);
+      --card: #091025;
+    }
+    *{box-sizing:border-box;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071021 0%, #081329 100%);color:#e6eef8;}
+    .app{
+      max-width:1100px;margin:28px auto;padding:20px;border-radius:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+      display:grid;grid-template-columns:360px 1fr 360px;gap:18px;
+    }
+
+    /* Left - controls */
+    .panel{background:var(--panel);border-radius:10px;padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);}
+    .panel h2{margin:0 0 12px 0;font-size:18px;color:var(--accent)}
+    .controls label{display:block;font-size:12px;color:var(--muted);margin-top:8px}
+    .row{display:flex;gap:8px;align-items:center}
+    input[type="text"], input[type="number"], select{
+      width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;
+    }
+    button{
+      padding:10px 12px;border-radius:8px;border:0;background:var(--accent);color:#052034;font-weight:600;cursor:pointer;
+    }
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
+    button.warn{background:var(--danger);color:#fff}
+    .small{font-size:13px;padding:8px 10px}
+    .muted{color:var(--muted);font-size:13px;margin-top:6px}
+    .spaced{margin-top:12px}
+    .controls .op-buttons{display:flex;gap:8px;margin-top:8px}
+    .info{background:var(--glass);padding:10px;border-radius:8px;margin-top:12px;font-size:13px;color:var(--muted)}
+
+    /* Middle - visualization */
+    .viz{
+      display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:18px;border-radius:10px;
+      min-height:420px;background:linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.006));
+    }
+    .stack-area{width:220px;height:420px;border-radius:10px;background:linear-gradient(180deg,#071426,#061224);display:flex;align-items:end;padding:12px;box-shadow:inset 0 6px 30px rgba(2,6,23,0.6)}
+    .stack{
+      width:100%;display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-start;padding-bottom:6px;position:relative;
+    }
+    .slot{
+      width:86%;height:44px;border-radius:8px;margin:6px 0;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600;position:relative;
+      transition:transform 300ms ease, background-color 200ms ease, opacity 200ms ease;
+    }
+    .slot.filled{background:linear-gradient(90deg,#062e3b,#022f2f);border:1px solid rgba(255,255,255,0.04);color:#dff8ff}
+    .slot .value{font-size:16px;}
+    .top-indicator{
+      position:absolute;right:-38px;top:18px;background:rgba(0,0,0,0.45);padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);font-size:13px;color:var(--muted)
+    }
+    .arrow{display:inline-block;margin-left:6px;color:var(--accent);font-weight:700}
+    .slot.highlight{box-shadow:0 8px 30px rgba(56,189,248,0.08), 0 0 0 6px rgba(56,189,248,0.03);transform:translateY(-6px)}
+    .slot.removing{opacity:0;transform:translateX(18px) rotate(-6deg)}
+    .slot.adding{opacity:0;transform:translateX(-18px) rotate(6deg)}
+    .meta{margin-top:12px;display:flex;gap:10px;align-items:center;color:var(--muted);font-size:14px}
+    .meta .chip{background:rgba(255,255,255,0.02);padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.02)}
+    /* Right - logs & details */
+    .log{height:380px;overflow:auto;padding:12px;border-radius:8px;background:linear-gradient(180deg,#041223,#041021);border:1px solid rgba(255,255,255,0.02);font-size:13px}
+    .log p{margin:6px 0}
+    .log .ok{color:var(--ok)}
+    .log .err{color:var(--danger)}
+    pre{white-space:pre-wrap;margin:0;font-size:13px;color:var(--muted)}
+    .complex{margin-top:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.004));padding:12px;border-radius:8px}
+    footer{grid-column:1/-1;color:var(--muted);font-size:13px;padding-top:12px;text-align:center}
+    /* small responsiveness */
+    @media (max-width:1100px){ .app{grid-template-columns:1fr;max-width:760px} .stack-area{margin:0 auto} .panel{margin-bottom:12px} }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Stack visualizer">
+    <!-- Left: Controls -->
+    <div class="panel" aria-hidden="false">
+      <h2>Stack Controls</h2>
+      <div class="controls">
+        <label for="value">Value to push</label>
+        <input id="value" type="text" placeholder="e.g. 42 or 'A'">
+
+        <div class="op-buttons spaced">
+          <button id="btnPush" class="small">Push</button>
+          <button id="btnPop" class="small secondary">Pop</button>
+          <button id="btnPeek" class="small secondary">Peek</button>
+          <button id="btnClear" class="small warn">Clear</button>
+        </div>
+
+        <label for="capacity" class="spaced">Capacity (max slots)</label>
+        <input id="capacity" type="number" min="1" max="20" value="8">
+
+        <label for="animate" class="spaced">Animation</label>
+        <div class="row">
+          <select id="animate">
+            <option value="on">On (smooth)</option>
+            <option value="off">Off (instant)</option>
+          </select>
+          <input id="speed" type="range" min="50" max="800" value="300" title="Animation speed (ms)" style="width:100px">
+        </div>
+
+        <div class="spaced">
+          <label>Demo</label>
+          <div class="row">
+            <button id="demoPush" class="small secondary">Auto Push Sequence</button>
+            <button id="demoPop" class="small secondary">Auto Pop Sequence</button>
+          </div>
+          <div class="muted">Use demo to observe typical stack behavior.</div>
+        </div>
+
+        <div class="info spaced">
+          This visualizer models a LIFO stack. Push adds to the top; Pop removes from the top. Try pushing beyond capacity to see overflow and popping from empty to see underflow.
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle: Visualization -->
+    <div class="panel viz" role="region" aria-label="Stack visualization">
+      <h2 style="color:var(--accent)">Stack (LIFO)</h2>
+      <div class="stack-area" aria-hidden="false">
+        <div id="stackContainer" class="stack" role="list" aria-label="Stack slots">
+          <!-- slots rendered here -->
+        </div>
+        <div id="topIndicator" class="top-indicator" aria-hidden="true">Top <span class="arrow">▲</span></div>
+      </div>
+
+      <div class="meta" aria-hidden="true">
+        <div class="chip">Size: <strong id="size" style="margin-left:6px">0</strong></div>
+        <div class="chip">Capacity: <strong id="cap" style="margin-left:6px">8</strong></div>
+        <div class="chip">Empty slots: <strong id="empty" style="margin-left:6px">8</strong></div>
+      </div>
+    </div>
+
+    <!-- Right: Logs & Complexity -->
+    <div class="panel" role="region" aria-label="Logs and details">
+      <h2>Operations & Logs</h2>
+      <div class="log" id="log" tabindex="0" role="log" aria-live="polite">
+        <p style="color:var(--muted)">Ready. Stack is empty.</p>
+      </div>
+
+      <div class="complex">
+        <h3 style="margin:0 0 8px 0;color:var(--accent);font-size:15px">Complexity (Array-backed Stack)</h3>
+        <pre>
+Push:  O(1) amortized (unless dynamic resize)
+Pop:   O(1)
+Peek:  O(1)
+Space: O(n) for n elements (plus possible reserved capacity)
+        </pre>
+      </div>
+    </div>
+
+    <footer>Interactive demo — JavaScript array implementation with animations. Try different values and capacities.</footer>
+  </div>
+
+  <script>
+    // Stack visualizer script
+    (function(){
+      // Model
+      let stack = [];
+      let capacity = 8;
+      // DOM
+      const stackContainer = document.getElementById('stackContainer');
+      const sizeEl = document.getElementById('size');
+      const capEl = document.getElementById('cap');
+      const emptyEl = document.getElementById('empty');
+      const logEl = document.getElementById('log');
+      const valInput = document.getElementById('value');
+      const capInput = document.getElementById('capacity');
+      const animateSelect = document.getElementById('animate');
+      const speedInput = document.getElementById('speed');
+      const topIndicator = document.getElementById('topIndicator');
+
+      // Buttons
+      const btnPush = document.getElementById('btnPush');
+      const btnPop = document.getElementById('btnPop');
+      const btnPeek = document.getElementById('btnPeek');
+      const btnClear = document.getElementById('btnClear');
+      const demoPush = document.getElementById('demoPush');
+      const demoPop = document.getElementById('demoPop');
+
+      // Animation helpers
+      function animateEnabled(){ return animateSelect.value === 'on'; }
+      function anim(ms){ return new Promise(res => setTimeout(res, animateEnabled()?ms:1)); }
+
+      // Utility: escape text for safe display
+      function escapeHtml(s){
+        if (s === null || s === undefined) return '';
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      // Render the stack slots (top is shown at top-right indicator)
+      function render(){
+        // reflect capacity, size
+        sizeEl.textContent = stack.length;
+        capEl.textContent = capacity;
+        emptyEl.textContent = Math.max(0, capacity - stack.length);
+
+        // clear container
+        stackContainer.innerHTML = '';
+        // render slots: show capacity slots, filled from bottom to top.
+        for (let i = 0; i < capacity; i++){
+          const slot = document.createElement('div');
+          slot.className = 'slot';
+          // we render bottom at index 0; our CSS uses column-reverse, so we map accordingly:
+          // index from 0 bottom -> slot order: bottom first element should be at the end visually
+          // Use column-reverse so we just push elements in an order that results in bottom rendering first.
+          const idxFromBottom = i;
+          // Determine if this slot corresponds to an element in stack
+          const stackIdx = idxFromBottom; // bottom=0,... top=stack.length-1
+          if (stackIdx < stack.length){
+            slot.classList.add('filled');
+            const val = document.createElement('div');
+            val.className = 'value';
+            val.innerHTML = escapeHtml(stack[stackIdx]);
+            slot.appendChild(val);
+            slot.setAttribute('role','listitem');
+          } else {
+            slot.textContent = '';
+            slot.setAttribute('aria-hidden','true');
+          }
+          stackContainer.appendChild(slot);
+        }
+
+        // top indicator placement
+        if (stack.length === 0){
+          topIndicator.style.display = 'none';
+        } else {
+          topIndicator.style.display = 'block';
+          // locate top slot position: we can compute approximate top slot element (last filled)
+          const slots = stackContainer.querySelectorAll('.slot');
+          // top slot corresponds to stack.length - 1 index (0-based bottom)
+          const topIndex = stack.length - 1;
+          const topSlot = slots[topIndex];
+          if (topSlot){
+            const rect = topSlot.getBoundingClientRect();
+            const contRect = stackContainer.getBoundingClientRect();
+            // position indicator relative to container
+            const topPos = topSlot.offsetTop; // distance from container top
+            topIndicator.style.top = (topPos + 8) + 'px';
+          }
+        }
+      }
+
+      // Logging
+      function log(message, type){
+        const p = document.createElement('p');
+        p.innerHTML = `<span style="color:var(--muted);font-size:12px">[${(new Date()).toLocaleTimeString()}]</span> ${escapeHtml(message)}`;
+        if (type === 'err') p.className = 'err';
+        if (type === 'ok') p.className = 'ok';
+        logEl.appendChild(p);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      // Push operation with animation that visually shows item coming to top
+      async function pushValue(value){
+        // treat empty string as explicit input allowed
+        if (value === undefined || value === null) return;
+        if (stack.length >= capacity){
+          log(`Push "${value}" — Overflow (capacity ${capacity})`, 'err');
+          flashSlot(null,'err');
+          return;
+        }
+        // Insert at top: since our stack array maps bottom->top at index 0..n-1, we do array push
+        // But for animation we will append a temporary element that animates into place.
+        stack.push(value);
+        log(`Push "${value}"`, 'ok');
+        render();
+        // highlight the new top slot briefly
+        await highlightTop('adding');
+      }
+
+      // Pop operation with animation
+      async function popValue(){
+        if (stack.length === 0){
+          log('Pop — Underflow (stack is empty)', 'err');
+          flashSlot(null,'err');
+          return undefined;
+        }
+        // Mark top removing visually, then remove
+        const value = stack[stack.length - 1];
+        log(`Pop -> "${value}"`, 'ok');
+        await highlightTop('removing');
+        stack.pop();
+        render();
+        return value;
+      }
+
+      // Peek operation (non-destructive)
+      function peekValue(){
+        if (stack.length === 0){
+          log('Peek — stack empty', 'err');
+          flashSlot(null,'err');
+          return undefined;
+        }
+        const value = stack[stack.length - 1];
+        log(`Peek -> "${value}"`, 'ok');
+        // temporary highlight
+        highlightTop('highlight');
+        return value;
+      }
+
+      // Clear stack
+      function clearStack(){
+        stack = [];
+        render();
+        log('Clear — stack emptied', 'ok');
+      }
+
+      // Visual helper: highlight top slot with different effects
+      async function highlightTop(effect){
+        // effect: 'adding' 'removing' 'highlight'
+        const slots = stackContainer.querySelectorAll('.slot');
+        const topIndex = stack.length - 1;
+        if (topIndex < 0) return;
+        const topSlot = slots[topIndex];
+        if (!topSlot) return;
+        const ms = Number(speedInput.value) || 300;
+
+        if (effect === 'adding'){
+          topSlot.classList.add('adding','filled');
+          // ensure value is shown (render already sets filled)
+          // animate: start with translated state, then remove class to animate in using CSS transition
+          await anim(20);
+          topSlot.classList.remove('adding');
+          // final highlight pop
+          topSlot.classList.add('highlight');
+          await anim(Math.min(ms,400));
+          topSlot.classList.remove('highlight');
+        } else if (effect === 'removing'){
+          topSlot.classList.add('removing');
+          await anim(Math.min(ms,400));
+          // removed in caller
+        } else { // highlight
+          topSlot.classList.add('highlight');
+          await anim(Math.min(ms,500));
+          topSlot.classList.remove('highlight');
+        }
+      }
+
+      // Flash empty container when error occurs
+      function flashSlot(_, type){
+        const container = stackContainer;
+        const orig = container.style.boxShadow;
+        container.style.transition = 'box-shadow 200ms ease';
+        if (type === 'err'){
+          container.style.boxShadow = '0 0 0 6px rgba(251,113,133,0.12)';
+        } else {
+          container.style.boxShadow = '0 0 0 6px rgba(16,185,129,0.12)';
+        }
+        setTimeout(()=>container.style.boxShadow = orig, 400);
+      }
+
+      // Event wiring
+      btnPush.addEventListener('click', async ()=>{
+        const val = valInput.value.trim();
+        if (val === '') {
+          // allow pushing empty string? let's warn
+          if (!confirm('Push an empty value? (OK to push empty string)')) return;
+        }
+        await pushValue(val);
+        valInput.value = '';
+        valInput.focus();
+      });
+
+      btnPop.addEventListener('click', async ()=>{
+        await popValue();
+      });
+
+      btnPeek.addEventListener('click', ()=>{
+        peekValue();
+      });
+
+      btnClear.addEventListener('click', ()=>{
+        if (!confirm('Clear the entire stack?')) return;
+        clearStack();
+      });
+
+      capInput.addEventListener('change', ()=>{
+        const v = Number(capInput.value) || 1;
+        if (v < 1) { capInput.value = 1; return; }
+        capacity = Math.max(1, Math.min(20, Math.floor(v)));
+        // if capacity decreased below current size, drop top elements
+        if (stack.length > capacity){
+          stack = stack.slice(0, capacity);
+          log(`Capacity decreased to ${capacity}; top elements dropped`, 'err');
+        } else {
+          log(`Capacity set to ${capacity}`, 'ok');
+        }
+        render();
+      });
+
+      // keyboard shortcuts: Enter to push, Ctrl+P pop, Ctrl+K peek
+      document.addEventListener('keydown', (e)=>{
+        if (e.key === 'Enter' && (document.activeElement === valInput)){
+          e.preventDefault();
+          btnPush.click();
+        }
+        if (e.ctrlKey && e.key.toLowerCase() === 'p'){ e.preventDefault(); btnPop.click(); }
+        if (e.ctrlKey && e.key.toLowerCase() === 'k'){ e.preventDefault(); btnPeek.click(); }
+      });
+
+      // Demos
+      demoPush.addEventListener('click', async ()=>{
+        // auto push a sequence until capacity
+        const items = ['A','B','C','D','E','F','G','H','I'];
+        for (let i=0;i<items.length;i++){
+          if (stack.length >= capacity) break;
+          await pushValue(items[i]);
+          await anim( Math.max(120, Number(speedInput.value)/2) );
+        }
+      });
+
+      demoPop.addEventListener('click', async ()=>{
+        // pop all items with delay
+        while (stack.length > 0){
+          await popValue();
+          await anim( Math.max(120, Number(speedInput.value)/2) );
+        }
+      });
+
+      // Initialize sample content
+      function init(){
+        capacity = Number(capInput.value) || 8;
+        render();
+        log('Ready. Use controls to push or pop values.');
+      }
+
+      // Provide an example implementation snippet accessible via console for curious users
+      window.stackDemo = {
+        push: pushValue,
+        pop: popValue,
+        peek: peekValue,
+        clear: clearStack,
+        getStack: ()=>stack.slice(),
+        setCapacity: (n)=>{ capInput.value = n; capInput.dispatchEvent(new Event('change')); }
+      };
+
+      init();
+
+    })();
+  </script>
+</body>
+</html>

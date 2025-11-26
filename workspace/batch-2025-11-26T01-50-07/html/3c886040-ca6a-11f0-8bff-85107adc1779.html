@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Graph Visualization (Directed / Undirected)</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    display: flex; flex-direction: column; align-items: center;
+    background: #f0f0f0;
+    height: 100vh;
+  }
+  h1 {
+    margin: 1rem 0 0.5rem 0;
+  }
+  #controls {
+    margin: 0.5rem;
+  }
+  label {
+    margin-right: 1rem;
+    font-weight: 600;
+  }
+  #canvasContainer {
+    border: 1px solid #ccc;
+    background: white;
+    position: relative;
+    box-shadow: 0 0 12px rgba(0,0,0,0.1);
+  }
+  canvas {
+    display: block;
+  }
+  #instructions {
+    max-width: 600px;
+    background: white;
+    margin-top: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.15);
+  }
+  button {
+    margin-left: 0.5rem;
+    padding: 0.3rem 0.7rem;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<h1>Graph Visualization (Directed / Undirected)</h1>
+<div id="controls">
+  <label>
+    <input type="radio" name="mode" value="addNode" checked /> Add Node
+  </label>
+  <label>
+    <input type="radio" name="mode" value="addEdge" /> Add Edge
+  </label>
+  <label>
+    <input type="checkbox" id="directedCheckbox" /> Directed Graph
+  </label>
+  <button id="clearBtn">Clear Graph</button>
+</div>
+<div id="canvasContainer">
+  <canvas id="graphCanvas" width="800" height="600"></canvas>
+</div>
+<div id="instructions">
+  <strong>Instructions:</strong>
+  <ul>
+    <li><b>Add Node:</b> Select "Add Node" mode, then click on the canvas to add nodes.</li>
+    <li><b>Add Edge:</b> Select "Add Edge" mode, then click on two nodes to create an edge.</li>
+    <li><b>Directed Graph:</b> Check to make edges directed (arrows), uncheck for undirected edges (lines).</li>
+    <li><b>Clear Graph:</b> Remove all nodes and edges and start fresh.</li>
+  </ul>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const NODE_RADIUS = 20;
+  let nodes = [];
+  let edges = [];
+  let isDirected = false;
+  let mode = 'addNode'; // 'addNode' or 'addEdge'
+  let selectedNodeIndexForEdge = null;
+
+  // Utility: distance between two points
+  function dist(x1, y1, x2, y2) {
+    return Math.sqrt((x1-x2)**2 + (y1-y2)**2);
+  }
+
+  // Find node index at canvas position (x,y)
+  function findNodeAt(x, y) {
+    for (let i = 0; i < nodes.length; i++) {
+      let n = nodes[i];
+      if (dist(x, y, n.x, n.y) <= NODE_RADIUS) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  // Draw a directed edge (arrow) from (x1,y1) to (x2,y2)
+  function drawArrow(x1, y1, x2, y2) {
+    const headlen = 12; // length of head in pixels
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    // line
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    // Shorten line a bit so arrowhead does not overlap node circle
+    const lineEndX = x2 - NODE_RADIUS * Math.cos(angle);
+    const lineEndY = y2 - NODE_RADIUS * Math.sin(angle);
+    ctx.lineTo(lineEndX, lineEndY);
+    ctx.stroke();
+
+    // arrowhead
+    ctx.beginPath();
+    ctx.moveTo(lineEndX, lineEndY);
+    ctx.lineTo(lineEndX - headlen * Math.cos(angle - Math.PI / 6), lineEndY - headlen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(lineEndX - headlen * Math.cos(angle + Math.PI / 6), lineEndY - headlen * Math.sin(angle + Math.PI / 6));
+    ctx.lineTo(lineEndX, lineEndY);
+    ctx.fill();
+  }
+
+  // Draw undirected edge (line) between nodes
+  function drawUndirectedEdge(x1, y1, x2, y2) {
+    ctx.beginPath();
+    // shorten from both ends so edges do not overlap node circles
+    let angle = Math.atan2(y2 - y1, x2 - x1);
+    let startX = x1 + NODE_RADIUS * Math.cos(angle);
+    let startY = y1 + NODE_RADIUS * Math.sin(angle);
+    let endX = x2 - NODE_RADIUS * Math.cos(angle);
+    let endY = y2 - NODE_RADIUS * Math.sin(angle);
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+  }
+
+  // Draw the entire graph
+  function drawGraph() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#333';
+    ctx.fillStyle = '#1976d2'; // Nodes color fill
+
+    // Draw edges first so nodes appear on top
+    ctx.fillStyle = '#333';
+    edges.forEach(edge => {
+      const from = nodes[edge.from];
+      const to = nodes[edge.to];
+      if (isDirected) {
+        drawArrow(from.x, from.y, to.x, to.y);
+      } else {
+        drawUndirectedEdge(from.x, from.y, to.x, to.y);
+      }
+    });
+
+    // Draw nodes
+    nodes.forEach((node, idx) => {
+      // Node circle
+      ctx.beginPath();
+      ctx.fillStyle = '#1976d2';
+      ctx.strokeStyle = '#0d47a1';
+      ctx.lineWidth = 3;
+      ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Node label (index)
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(idx, node.x, node.y);
+    });
+
+    // If in addEdge mode and one node selected, highlight it
+    if (mode === 'addEdge' && selectedNodeIndexForEdge !== null) {
+      const n = nodes[selectedNodeIndexForEdge];
+      ctx.beginPath();
+      ctx.strokeStyle = 'orange';
+      ctx.lineWidth = 4;
+      ctx.arc(n.x, n.y, NODE_RADIUS + 6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // Add node at position (x, y)
+  function addNode(x, y) {
+    // Prevent node too close to canvas edges
+    if (x < NODE_RADIUS) x = NODE_RADIUS + 2;
+    if (y < NODE_RADIUS) y = NODE_RADIUS + 2;
+    if (x > canvas.width - NODE_RADIUS) x = canvas.width - NODE_RADIUS - 2;
+    if (y > canvas.height - NODE_RADIUS) y = canvas.height - NODE_RADIUS - 2;
+
+    nodes.push({ x, y });
+  }
+
+  function addEdge(fromIndex, toIndex) {
+    // Prevent duplicate edges
+    const exists = edges.some(e => e.from === fromIndex && e.to === toIndex);
+    if (exists) return false;
+
+    edges.push({ from: fromIndex, to: toIndex });
+    return true;
+  }
+
+  // Canvas click event handler
+  canvas.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    if (mode === 'addNode') {
+      addNode(clickX, clickY);
+      drawGraph();
+    } else if (mode === 'addEdge') {
+      const clickedNodeIndex = findNodeAt(clickX, clickY);
+      if (clickedNodeIndex === -1) {
+        // clicked empty space, ignore
+        return;
+      }
+      if (selectedNodeIndexForEdge === null) {
+        selectedNodeIndexForEdge = clickedNodeIndex;
+      } else {
+        // Add edge from selectedNodeIndexForEdge to clickedNodeIndex
+        if (selectedNodeIndexForEdge !== clickedNodeIndex) {
+          if (addEdge(selectedNodeIndexForEdge, clickedNodeIndex)) {
+            // Edge added
+          }
+        }
+        // Reset selection
+        selectedNodeIndexForEdge = null;
+      }
+      drawGraph();
+    }
+  });
+
+  // Radio input change for mode
+  const modeRadios = document.querySelectorAll('input[name=mode]');
+  modeRadios.forEach(radio => {
+    radio.addEventListener('change', e => {
+      mode = e.target.value;
+      selectedNodeIndexForEdge = null;
+      drawGraph();
+    });
+  });
+
+  // Directed checkbox change
+  const directedCheckbox = document.getElementById('directedCheckbox');
+  directedCheckbox.addEventListener('change', e => {
+    isDirected = e.target.checked;
+    drawGraph();
+  });
+
+  // Clear button
+  const clearBtn = document.getElementById('clearBtn');
+  clearBtn.addEventListener('click', () => {
+    nodes = [];
+    edges = [];
+    selectedNodeIndexForEdge = null;
+    drawGraph();
+  });
+
+  drawGraph();
+
+})();
+</script>
+</body>
+</html>

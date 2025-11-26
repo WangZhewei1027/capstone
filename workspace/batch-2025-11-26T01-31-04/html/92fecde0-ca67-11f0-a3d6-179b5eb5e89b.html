@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bellman-Ford Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    background: #f0f3f7;
+  }
+  header {
+    background: #2c3e50;
+    color: white;
+    padding: 1rem;
+    text-align: center;
+    user-select: none;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  #graph-container {
+    flex: 2;
+    background: #fff;
+    border-right: 1px solid #ccc;
+    position: relative;
+  }
+  #controls {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    background: #fafafa;
+  }
+  h2 {
+    margin-top: 0;
+  }
+  label {
+    display: block;
+    margin: 0.8rem 0 0.3rem;
+    font-weight: bold;
+  }
+  input[type="number"],
+  select,
+  button {
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    font-size: 1rem;
+    box-sizing: border-box;
+  }
+  button {
+    margin-top: 1rem;
+    background: #2980b9;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+  #messages {
+    margin-top: 1rem;
+    font-family: monospace;
+    background: #f4f4f4;
+    padding: 0.6rem;
+    height: 150px;
+    overflow-y: auto;
+    border-radius: 3px;
+    border: 1px solid #ccc;
+    white-space: pre-line;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+  circle.node {
+    fill: #3498db;
+    stroke: #2980b9;
+    stroke-width: 3px;
+    cursor: pointer;
+    transition: fill 0.3s, stroke 0.3s;
+  }
+  circle.node.source {
+    fill: #e67e22;
+    stroke: #d35400;
+  }
+  circle.node.negative-cycle {
+    fill: red;
+  }
+  text.node-label {
+    pointer-events: none;
+    user-select: none;
+    font-weight: bold;
+    fill: #2c3e50;
+  }
+  text.dist-label {
+    pointer-events: none;
+    font-size: 0.8em;
+    fill: #34495e;
+  }
+  path.edge {
+    fill: none;
+    stroke: #95a5a6;
+    stroke-width: 2px;
+    marker-end: url(#arrowhead);
+    transition: stroke 0.3s;
+  }
+  path.edge.updated {
+    stroke: #e74c3c;
+    stroke-width: 3px;
+  }
+  text.edge-label {
+    font-size: 0.85em;
+    fill: #7f8c8d;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bellman-Ford Algorithm Visualization</h1>
+  <small>Create a directed graph, then run Bellman-Ford to find shortest paths and detect negative cycles.</small>
+</header>
+<main>
+  <div id="graph-container">
+    <svg id="graph-svg" viewBox="0 0 800 600" tabindex="0" aria-label="Graph Visualization"></svg>
+  </div>
+  <div id="controls" aria-live="polite" aria-atomic="true">
+
+    <h2>Graph Controls</h2>
+    <label for="node-name">Add Node (Name):</label>
+    <input type="text" id="node-name" maxlength="3" placeholder="E.g. A" aria-describedby="nodeNameDesc" />
+    <small id="nodeNameDesc">Single letter or short name</small>
+    <button id="add-node-btn" aria-label="Add Node">Add Node</button>
+
+    <label for="edge-from">Add Edge - From:</label>
+    <select id="edge-from" aria-label="Edge from node"></select>
+
+    <label for="edge-to">Add Edge - To:</label>
+    <select id="edge-to" aria-label="Edge to node"></select>
+
+    <label for="edge-weight">Edge Weight (integer):</label>
+    <input type="number" id="edge-weight" value="1" step="1" aria-describedby="edgeWeightDesc" />
+    <small id="edgeWeightDesc">Can be negative</small>
+
+    <button id="add-edge-btn" aria-label="Add Edge">Add Edge</button>
+
+    <hr />
+    <h2>Algorithm Settings</h2>
+    <label for="source-node">Select Source Node:</label>
+    <select id="source-node" aria-label="Source node for Bellman-Ford"></select>
+
+    <button id="start-btn" aria-label="Run Bellman-Ford Algorithm">Run Bellman-Ford</button>
+    <button id="step-btn" aria-label="Step through algorithm" disabled>Step</button>
+    <button id="reset-btn" aria-label="Reset graph and algorithm">Reset</button>
+
+    <hr />
+    <h2>Status & Messages</h2>
+    <div id="messages" role="log" aria-live="polite" tabindex="0"></div>
+  </div>
+</main>
+
+<script>
+(() => {
+  // Graph data structures
+  class Node {
+    constructor(name, x, y) {
+      this.name = name;
+      this.x = x;
+      this.y = y;
+      this.dist = Infinity;
+      this.predecessor = null;
+      this.inNegativeCycle = false;
+    }
+  }
+  class Edge {
+    constructor(from, to, weight) {
+      this.from = from;
+      this.to = to;
+      this.weight = weight;
+      this.isUpdated = false;
+    }
+  }
+
+  // Graph and algorithm state
+  const graph = {
+    nodes: [],
+    edges: [],
+  };
+
+  let bellmanFordState = null; // to manage stepwise execution
+
+  // DOM Elements
+  const svg = document.getElementById("graph-svg");
+  const addNodeBtn = document.getElementById("add-node-btn");
+  const addEdgeBtn = document.getElementById("add-edge-btn");
+  const nodeNameInput = document.getElementById("node-name");
+  const edgeFromSelect = document.getElementById("edge-from");
+  const edgeToSelect = document.getElementById("edge-to");
+  const edgeWeightInput = document.getElementById("edge-weight");
+  const sourceNodeSelect = document.getElementById("source-node");
+  const startBtn = document.getElementById("start-btn");
+  const stepBtn = document.getElementById("step-btn");
+  const resetBtn = document.getElementById("reset-btn");
+  const messagesDiv = document.getElementById("messages");
+
+  // Visualization constants
+  const NODE_RADIUS = 22;
+  const width = 800;
+  const height = 600;
+
+  // Helpers
+  function logMessage(msg) {
+    messagesDiv.textContent += msg + "\n";
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+  function clearMessages() {
+    messagesDiv.textContent = "";
+  }
+
+  // Add default initial nodes for convenience
+  function addDefaultNodes() {
+    // Example layout roughly circular
+    const defaultNodes = ["A", "B", "C", "D", "E"];
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = 180;
+    for (let i = 0; i < defaultNodes.length; i++) {
+      const angle = (2 * Math.PI * i) / defaultNodes.length;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      addNode(defaultNodes[i], x, y);
+    }
+    refreshAllSelects();
+  }
+
+  // Add a node to the graph
+  function addNode(name, x = Math.random() * (width - 2*NODE_RADIUS) + NODE_RADIUS, y = Math.random() * (height - 2*NODE_RADIUS) + NODE_RADIUS) {
+    name = name.trim();
+    if (!name) {
+      alert("Node name cannot be empty.");
+      return false;
+    }
+    if (graph.nodes.find(n => n.name === name)) {
+      alert("Node name must be unique.");
+      return false;
+    }
+    if (/[^\w]/.test(name)) {
+      alert("Node name must be alphanumeric (letters and digits only).");
+      return false;
+    }
+    const node = new Node(name, x, y);
+    graph.nodes.push(node);
+    refreshAllSelects();
+    drawGraph();
+    return true;
+  }
+
+  // Add edge to graph
+  function addEdge(fromName, toName, weight) {
+    if (fromName === toName) {
+      alert("No loops allowed (edge from and to same node).");
+      return false;
+    }
+    const fromNode = graph.nodes.find(n => n.name === fromName);
+    const toNode = graph.nodes.find(n => n.name === toName);
+    if (!fromNode || !toNode) {
+      alert("Invalid nodes selected.");
+      return false;
+    }
+    // Check edge duplicates
+    if (graph.edges.find(e => e.from === fromNode && e.to === toNode)) {
+      alert("Edge already exists.");
+      return false;
+    }
+    const edge = new Edge(fromNode, toNode, weight);
+    graph.edges.push(edge);
+    drawGraph();
+    return true;
+  }
+
+  // Clear graph and state
+  function resetGraph() {
+    graph.nodes.length = 0;
+    graph.edges.length = 0;
+    bellmanFordState = null;
+    clearMessages();
+    drawGraph();
+    refreshAllSelects();
+    stepBtn.disabled = true;
+  }
+
+  // Refresh dropdown selects for nodes
+  function refreshAllSelects() {
+    [edgeFromSelect, edgeToSelect, sourceNodeSelect].forEach(select => {
+      while (select.firstChild) {
+        select.removeChild(select.firstChild);
+      }
+    });
+    graph.nodes.forEach(node => {
+      const opt1 = document.createElement("option");
+      opt1.value = node.name;
+      opt1.textContent = node.name;
+
+      const opt2 = opt1.cloneNode(true);
+      const opt3 = opt1.cloneNode(true);
+
+      edgeFromSelect.appendChild(opt1);
+      edgeToSelect.appendChild(opt2);
+      sourceNodeSelect.appendChild(opt3);
+    });
+  }
+
+  // Drawing functions
+  function drawGraph() {
+    // Clear SVG
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    // Set up arrowhead marker
+    const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+    marker.setAttribute("id", "arrowhead");
+    marker.setAttribute("markerWidth", "10");
+    marker.setAttribute("markerHeight", "7");
+    marker.setAttribute("refX", "22");
+    marker.setAttribute("refY", "3.5");
+    marker.setAttribute("orient", "auto");
+    marker.setAttribute("fill", "#95a5a6");
+    const markerPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    markerPath.setAttribute("d", "M0,0 L10,3.5 L0,7 Z");
+    marker.appendChild(markerPath);
+    const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    // Draw edges first so nodes are on top
+    graph.edges.forEach(edge => {
+      drawEdge(edge);
+    });
+
+    // Draw nodes
+    graph.nodes.forEach(node => {
+      drawNode(node);
+    });
+  }
+  function drawEdge(edge) {
+    const from = edge.from;
+    const to = edge.to;
+
+    // Calculate line start/end slightly offset from node centers to edges of circles
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const offsetX = (dx / dist) * NODE_RADIUS;
+    const offsetY = (dy / dist) * NODE_RADIUS;
+
+    const startX = from.x + offsetX;
+    const startY = from.y + offsetY;
+    const endX = to.x - offsetX;
+    const endY = to.y - offsetY;
+
+    // Create path for line with slight curve to improve visual on overlapping edges
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    // For straight arrow:
+    path.setAttribute("d", `M${startX} ${startY} L${endX} ${endY}`);
+    path.setAttribute("class", "edge" + (edge.isUpdated ? " updated" : ""));
+    path.setAttribute("marker-end", "url(#arrowhead)");
+    svg.appendChild(path);
+
+    // Edge weight label at midpoint with offset perpendicular to line
+    const labelX = (startX + endX) / 2;
+    const labelY = (startY + endY) / 2;
+    const perpX = -(dy / dist) * 15;
+    const perpY = (dx / dist) * 15;
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", labelX + perpX);
+    text.setAttribute("y", labelY + perpY);
+    text.setAttribute("class", "edge-label");
+    text.textContent = edge.weight;
+    svg.appendChild(text);
+  }
+
+  function drawNode(node) {
+    // Circle
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", node.x);
+    circle.setAttribute("cy", node.y);
+    circle.setAttribute("r", NODE_RADIUS);
+    circle.setAttribute("class", "node");
+    if (bellmanFordState && bellmanFordState.source && node.name === bellmanFordState.source.name) {
+      circle.classList.add("source");
+    }
+    if (node.inNegativeCycle) {
+      circle.classList.add("negative-cycle");
+    }
+    svg.appendChild(circle);
+
+    // Node name label
+    const nameText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    nameText.setAttribute("x", node.x);
+    nameText.setAttribute("y", node.y + 5);
+    nameText.setAttribute("text-anchor", "middle");
+    nameText.setAttribute("class", "node-label");
+    nameText.textContent = node.name;
+    svg.appendChild(nameText);
+
+    // Distance label below node if dist is finite
+    const distText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    distText.setAttribute("x", node.x);
+    distText.setAttribute("y", node.y + NODE_RADIUS + 18);
+    distText.setAttribute("text-anchor", "middle");
+    distText.setAttribute("class", "dist-label");
+    distText.textContent = node.dist === Infinity ? "∞" : node.dist;
+    svg.appendChild(distText);
+  }
+
+  // Algorithm Implementation & Stepwise Execution
+  function initializeBellmanFord(sourceName) {
+    const source = graph.nodes.find(n => n.name === sourceName);
+    if (!source) {
+      alert("Invalid source node.");
+      return false;
+    }
+    // Initialize distances and predecessors
+    graph.nodes.forEach(n => {
+      n.dist = Infinity;
+      n.predecessor = null;
+      n.inNegativeCycle = false;
+    });
+    graph.edges.forEach(e => e.isUpdated = false);
+
+    source.dist = 0;
+
+    // Bellman-Ford state holds iteration and edge index for step execution
+    bellmanFordState = {
+      source,
+      iteration: 0,
+      edgeIndex: 0,
+      updatedInIteration: false,
+      completed: false,
+      negativeCycleDetected: false,
+      negativeCycleNodes: [],
+    };
+    clearMessages();
+    logMessage(`Starting Bellman-Ford from source node: ${source.name}`);
+    drawGraph();
+    stepBtn.disabled = false;
+    return true;
+  }
+
+  // One step execution: relax one edge
+  function bellmanFordStep() {
+    if (!bellmanFordState || bellmanFordState.completed) return;
+
+    const { iteration, edgeIndex } = bellmanFordState;
+
+    // Reset previous edge highlights
+    graph.edges.forEach(e => e.isUpdated = false);
+
+    const edge = graph.edges[edgeIndex];
+
+    const u = edge.from;
+    const v = edge.to;
+    const w = edge.weight;
+
+    let relaxed = false;
+    if (u.dist !== Infinity && u.dist + w < v.dist) {
+      v.dist = u.dist + w;
+      v.predecessor = u;
+      relaxed = true;
+      bellmanFordState.updatedInIteration = true;
+      edge.isUpdated = true;
+      logMessage(
+        `Iteration ${iteration + 1}, Edge ${u.name}→${v.name} (weight ${w}): updated distance of ${v.name} to ${v.dist}.`
+      );
+    } else {
+      logMessage(
+        `Iteration ${iteration + 1}, Edge ${u.name}→${v.name} (weight ${w}): no update.`
+      );
+    }
+
+    bellmanFordState.edgeIndex++;
+
+    // End of all edges in current iteration?
+    if (bellmanFordState.edgeIndex >= graph.edges.length) {
+      // If no update in this iteration, algorithm completes early
+      if (!bellmanFordState.updatedInIteration) {
+        logMessage(`No updates in iteration ${iteration + 1}. Algorithm converged.`);
+        bellmanFordState.completed = true;
+        stepBtn.disabled = true;
+        detectNegativeCycleAfterRelaxation();
+      } else if (bellmanFordState.iteration + 1 === graph.nodes.length - 1) {
+        // Completed (|V|-1) iterations, check for negative cycles next
+        bellmanFordState.completed = true;
+        stepBtn.disabled = true;
+        logMessage(`Completed ${bellmanFordState.iteration + 1} iterations. Checking for negative cycles...`);
+        detectNegativeCycleAfterRelaxation();
+      } else {
+        // Prepare next iteration
+        bellmanFordState.iteration++;
+        bellmanFordState.edgeIndex = 0;
+        bellmanFordState.updatedInIteration = false;
+        logMessage(`Starting iteration ${bellmanFordState.iteration + 1}...`);
+      }
+    }
+    drawGraph();
+  }
+
+  // After normal relaxation steps, detect negative cycles
+  function detectNegativeCycleAfterRelaxation() {
+    let negativeCycleFound = false;
+    graph.edges.forEach(edge => {
+      const u = edge.from;
+      const v = edge.to;
+      if (u.dist !== Infinity && u.dist + edge.weight < v.dist) {
+        negativeCycleFound = true;
+        v.inNegativeCycle = true;
+        logMessage(`Negative weight cycle detected including edge ${u.name}→${v.name}.`);
+      }
+    });
+    if (!negativeCycleFound) {
+      logMessage("No negative weight cycles detected.");
+    } else {
+      // Propagate markings to all nodes reachable from negative cycle edges
+      propagateNegativeCycleMarks();
+    }
+    drawGraph();
+  }
+
+  // Propagate negative cycle markings for nodes reachable from marked nodes
+  function propagateNegativeCycleMarks() {
+    const queue = graph.nodes.filter(n => n.inNegativeCycle);
+    const visited = new Set(queue);
+
+    while (queue.length) {
+      const node = queue.shift();
+      graph.edges.forEach(e => {
+        if (e.from === node && !visited.has(e.to)) {
+          e.to.inNegativeCycle = true;
+          visited.add(e.to);
+          queue.push(e.to);
+        }
+      });
+    }
+  }
+
+  // UI event handlers
+  addNodeBtn.addEventListener("click", () => {
+    const name = nodeNameInput.value.trim();
+    if (addNode(name)) {
+      nodeNameInput.value = "";
+    }
+  });
+
+  addEdgeBtn.addEventListener("click", () => {
+    const from = edgeFromSelect.value;
+    const to = edgeToSelect.value;
+    const weight = parseInt(edgeWeightInput.value, 10);
+    if (isNaN(weight)) {
+      alert("Edge weight must be an integer.");
+      return;
+    }
+    addEdge(from, to, weight);
+  });
+
+  startBtn.addEventListener("click", () => {
+    const source = sourceNodeSelect.value;
+    if (!source) {
+      alert("Please select a source node.");
+      return;
+    }
+    if (graph.nodes.length === 0) {
+      alert("Graph must contain nodes.");
+      return;
+    }
+    if (graph.edges.length === 0) {
+      alert("Graph must contain edges.");
+      return;
+    }
+    if (initializeBellmanFord(source)) {
+      stepBtn.disabled = false;
+    }
+  });
+  stepBtn.addEventListener("click", () => {
+    bellmanFordStep();
+  });
+
+  resetBtn.addEventListener("click", () => {
+    resetGraph();
+  });
+
+  // Drag nodes functionality for interactive layout
+  let draggingNode = null;
+  let offsetX, offsetY;
+
+  svg.addEventListener("mousedown", e => {
+    if (e.target.tagName === "circle" && e.target.classList.contains("node")) {
+      const cx = parseFloat(e.target.getAttribute("cx"));
+      const cy = parseFloat(e.target.getAttribute("cy"));
+      offsetX = e.clientX - cx;
+      offsetY = e.clientY - cy;
+      const nodeName = getNodeNameFromCircle(e.target);
+      draggingNode = graph.nodes.find(n => n.name === nodeName);
+      svg.style.cursor = "grabbing";
+      e.preventDefault();
+    }
+  });
+  window.addEventListener("mousemove", e => {
+    if (draggingNode) {
+      let newX = e.clientX - offsetX;
+      let newY = e.clientY - offsetY;
+      // Clamp inside SVG bounds
+      newX = Math.min(width - NODE_RADIUS, Math.max(NODE_RADIUS, newX));
+      newY = Math.min(height - NODE_RADIUS, Math.max(NODE_RADIUS, newY));
+      draggingNode.x = newX;
+      draggingNode.y = newY;
+      drawGraph();
+    }
+  });
+  window.addEventListener("mouseup", e => {
+    if (draggingNode) {
+      draggingNode = null;
+      svg.style.cursor = "default";
+    }
+  });
+  function getNodeNameFromCircle(circle) {
+    // The node label text follows circle, so just get the next sibling text node
+    const nodes = Array.from(svg.querySelectorAll("circle.node"));
+    const index = nodes.indexOf(circle);
+    if (index === -1) return null;
+    const node = graph.nodes[index];
+    return node ? node.name : null;
+  }
+
+  // Initialize with default nodes
+  addDefaultNodes();
+
+  // For accessibility: announce messages on update
+  const observer = new MutationObserver(() => {
+    messagesDiv.setAttribute("aria-live", "polite");
+  });
+  observer.observe(messagesDiv, { childList: true });
+
+  // Initial drawing
+  drawGraph();
+})();
+</script>
+</body>
+</html>

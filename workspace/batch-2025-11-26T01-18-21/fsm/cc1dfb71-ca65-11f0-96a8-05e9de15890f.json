@@ -1,0 +1,724 @@
+{
+  "meta": {
+    "concept": "RadixSortLSD",
+    "topic": "Radix Sort Visualizer (LSD)",
+    "educational_goal": "Demonstrate step-through LSD radix sort (handling negatives) with placement and collection per digit, playback controls, stepping and resetting",
+    "expected_interactions": [
+      "load/prepare",
+      "play/pause",
+      "step forward",
+      "step back (replay)",
+      "reset",
+      "randomize input",
+      "change speed",
+      "change radix/base",
+      "edit input and press Enter"
+    ]
+  },
+  "dom_selectors": {
+    "buttons": [
+      "#btnRandom",
+      "#btnLoad",
+      "#btnStart",
+      "#btnStep",
+      "#btnBack",
+      "#btnReset"
+    ],
+    "inputs": [
+      "#inputArray",
+      "#randCount",
+      "#randMax",
+      "#speed",
+      "#radixSelect"
+    ],
+    "labels_and_display": [
+      "#radixLabel",
+      "#initialArray",
+      "#groupArray",
+      "#buckets",
+      "#statusText",
+      "#resultArray",
+      "#groupLabel"
+    ],
+    "bucket_and_item_selectors": [
+      ".bucket",
+      ".bucket-content",
+      ".num",
+      ".num.small",
+      ".controls",
+      ".visual",
+      ".array-row"
+    ]
+  },
+  "states": [
+    {
+      "id": "S0_IDLE",
+      "label": "idle",
+      "type": "idle",
+      "entry_actions": [
+        "renderInitialArray(parseInput(inputArray.value))",
+        "updateControlButtons()",
+        "statusText.textContent = 'Ready. Edit numbers and press \"Load & Prepare\".'"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S1_PREPARING",
+      "label": "preparing",
+      "type": "atomic",
+      "entry_actions": [
+        "prepareAndBuild()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S2_PREPARED",
+      "label": "prepared",
+      "type": "atomic",
+      "entry_actions": [
+        "renderInitialArray(inputNumbers)",
+        "clearActivePanel()",
+        "resultArrayDiv.innerHTML = ''",
+        "resetModel()",
+        "events = buildAllEvents(inputNumbers, base)",
+        "eventIndex = -1",
+        "updateControlButtons()",
+        "statusText.textContent = `Prepared ${events.length} events. Ready to play.`"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S3_PLAYING",
+      "label": "playing",
+      "type": "atomic",
+      "entry_actions": [
+        "play()",
+        "btnStart.textContent = 'Pause'",
+        "scheduleNext()"
+      ],
+      "exit_actions": [
+        "pause()",
+        "btnStart.textContent = 'Play'"
+      ]
+    },
+    {
+      "id": "S4_PAUSED",
+      "label": "paused",
+      "type": "atomic",
+      "entry_actions": [
+        "pause()",
+        "btnStart.textContent = 'Play'"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S5_STEPPING",
+      "label": "stepping",
+      "type": "atomic",
+      "entry_actions": [
+        "stepForward()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S6_REPLAYING_BACK",
+      "label": "replaying_back",
+      "type": "atomic",
+      "entry_actions": [
+        "stepBack()",
+        "pause()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S7_PLACING",
+      "label": "placing",
+      "type": "atomic",
+      "entry_actions": [
+        "applyEvent(placeEvent) /* creates DOM node in bucket, animate opacity, highlightSourceIndex */"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S8_COLLECTING",
+      "label": "collecting",
+      "type": "atomic",
+      "entry_actions": [
+        "applyEvent(collectEvent) /* render new group order, clear bucket contents after delay */"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S9_GROUP_DONE",
+      "label": "group_done",
+      "type": "atomic",
+      "entry_actions": [
+        "applyEvent(groupDoneEvent) /* update model.sortedPos/sortedNegAbs, clear buckets after delay */"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S10_SEPARATED",
+      "label": "separated",
+      "type": "atomic",
+      "entry_actions": [
+        "applyEvent(separateEvent) /* create buckets DOM, render separated negative abs and positives */"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S11_FOCUS_GROUP",
+      "label": "focus_group",
+      "type": "atomic",
+      "entry_actions": [
+        "applyEvent(focusEvent) /* createBucketsDom(base), set groupLabel, render group array */"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S12_COMBINED",
+      "label": "combined",
+      "type": "atomic",
+      "entry_actions": [
+        "applyEvent(combineEvent) /* compute final array (reverse negatives, negate, append positives), render resultArrayDiv */"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S13_DONE",
+      "label": "done",
+      "type": "final",
+      "entry_actions": [
+        "statusText.textContent = 'Sorting complete.'",
+        "pause()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S14_RESET",
+      "label": "reset",
+      "type": "atomic",
+      "entry_actions": [
+        "pause()",
+        "eventIndex = -1",
+        "clearActivePanel()",
+        "resultArrayDiv.innerHTML = ''",
+        "renderInitialArray(inputNumbers)",
+        "resetModel()",
+        "statusText.textContent = 'Reset to initial state.'",
+        "updateControlButtons()"
+      ],
+      "exit_actions": []
+    }
+  ],
+  "events": [
+    {
+      "id": "USER_CLICK_RANDOM",
+      "event_type": "user_action",
+      "description": "User clicks Randomize button",
+      "triggers": "#btnRandom"
+    },
+    {
+      "id": "USER_CLICK_LOAD",
+      "event_type": "user_action",
+      "description": "User clicks Load & Prepare",
+      "triggers": "#btnLoad"
+    },
+    {
+      "id": "USER_CLICK_PLAY",
+      "event_type": "user_action",
+      "description": "User clicks Play / Pause (toggle)",
+      "triggers": "#btnStart"
+    },
+    {
+      "id": "USER_CLICK_STEP",
+      "event_type": "user_action",
+      "description": "User clicks Step",
+      "triggers": "#btnStep"
+    },
+    {
+      "id": "USER_CLICK_BACK",
+      "event_type": "user_action",
+      "description": "User clicks Back (replay one step backward)",
+      "triggers": "#btnBack"
+    },
+    {
+      "id": "USER_CLICK_RESET",
+      "event_type": "user_action",
+      "description": "User clicks Reset",
+      "triggers": "#btnReset"
+    },
+    {
+      "id": "USER_INPUT_ENTER",
+      "event_type": "user_action",
+      "description": "User presses Enter in inputArray to prepare",
+      "triggers": "#inputArray"
+    },
+    {
+      "id": "USER_CHANGE_RADIX",
+      "event_type": "user_action",
+      "description": "User changes radix/base select",
+      "triggers": "#radixSelect"
+    },
+    {
+      "id": "USER_CHANGE_SPEED",
+      "event_type": "user_action",
+      "description": "User changes playback speed range",
+      "triggers": "#speed"
+    },
+    {
+      "id": "SYSTEM_EVENTS_BUILT",
+      "event_type": "system_event",
+      "description": "prepareAndBuild() finished and events array built",
+      "triggers": "#initialArray,#statusText"
+    },
+    {
+      "id": "SYSTEM_EVENT_PLAY_TIMER_TICK",
+      "event_type": "system_event",
+      "description": "Internal play timer triggers next step",
+      "triggers": "#speed,#statusText"
+    },
+    {
+      "id": "SYSTEM_EVENT_APPLY_PLACE",
+      "event_type": "system_event",
+      "description": "A 'place' animation/event was applied to DOM (bucket updated)",
+      "triggers": "#buckets .bucket .bucket-content"
+    },
+    {
+      "id": "SYSTEM_EVENT_APPLY_COLLECT",
+      "event_type": "system_event",
+      "description": "A 'collect' event was applied (groupArray updated)",
+      "triggers": "#groupArray"
+    },
+    {
+      "id": "SYSTEM_EVENT_GROUP_DONE",
+      "event_type": "system_event",
+      "description": "groupDone event applied for negatives or positives",
+      "triggers": "#groupLabel,#groupArray"
+    },
+    {
+      "id": "SYSTEM_EVENT_COMBINE",
+      "event_type": "system_event",
+      "description": "combine event applied and result rendered",
+      "triggers": "#resultArray,#groupArray"
+    },
+    {
+      "id": "SYSTEM_EVENT_DONE",
+      "event_type": "system_event",
+      "description": "done event applied; sorting finished",
+      "triggers": "#statusText"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0_IDLE",
+      "to": "S1_PREPARING",
+      "event": "USER_CLICK_LOAD",
+      "guard": "inputArray contains at least one integer (parseInput(inputArray.value).length > 0)",
+      "actions": [
+        "prepareAndBuild()",
+        "radLabel.textContent = parseInt(radixSelect.value,10) || 10"
+      ],
+      "triggers": "#btnLoad,#inputArray",
+      "expected_observables": [
+        "dom:#initialArray",
+        "dom:#statusText"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S1_PREPARING",
+      "event": "USER_INPUT_ENTER",
+      "guard": "inputArray Enter pressed and input valid",
+      "actions": [
+        "prepareAndBuild()"
+      ],
+      "triggers": "#inputArray",
+      "expected_observables": [
+        "dom:#initialArray",
+        "dom:#statusText"
+      ],
+      "timeout": 2000
+    },
+    {
+      "from": "S1_PREPARING",
+      "to": "S2_PREPARED",
+      "event": "SYSTEM_EVENTS_BUILT",
+      "guard": "events.length >= 0",
+      "actions": [
+        "events = buildAllEvents(inputNumbers, base)",
+        "eventIndex = -1",
+        "updateControlButtons()"
+      ],
+      "triggers": "#initialArray,#statusText",
+      "expected_observables": [
+        "dom:#statusText",
+        "dom:#initialArray"
+      ],
+      "timeout": 1500
+    },
+    {
+      "from": "S2_PREPARED",
+      "to": "S3_PLAYING",
+      "event": "USER_CLICK_PLAY",
+      "guard": "events.length > 0",
+      "actions": [
+        "play()",
+        "btnStart.textContent = 'Pause'",
+        "scheduleNext()"
+      ],
+      "triggers": "#btnStart",
+      "expected_observables": [
+        "dom:#statusText",
+        "dom:#speed"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S2_PREPARED",
+      "to": "S5_STEPPING",
+      "event": "USER_CLICK_STEP",
+      "guard": "events.length > 0",
+      "actions": [
+        "pause()",
+        "stepForward()"
+      ],
+      "triggers": "#btnStep",
+      "expected_observables": [
+        "dom:#statusText",
+        "dom:#groupArray"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S2_PREPARED",
+      "to": "S14_RESET",
+      "event": "USER_CLICK_RESET",
+      "guard": "true",
+      "actions": [
+        "pause()",
+        "eventIndex = -1",
+        "clearActivePanel()",
+        "renderInitialArray(inputNumbers)",
+        "resetModel()"
+      ],
+      "triggers": "#btnReset",
+      "expected_observables": [
+        "dom:#initialArray",
+        "dom:#statusText"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S3_PLAYING",
+      "to": "S4_PAUSED",
+      "event": "USER_CLICK_PLAY",
+      "guard": "playing === true",
+      "actions": [
+        "pause()",
+        "btnStart.textContent = 'Play'"
+      ],
+      "triggers": "#btnStart",
+      "expected_observables": [
+        "dom:#statusText"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S4_PAUSED",
+      "to": "S3_PLAYING",
+      "event": "USER_CLICK_PLAY",
+      "guard": "playing === false && events.length > 0",
+      "actions": [
+        "play()",
+        "scheduleNext()"
+      ],
+      "triggers": "#btnStart",
+      "expected_observables": [
+        "dom:#statusText",
+        "dom:#speed"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S3_PLAYING",
+      "to": "S5_STEPPING",
+      "event": "SYSTEM_EVENT_PLAY_TIMER_TICK",
+      "guard": "eventIndex < events.length - 1 && playing === true",
+      "actions": [
+        "stepForward()"
+      ],
+      "triggers": "#speed,#statusText",
+      "expected_observables": [
+        "dom:#statusText",
+        "dom:#groupArray",
+        "dom:#buckets"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S5_STEPPING",
+      "to": "S7_PLACING",
+      "event": "SYSTEM_EVENT_APPLY_PLACE",
+      "guard": "next event type === 'place'",
+      "actions": [
+        "applyEvent(events[eventIndex])",
+        "highlightSourceIndex(events[eventIndex])"
+      ],
+      "triggers": "#buckets .bucket .bucket-content,#groupArray",
+      "expected_observables": [
+        "dom:.bucket-content .num.small",
+        "dom:#statusText"
+      ],
+      "timeout": 800
+    },
+    {
+      "from": "S5_STEPPING",
+      "to": "S8_COLLECTING",
+      "event": "SYSTEM_EVENT_APPLY_COLLECT",
+      "guard": "next event type === 'collect'",
+      "actions": [
+        "applyEvent(events[eventIndex])"
+      ],
+      "triggers": "#groupArray,#buckets",
+      "expected_observables": [
+        "dom:#groupArray",
+        "dom:#statusText"
+      ],
+      "timeout": 800
+    },
+    {
+      "from": "S5_STEPPING",
+      "to": "S9_GROUP_DONE",
+      "event": "SYSTEM_EVENT_GROUP_DONE",
+      "guard": "next event type === 'groupDone'",
+      "actions": [
+        "applyEvent(events[eventIndex])"
+      ],
+      "triggers": "#groupLabel,#groupArray",
+      "expected_observables": [
+        "dom:#groupLabel",
+        "dom:#statusText"
+      ],
+      "timeout": 800
+    },
+    {
+      "from": "S5_STEPPING",
+      "to": "S11_FOCUS_GROUP",
+      "event": "SYSTEM_EVENT_APPLY_PLACE",
+      "guard": "next event type === 'focus'",
+      "actions": [
+        "applyEvent(events[eventIndex])"
+      ],
+      "triggers": "#groupLabel,#groupArray",
+      "expected_observables": [
+        "dom:#groupLabel",
+        "dom:#buckets"
+      ],
+      "timeout": 600
+    },
+    {
+      "from": "S5_STEPPING",
+      "to": "S10_SEPARATED",
+      "event": "SYSTEM_EVENTS_BUILT",
+      "guard": "next event type === 'separate'",
+      "actions": [
+        "applyEvent(events[eventIndex])"
+      ],
+      "triggers": "#groupArray,#statusText",
+      "expected_observables": [
+        "dom:#groupArray",
+        "dom:#buckets"
+      ],
+      "timeout": 600
+    },
+    {
+      "from": "S5_STEPPING",
+      "to": "S12_COMBINED",
+      "event": "SYSTEM_EVENT_COMBINE",
+      "guard": "next event type === 'combine'",
+      "actions": [
+        "applyEvent(events[eventIndex])"
+      ],
+      "triggers": "#resultArray,#groupArray",
+      "expected_observables": [
+        "dom:#resultArray",
+        "dom:#statusText"
+      ],
+      "timeout": 800
+    },
+    {
+      "from": "S5_STEPPING",
+      "to": "S13_DONE",
+      "event": "SYSTEM_EVENT_DONE",
+      "guard": "next event type === 'done'",
+      "actions": [
+        "applyEvent(events[eventIndex])",
+        "pause()",
+        "statusText.textContent = 'Sorting complete.'"
+      ],
+      "triggers": "#statusText",
+      "expected_observables": [
+        "dom:#statusText"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S7_PLACING",
+      "to": "S3_PLAYING",
+      "event": "SYSTEM_EVENT_APPLY_PLACE",
+      "guard": "playing === true && event applied",
+      "actions": [
+        "scheduleNext()"
+      ],
+      "triggers": "#buckets .bucket .bucket-content",
+      "expected_observables": [
+        "dom:.bucket-content .num.small"
+      ],
+      "timeout": 600
+    },
+    {
+      "from": "S8_COLLECTING",
+      "to": "S3_PLAYING",
+      "event": "SYSTEM_EVENT_APPLY_COLLECT",
+      "guard": "playing === true and collection rendered",
+      "actions": [
+        "scheduleNext()"
+      ],
+      "triggers": "#groupArray,#buckets",
+      "expected_observables": [
+        "dom:#groupArray"
+      ],
+      "timeout": 800
+    },
+    {
+      "from": "S9_GROUP_DONE",
+      "to": "S3_PLAYING",
+      "event": "SYSTEM_EVENT_GROUP_DONE",
+      "guard": "playing === true",
+      "actions": [
+        "scheduleNext()"
+      ],
+      "triggers": "#groupLabel,#groupArray",
+      "expected_observables": [
+        "dom:#groupLabel"
+      ],
+      "timeout": 600
+    },
+    {
+      "from": "S3_PLAYING",
+      "to": "S6_REPLAYING_BACK",
+      "event": "USER_CLICK_BACK",
+      "guard": "eventIndex > -1",
+      "actions": [
+        "pause()",
+        "stepBack()"
+      ],
+      "triggers": "#btnBack",
+      "expected_observables": [
+        "dom:#groupArray",
+        "dom:#statusText"
+      ],
+      "timeout": 1200
+    },
+    {
+      "from": "S6_REPLAYING_BACK",
+      "to": "S4_PAUSED",
+      "event": "SYSTEM_EVENT_APPLY_COLLECT",
+      "guard": "replay completed up to eventIndex",
+      "actions": [
+        "updateControlButtons()"
+      ],
+      "triggers": "#groupArray,#buckets",
+      "expected_observables": [
+        "dom:#groupArray"
+      ],
+      "timeout": 500
+    },
+    {
+      "from": "S2_PREPARED",
+      "to": "S2_PREPARED",
+      "event": "USER_CLICK_RANDOM",
+      "guard": "true",
+      "actions": [
+        "generate random array into inputArray.value"
+      ],
+      "triggers": "#btnRandom",
+      "expected_observables": [
+        "dom:#inputArray"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S2_PREPARED",
+      "to": "S2_PREPARED",
+      "event": "USER_CHANGE_RADIX",
+      "guard": "true",
+      "actions": [
+        "radLabel.textContent = radixSelect.value",
+        "base = parseInt(radixSelect.value,10) || 10"
+      ],
+      "triggers": "#radixSelect",
+      "expected_observables": [
+        "dom:#radixLabel"
+      ],
+      "timeout": 200
+    },
+    {
+      "from": "S3_PLAYING",
+      "to": "S3_PLAYING",
+      "event": "USER_CHANGE_SPEED",
+      "guard": "true",
+      "actions": [
+        "speed = parseFloat(speedRange.value)"
+      ],
+      "triggers": "#speed",
+      "expected_observables": [
+        "dom:#speed"
+      ],
+      "timeout": 100
+    },
+    {
+      "from": "S0_IDLE",
+      "to": "S14_RESET",
+      "event": "USER_CLICK_RESET",
+      "guard": "events.length > 0",
+      "actions": [
+        "pause()",
+        "eventIndex = -1",
+        "clearActivePanel()",
+        "renderInitialArray(inputNumbers)",
+        "resetModel()"
+      ],
+      "triggers": "#btnReset",
+      "expected_observables": [
+        "dom:#initialArray",
+        "dom:#statusText"
+      ],
+      "timeout": 300
+    }
+  ],
+  "components": [
+    "#inputArray",
+    "#btnRandom",
+    "#btnLoad",
+    "#btnStart",
+    "#btnStep",
+    "#btnBack",
+    "#btnReset",
+    "#speed",
+    "#radixSelect",
+    "#radixLabel",
+    "#initialArray",
+    "#groupArray",
+    "#buckets",
+    "#statusText",
+    "#resultArray",
+    "#groupLabel",
+    ".bucket",
+    ".bucket-content",
+    ".num",
+    ".num.small"
+  ]
+}

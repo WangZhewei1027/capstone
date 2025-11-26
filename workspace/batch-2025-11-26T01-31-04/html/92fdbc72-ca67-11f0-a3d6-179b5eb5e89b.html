@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Weighted Graph Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display:flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+  header {
+    background: #333;
+    color: white;
+    padding: 1rem;
+    text-align: center;
+  }
+  #graph-container {
+    flex: 1;
+    position: relative;
+    background: #f9f9f9;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+    display:block;
+  }
+  .node circle {
+    fill: #4a90e2;
+    stroke: #0a3579;
+    stroke-width: 2px;
+    cursor: pointer;
+  }
+  .node text {
+    fill: #fff;
+    font-weight: bold;
+    pointer-events: none;
+    user-select: none;
+  }
+  .edge path {
+    stroke: #777;
+    stroke-width: 2px;
+    fill: none;
+  }
+  .edge text {
+    fill: #333;
+    font-size: 14px;
+    font-weight: bold;
+    user-select: none;
+  }
+  #info {
+    background: #eee;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    height: 3rem;
+  }
+  #controls {
+    background: #222;
+    padding: 0.5rem 1rem;
+    color: white;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  #controls > * {
+    font-size: 1rem;
+  }
+  button {
+    background: #4a90e2;
+    border: none;
+    color: white;
+    padding: 0.4rem 0.8rem;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #3572c0;
+  }
+  label {
+    user-select:none;
+  }
+  input[type=number] {
+    width: 50px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Weighted Graph Visualization</h1>
+</header>
+
+<div id="controls">
+  <label>
+    Node label: <input type="text" id="node-label" maxlength="2" size="2" />
+  </label>
+  <button id="add-node-btn">Add Node</button>
+  <label>
+    From: 
+    <select id="edge-from"></select>
+  </label>
+  <label>
+    To: 
+    <select id="edge-to"></select>
+  </label>
+  <label>
+    Weight: <input type="number" id="edge-weight" value="1" min="1" />
+  </label>
+  <button id="add-edge-btn">Add Edge</button>
+  <button id="clear-btn" title="Remove all nodes and edges">Clear Graph</button>
+</div>
+
+<div id="graph-container">
+  <svg id="graph-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+<div id="info">
+  Click and drag nodes to move them. Add nodes and edges using the controls above.
+</div>
+
+<script>
+(() => {
+  const svg = document.getElementById('graph-svg');
+  const addNodeBtn = document.getElementById('add-node-btn');
+  const addEdgeBtn = document.getElementById('add-edge-btn');
+  const nodeLabelInput = document.getElementById('node-label');
+  const edgeFromSelect = document.getElementById('edge-from');
+  const edgeToSelect = document.getElementById('edge-to');
+  const edgeWeightInput = document.getElementById('edge-weight');
+  const clearBtn = document.getElementById('clear-btn');
+
+  let nodes = [];
+  let edges = [];
+
+  // Node circle radius
+  const NODE_RADIUS = 20;
+
+  // Track dragged node
+  let draggedNode = null;
+  let dragOffset = {x: 0, y: 0};
+
+  // Add node
+  function addNode(label) {
+    if(!label) return false;
+    label = label.trim();
+    if(nodes.find(n => n.label === label)) {
+      alert('Node label must be unique.');
+      return false;
+    }
+    // Random position inside svg container with some margin
+    const rect = svg.getBoundingClientRect();
+    
+    const margin = NODE_RADIUS + 10;
+    const x = Math.random() * (rect.width - margin*2) + margin;
+    const y = Math.random() * (rect.height - margin*2) + margin;
+    const id = Date.now() + Math.random();
+    nodes.push({id, label, x, y});
+    updateSelectors();
+    render();
+    return true;
+  }
+
+  // Add edge
+  function addEdge(fromLabel, toLabel, weight) {
+    if(!fromLabel || !toLabel) return false;
+    if(fromLabel === toLabel) {
+      alert('Cannot create edge from a node to itself.');
+      return false;
+    }
+    weight = Number(weight);
+    if(weight <= 0 || isNaN(weight)) {
+      alert('Weight must be a positive number.');
+      return false;
+    }
+    // Check nodes exist
+    const fromNode = nodes.find(n => n.label === fromLabel);
+    const toNode = nodes.find(n => n.label === toLabel);
+    if(!fromNode || !toNode) {
+      alert('Both nodes must exist.');
+      return false;
+    }
+    // Prevent duplicate edges (undirected graph, edges same in either direction)
+    if(edges.find(e => 
+          ( (e.from === fromNode.id && e.to === toNode.id) ||
+            (e.from === toNode.id && e.to === fromNode.id) )
+        )) {
+      alert('Edge already exists between these nodes.');
+      return false;
+    }
+    edges.push({id: Date.now() + Math.random(), from: fromNode.id, to: toNode.id, weight});
+    render();
+    return true;
+  }
+
+  // Update the node lists in edge selectors
+  function updateSelectors() {
+    [edgeFromSelect, edgeToSelect].forEach(select => {
+      const val = select.value;
+      select.innerHTML = '';
+      nodes.forEach(n => {
+        const option = document.createElement('option');
+        option.value = n.label;
+        option.textContent = n.label;
+        select.appendChild(option);
+      });
+      if(nodes.length > 0) {
+        select.value = val && nodes.find(n => n.label === val) ? val : nodes[0].label;
+      }
+    });
+  }
+
+  // Clear graph
+  function clearGraph() {
+    nodes = [];
+    edges = [];
+    updateSelectors();
+    render();
+  }
+
+  // Render graph
+  function render() {
+    // Clean svg
+    while(svg.lastChild) svg.removeChild(svg.lastChild);
+
+    // Draw edges first
+    edges.forEach(edge => {
+      const fromNode = nodes.find(n => n.id === edge.from);
+      const toNode = nodes.find(n => n.id === edge.to);
+      if(!fromNode || !toNode) return;
+      
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute('class', 'edge-path');
+      
+      // Draw a curved line for clarity (quadratic Bezier)
+      const dx = toNode.x - fromNode.x;
+      const dy = toNode.y - fromNode.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const normX = dx/dist;
+      const normY = dy/dist;
+
+      // Control point for curve (perpendicular midpoint offset)
+      const midX = (fromNode.x + toNode.x)/2;
+      const midY = (fromNode.y + toNode.y)/2;
+      const curveOffset = 30; // pixels
+      const controlX = midX - normY * curveOffset;
+      const controlY = midY + normX * curveOffset;
+
+      // Path string
+      const pathStr = `M${fromNode.x},${fromNode.y} Q${controlX},${controlY} ${toNode.x},${toNode.y}`;
+      path.setAttribute('d', pathStr);
+      path.setAttribute('stroke', '#777');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('fill', 'none');
+
+      svg.appendChild(path);
+
+      // Edge weight label position: near control point with offset
+      const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      txt.setAttribute('fill', '#333');
+      txt.setAttribute('font-weight', 'bold');
+      txt.setAttribute('font-size', '14');
+      txt.setAttribute('pointer-events', 'none');
+      // place text slightly offset from control point, small shift to avoid overlap with line
+      txt.setAttribute('x', controlX + 8);
+      txt.setAttribute('y', controlY - 8);
+      txt.textContent = edge.weight;
+
+      svg.appendChild(txt);
+    });
+
+    // Draw nodes on top
+    nodes.forEach(node => {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.classList.add('node');
+      g.setAttribute('data-id', node.id);
+      g.style.cursor = 'pointer';
+
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute('r', NODE_RADIUS);
+      circle.setAttribute('cx', node.x);
+      circle.setAttribute('cy', node.y);
+      circle.setAttribute('fill', '#4a90e2');
+      circle.setAttribute('stroke', '#0a3579');
+      circle.setAttribute('stroke-width', '2');
+      
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute('x', node.x);
+      text.setAttribute('y', node.y+5); // vertical centering (approx.)
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', 'white');
+      text.setAttribute('font-weight', 'bold');
+      text.setAttribute('font-size', '16');
+      text.style.userSelect = 'none';
+      text.textContent = node.label;
+
+      g.appendChild(circle);
+      g.appendChild(text);
+
+      svg.appendChild(g);
+
+      // Attach event for dragging
+      g.addEventListener('mousedown', (evt) => {
+        draggedNode = node;
+        const pt = svg.createSVGPoint();
+        pt.x = evt.clientX; pt.y = evt.clientY;
+        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+        dragOffset.x = svgP.x - node.x;
+        dragOffset.y = svgP.y - node.y;
+        evt.preventDefault();
+      });
+    });
+  }
+
+  // On mouse move for dragging
+  function onMouseMove(evt) {
+    if(!draggedNode) return;
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+    // Keep inside svg bounds - margin for node radius
+    const margin = NODE_RADIUS + 1;
+    const rect = svg.getBoundingClientRect();
+    let newX = svgP.x - dragOffset.x;
+    let newY = svgP.y - dragOffset.y;
+    newX = Math.min(rect.width - margin, Math.max(margin, newX));
+    newY = Math.min(rect.height - margin, Math.max(margin, newY));
+
+    draggedNode.x = newX;
+    draggedNode.y = newY;
+    render();
+  }
+
+  function onMouseUp(evt) {
+    draggedNode = null;
+  }
+
+  addNodeBtn.addEventListener('click', () => {
+    const label = nodeLabelInput.value.trim();
+    if(label.length === 0) {
+      alert('Please enter a node label.');
+      return;
+    }
+    if(addNode(label)) {
+      nodeLabelInput.value = '';
+      nodeLabelInput.focus();
+    }
+  });
+
+  addEdgeBtn.addEventListener('click', () => {
+    const fromLabel = edgeFromSelect.value;
+    const toLabel = edgeToSelect.value;
+    const weight = edgeWeightInput.value;
+    addEdge(fromLabel, toLabel, weight);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    if(confirm('Are you sure you want to clear the entire graph?')) {
+      clearGraph();
+    }
+  });
+
+  // Drag listeners on svg
+  svg.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+
+  // Initialize with sample graph
+  function initSample() {
+    addNode('A');
+    addNode('B');
+    addNode('C');
+    addNode('D');
+    addEdge('A', 'B', 4);
+    addEdge('A', 'C', 2);
+    addEdge('B', 'C', 5);
+    addEdge('B', 'D', 10);
+    addEdge('C', 'D', 3);
+  }
+
+  initSample();
+})();
+</script>
+
+</body>
+</html>

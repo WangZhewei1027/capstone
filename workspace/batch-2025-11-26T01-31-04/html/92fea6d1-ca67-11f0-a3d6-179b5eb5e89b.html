@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Breadth-First Search (BFS) Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+  }
+  #graph {
+    display: grid;
+    grid-template-columns: repeat(10, 40px);
+    grid-gap: 5px;
+    margin-bottom: 10px;
+  }
+  .node {
+    width: 40px;
+    height: 40px;
+    background-color: #ddd;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+  }
+  .node.wall {
+    background-color: #222;
+    cursor: default;
+  }
+  .node.start {
+    background-color: #4CAF50;
+    color: white;
+  }
+  .node.target {
+    background-color: #f44336;
+    color: white;
+  }
+  .node.visited {
+    background-color: #2196F3;
+    color: white;
+    animation: visitfade 0.5s ease forwards;
+  }
+  .node.path {
+    background-color: #ffeb3b;
+    color: black;
+  }
+  @keyframes visitfade {
+    from { background-color: #90caf9; }
+    to { background-color: #2196F3; }
+  }
+  #controls {
+    margin-bottom: 15px;
+  }
+  button {
+    margin-right: 5px;
+    padding: 6px 12px;
+    font-size: 15px;
+  }
+  #info {
+    margin-top: 10px;
+    font-size: 14px;
+  }
+  small {
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<h2>Breadth-First Search (BFS) Visualization</h2>
+<p>
+  Click grid cells to toggle walls. <br />
+  Click <strong>Set Start</strong> then a cell to pick start node (green), <strong>Set Target</strong> then a cell to pick target node (red).<br />
+  Press <strong>Run BFS</strong> to find shortest path.<br />
+  <small>Blue: visited nodes, Yellow: shortest path</small>
+</p>
+
+<div id="controls">
+  <button id="setStartBtn">Set Start</button>
+  <button id="setTargetBtn">Set Target</button>
+  <button id="toggleWallBtn">Toggle Walls</button>
+  <button id="runBFSBtn">Run BFS</button>
+  <button id="clearBtn">Clear</button>
+</div>
+
+<div id="graph" aria-label="Grid graph for BFS visualization" role="grid" tabindex="0"></div>
+
+<div id="info" aria-live="polite"></div>
+
+<script>
+(() => {
+  const rows = 10;
+  const cols = 10;
+  const graphEl = document.getElementById('graph');
+  const infoEl = document.getElementById('info');
+  const setStartBtn = document.getElementById('setStartBtn');
+  const setTargetBtn = document.getElementById('setTargetBtn');
+  const toggleWallBtn = document.getElementById('toggleWallBtn');
+  const runBFSBtn = document.getElementById('runBFSBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  let mode = 'toggleWall'; // modes: toggleWall, setStart, setTarget
+  let startNode = null;
+  let targetNode = null;
+  let grid = [];
+  let isRunning = false;
+
+  // Node object constructor
+  function createNode(r, c) {
+    return {
+      row: r,
+      col: c,
+      isWall: false,
+      visited: false,
+      prev: null,
+      element: null,
+    };
+  }
+
+  // Initialize grid and DOM
+  function initGrid() {
+    graphEl.innerHTML = '';
+    grid = [];
+    for(let r=0; r<rows; r++) {
+      const row = [];
+      for(let c=0; c<cols; c++) {
+        const node = createNode(r,c);
+        const div = document.createElement('div');
+        div.classList.add('node');
+        div.setAttribute('role', 'gridcell');
+        div.setAttribute('aria-label', `Node ${r},${c}`);
+        div.tabIndex = 0;
+        div.textContent = '';
+        div.addEventListener('click', () => onNodeClick(node));
+        div.addEventListener('keydown', (e) => {
+          if(e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onNodeClick(node);
+          }
+        });
+        graphEl.appendChild(div);
+        node.element = div;
+        row.push(node);
+      }
+      grid.push(row);
+    }
+    startNode = null;
+    targetNode = null;
+    isRunning = false;
+    infoEl.textContent = '';
+  }
+
+  // Handle node click depending on mode
+  function onNodeClick(node) {
+    if(isRunning) return;
+
+    if(mode === 'toggleWall') {
+      if(node === startNode || node === targetNode) return;
+      node.isWall = !node.isWall;
+      node.element.classList.toggle('wall', node.isWall);
+    } else if(mode === 'setStart') {
+      if(node.isWall || node === targetNode) return;
+      if(startNode) startNode.element.classList.remove('start');
+      startNode = node;
+      node.element.classList.add('start');
+      node.isWall = false;
+      node.element.classList.remove('wall');
+      mode = 'toggleWall';
+      highlightCurrentMode();
+    } else if(mode === 'setTarget') {
+      if(node.isWall || node === startNode) return;
+      if(targetNode) targetNode.element.classList.remove('target');
+      targetNode = node;
+      node.element.classList.add('target');
+      node.isWall = false;
+      node.element.classList.remove('wall');
+      mode = 'toggleWall';
+      highlightCurrentMode();
+    }
+  }
+
+  function highlightCurrentMode() {
+    setStartBtn.disabled = (mode === 'setStart');
+    setTargetBtn.disabled = (mode === 'setTarget');
+    toggleWallBtn.disabled = (mode === 'toggleWall');
+  }
+
+  setStartBtn.addEventListener('click', () => {
+    if(isRunning) return;
+    mode = 'setStart';
+    highlightCurrentMode();
+  });
+  setTargetBtn.addEventListener('click', () => {
+    if(isRunning) return;
+    mode = 'setTarget';
+    highlightCurrentMode();
+  });
+  toggleWallBtn.addEventListener('click', () => {
+    if(isRunning) return;
+    mode = 'toggleWall';
+    highlightCurrentMode();
+  });
+  clearBtn.addEventListener('click', () => {
+    if(isRunning) return;
+    initGrid();
+    mode = 'toggleWall';
+    highlightCurrentMode();
+  });
+
+  function neighbors(node) {
+    const deltas = [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ];
+    let result = [];
+    for (const [dr, dc] of deltas) {
+      const nr = node.row + dr;
+      const nc = node.col + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+        if (!grid[nr][nc].isWall) result.push(grid[nr][nc]);
+      }
+    }
+    return result;
+  }
+
+  async function runBFS() {
+    if(isRunning) return;
+    if(!startNode || !targetNode) {
+      infoEl.textContent = 'Please set both start and target nodes.';
+      return;
+    }
+
+    // Reset previous states
+    for(let r=0; r<rows; r++) {
+      for(let c=0; c<cols; c++) {
+        const node = grid[r][c];
+        node.visited = false;
+        node.prev = null;
+        if(node !== startNode && node !== targetNode && !node.isWall) {
+          node.element.classList.remove('visited', 'path');
+          node.element.textContent = '';
+        }
+      }
+    }
+
+    infoEl.textContent = 'Searching...';
+    isRunning = true;
+
+    let queue = [];
+    startNode.visited = true;
+    queue.push(startNode);
+
+    while(queue.length > 0) {
+      const current = queue.shift();
+
+      // Visualize visiting
+      if(current !== startNode && current !== targetNode) {
+        current.element.classList.add('visited');
+        current.element.textContent = '';
+        await delay(50);
+      }
+
+      if(current === targetNode) {
+        // Reconstruct path
+        let pathNode = targetNode;
+        let length = 0;
+        while(pathNode.prev && pathNode !== startNode) {
+          pathNode = pathNode.prev;
+          if(pathNode !== startNode) {
+            pathNode.element.classList.remove('visited');
+            pathNode.element.classList.add('path');
+            pathNode.element.textContent = '';
+          }
+          length++;
+        }
+        infoEl.textContent = `Target found! Shortest path length: ${length}`;
+        isRunning = false;
+        return;
+      }
+
+      for (const neighbor of neighbors(current)) {
+        if(!neighbor.visited) {
+          neighbor.visited = true;
+          neighbor.prev = current;
+          queue.push(neighbor);
+        }
+      }
+    }
+    infoEl.textContent = 'Target not reachable.';
+    isRunning = false;
+  }
+
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  runBFSBtn.addEventListener('click', runBFS);
+
+  // Initialize on load
+  initGrid();
+  highlightCurrentMode();
+})();
+</script>
+
+</body>
+</html>

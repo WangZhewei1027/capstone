@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Huffman Coding Demonstration</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    background: #f9f9f9;
+    color: #222;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+  textarea {
+    width: 100%;
+    height: 100px;
+    font-family: monospace;
+    font-size: 1rem;
+    padding: 0.5rem;
+    box-sizing: border-box;
+    margin-bottom: 1rem;
+  }
+  button {
+    background: #007ACC;
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    font-size: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #005fa3;
+  }
+  .section {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: 1rem;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.1);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 0.25rem 0.5rem;
+    text-align: center;
+  }
+  th {
+    background: #eee;
+  }
+  .code-tree {
+    margin-top: 1rem;
+    text-align: center;
+    overflow-x: auto;
+  }
+  svg {
+    max-width: 100%;
+  }
+  .code-output {
+    background: #272822;
+    color: #f8f8f2;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    font-family: monospace;
+    word-break: break-all;
+    margin-top: 0.5rem;
+    white-space: pre-wrap;
+  }
+  .footer {
+    margin-top: 3rem;
+    font-size: 0.9rem;
+    color: #666;
+    text-align: center;
+  }
+  .error {
+    color: red;
+    font-weight: 600;
+    margin-top: 0.5rem;
+  }
+</style>
+</head>
+<body>
+<h1>Huffman Coding Demonstration</h1>
+<p>Enter text below to generate Huffman codes, see the code assignments, and encode the input text.</p>
+
+<textarea id="inputText" placeholder="Type or paste any text here...">this is an example for huffman encoding</textarea>
+<button id="generateBtn">Generate Huffman Codes</button>
+<div id="errorMsg" class="error"></div>
+
+<div id="output" style="display:none;">
+  <div class="section" id="freqSection">
+    <h2>Symbol Frequencies</h2>
+    <table id="freqTable">
+      <thead>
+        <tr><th>Symbol</th><th>Frequency</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="section" id="codesSection">
+    <h2>Huffman Codes</h2>
+    <table id="codesTable">
+      <thead>
+        <tr><th>Symbol</th><th>Code</th><th>Code Length</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="section" id="encodedSection">
+    <h2>Encoded Output (Binary String)</h2>
+    <div class="code-output" id="encodedOutput"></div>
+    <p><b>Original Length:</b> <span id="origBits"></span> bits</p>
+    <p><b>Encoded Length:</b> <span id="encodedBits"></span> bits</p>
+    <p><b>Compression Ratio:</b> <span id="compressionRatio"></span></p>
+  </div>
+  <div class="section" id="treeSection">
+    <h2>Huffman Tree Visualization</h2>
+    <div class="code-tree" id="treeSVGContainer"></div>
+  </div>
+</div>
+
+<script>
+// Huffman coding implementation
+
+// Node class for Huffman tree
+class Node {
+  constructor(symbol, freq, left=null, right=null) {
+    this.symbol = symbol; // character or null if internal node
+    this.freq = freq;
+    this.left = left;
+    this.right = right;
+  }
+}
+
+// Priority queue using array + simple sort (fine for demo)
+class PriorityQueue {
+  constructor() {
+    this.data = [];
+  }
+  enqueue(node) {
+    this.data.push(node);
+    this.data.sort((a,b) => a.freq - b.freq);
+  }
+  dequeue() {
+    return this.data.shift();
+  }
+  size() {
+    return this.data.length;
+  }
+}
+
+// Build frequency table from text
+function buildFrequencyTable(text) {
+  const freqMap = new Map();
+  for (const ch of text) {
+    freqMap.set(ch, (freqMap.get(ch) || 0) + 1);
+  }
+  return freqMap;
+}
+
+// Build Huffman tree from frequency map
+function buildHuffmanTree(freqMap) {
+  const pq = new PriorityQueue();
+  for (const [symbol, freq] of freqMap.entries()) {
+    pq.enqueue(new Node(symbol, freq));
+  }
+  // Edge case: single symbol
+  if (pq.size() === 1) {
+    // Add dummy node to create 2-node tree
+    const single = pq.dequeue();
+    const dummy = new Node(null, 0);
+    const root = new Node(null, single.freq + dummy.freq, single, dummy);
+    return root;
+  }
+  while (pq.size() > 1) {
+    const left = pq.dequeue();
+    const right = pq.dequeue();
+    const newNode = new Node(null, left.freq + right.freq, left, right);
+    pq.enqueue(newNode);
+  }
+  return pq.dequeue();
+}
+
+// Generate codes from tree
+function generateCodes(node, prefix = '', codeMap = new Map()) {
+  if (!node) return;
+  if (node.symbol !== null) {
+    codeMap.set(node.symbol, prefix || '0'); // assign '0' if tree is only 1 node
+  }
+  generateCodes(node.left, prefix + '0', codeMap);
+  generateCodes(node.right, prefix + '1', codeMap);
+  return codeMap;
+}
+
+// Encode text using codes
+function encodeText(text, codeMap) {
+  let encoded = '';
+  for (const ch of text) {
+    encoded += codeMap.get(ch);
+  }
+  return encoded;
+}
+
+// Draw Huffman tree as SVG
+function drawTreeSvg(root) {
+  // We'll do a simple horizontal tree layout
+  // Traverse to calculate depth and position nodes
+
+  let nodes = [];
+  let edges = [];
+
+  // Assign positions using DFS; calculate subtree width for balanced spacing
+
+  function layout(node) {
+    if (!node) return {width: 0, height: 0};
+    if (!node.left && !node.right) {
+      // Leaf: width = 50 (for box), height = 60
+      nodes.push(node);
+      node.x = 0;
+      node.y = 0;
+      return {width: 50, height: 60};
+    }
+    const leftSize = layout(node.left);
+    const rightSize = layout(node.right);
+    const spacing = 20;
+    const width = leftSize.width + rightSize.width + spacing;
+    const height = Math.max(leftSize.height, rightSize.height) + 80;
+    nodes.push(node);
+    node.x = leftSize.width + spacing/2;
+    node.y = 0;
+
+    return {width, height};
+  }
+
+  layout(root);
+
+  // Assign absolute Y positions and X positions relative to root
+  // We do a top-down repositioning
+
+  function setPositions(node, x, y) {
+    if (!node) return;
+    node.cx = x + node.x;
+    node.cy = y;
+    if (node.left) setPositions(node.left, x, y + 80);
+    if (node.right) setPositions(node.right, x + (node.left ? 0 : 0), y + 80);
+  }
+  setPositions(root, 10, 20);
+
+  // Collect edges (lines) from parent to children
+  function collectEdges(node) {
+    if (!node) return;
+    if (node.left) {
+      edges.push({x1: node.cx + 25, y1: node.cy + 40, x2: node.left.cx + 25, y2: node.left.cy});
+      collectEdges(node.left);
+    }
+    if (node.right) {
+      edges.push({x1: node.cx + 25, y1: node.cy + 40, x2: node.right.cx + 25, y2: node.right.cy});
+      collectEdges(node.right);
+    }
+  }
+  collectEdges(root);
+
+  // Calculate SVG width and height
+  const allX = nodes.flatMap(n => [n.cx, n.cx + 50]);
+  const allY = nodes.flatMap(n => [n.cy, n.cy + 60]);
+  const width = Math.max(...allX) + 20;
+  const height = Math.max(...allY) + 20;
+
+  // Build SVG elements
+  let svg = `<svg width="${width}" height="${height}" role="img" aria-label="Huffman tree visualization">`;
+
+  // Draw edges
+  for (const e of edges) {
+    svg += `<line x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}" stroke="#666" stroke-width="2"/>`;
+  }
+
+  // Draw nodes (rect with symbol or blank)
+  for (const node of nodes) {
+    svg += `<rect x="${node.cx}" y="${node.cy}" width="50" height="40" fill="${node.symbol === null ? '#8ecae6' : '#219ebc'}" stroke="#023047" stroke-width="1.5" rx="6" ry="6"/>`;
+    let text = node.symbol === null ? '' : escapeHtml(node.symbol);
+    if (text === ' ') text = '[space]';
+    svg += `<text x="${node.cx + 25}" y="${node.cy + 25}" fill="white" font-size="20" font-family="monospace" text-anchor="middle" alignment-baseline="middle">${text}</text>`;
+    // show freq in smaller text below symbol
+    svg += `<text x="${node.cx + 25}" y="${node.cy + 55}" fill="#023047" font-size="12" font-family="sans-serif" text-anchor="middle" alignment-baseline="middle">${node.freq}</text>`;
+  }
+  svg += '</svg>';
+  return svg;
+}
+
+function escapeHtml(text) {
+  const map = {
+    '&': "&amp;",
+    '<': "&lt;",
+    '>': "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  };
+  return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// Main demo function
+function runHuffmanDemo() {
+  const text = document.getElementById('inputText').value;
+  const errorDiv = document.getElementById('errorMsg');
+  errorDiv.textContent = '';
+  if (!text || text.length === 0) {
+    errorDiv.textContent = 'Please enter some text to encode.';
+    return;
+  }
+
+  // Build frequency table
+  const freqMap = buildFrequencyTable(text);
+
+  // Build tree
+  const treeRoot = buildHuffmanTree(freqMap);
+
+  // Generate codes
+  const codeMap = generateCodes(treeRoot);
+
+  // Encode text
+  const encoded = encodeText(text, codeMap);
+
+  // Display results
+  // Frequencies table
+  const freqTableBody = document.querySelector('#freqTable tbody');
+  freqTableBody.innerHTML = '';
+  [...freqMap.entries()]
+    .sort((a,b) => b[1]-a[1])  // descending freq
+    .forEach(([symbol, freq]) => {
+      const tr = document.createElement('tr');
+      let displaySymbol = symbol === ' ' ? '[space]' : escapeHtml(symbol);
+      tr.innerHTML = `<td>${displaySymbol}</td><td>${freq}</td>`;
+      freqTableBody.appendChild(tr);
+    });
+
+  // Codes table
+  const codesTableBody = document.querySelector('#codesTable tbody');
+  codesTableBody.innerHTML = '';
+  // Sort by code length asc, then lex
+  const codesSorted = [...codeMap.entries()].sort((a,b)=> {
+    if (a[1].length != b[1].length) return a[1].length - b[1].length;
+    return a[0].localeCompare(b[0]);
+  });
+  codesSorted.forEach(([symbol, code]) => {
+    const tr = document.createElement('tr');
+    let displaySymbol = symbol === ' ' ? '[space]' : escapeHtml(symbol);
+    tr.innerHTML = `<td>${displaySymbol}</td><td><code>${code}</code></td><td>${code.length}</td>`;
+    codesTableBody.appendChild(tr);
+  });
+
+  // Encoded output
+  const encodedOutput = document.getElementById('encodedOutput');
+  let displayEncoded = encoded;
+  // show up to 120 chars, then ...
+  if (encoded.length > 120) {
+    displayEncoded = encoded.slice(0, 120) + '...';
+  }
+  encodedOutput.textContent = displayEncoded;
+
+  // Show original bits (assuming 8 bits per char)
+  const origBits = text.length * 8;
+  const encodedBits = encoded.length;
+
+  document.getElementById('origBits').textContent = origBits.toLocaleString();
+  document.getElementById('encodedBits').textContent = encodedBits.toLocaleString();
+
+  // Compression ratio
+  let ratio = (encodedBits / origBits);
+  const compressRatioElem = document.getElementById('compressionRatio');
+  compressRatioElem.textContent = ratio.toFixed(3) + ' (' + (100 * (1 - ratio)).toFixed(1) + '% size reduction)';
+
+  // Draw tree
+  const treeContainer = document.getElementById('treeSVGContainer');
+  treeContainer.innerHTML = drawTreeSvg(treeRoot);
+
+  // Show output container
+  document.getElementById('output').style.display = 'block';
+}
+
+document.getElementById('generateBtn').addEventListener('click', runHuffmanDemo);
+
+// Run default demo on load
+window.onload = () => {
+  runHuffmanDemo();
+};
+</script>
+</body>
+</html>

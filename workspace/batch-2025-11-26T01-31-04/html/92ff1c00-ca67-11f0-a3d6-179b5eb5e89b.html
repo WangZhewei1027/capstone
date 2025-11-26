@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Knapsack Problem Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    max-width: 800px;
+  }
+  h1 {
+    text-align: center;
+  }
+  table {
+    border-collapse: collapse;
+    margin: 10px 0 20px 0;
+    width: 100%;
+  }
+  th, td {
+    border: 1px solid #aaa;
+    padding: 8px;
+    text-align: center;
+  }
+  th {
+    background-color: #eee;
+  }
+  input[type="number"] {
+    width: 60px;
+  }
+  textarea {
+    width: 100%;
+    height: 120px;
+  }
+  button {
+    margin-top: 10px;
+    padding: 10px 20px;
+    font-size: 1rem;
+  }
+  #result {
+    margin-top: 20px;
+    white-space: pre-wrap;
+    background-color: #f7f7f7;
+    padding: 15px;
+    border-radius: 5px;
+    font-family: monospace;
+  }
+  .instructions {
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: flex-start;
+  }
+  .col {
+    flex: 1 1 200px;
+    min-width: 200px;
+  }
+</style>
+</head>
+<body>
+<h1>0/1 Knapsack Problem Solver</h1>
+
+<div class="instructions">
+  Enter the list of items with their weights and values, one per line, in the format:<br />
+  <code>name, weight, value</code><br />
+  Example:<br />
+  <code>Gold, 10, 60</code><br />
+  <code>Silver, 20, 100</code><br />
+  <code>Bronze, 30, 120</code>
+</div>
+
+<textarea id="itemsInput" aria-label="Items input" placeholder="ItemName, Weight, Value&#10;Example:&#10Gold, 10, 60&#10Silver, 20, 100&#10Bronze, 30, 120"></textarea>
+
+<div class="flex-row">
+  <div class="col">
+    <label for="capacityInput"><strong>Knapsack Capacity:</strong></label><br />
+    <input type="number" id="capacityInput" min="1" value="50" aria-describedby="capacityHelp" />
+    <div id="capacityHelp" style="font-size: 0.85rem; color: #555;">Enter the maximum weight allowed</div>
+  </div>
+  <div class="col" style="align-self:flex-end;">
+    <button id="solveBtn">Solve Knapsack</button>
+  </div>
+</div>
+
+<div id="result" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+  function parseItems(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const items = [];
+    let lineNum = 0;
+    for (const line of lines) {
+      lineNum++;
+      const parts = line.split(',').map(p => p.trim());
+      if (parts.length !== 3) {
+        throw new Error(`Line ${lineNum}: Invalid format. Expected "name, weight, value".`);
+      }
+      const [name, weightStr, valueStr] = parts;
+      const weight = parseInt(weightStr, 10);
+      const value = parseInt(valueStr, 10);
+      if (!name) throw new Error(`Line ${lineNum}: Name cannot be empty.`);
+      if (isNaN(weight) || weight <= 0) throw new Error(`Line ${lineNum}: Weight must be a positive integer.`);
+      if (isNaN(value) || value < 0) throw new Error(`Line ${lineNum}: Value must be a non-negative integer.`);
+      items.push({name, weight, value});
+    }
+    return items;
+  }
+
+  // Solves 0/1 knapsack problem using DP, returns maximum value and list of chosen items
+  function knapsack(items, capacity) {
+    const n = items.length;
+    // dp[i][w] = max value using first i items with max weight w
+    // We'll use a 1D array optimization because the size can be big but for clarity, using 2D here.
+    const dp = Array(n+1).fill(null).map(() => Array(capacity+1).fill(0));
+
+    for (let i=1; i<=n; i++) {
+      const { weight, value } = items[i-1];
+      for (let w=0; w<=capacity; w++) {
+        if (weight > w) {
+          dp[i][w] = dp[i-1][w];
+        } else {
+          dp[i][w] = Math.max(dp[i-1][w], dp[i-1][w-weight] + value);
+        }
+      }
+    }
+
+    // Backtrack to find chosen items
+    let w = capacity;
+    const chosen = [];
+    for (let i = n; i > 0; i--) {
+      if (dp[i][w] !== dp[i-1][w]) {
+        const item = items[i-1];
+        chosen.push(item);
+        w -= item.weight;
+      }
+    }
+    chosen.reverse();
+
+    return {maxValue: dp[n][capacity], chosen};
+  }
+
+  function formatResult(result, capacity) {
+    let text = `Knapsack capacity: ${capacity}\n`;
+    text += `Maximum value achievable: ${result.maxValue}\n\n`;
+    if (result.chosen.length === 0) {
+      text += 'No items selected.';
+    } else {
+      text += 'Items chosen:\n';
+      text += 'Name\tWeight\tValue\n';
+      for (const item of result.chosen) {
+        text += `${item.name}\t${item.weight}\t${item.value}\n`;
+      }
+      const totalWeight = result.chosen.reduce((a,b) => a+b.weight, 0);
+      const totalValue = result.maxValue;
+      text += `\nTotal weight: ${totalWeight}\nTotal value: ${totalValue}`;
+    }
+    return text;
+  }
+
+  document.getElementById('solveBtn').addEventListener('click', () => {
+    const itemsText = document.getElementById('itemsInput').value;
+    const capacityInput = document.getElementById('capacityInput').value.trim();
+    const resultDiv = document.getElementById('result');
+    resultDiv.textContent = 'Computing...';
+
+    try {
+      if (capacityInput === '') throw new Error('Please enter knapsack capacity.');
+      const capacity = parseInt(capacityInput, 10);
+      if (isNaN(capacity) || capacity <= 0) throw new Error('Knapsack capacity must be a positive integer.');
+
+      const items = parseItems(itemsText);
+      if (items.length === 0) throw new Error('Please enter at least one item.');
+
+      const answer = knapsack(items, capacity);
+      resultDiv.textContent = formatResult(answer, capacity);
+    } catch(e) {
+      resultDiv.textContent = 'Error: ' + e.message;
+    }
+  });
+
+  // Prefill example input
+  document.getElementById('itemsInput').value =
+`Gold, 10, 60
+Silver, 20, 100
+Bronze, 30, 120`;
+</script>
+</body>
+</html>

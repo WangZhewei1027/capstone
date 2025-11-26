@@ -1,0 +1,701 @@
+{
+  "meta": {
+    "concept": "LinearRegression",
+    "topic": "Linear Regression Interactive Demo",
+    "educational_goal": "Allow users to add/move/remove points and compare Closed-form OLS with Gradient Descent (batch and animated). Show live metrics (slope, intercept, SSE, R²) and allow dataset generation/export.",
+    "expected_interactions": [
+      "add_point",
+      "drag_point",
+      "remove_point",
+      "generate",
+      "clear",
+      "toggle_method",
+      "run_gd",
+      "animate_gd",
+      "reset_params",
+      "export",
+      "change_noise",
+      "change_seed",
+      "change_nPoints",
+      "select_pattern",
+      "change_lr",
+      "change_iters",
+      "keyboard_shortcuts"
+    ]
+  },
+  "states": [
+    {
+      "id": "S0_Idle",
+      "label": "idle",
+      "type": "idle",
+      "entry_actions": [
+        "draw()",
+        "updateAndDraw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S1_AddingPoint",
+      "label": "adding_point",
+      "type": "atomic",
+      "entry_actions": [
+        "addPointAtCursor(evt)",
+        "setDraggingIndex(newPointIndex)",
+        "updateAndDraw()"
+      ],
+      "exit_actions": [
+        "maybeStartDragging()"
+      ]
+    },
+    {
+      "id": "S2_DraggingPoint",
+      "label": "dragging_point",
+      "type": "atomic",
+      "entry_actions": [
+        "startDragging(index)",
+        "canvas.style.cursor = 'grabbing'"
+      ],
+      "exit_actions": [
+        "endDragging()",
+        "canvas.style.cursor = 'crosshair'",
+        "updateAndDraw()"
+      ]
+    },
+    {
+      "id": "S3_RemovingPoint",
+      "label": "removing_point",
+      "type": "atomic",
+      "entry_actions": [
+        "removeNearestPoint()",
+        "updateAndDraw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S4_GeneratingDataset",
+      "label": "generating_dataset",
+      "type": "atomic",
+      "entry_actions": [
+        "seed = Number(seedEl.value) || 1",
+        "generateDataset(Number(nPointsEl.value), patternEl.value, Number(noiseEl.value))",
+        "model = fitOLS(points)",
+        "modelGD = {...model}",
+        "updateAndDraw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S5_ClearingPoints",
+      "label": "clearing_points",
+      "type": "atomic",
+      "entry_actions": [
+        "points = []",
+        "updateAndDraw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S6_SelectMethod",
+      "label": "select_method",
+      "type": "atomic",
+      "entry_actions": [
+        "gdControls.style.display = (getMethod() === 'gd') ? 'block' : 'none'",
+        "methodNameEl.textContent = getMethod().toUpperCase()",
+        "if(getMethod() === 'ols') { model = fitOLS(points); modelGD = {...model}; }",
+        "updateAndDraw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S7_RunGDBatch",
+      "label": "run_gd_batch",
+      "type": "atomic",
+      "entry_actions": [
+        "modelGD = {...model}",
+        "for(i=0;i<iters;i++) modelGD = gradientDescentStep(points, modelGD.m, modelGD.b, lr)",
+        "updateAndDraw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S8_GDAnimating",
+      "label": "gd_animating",
+      "type": "atomic",
+      "entry_actions": [
+        "startGDAnimation()",
+        "animateGD.textContent = 'Stop'",
+        "gdAnimating = true"
+      ],
+      "exit_actions": [
+        "stopGDAnimation()",
+        "animateGD.textContent = 'Animate'",
+        "gdAnimating = false"
+      ]
+    },
+    {
+      "id": "S9_ResetGDParams",
+      "label": "reset_gd_params",
+      "type": "atomic",
+      "entry_actions": [
+        "lrEl.value = 0.01",
+        "itersEl.value = 200"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S10_Exporting",
+      "label": "exporting_csv",
+      "type": "atomic",
+      "entry_actions": [
+        "if(points.length === 0) { alert('No points to export'); } else { exportCSV() }"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S11_UpdatingStats",
+      "label": "updating_stats_and_draw",
+      "type": "atomic",
+      "entry_actions": [
+        "computeStats(points, displayed_m, displayed_b)",
+        "populateStatsElements(slopeEl, interceptEl, sseEl, r2El, methodNameEl)",
+        "draw()"
+      ],
+      "exit_actions": []
+    }
+  ],
+  "events": [
+    {
+      "id": "CANVAS_MOUSE_DOWN",
+      "event_type": "user_action",
+      "description": "mousedown on canvas: add point, start drag, or shift+click remove",
+      "triggers": "canvas#plot"
+    },
+    {
+      "id": "CANVAS_MOUSE_MOVE",
+      "event_type": "user_action",
+      "description": "mousemove on canvas while dragging updates point position",
+      "triggers": "canvas#plot"
+    },
+    {
+      "id": "MOUSE_UP",
+      "event_type": "user_action",
+      "description": "mouseup ends dragging",
+      "triggers": "window"
+    },
+    {
+      "id": "CLICK_GEN",
+      "event_type": "user_action",
+      "description": "User clicks Generate dataset button",
+      "triggers": "#genBtn"
+    },
+    {
+      "id": "CLICK_CLEAR",
+      "event_type": "user_action",
+      "description": "User clicks Clear button",
+      "triggers": "#clearBtn"
+    },
+    {
+      "id": "NOISE_CHANGE",
+      "event_type": "user_action",
+      "description": "User adjusts noise range input",
+      "triggers": "#noise"
+    },
+    {
+      "id": "NPOINTS_CHANGE",
+      "event_type": "user_action",
+      "description": "User changes number of points input",
+      "triggers": "#nPoints"
+    },
+    {
+      "id": "SEED_CHANGE",
+      "event_type": "user_action",
+      "description": "User changes random seed input",
+      "triggers": "#seed"
+    },
+    {
+      "id": "PATTERN_CHANGE",
+      "event_type": "user_action",
+      "description": "User selects a dataset pattern",
+      "triggers": "#pattern"
+    },
+    {
+      "id": "METHOD_TOGGLE",
+      "event_type": "user_action",
+      "description": "User toggles method radio (OLS or GD)",
+      "triggers": "input[name=\"method\"]"
+    },
+    {
+      "id": "CLICK_RUN_GD",
+      "event_type": "user_action",
+      "description": "User clicks Run (batch) Gradient Descent",
+      "triggers": "#runGD"
+    },
+    {
+      "id": "CLICK_ANIMATE_GD",
+      "event_type": "user_action",
+      "description": "User clicks Animate Gradient Descent (toggle)",
+      "triggers": "#animateGD"
+    },
+    {
+      "id": "CLICK_RESET_PARAMS",
+      "event_type": "user_action",
+      "description": "User clicks Reset GD params",
+      "triggers": "#resetParams"
+    },
+    {
+      "id": "CLICK_EXPORT",
+      "event_type": "user_action",
+      "description": "User clicks Export CSV",
+      "triggers": "#export"
+    },
+    {
+      "id": "LR_CHANGE",
+      "event_type": "user_action",
+      "description": "User changes learning rate slider",
+      "triggers": "#lr"
+    },
+    {
+      "id": "ITERS_CHANGE",
+      "event_type": "user_action",
+      "description": "User changes iterations number input",
+      "triggers": "#iters"
+    },
+    {
+      "id": "KEYBOARD_G",
+      "event_type": "user_action",
+      "description": "Keyboard shortcut 'g' triggers Generate",
+      "triggers": "window"
+    },
+    {
+      "id": "KEYBOARD_C",
+      "event_type": "user_action",
+      "description": "Keyboard shortcut 'c' triggers Clear",
+      "triggers": "window"
+    },
+    {
+      "id": "KEYBOARD_SPACE",
+      "event_type": "user_action",
+      "description": "Space toggles GD animate when method is GD",
+      "triggers": "window"
+    },
+    {
+      "id": "GD_ANIMATION_STOP_ON_INTERACTION",
+      "event_type": "user_action",
+      "description": "Any interaction (canvas mousedown, generate, clear) stops GD animation",
+      "triggers": "canvas#plot, #genBtn, #clearBtn"
+    },
+    {
+      "id": "EXPORT_COMPLETE",
+      "event_type": "system_event",
+      "description": "CSV export completed (download initiated)",
+      "triggers": "a[download]"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0_Idle",
+      "to": "S1_AddingPoint",
+      "event": "CANVAS_MOUSE_DOWN",
+      "guard": "clickedEmptySpace",
+      "actions": [
+        "addPointAtCursor(evt)",
+        "setDraggingIndex(points.length - 1)",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:pointsChanged",
+        "dom:pointCountUpdated"
+      ],
+      "timeout": 0,
+      "triggers": "canvas#plot"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_DraggingPoint",
+      "event": "CANVAS_MOUSE_DOWN",
+      "guard": "clickedOnExistingPoint",
+      "actions": [
+        "startDragging(nearest.index)",
+        "canvas.style.cursor = 'grabbing'"
+      ],
+      "expected_observables": [
+        "dom:cursorChanged",
+        "dom:dragIndexSet"
+      ],
+      "timeout": 0,
+      "triggers": "canvas#plot"
+    },
+    {
+      "from": "S2_DraggingPoint",
+      "to": "S2_DraggingPoint",
+      "event": "CANVAS_MOUSE_MOVE",
+      "guard": "draggingIndex !== -1",
+      "actions": [
+        "updatePointPositionFromMouse(evt)",
+        "clampPointToBounds()",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:pointPositionUpdated",
+        "dom:residualsRedrawn"
+      ],
+      "timeout": 0,
+      "triggers": "canvas#plot"
+    },
+    {
+      "from": "S2_DraggingPoint",
+      "to": "S0_Idle",
+      "event": "MOUSE_UP",
+      "guard": "true",
+      "actions": [
+        "endDragging()",
+        "canvas.style.cursor = 'crosshair'",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:dragEnded",
+        "dom:cursorReset"
+      ],
+      "timeout": 0,
+      "triggers": "window"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S3_RemovingPoint",
+      "event": "CANVAS_MOUSE_DOWN",
+      "guard": "evt.shiftKey && nearest.index !== -1 && nearest.dist < 0.08",
+      "actions": [
+        "points.splice(nearest.index, 1)",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:pointsChanged",
+        "dom:pointRemoved"
+      ],
+      "timeout": 0,
+      "triggers": "canvas#plot"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S4_GeneratingDataset",
+      "event": "CLICK_GEN",
+      "guard": "true",
+      "actions": [
+        "seed = Number(seedEl.value) || 1",
+        "generateDataset(Number(nPointsEl.value), patternEl.value, Number(noiseEl.value))",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:pointsReplaced",
+        "dom:pointCountUpdated"
+      ],
+      "timeout": 2000,
+      "triggers": "#genBtn"
+    },
+    {
+      "from": "S4_GeneratingDataset",
+      "to": "S0_Idle",
+      "event": "GENERATION_COMPLETE",
+      "guard": "true",
+      "actions": [
+        "model = fitOLS(points)",
+        "modelGD = {...model}",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:pointsRendered",
+        "dom:statsUpdated"
+      ],
+      "timeout": 0,
+      "triggers": "#genBtn"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S5_ClearingPoints",
+      "event": "CLICK_CLEAR",
+      "guard": "true",
+      "actions": [
+        "points = []",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:pointsCleared",
+        "dom:pointCountUpdated"
+      ],
+      "timeout": 0,
+      "triggers": "#clearBtn"
+    },
+    {
+      "from": "S5_ClearingPoints",
+      "to": "S0_Idle",
+      "event": "CLEAR_COMPLETE",
+      "guard": "true",
+      "actions": [
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:canvasCleared",
+        "dom:statsReset"
+      ],
+      "timeout": 0,
+      "triggers": "#clearBtn"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S6_SelectMethod",
+      "event": "METHOD_TOGGLE",
+      "guard": "true",
+      "actions": [
+        "gdControls.style.display = (getMethod() === 'gd') ? 'block' : 'none'",
+        "methodNameEl.textContent = getMethod().toUpperCase()",
+        "if(getMethod() === 'ols') { model = fitOLS(points); modelGD = {...model}; }",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:gdControlsToggled",
+        "dom:methodNameUpdated"
+      ],
+      "timeout": 0,
+      "triggers": "input[name=\"method\"]"
+    },
+    {
+      "from": "S6_SelectMethod",
+      "to": "S0_Idle",
+      "event": "METHOD_TOGGLE",
+      "guard": "true",
+      "actions": [
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:methodApplied"
+      ],
+      "timeout": 0,
+      "triggers": "input[name=\"method\"]"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S7_RunGDBatch",
+      "event": "CLICK_RUN_GD",
+      "guard": "points.length >= 2 && getMethod() === 'gd'",
+      "actions": [
+        "modelGD = {...model}",
+        "runBatchGD(Number(lrEl.value), Number(itersEl.value))",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:modelGDUpdated",
+        "dom:statsUpdated"
+      ],
+      "timeout": 60000,
+      "triggers": "#runGD"
+    },
+    {
+      "from": "S7_RunGDBatch",
+      "to": "S0_Idle",
+      "event": "GD_RUN_COMPLETE",
+      "guard": "true",
+      "actions": [
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:gdRunFinished",
+        "dom:statsUpdated"
+      ],
+      "timeout": 0,
+      "triggers": "#runGD"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S8_GDAnimating",
+      "event": "CLICK_ANIMATE_GD",
+      "guard": "points.length >= 2 && getMethod() === 'gd' && !gdAnimating",
+      "actions": [
+        "startGDAnimation()",
+        "animateGD.textContent = 'Stop'",
+        "gdAnimating = true"
+      ],
+      "expected_observables": [
+        "dom:gdAnimationStarted",
+        "dom:animateButtonToggled"
+      ],
+      "timeout": 0,
+      "triggers": "#animateGD"
+    },
+    {
+      "from": "S8_GDAnimating",
+      "to": "S0_Idle",
+      "event": "CLICK_ANIMATE_GD",
+      "guard": "gdAnimating",
+      "actions": [
+        "stopGDAnimation()",
+        "animateGD.textContent = 'Animate'",
+        "gdAnimating = false",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:gdAnimationStopped",
+        "dom:animateButtonToggled"
+      ],
+      "timeout": 0,
+      "triggers": "#animateGD"
+    },
+    {
+      "from": "S8_GDAnimating",
+      "to": "S0_Idle",
+      "event": "GD_ANIMATION_STOP_ON_INTERACTION",
+      "guard": "true",
+      "actions": [
+        "stopGDAnimation()",
+        "animateGD.textContent = 'Animate'",
+        "gdAnimating = false"
+      ],
+      "expected_observables": [
+        "dom:gdAnimationStopped",
+        "dom:interactionStoppedAnimation"
+      ],
+      "timeout": 0,
+      "triggers": "canvas#plot, #genBtn, #clearBtn"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S9_ResetGDParams",
+      "event": "CLICK_RESET_PARAMS",
+      "guard": "true",
+      "actions": [
+        "lrEl.value = 0.01",
+        "itersEl.value = 200"
+      ],
+      "expected_observables": [
+        "dom:lrReset",
+        "dom:itersReset"
+      ],
+      "timeout": 0,
+      "triggers": "#resetParams"
+    },
+    {
+      "from": "S9_ResetGDParams",
+      "to": "S0_Idle",
+      "event": "RESET_COMPLETE",
+      "guard": "true",
+      "actions": [
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:paramsReset"
+      ],
+      "timeout": 0,
+      "triggers": "#resetParams"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S10_Exporting",
+      "event": "CLICK_EXPORT",
+      "guard": "true",
+      "actions": [
+        "if(points.length === 0) { alert('No points to export'); } else { exportCSV() }"
+      ],
+      "expected_observables": [
+        "dom:csvDownloadStarted"
+      ],
+      "timeout": 0,
+      "triggers": "#export"
+    },
+    {
+      "from": "S10_Exporting",
+      "to": "S0_Idle",
+      "event": "EXPORT_COMPLETE",
+      "guard": "true",
+      "actions": [
+        "URL.revokeObjectURL(url)",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:csvDownloaded"
+      ],
+      "timeout": 0,
+      "triggers": "a[download]"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S11_UpdatingStats",
+      "event": "NOISE_CHANGE",
+      "guard": "true",
+      "actions": [
+        "noiseVal.textContent = Number(noiseEl.value).toFixed(2)",
+        "updateAndDraw()"
+      ],
+      "expected_observables": [
+        "dom:noiseValUpdated"
+      ],
+      "timeout": 0,
+      "triggers": "#noise"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S4_GeneratingDataset",
+      "event": "KEYBOARD_G",
+      "guard": "true",
+      "actions": [
+        "document.getElementById('genBtn').click()"
+      ],
+      "expected_observables": [
+        "dom:genBtnClicked"
+      ],
+      "timeout": 0,
+      "triggers": "window"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S5_ClearingPoints",
+      "event": "KEYBOARD_C",
+      "guard": "true",
+      "actions": [
+        "document.getElementById('clearBtn').click()"
+      ],
+      "expected_observables": [
+        "dom:clearBtnClicked"
+      ],
+      "timeout": 0,
+      "triggers": "window"
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S8_GDAnimating",
+      "event": "KEYBOARD_SPACE",
+      "guard": "getMethod() === 'gd'",
+      "actions": [
+        "document.getElementById('animateGD').click()"
+      ],
+      "expected_observables": [
+        "dom:animateToggleTriggered"
+      ],
+      "timeout": 0,
+      "triggers": "window"
+    }
+  ],
+  "components": [
+    "canvas#plot",
+    "span#pointCount",
+    "input#nPoints",
+    "select#pattern",
+    "button#genBtn",
+    "button#clearBtn",
+    "input#noise",
+    "span#noiseVal",
+    "input#seed",
+    "input[name=\"method\"]",
+    "div#gdControls",
+    "input#lr",
+    "input#iters",
+    "button#runGD",
+    "button#animateGD",
+    "div#slope",
+    "div#intercept",
+    "div#sse",
+    "div#r2",
+    "div#methodName",
+    "button#resetParams",
+    "button#export",
+    "window"
+  ]
+}

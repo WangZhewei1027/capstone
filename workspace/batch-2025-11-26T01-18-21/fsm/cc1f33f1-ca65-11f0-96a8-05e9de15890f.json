@@ -1,0 +1,697 @@
+{
+  "meta": {
+    "concept": "KMeans",
+    "topic": "K-Means Clustering Interactive Demo",
+    "educational_goal": "Demonstrate K-Means clustering: data generation, centroid initialization, assignment/update steps, continuous run and run-to-convergence, plus interactive point adding and visualization options",
+    "expected_interactions": [
+      "generate",
+      "clear",
+      "initialize_centroids",
+      "step",
+      "run",
+      "stop",
+      "auto_converge",
+      "add_point",
+      "toggle_regions",
+      "change_k",
+      "change_data",
+      "change_init_method",
+      "change_speed"
+    ]
+  },
+  "states": [
+    {
+      "id": "S0_Idle",
+      "label": "idle",
+      "type": "idle",
+      "entry_actions": [
+        "draw()",
+        "updateStats()",
+        "ensureRunningFlagFalse()",
+        "renderLegend()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S1_PointsGenerated",
+      "label": "points_generated",
+      "type": "atomic",
+      "entry_actions": [
+        "generatePoints(n, dataMode.value)",
+        "iteration = 0",
+        "updateStats()",
+        "draw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S2_CentroidsInitialized",
+      "label": "centroids_initialized",
+      "type": "atomic",
+      "entry_actions": [
+        "randomCentroids(k, initMethod.value)",
+        "iteration = 0",
+        "updateStats()",
+        "draw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S3_StepAnimating",
+      "label": "step_animating",
+      "type": "atomic",
+      "entry_actions": [
+        "assignPoints()",
+        "computeNewCentroidPositions()",
+        "animateCentroids(frames from speed.value)",
+        "disableControlsDuringAnimation()"
+      ],
+      "exit_actions": [
+        "finalizeStep(): iteration++, updateStats(), draw()",
+        "enableControls()"
+      ]
+    },
+    {
+      "id": "S4_Running",
+      "label": "running_continuous",
+      "type": "compound",
+      "entry_actions": [
+        "runContinuous(): running=true, runLoop()"
+      ],
+      "exit_actions": [
+        "stopRunning(): running=false, clearTimeout(animateTimer)"
+      ]
+    },
+    {
+      "id": "S5_Stopped",
+      "label": "stopped",
+      "type": "atomic",
+      "entry_actions": [
+        "stopRunning()",
+        "updateStats()",
+        "draw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S6_AutoConverging",
+      "label": "auto_converging",
+      "type": "atomic",
+      "entry_actions": [
+        "runToConvergence(maxIter=800)",
+        "stopRunning() // ensure no concurrent run loop"
+      ],
+      "exit_actions": [
+        "updateStats()",
+        "draw()"
+      ]
+    },
+    {
+      "id": "S7_Cleared",
+      "label": "cleared",
+      "type": "atomic",
+      "entry_actions": [
+        "points = []",
+        "centroids = []",
+        "iteration = 0",
+        "updateStats()",
+        "draw()"
+      ],
+      "exit_actions": []
+    },
+    {
+      "id": "S8_AddPointsEnabled",
+      "label": "add_points_enabled",
+      "type": "modal",
+      "entry_actions": [
+        "addPointsToggle.checked = true",
+        "showAddPointsHint()"
+      ],
+      "exit_actions": [
+        "addPointsToggle.checked = false"
+      ]
+    },
+    {
+      "id": "S9_ShowRegionsOn",
+      "label": "show_regions_on",
+      "type": "atomic",
+      "entry_actions": [
+        "showRegions.checked = true",
+        "draw()"
+      ],
+      "exit_actions": [
+        "showRegions.checked = false",
+        "draw()"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "USER_CLICKS_GENERATE",
+      "event_type": "user_action",
+      "description": "User clicks the Generate Points button",
+      "triggers": "#genBtn"
+    },
+    {
+      "id": "USER_CLICKS_CLEAR",
+      "event_type": "user_action",
+      "description": "User clicks the Clear button",
+      "triggers": "#clearBtn"
+    },
+    {
+      "id": "USER_CLICKS_INIT",
+      "event_type": "user_action",
+      "description": "User clicks Initialize Centroids button",
+      "triggers": "#initBtn"
+    },
+    {
+      "id": "USER_CLICKS_STEP",
+      "event_type": "user_action",
+      "description": "User clicks Step button (single iteration)",
+      "triggers": "#stepBtn"
+    },
+    {
+      "id": "USER_CLICKS_RUN",
+      "event_type": "user_action",
+      "description": "User clicks Run button (continuous run)",
+      "triggers": "#runBtn"
+    },
+    {
+      "id": "USER_CLICKS_STOP",
+      "event_type": "user_action",
+      "description": "User clicks Stop button (stop run loop)",
+      "triggers": "#stopBtn"
+    },
+    {
+      "id": "USER_CLICKS_AUTOCONVERGE",
+      "event_type": "user_action",
+      "description": "User clicks Run to Convergence",
+      "triggers": "#autoConvergeBtn"
+    },
+    {
+      "id": "CANVAS_CLICK",
+      "event_type": "user_action",
+      "description": "User clicks the canvas (add point when enabled or show info)",
+      "triggers": "#mainCanvas"
+    },
+    {
+      "id": "CANVAS_MOUSEMOVE",
+      "event_type": "user_action",
+      "description": "Mousemove over canvas updates info box",
+      "triggers": "#mainCanvas"
+    },
+    {
+      "id": "TOGGLE_ADD_POINTS",
+      "event_type": "user_action",
+      "description": "User toggles Add Points checkbox",
+      "triggers": "#addPointsToggle"
+    },
+    {
+      "id": "TOGGLE_SHOW_REGIONS",
+      "event_type": "user_action",
+      "description": "User toggles Show Regions checkbox",
+      "triggers": "#showRegions"
+    },
+    {
+      "id": "CHANGE_K",
+      "event_type": "user_action",
+      "description": "User changes K (cluster count) input",
+      "triggers": "#kInput"
+    },
+    {
+      "id": "POINTS_SLIDER_INPUT",
+      "event_type": "user_action",
+      "description": "User drags points slider (syncs #pointsCount)",
+      "triggers": "#pointsSlider"
+    },
+    {
+      "id": "POINTS_COUNT_CHANGE",
+      "event_type": "user_action",
+      "description": "User edits numeric points count",
+      "triggers": "#pointsCount"
+    },
+    {
+      "id": "INIT_METHOD_CHANGE",
+      "event_type": "user_action",
+      "description": "User changes initialization method dropdown",
+      "triggers": "#initMethod"
+    },
+    {
+      "id": "DATA_MODE_CHANGE",
+      "event_type": "user_action",
+      "description": "User changes data mode dropdown (blobs/uniform/circle)",
+      "triggers": "#dataMode"
+    },
+    {
+      "id": "SPEED_CHANGE",
+      "event_type": "user_action",
+      "description": "User changes animation/run speed",
+      "triggers": "#speed"
+    },
+    {
+      "id": "ANIMATION_STEP_COMPLETE",
+      "event_type": "system_event",
+      "description": "Centroid animation for a single step completes",
+      "triggers": "#mainCanvas"
+    },
+    {
+      "id": "RUN_LOOP_TICK",
+      "event_type": "system_event",
+      "description": "One iteration completed during continuous run",
+      "triggers": "#runBtn,#speed"
+    },
+    {
+      "id": "CONVERGENCE_REACHED",
+      "event_type": "system_event",
+      "description": "Run-to-convergence loop reports no change (converged) or reached max iterations",
+      "triggers": "#autoConvergeBtn"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0_Idle",
+      "to": "S1_PointsGenerated",
+      "event": "USER_CLICKS_GENERATE",
+      "guard": "true",
+      "actions": [
+        "k = clamp(parseInt(#kInput.value,10),1,12)",
+        "generatePoints(parseInt(#pointsCount.value,10) || 100, document.getElementById('dataMode').value)",
+        "randomCentroids(k, document.getElementById('initMethod').value)",
+        "updateStats()",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#genBtn",
+        "dom:#pointsCount",
+        "dom:#dataMode"
+      ],
+      "triggers": "#genBtn",
+      "timeout": 2000
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S7_Cleared",
+      "event": "USER_CLICKS_CLEAR",
+      "guard": "true",
+      "actions": [
+        "points = []",
+        "centroids = []",
+        "iteration = 0",
+        "updateStats()",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#clearBtn"
+      ],
+      "triggers": "#clearBtn",
+      "timeout": 500
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_CentroidsInitialized",
+      "event": "USER_CLICKS_INIT",
+      "guard": "true",
+      "actions": [
+        "k = clamp(parseInt(#kInput.value,10),1,12)",
+        "randomCentroids(k, document.getElementById('initMethod').value)",
+        "updateStats()",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#initBtn",
+        "dom:#kInput"
+      ],
+      "triggers": "#initBtn",
+      "timeout": 1000
+    },
+    {
+      "from": "S1_PointsGenerated",
+      "to": "S2_CentroidsInitialized",
+      "event": "USER_CLICKS_INIT",
+      "guard": "true",
+      "actions": [
+        "k = clamp(parseInt(#kInput.value,10),1,12)",
+        "randomCentroids(k, document.getElementById('initMethod').value)",
+        "updateStats()",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#initBtn"
+      ],
+      "triggers": "#initBtn",
+      "timeout": 1000
+    },
+    {
+      "from": "S2_CentroidsInitialized",
+      "to": "S3_StepAnimating",
+      "event": "USER_CLICKS_STEP",
+      "guard": "centroids.length === k",
+      "actions": [
+        "k = clamp(parseInt(#kInput.value,10),1,12)",
+        "if (centroids.length !== k) randomCentroids(k, document.getElementById('initMethod').value)",
+        "assignPoints()",
+        "computeNewCentroidPositions()",
+        "start centroid animation using speed (#speed.value)"
+      ],
+      "expected_observables": [
+        "dom:#stepBtn",
+        "dom:#speed"
+      ],
+      "triggers": "#stepBtn",
+      "timeout": 3000
+    },
+    {
+      "from": "S3_StepAnimating",
+      "to": "S2_CentroidsInitialized",
+      "event": "ANIMATION_STEP_COMPLETE",
+      "guard": "true",
+      "actions": [
+        "finalizeStep(): iteration++, updateStats(), draw()"
+      ],
+      "expected_observables": [
+        "dom:#mainCanvas"
+      ],
+      "triggers": "#mainCanvas",
+      "timeout": 2000
+    },
+    {
+      "from": "S2_CentroidsInitialized",
+      "to": "S4_Running",
+      "event": "USER_CLICKS_RUN",
+      "guard": "centroids.length === k",
+      "actions": [
+        "k = clamp(parseInt(#kInput.value,10),1,12)",
+        "if (centroids.length !== k) randomCentroids(k, document.getElementById('initMethod').value)",
+        "runContinuous()"
+      ],
+      "expected_observables": [
+        "dom:#runBtn",
+        "dom:#speed"
+      ],
+      "triggers": "#runBtn",
+      "timeout": 500
+    },
+    {
+      "from": "S4_Running",
+      "to": "S4_Running",
+      "event": "RUN_LOOP_TICK",
+      "guard": "running === true",
+      "actions": [
+        "stepOnce(true)",
+        "schedule next tick using #speed.value"
+      ],
+      "expected_observables": [
+        "dom:#runBtn",
+        "dom:#speed"
+      ],
+      "triggers": "#runBtn,#speed",
+      "timeout": 0
+    },
+    {
+      "from": "S4_Running",
+      "to": "S5_Stopped",
+      "event": "USER_CLICKS_STOP",
+      "guard": "running === true",
+      "actions": [
+        "stopRunning()",
+        "updateStats()",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#stopBtn"
+      ],
+      "triggers": "#stopBtn",
+      "timeout": 500
+    },
+    {
+      "from": "S5_Stopped",
+      "to": "S0_Idle",
+      "event": "USER_CLICKS_RUN",
+      "guard": "true",
+      "actions": [
+        "runContinuous()"
+      ],
+      "expected_observables": [
+        "dom:#runBtn"
+      ],
+      "triggers": "#runBtn",
+      "timeout": 500
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S6_AutoConverging",
+      "event": "USER_CLICKS_AUTOCONVERGE",
+      "guard": "centroids.length === k || points.length > 0",
+      "actions": [
+        "k = clamp(parseInt(#kInput.value,10),1,12)",
+        "if (centroids.length !== k) randomCentroids(k, document.getElementById('initMethod').value)",
+        "runToConvergence(800)"
+      ],
+      "expected_observables": [
+        "dom:#autoConvergeBtn",
+        "dom:#kInput"
+      ],
+      "triggers": "#autoConvergeBtn",
+      "timeout": 60000
+    },
+    {
+      "from": "S6_AutoConverging",
+      "to": "S2_CentroidsInitialized",
+      "event": "CONVERGENCE_REACHED",
+      "guard": "true",
+      "actions": [
+        "updateStats()",
+        "draw()",
+        "stopRunning()"
+      ],
+      "expected_observables": [
+        "dom:#autoConvergeBtn"
+      ],
+      "triggers": "#autoConvergeBtn",
+      "timeout": 120000
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S8_AddPointsEnabled",
+      "event": "TOGGLE_ADD_POINTS",
+      "guard": "document.getElementById('addPointsToggle').checked === true",
+      "actions": [
+        "enable add-points mode (UI checkbox already checked)",
+        "show hint 'Click on canvas to add points'"
+      ],
+      "expected_observables": [
+        "dom:#addPointsToggle"
+      ],
+      "triggers": "#addPointsToggle",
+      "timeout": 100
+    },
+    {
+      "from": "S8_AddPointsEnabled",
+      "to": "S0_Idle",
+      "event": "TOGGLE_ADD_POINTS",
+      "guard": "document.getElementById('addPointsToggle').checked === false",
+      "actions": [
+        "disable add-points mode"
+      ],
+      "expected_observables": [
+        "dom:#addPointsToggle"
+      ],
+      "triggers": "#addPointsToggle",
+      "timeout": 100
+    },
+    {
+      "from": "S8_AddPointsEnabled",
+      "to": "S1_PointsGenerated",
+      "event": "CANVAS_CLICK",
+      "guard": "document.getElementById('addPointsToggle').checked === true",
+      "actions": [
+        "append point to points at clicked coords",
+        "points.push({x:x,y:y,cluster:-1})",
+        "iteration = 0",
+        "updateStats()",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#mainCanvas",
+        "dom:#addPointsToggle"
+      ],
+      "triggers": "#mainCanvas,#addPointsToggle",
+      "timeout": 200
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S9_ShowRegionsOn",
+      "event": "TOGGLE_SHOW_REGIONS",
+      "guard": "document.getElementById('showRegions').checked === true",
+      "actions": [
+        "showRegions.checked = true",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#showRegions"
+      ],
+      "triggers": "#showRegions",
+      "timeout": 100
+    },
+    {
+      "from": "S9_ShowRegionsOn",
+      "to": "S0_Idle",
+      "event": "TOGGLE_SHOW_REGIONS",
+      "guard": "document.getElementById('showRegions').checked === false",
+      "actions": [
+        "showRegions.checked = false",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#showRegions"
+      ],
+      "triggers": "#showRegions",
+      "timeout": 100
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_CentroidsInitialized",
+      "event": "CHANGE_K",
+      "guard": "true",
+      "actions": [
+        "k = clamp(parseInt(#kInput.value,10),1,12)",
+        "centroids = []",
+        "randomCentroids(k, document.getElementById('initMethod').value)",
+        "updateStats()",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#kInput"
+      ],
+      "triggers": "#kInput",
+      "timeout": 1000
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S1_PointsGenerated",
+      "event": "POINTS_SLIDER_INPUT",
+      "guard": "true",
+      "actions": [
+        "synchronize #pointsCount with #pointsSlider",
+        "pointsCount.value = pointsSlider.value"
+      ],
+      "expected_observables": [
+        "dom:#pointsSlider"
+      ],
+      "triggers": "#pointsSlider",
+      "timeout": 100
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S1_PointsGenerated",
+      "event": "POINTS_COUNT_CHANGE",
+      "guard": "true",
+      "actions": [
+        "synchronize #pointsSlider with #pointsCount",
+        "pointsSlider.value = pointsCount.value"
+      ],
+      "expected_observables": [
+        "dom:#pointsCount"
+      ],
+      "triggers": "#pointsCount",
+      "timeout": 100
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S2_CentroidsInitialized",
+      "event": "INIT_METHOD_CHANGE",
+      "guard": "true",
+      "actions": [
+        "no-op for initMethod change (UI only), future randomCentroids will use new value"
+      ],
+      "expected_observables": [
+        "dom:#initMethod"
+      ],
+      "triggers": "#initMethod",
+      "timeout": 100
+    },
+    {
+      "from": "S0_Idle",
+      "to": "S1_PointsGenerated",
+      "event": "DATA_MODE_CHANGE",
+      "guard": "true",
+      "actions": [
+        "dataMode changed; subsequent 'Generate Points' uses new mode"
+      ],
+      "expected_observables": [
+        "dom:#dataMode"
+      ],
+      "triggers": "#dataMode",
+      "timeout": 100
+    },
+    {
+      "from": "S4_Running",
+      "to": "S7_Cleared",
+      "event": "USER_CLICKS_CLEAR",
+      "guard": "true",
+      "actions": [
+        "stopRunning()",
+        "points = []",
+        "centroids = []",
+        "iteration = 0",
+        "updateStats()",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#clearBtn"
+      ],
+      "triggers": "#clearBtn",
+      "timeout": 500
+    },
+    {
+      "from": "S2_CentroidsInitialized",
+      "to": "S7_Cleared",
+      "event": "USER_CLICKS_CLEAR",
+      "guard": "true",
+      "actions": [
+        "points = []",
+        "centroids = []",
+        "iteration = 0",
+        "updateStats()",
+        "draw()"
+      ],
+      "expected_observables": [
+        "dom:#clearBtn"
+      ],
+      "triggers": "#clearBtn",
+      "timeout": 500
+    }
+  ],
+  "components": [
+    "#genBtn",
+    "#clearBtn",
+    "#initBtn",
+    "#stepBtn",
+    "#runBtn",
+    "#stopBtn",
+    "#autoConvergeBtn",
+    "#kInput",
+    "#pointsSlider",
+    "#pointsCount",
+    "#initMethod",
+    "#dataMode",
+    "#speed",
+    "#addPointsToggle",
+    "#showRegions",
+    "#mainCanvas",
+    "#iter",
+    "#inertia",
+    "#totalPoints",
+    "#legend",
+    "#infoBox",
+    ".primary",
+    ".btn-ghost",
+    ".toolbar",
+    ".controls",
+    ".panel",
+    ".control-block",
+    ".row",
+    ".canvas-wrap",
+    ".legend .item"
+  ]
+}

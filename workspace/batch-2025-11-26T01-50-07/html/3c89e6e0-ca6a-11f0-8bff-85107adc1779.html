@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kruskal's Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  h1 {
+    text-align: center;
+    margin: 1rem 0 0.2rem 0;
+  }
+  #container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #graph-container {
+    flex: 2;
+    position: relative;
+    background: #f0f0f0;
+    margin: 1rem;
+    border-radius: 8px;
+  }
+  canvas {
+    width: 100%; height: 100%;
+    display: block;
+  }
+  #controls {
+    flex: 1;
+    margin: 1rem 1rem 1rem 0;
+    padding: 1rem;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 0 10px #ccc;
+    overflow-y: auto;
+  }
+  button {
+    padding: 0.6rem 1rem;
+    margin: 0.2rem 0.5rem 1rem 0;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  #edges-list {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 0.5rem;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    background: #fafafa;
+  }
+  pre {
+    background: #222;
+    color: #0f0;
+    padding: 0.5rem;
+    border-radius: 5px;
+    height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+  .highlight {
+    background-color: #d1ffd1;
+  }
+</style>
+</head>
+<body>
+<h1>Kruskal's Algorithm Visualization</h1>
+<div id="container">
+  <div id="graph-container">
+    <canvas id="graph" width="700" height="500"></canvas>
+  </div>
+  <div id="controls">
+    <h2>Graph & Steps</h2>
+    <div>
+      <label for="edgesInput">Enter edges (one per line):</label><br>
+      <small>Format: <code>node1,node2,weight</code> with nodes as letters/numbers</small><br>
+      <textarea id="edgesInput" rows="8" style="width: 100%; font-family: monospace;">A,B,4
+A,H,8
+B,H,11
+B,C,8
+H,I,7
+H,G,1
+I,C,2
+I,G,6
+G,F,2
+C,F,4
+C,D,7
+D,F,14
+D,E,9
+F,E,10</textarea>
+    </div>
+    <div style="margin-top:0.8rem;">
+      <button id="btnReset">Load Graph</button>
+      <button id="btnStep" disabled>Next Step</button>
+      <button id="btnAuto" disabled>Auto Run</button>
+      <button id="btnPause" disabled>Pause</button>
+    </div>
+    <h3>Edges sorted by weight:</h3>
+    <div id="edges-list"></div>
+    <h3>Algorithm Log:</h3>
+    <pre id="log"></pre>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('graph');
+  const ctx = canvas.getContext('2d');
+  const edgesInput = document.getElementById('edgesInput');
+  const edgesListDiv = document.getElementById('edges-list');
+  const logPre = document.getElementById('log');
+  const btnReset = document.getElementById('btnReset');
+  const btnStep = document.getElementById('btnStep');
+  const btnAuto = document.getElementById('btnAuto');
+  const btnPause = document.getElementById('btnPause');
+
+  // Settings for drawing
+  const nodeRadius = 20;
+  const colors = {
+    nodeFill: '#3388ff',
+    nodeText: '#fff',
+    edgeDefault: '#999',
+    edgeSelected: '#f55',
+    edgeMST: '#28a745',
+    text: '#333',
+    edgeRejected: '#bbb',
+  };
+
+  // Graph data structures
+  class DisjointSet {
+    constructor() {
+      this.parent = new Map();
+      this.rank = new Map();
+    }
+    makeSet(x) {
+      this.parent.set(x, x);
+      this.rank.set(x, 0);
+    }
+    find(x) {
+      if (this.parent.get(x) !== x) {
+        this.parent.set(x, this.find(this.parent.get(x)));
+      }
+      return this.parent.get(x);
+    }
+    union(x, y) {
+      const rootX = this.find(x);
+      const rootY = this.find(y);
+      if (rootX === rootY) return false;
+      const rankX = this.rank.get(rootX);
+      const rankY = this.rank.get(rootY);
+      if (rankX < rankY) {
+        this.parent.set(rootX, rootY);
+      } else if (rankX > rankY) {
+        this.parent.set(rootY, rootX);
+      } else {
+        this.parent.set(rootY, rootX);
+        this.rank.set(rootX, rankX + 1);
+      }
+      return true;
+    }
+  }
+
+  // For positioning nodes automatically in a circle
+  function positionNodes(nodes, width, height, margin = 80) {
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const r = Math.min(width, height) / 2 - margin;
+    const angleStep = (2 * Math.PI) / nodes.length;
+    const positions = new Map();
+
+    nodes.forEach((node, i) => {
+      const angle = i * angleStep - Math.PI / 2;
+      const x = centerX + r * Math.cos(angle);
+      const y = centerY + r * Math.sin(angle);
+      positions.set(node, { x, y });
+    });
+    return positions;
+  }
+
+  // Parse edge input text into array of edges
+  // Each edge: { u: string, v: string, w: number }
+  function parseEdges(input) {
+    const edges = [];
+    const lines = input.trim().split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const parts = line.split(',');
+      if (parts.length !== 3) {
+        throw new Error(`Invalid edge format at line ${i+1}`);
+      }
+      const u = parts[0].trim();
+      const v = parts[1].trim();
+      const w = +parts[2];
+      if (!u || !v || isNaN(w)) {
+        throw new Error(`Invalid edge data at line ${i+1}`);
+      }
+      edges.push({ u, v, w });
+    }
+    return edges;
+  }
+
+  // Draw functions
+
+  function drawGraph(nodes, positions, edges, mstEdges, currentEdgeIndex, disjointSet) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw edges
+    edges.forEach((edge, i) => {
+      const posU = positions.get(edge.u);
+      const posV = positions.get(edge.v);
+      const inMST = mstEdges.has(i);
+      let color = colors.edgeDefault;
+
+      if (i === currentEdgeIndex) {
+        // Highlight current edge differently depending on whether included or rejected
+        if (inMST) {
+          color = colors.edgeMST;
+        } else {
+          color = colors.edgeSelected;
+        }
+      } else if (inMST) {
+        color = colors.edgeMST;
+      } else if (currentEdgeIndex > i) {
+        color = colors.edgeRejected;
+      }
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = (i === currentEdgeIndex) ? 4 : 2;
+      ctx.beginPath();
+      ctx.moveTo(posU.x, posU.y);
+      ctx.lineTo(posV.x, posV.y);
+      ctx.stroke();
+
+      // Draw weight halfway on edge
+      const midX = (posU.x + posV.x) / 2;
+      const midY = (posU.y + posV.y) / 2;
+      ctx.fillStyle = colors.text;
+      ctx.font = '14px Arial';
+      ctx.fillText(edge.w, midX + 5, midY - 5);
+    });
+
+    // Draw nodes
+    nodes.forEach(node => {
+      const pos = positions.get(node);
+      ctx.beginPath();
+      ctx.fillStyle = colors.nodeFill;
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 2;
+      ctx.arc(pos.x, pos.y, nodeRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = colors.nodeText;
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node, pos.x, pos.y);
+    });
+  }
+
+  // Display edges sorted by weight with highlight
+  function displayEdgesList(edges, currentEdgeIndex, mstEdges) {
+    edgesListDiv.innerHTML = '';
+    edges.forEach((edge, i) => {
+      const div = document.createElement('div');
+      div.textContent = `${edge.u} - ${edge.v} : ${edge.w}`;
+      if (i === currentEdgeIndex) {
+        div.classList.add('highlight');
+      } else if (mstEdges.has(i)) {
+        div.style.color = 'green';
+        div.style.fontWeight = 'bold';
+      } else if (i < currentEdgeIndex) {
+        div.style.color = 'gray';
+      }
+      edgesListDiv.appendChild(div);
+    });
+  }
+
+  // Algorithm state
+  let nodes = [];
+  let edges = [];
+  let positions = new Map();
+
+  let sortedEdges = [];
+  let mstEdges = new Set();
+  let djs;
+
+  let currentIndex = -1;
+  let running = false;
+  let autoInterval = null;
+
+  function log(msg) {
+    logPre.textContent += msg + "\n";
+    logPre.scrollTop = logPre.scrollHeight;
+  }
+
+  function resetLog() {
+    logPre.textContent = '';
+  }
+
+  // Initialize everything on load or reset
+  function initializeGraph() {
+    try {
+      edges = parseEdges(edgesInput.value);
+    } catch (e) {
+      alert("Error parsing edges: " + e.message);
+      return false;
+    }
+    // Collect unique nodes
+    const uniqueNodesSet = new Set();
+    edges.forEach(e => {
+      uniqueNodesSet.add(e.u);
+      uniqueNodesSet.add(e.v);
+    });
+    nodes = Array.from(uniqueNodesSet).sort();
+
+    positions = positionNodes(nodes, canvas.width, canvas.height);
+
+    // Sort edges by weight ascending
+    sortedEdges = edges.slice().sort((a, b) => a.w - b.w);
+
+    mstEdges.clear();
+
+    djs = new DisjointSet();
+    nodes.forEach(n => djs.makeSet(n));
+
+    currentIndex = -1;
+    resetLog();
+    log("Graph loaded.");
+    btnStep.disabled = false;
+    btnAuto.disabled = false;
+    btnPause.disabled = true;
+    running = false;
+    if (autoInterval) {
+      clearInterval(autoInterval);
+      autoInterval = null;
+    }
+
+    displayEdgesList(sortedEdges, currentIndex, mstEdges);
+    drawGraph(nodes, positions, sortedEdges, mstEdges, currentIndex, djs);
+    return true;
+  }
+
+  // Perform one step of Kruskal's Algorithm
+  // Returns true if able to step, false if finished
+  function stepKruskal() {
+    currentIndex++;
+    if (currentIndex >= sortedEdges.length) {
+      log("Algorithm completed: Minimum Spanning Tree constructed.");
+      btnStep.disabled = true;
+      btnAuto.disabled = true;
+      btnPause.disabled = true;
+      running = false;
+      if (autoInterval) {
+        clearInterval(autoInterval);
+        autoInterval = null;
+      }
+      return false;
+    }
+
+    const edge = sortedEdges[currentIndex];
+    const u = edge.u;
+    const v = edge.v;
+
+    const rootU = djs.find(u);
+    const rootV = djs.find(v);
+
+    displayEdgesList(sortedEdges, currentIndex, mstEdges);
+
+    if (rootU !== rootV) {
+      djs.union(u, v);
+      mstEdges.add(currentIndex);
+      log(`Step ${currentIndex + 1}: Edge (${u} - ${v}, weight: ${edge.w}) included in MST.`);
+    } else {
+      log(`Step ${currentIndex + 1}: Edge (${u} - ${v}, weight: ${edge.w}) creates a cycle and is skipped.`);
+    }
+
+    drawGraph(nodes, positions, sortedEdges, mstEdges, currentIndex, djs);
+
+    // Check if MST complete (if MST contains nodes-1 edges)
+    if (mstEdges.size === nodes.length - 1) {
+      log("Minimum Spanning Tree completed early.");
+      btnStep.disabled = true;
+      btnAuto.disabled = true;
+      btnPause.disabled = true;
+      running = false;
+      if (autoInterval) {
+        clearInterval(autoInterval);
+        autoInterval = null;
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  // Auto run the algorithm step by step every interval ms
+  function autoRun() {
+    if (running) return;
+    running = true;
+    btnStep.disabled = true;
+    btnAuto.disabled = true;
+    btnPause.disabled = false;
+
+    autoInterval = setInterval(() => {
+      const cont = stepKruskal();
+      if (!cont) {
+        clearInterval(autoInterval);
+        autoInterval = null;
+        running = false;
+        btnPause.disabled = true;
+      }
+    }, 1200);
+  }
+
+  // Pause the auto run
+  function pauseRun() {
+    if (autoInterval) {
+      clearInterval(autoInterval);
+      autoInterval = null;
+    }
+    running = false;
+    btnStep.disabled = false;
+    btnAuto.disabled = false;
+    btnPause.disabled = true;
+  }
+
+  // Event listeners
+  btnReset.addEventListener('click', () => {
+    if(initializeGraph()){
+      log("Press 'Next Step' to start the algorithm or 'Auto Run' to run automatically.");
+    }
+  });
+
+  btnStep.addEventListener('click', () => {
+    if (!running) {
+      const cont = stepKruskal();
+      if (!cont) {
+        btnStep.disabled = true;
+        btnAuto.disabled = true;
+        btnPause.disabled = true;
+      }
+    }
+  });
+
+  btnAuto.addEventListener('click', () => {
+    autoRun();
+  });
+
+  btnPause.addEventListener('click', () => {
+    pauseRun();
+  });
+
+  // Initialize on page load
+  window.onload = () => {
+    if (initializeGraph()) {
+      log("Press 'Next Step' to start the algorithm or 'Auto Run' to run automatically.");
+    }
+  };
+})();
+</script>
+</body>
+</html>

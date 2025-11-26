@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Floyd-Warshall Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f4f7f8;
+    color: #333;
+  }
+  h1 {
+    text-align: center;
+    color: #2c3e50;
+  }
+  #inputArea {
+    max-width: 600px;
+    margin: 0 auto 20px auto;
+    background: #fff;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px #ccc;
+  }
+  label {
+    font-weight: bold;
+  }
+  textarea {
+    width: 100%;
+    height: 120px;
+    font-family: monospace;
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #aaa;
+    resize: vertical;
+  }
+  button {
+    background-color: #3498db;
+    border: none;
+    color: white;
+    padding: 10px 18px;
+    font-size: 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-top: 5px;
+  }
+  button:hover {
+    background-color: #2980b9;
+  }
+  #output {
+    max-width: 600px;
+    margin: 20px auto 40px auto;
+    background: #fff;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px #ccc;
+    overflow-x: auto;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    max-width: 600px;
+  }
+  th, td {
+    border: 1px solid #bbb;
+    padding: 6px 10px;
+    text-align: center;
+  }
+  th {
+    background-color: #2980b9;
+    color: white;
+  }
+  td.infinity {
+    color: #d35400;
+    font-style: italic;
+  }
+  #stepInfo {
+    max-width: 600px;
+    margin: 0 auto 20px auto;
+    font-size: 16px;
+    color: #2c3e50;
+    font-weight: bold;
+    text-align: center;
+  }
+  #controls {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+  #graphInputHint {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+<h1>Floyd-Warshall Algorithm Visualization</h1>
+
+<div id="inputArea">
+  <label for="matrixInput">Input adjacency matrix (use "INF" or "∞" for infinity):</label>
+  <div id="graphInputHint">
+    Enter a square matrix of weights separated by spaces or commas, with rows separated by newlines.<br />
+    Example (4 vertices):
+    <pre>0 3 INF 7
+8 0 2 INF
+5 INF 0 1
+2 INF INF 0</pre>
+  </div>
+  <textarea id="matrixInput">0 3 INF 7
+8 0 2 INF
+5 INF 0 1
+2 INF INF 0</textarea>
+  <button id="startButton">Start Floyd-Warshall</button>
+</div>
+
+<div id="stepInfo"></div>
+<div id="output"></div>
+<div id="controls" style="display:none;">
+  <button id="prevStep" title="Previous Step">← Previous</button>
+  <button id="nextStep" title="Next Step">Next →</button>
+</div>
+
+<script>
+(() => {
+  const INF_DISPLAY = "∞";
+  const INF = Number.POSITIVE_INFINITY;
+
+  // Parse input matrix string into 2D array
+  function parseMatrix(input) {
+    const rows = input.trim().split(/\n+/);
+    let matrix = rows.map(row => 
+      row.trim()
+        .split(/[\s,]+/)
+        .map(val => {
+          val = val.toLowerCase();
+          if (val === 'inf' || val === '∞' || val === 'infinity') return INF;
+          let num = Number(val);
+          return isNaN(num) ? INF : num;
+        })
+    );
+    // Validate square matrix
+    const n = matrix.length;
+    for(let i=0; i<n; i++) {
+      if(matrix[i].length !== n) {
+        throw new Error('Matrix is not square. Row ' + (i+1) + ' length mismatch.');
+      }
+    }
+    return matrix;
+  }
+
+  // Display matrix as HTML table
+  function matrixToHTML(matrix, highlight = null) {
+    // highlight is an object {k, i, j} to highlight updated cell in step k
+    const n = matrix.length;
+    let html = '<table><thead><tr><th></th>';
+    for(let c=0; c<n; c++) {
+      html += '<th>v' + c + '</th>';
+    }
+    html += '</tr></thead><tbody>';
+    for(let i=0; i<n; i++) {
+      html += '<tr><th>v' + i + '</th>';
+      for(let j=0; j<n; j++) {
+        let val = matrix[i][j];
+        let cellClass = '';
+        if(val === INF) {
+          val = INF_DISPLAY;
+          cellClass = 'infinity';
+        } else {
+          val = val.toString();
+        }
+        // Highlight updated cell if any
+        if(highlight && highlight.i === i && highlight.j === j) {
+          cellClass += ' updated';
+          html += `<td class="${cellClass}" style="background-color:#f39c12; font-weight:bold;">${val}</td>`;
+        } else {
+          html += `<td class="${cellClass}">${val}</td>`;
+        }
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return html;
+  }
+
+  // Floyd-Warshall algorithm with steps recording
+  // Returns array of steps: each step contains the matrix and info which cell updated
+  function floydWarshallSteps(graph) {
+    const n = graph.length;
+    // Deep copy matrix
+    let dist = graph.map(row => row.slice());
+    const steps = [];
+
+    // Initial step (k = -1)
+    steps.push({
+      k: -1,
+      matrix: dist.map(row => row.slice()),
+      updated: null,
+      info: 'Initial matrix (before any iteration)'
+    });
+
+    for(let k = 0; k < n; k++) {
+      for(let i = 0; i < n; i++) {
+        for(let j = 0; j < n; j++) {
+          let oldDist = dist[i][j];
+          let throughK = dist[i][k] + dist[k][j];
+          if(throughK < dist[i][j]) {
+            dist[i][j] = throughK;
+            steps.push({
+              k,
+              matrix: dist.map(row => row.slice()),
+              updated: {i, j},
+              info: `Updated dist[${i}][${j}] via vertex v${k} (dist[${i}][${k}] + dist[${k}][${j}] = ${dist[i][k]} + ${dist[k][j]} = ${throughK})`
+            });
+          }
+        }
+      }
+      // Also capture an "end of iteration k" snapshot if no updates happened inside k
+      if(!steps.some(s => s.k === k && s !== steps[steps.length-1])) {
+        steps.push({
+          k,
+          matrix: dist.map(row => row.slice()),
+          updated: null,
+          info: `End of iteration k=${k}`
+        });
+      }
+    }
+
+    // Final step
+    steps.push({
+      k: n,
+      matrix: dist.map(row => row.slice()),
+      updated: null,
+      info: 'Completed Floyd-Warshall algorithm. Final shortest paths matrix.'
+    });
+
+    return steps;
+  }
+
+  // UI Elements
+  const matrixInput = document.getElementById('matrixInput');
+  const startButton = document.getElementById('startButton');
+  const outputDiv = document.getElementById('output');
+  const stepInfoDiv = document.getElementById('stepInfo');
+  const controlsDiv = document.getElementById('controls');
+  const prevStepBtn = document.getElementById('prevStep');
+  const nextStepBtn = document.getElementById('nextStep');
+
+  let steps = [];
+  let currentStepIndex = 0;
+
+  function renderStep(index) {
+    if(index < 0) index = 0;
+    if(index >= steps.length) index = steps.length - 1;
+    currentStepIndex = index;
+    const step = steps[index];
+    outputDiv.innerHTML = matrixToHTML(step.matrix, step.updated);
+    stepInfoDiv.textContent = `[Step ${index + 1} of ${steps.length}] ${step.info}`;
+    prevStepBtn.disabled = index === 0;
+    nextStepBtn.disabled = index === steps.length -1;
+  }
+
+  startButton.addEventListener('click', () => {
+    try {
+      const graph = parseMatrix(matrixInput.value);
+      steps = floydWarshallSteps(graph);
+      renderStep(0);
+      controlsDiv.style.display = 'flex';
+    } catch (err) {
+      alert('Error: ' + err.message);
+      outputDiv.innerHTML = '';
+      stepInfoDiv.textContent = '';
+      controlsDiv.style.display = 'none';
+    }
+  });
+
+  prevStepBtn.addEventListener('click', () => {
+    if(currentStepIndex > 0) {
+      renderStep(currentStepIndex - 1);
+    }
+  });
+
+  nextStepBtn.addEventListener('click', () => {
+    if(currentStepIndex < steps.length -1) {
+      renderStep(currentStepIndex + 1);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

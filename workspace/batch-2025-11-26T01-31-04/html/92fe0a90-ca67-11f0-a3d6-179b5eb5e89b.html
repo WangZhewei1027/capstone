@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Priority Queue Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 2em;
+    background: #f4f6f8;
+  }
+  h1 {
+    text-align: center;
+    color: #333;
+  }
+  #container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 8px;
+    padding: 1.5em;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  }
+  label {
+    display: block;
+    margin-bottom: 0.25em;
+    font-weight: 600;
+  }
+  input[type=text], input[type=number] {
+    width: 100%;
+    padding: 0.5em 0.75em;
+    font-size: 1em;
+    margin-bottom: 1em;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  button {
+    background-color: #3066be;
+    border: none;
+    color: white;
+    padding: 0.6em 1.2em;
+    font-size: 1em;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-right: 0.5em;
+    transition: background-color 0.3s ease;
+  }
+  button:hover:not(:disabled) {
+    background-color: #204a86;
+  }
+  button:disabled {
+    background-color: #bbb;
+    cursor: not-allowed;
+  }
+  #output {
+    margin-top: 1em;
+    background: #eef2fb;
+    border: 1px solid #c3cde6;
+    border-radius: 6px;
+    padding: 1em;
+    min-height: 80px;
+    white-space: pre-wrap;
+    font-family: monospace;
+  }
+  #queueDisplay {
+    margin-top: 1em;
+    padding: 1em;
+    background: #fafafa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  .item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.3em 0.5em;
+    border-bottom: 1px solid #ddd;
+  }
+  .item:last-child {
+    border-bottom: none;
+  }
+  .priority {
+    font-weight: 700;
+    color: #3066be;
+  }
+</style>
+</head>
+<body>
+<div id="container">
+  <h1>Priority Queue Demo</h1>
+
+  <label for="itemInput">New Item:</label>
+  <input type="text" id="itemInput" placeholder="Enter item content" />
+
+  <label for="priorityInput">Priority (number, higher = higher priority):</label>
+  <input type="number" id="priorityInput" placeholder="e.g. 5" />
+
+  <button id="enqueueBtn">Enqueue</button>
+  <button id="dequeueBtn" disabled>Dequeue</button>
+  <button id="peekBtn" disabled>Peek</button>
+  <button id="clearBtn" disabled>Clear Queue</button>
+
+  <div id="output" aria-live="polite"></div>
+
+  <h2>Current Queue State (front to back)</h2>
+  <div id="queueDisplay" aria-live="polite"></div>
+</div>
+
+<script>
+  // Priority Queue Implementation using a Min Heap on negative priority 
+  // (so higher priority numbers come front)
+  class PriorityQueue {
+    constructor() {
+      this.heap = [];
+    }
+
+    _swap(i, j) {
+      [this.heap[i], this.heap[j]] = [this.heap[j], this.heap[i]];
+    }
+
+    _parent(i) {
+      return Math.floor((i -1)/2);
+    }
+
+    _left(i) {
+      return 2*i + 1;
+    }
+
+    _right(i) {
+      return 2*i + 2;
+    }
+
+    // Compare function: higher priority first; if same priority, enqueue order preserved
+    _compare(a, b) {
+      if (a.priority !== b.priority) {
+        return a.priority > b.priority;
+      } else {
+        // FIFO for same priority
+        return a.enqueueIndex < b.enqueueIndex;
+      }
+    }
+
+    _heapifyUp(i) {
+      let current = i;
+      while (current > 0) {
+        let p = this._parent(current);
+        if (this._compare(this.heap[current], this.heap[p])) {
+          this._swap(current, p);
+          current = p;
+        } else {
+          break;
+        }
+      }
+    }
+
+    _heapifyDown(i) {
+      let current = i;
+      const len = this.heap.length;
+      while (true) {
+        let left = this._left(current);
+        let right = this._right(current);
+        let candidate = current;
+        if (left < len && this._compare(this.heap[left], this.heap[candidate])) {
+          candidate = left;
+        }
+        if (right < len && this._compare(this.heap[right], this.heap[candidate])) {
+          candidate = right;
+        }
+        if (candidate === current) break;
+        this._swap(current, candidate);
+        current = candidate;
+      }
+    }
+
+    _enqueueCounter = 0;
+
+    enqueue(value, priority) {
+      // Assign an enqueue index to preserve order among equals
+      this._enqueueCounter++;
+      const element = {
+        value,
+        priority,
+        enqueueIndex: this._enqueueCounter
+      };
+      this.heap.push(element);
+      this._heapifyUp(this.heap.length -1);
+    }
+
+    dequeue() {
+      if (this.isEmpty()) return null;
+      const top = this.heap[0];
+      const last = this.heap.pop();
+      if (this.heap.length > 0) {
+        this.heap[0] = last;
+        this._heapifyDown(0);
+      }
+      return top;
+    }
+
+    peek() {
+      if (this.isEmpty()) return null;
+      return this.heap[0];
+    }
+
+    size() {
+      return this.heap.length;
+    }
+
+    isEmpty() {
+      return this.size() === 0;
+    }
+
+    clear() {
+      this.heap = [];
+      this._enqueueCounter = 0;
+    }
+
+    toSortedArray() {
+      // Returns a copy array sorted by priority and enqueue order without modifying heap
+      return this.heap.slice().sort((a,b) => {
+        if (b.priority !== a.priority) return b.priority - a.priority;
+        else return a.enqueueIndex - b.enqueueIndex;
+      });
+    }
+  }
+
+  // UI code
+  const pq = new PriorityQueue();
+
+  const itemInput = document.getElementById('itemInput');
+  const priorityInput = document.getElementById('priorityInput');
+  const enqueueBtn = document.getElementById('enqueueBtn');
+  const dequeueBtn = document.getElementById('dequeueBtn');
+  const peekBtn = document.getElementById('peekBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const output = document.getElementById('output');
+  const queueDisplay = document.getElementById('queueDisplay');
+
+  function updateButtons() {
+    const empty = pq.isEmpty();
+    dequeueBtn.disabled = empty;
+    peekBtn.disabled = empty;
+    clearBtn.disabled = empty;
+  }
+
+  function displayQueue() {
+    const arr = pq.toSortedArray();
+    if(arr.length === 0){
+      queueDisplay.textContent = "(empty)";
+      return;
+    }
+    queueDisplay.innerHTML = '';
+    arr.forEach((el, i) => {
+      const div = document.createElement('div');
+      div.classList.add('item');
+      div.innerHTML = `<span>${el.value}</span> <span class="priority">Priority: ${el.priority}</span>`;
+      queueDisplay.appendChild(div);
+    });
+  }
+
+  function appendOutputLine(text) {
+    output.textContent += text + '\n';
+    output.scrollTop = output.scrollHeight;
+  }
+
+  // Enqueue handler
+  enqueueBtn.addEventListener('click', () => {
+    const val = itemInput.value.trim();
+    const prio = priorityInput.value.trim();
+
+    if(val === '') {
+      alert('Please enter an item value.');
+      itemInput.focus();
+      return;
+    }
+    if(prio === '' || isNaN(prio)) {
+      alert('Please enter a valid numeric priority.');
+      priorityInput.focus();
+      return;
+    }
+    const priorityNum = Number(prio);
+    pq.enqueue(val, priorityNum);
+    appendOutputLine(`Enqueued: "${val}" with priority ${priorityNum}`);
+    itemInput.value = '';
+    priorityInput.value = '';
+    itemInput.focus();
+    updateButtons();
+    displayQueue();
+  });
+
+  // Dequeue handler
+  dequeueBtn.addEventListener('click', () => {
+    const item = pq.dequeue();
+    if(item){
+      appendOutputLine(`Dequeued: "${item.value}" with priority ${item.priority}`);
+      updateButtons();
+      displayQueue();
+    }
+  });
+
+  // Peek handler
+  peekBtn.addEventListener('click', () => {
+    const item = pq.peek();
+    if(item){
+      appendOutputLine(`Peek: "${item.value}" with priority ${item.priority}`);
+    }
+  });
+
+  // Clear handler
+  clearBtn.addEventListener('click', () => {
+    if(confirm('Clear entire queue?')) {
+      pq.clear();
+      appendOutputLine('Queue cleared.');
+      updateButtons();
+      displayQueue();
+    }
+  });
+
+  // Initialize
+  updateButtons();
+  displayQueue();
+</script>
+</body>
+</html>

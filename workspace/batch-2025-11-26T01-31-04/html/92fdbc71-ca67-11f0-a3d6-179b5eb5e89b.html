@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Graph Demo: Directed and Undirected</title>
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  #controls {
+    padding: 10px;
+    background: #eee;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  #canvas-container {
+    flex: 1;
+    background: #fff;
+    position: relative;
+  }
+  canvas {
+    display: block;
+    background: #fafafa;
+    margin: 0 auto;
+  }
+  button {
+    cursor: pointer;
+  }
+  #instructions {
+    font-size: 14px;
+    background: #f9f9f9;
+    border-top: 1px solid #ccc;
+    padding: 8px 12px;
+  }
+</style>
+</head>
+<body>
+  <div id="controls">
+    <label>
+      <input type="radio" name="graphType" value="undirected" checked />
+      Undirected
+    </label>
+    <label>
+      <input type="radio" name="graphType" value="directed" />
+      Directed
+    </label>
+    <button id="addNodeBtn">Add Node</button>
+    <button id="clearBtn">Clear Graph</button>
+    <span style="margin-left:auto; font-size: 14px; color:#555;">
+      Click to add nodes. Drag from one node to another to add edge.
+    </span>
+  </div>
+  <div id="canvas-container">
+    <canvas id="graphCanvas" width="800" height="600"></canvas>
+  </div>
+  <div id="instructions">
+    <strong>Instructions:</strong> 
+    <ul style="margin:4px 0 0 20px; padding:0; font-size:13px;">
+      <li>Select directed or undirected graph.</li>
+      <li>Click "Add Node" then click on canvas to place node.</li>
+      <li>Drag from one node to another to create an edge.</li>
+      <li>Edges show arrowheads if directed.</li>
+      <li>Clear graph to start over.</li>
+    </ul>
+  </div>
+<script>
+(() => {
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+  const addNodeBtn = document.getElementById('addNodeBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const graphTypeRadios = document.querySelectorAll('input[name="graphType"]');
+
+  // Graph data
+  let nodes = [];
+  let edges = []; // edges: {from: nodeId, to: nodeId}
+  let nodeIdCounter = 0;
+
+  // State
+  let graphType = 'undirected';
+  let addingNode = false;
+  let draggingEdge = null; // {fromNode, currentX, currentY}
+  let dragStartNode = null;
+  const nodeRadius = 20;
+
+  // Track mouse position & interaction
+  let mouseX = 0;
+  let mouseY = 0;
+
+  // Utility: distance squared between points
+  function distSq(x1, y1, x2, y2) {
+    return (x1 - x2) ** 2 + (y1 - y2) ** 2;
+  }
+
+  // Find node by position (circle hit test)
+  function findNodeAt(x, y) {
+    for(let node of nodes) {
+      if (distSq(node.x, node.y, x, y) <= nodeRadius*nodeRadius) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  // Draw arrowhead helper on edge line
+  function drawArrowhead(ctx, fromX, fromY, toX, toY, radius = 10) {
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(
+      toX - radius * Math.cos(angle - Math.PI / 6),
+      toY - radius * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.lineTo(
+      toX - radius * Math.cos(angle + Math.PI / 6),
+      toY - radius * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Draw graph
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw edges
+    edges.forEach(edge => {
+      const fromNode = nodes.find(n => n.id === edge.from);
+      const toNode = nodes.find(n => n.id === edge.to);
+      if (!fromNode || !toNode) return;
+
+      // Calculate line start/end to avoid node overlap (offset by radius)
+      const dx = toNode.x - fromNode.x;
+      const dy = toNode.y - fromNode.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if(dist === 0) return; // same node, skip drawing
+
+      const offsetX = (dx / dist) * nodeRadius;
+      const offsetY = (dy / dist) * nodeRadius;
+
+      const startX = fromNode.x + offsetX;
+      const startY = fromNode.y + offsetY;
+      const endX = toNode.x - offsetX;
+      const endY = toNode.y - offsetY;
+
+      ctx.strokeStyle = '#333';
+      ctx.fillStyle = '#333';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+
+      if(graphType === 'directed') {
+        drawArrowhead(ctx, startX, startY, endX, endY, 10);
+      }
+    });
+
+    // If dragging new edge, draw temporary line
+    if(draggingEdge) {
+      const fromNode = draggingEdge.fromNode;
+      const dx = mouseX - fromNode.x;
+      const dy = mouseY - fromNode.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const offsetX = (dx / dist) * nodeRadius;
+      const offsetY = (dy / dist) * nodeRadius;
+      ctx.strokeStyle = '#666';
+      ctx.fillStyle = '#666';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5,5]);
+      ctx.beginPath();
+      ctx.moveTo(fromNode.x + offsetX, fromNode.y + offsetY);
+      ctx.lineTo(mouseX, mouseY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if(graphType === 'directed') {
+        drawArrowhead(ctx, fromNode.x + offsetX, fromNode.y + offsetY, mouseX, mouseY, 10);
+      }
+    }
+
+    // Draw nodes
+    nodes.forEach(node => {
+      ctx.beginPath();
+      ctx.fillStyle = '#1E90FF';
+      ctx.strokeStyle = '#005fbb';
+      ctx.lineWidth = 3;
+      ctx.arc(node.x, node.y, nodeRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw node ID number
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.id, node.x, node.y);
+    });
+  }
+
+  // Add node handler
+  function onCanvasClick(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if(addingNode) {
+      // Place new node
+      nodes.push({
+        id: ++nodeIdCounter,
+        x: x,
+        y: y
+      });
+      addingNode = false;
+      addNodeBtn.disabled = false;
+      draw();
+    }
+  }
+
+  // Mouse down: check if on node to start dragging edge
+  function onMouseDown(e) {
+    if(addingNode) return; // disable dragging while adding node
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+
+    const node = findNodeAt(mouseX, mouseY);
+    if(node) {
+      dragStartNode = node;
+      draggingEdge = { fromNode: node };
+      canvas.style.cursor = 'crosshair';
+    }
+  }
+
+  // Mouse move: update dragging edge line or cursor
+  function onMouseMove(e) {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+
+    if(draggingEdge) {
+      draw();
+    } else {
+      // Hover effect: pointer if on node
+      const node = findNodeAt(mouseX, mouseY);
+      canvas.style.cursor = node ? 'pointer' : (addingNode ? 'crosshair' : 'default');
+    }
+  }
+
+  // Mouse up: finalize edge if released over another node
+  function onMouseUp(e) {
+    if(draggingEdge) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const targetNode = findNodeAt(x, y);
+      if(targetNode && targetNode.id !== dragStartNode.id) {
+        // Add edge (avoid duplicates)
+        const edgeExists = edges.some(edge => {
+          if(graphType === 'undirected') {
+            return (edge.from === dragStartNode.id && edge.to === targetNode.id) ||
+                   (edge.to === dragStartNode.id && edge.from === targetNode.id);
+          } else {
+            return edge.from === dragStartNode.id && edge.to === targetNode.id;
+          }
+        });
+        if(!edgeExists) {
+          edges.push({
+            from: dragStartNode.id,
+            to: targetNode.id
+          });
+        }
+      }
+      draggingEdge = null;
+      dragStartNode = null;
+      canvas.style.cursor = 'default';
+      draw();
+    }
+  }
+
+  // Clear graph
+  function clearGraph() {
+    nodes = [];
+    edges = [];
+    nodeIdCounter = 0;
+    draw();
+  }
+
+  // Event handlers for buttons and radios
+  addNodeBtn.onclick = () => {
+    addingNode = true;
+    addNodeBtn.disabled = true;
+    canvas.style.cursor = 'crosshair';
+  };
+
+  clearBtn.onclick = () => {
+    clearGraph();
+  };
+
+  graphTypeRadios.forEach(radio => {
+    radio.addEventListener('change', e => {
+      graphType = e.target.value;
+      draw();
+    });
+  });
+
+  // Canvas event listeners
+  canvas.addEventListener('click', onCanvasClick);
+  canvas.addEventListener('mousedown', onMouseDown);
+  canvas.addEventListener('mousemove', onMouseMove);
+  canvas.addEventListener('mouseup', onMouseUp);
+  canvas.addEventListener('mouseleave', () => {
+    if(draggingEdge) {
+      draggingEdge = null;
+      dragStartNode = null;
+      canvas.style.cursor = 'default';
+      draw();
+    }
+  });
+
+  // Initial draw
+  draw();
+})();
+</script>
+</body>
+</html>
