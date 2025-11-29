@@ -1,0 +1,154 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Array Playground — interactive guide to JavaScript arrays" [level=1] [ref=e3]
+  - paragraph [ref=e4]: Create, inspect and run common array operations. Values are parsed as JSON when possible (e.g. numbers, strings with quotes, objects, arrays). For custom functions you can enter an expression like "x => x * 2" or "acc,x => acc + x".
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: "Initial array (JSON-ish). Examples: [1,2,3], [\"a\",\"b\"], [{\"x\":1},2]"
+      - textbox [ref=e8]: "[1, 2, 3, 4, 5]"
+      - generic [ref=e9]:
+        - button "Set Array" [ref=e10] [cursor=pointer]
+        - button "Reset to default" [ref=e11] [cursor=pointer]
+        - combobox "examples" [ref=e13]:
+          - option "Load example..." [selected]
+          - option "Numbers"
+          - option "Strings"
+          - option "Array of objects"
+          - option "2D array"
+          - option "Mixed types"
+      - generic [ref=e14]:
+        - generic [ref=e15]: Array visualization
+        - generic [ref=e16]:
+          - generic [ref=e17]:
+            - generic [ref=e18]: "[0]"
+            - generic [ref=e19]: "1"
+            - generic [ref=e20]: number
+          - generic [ref=e21]:
+            - generic [ref=e22]: "[1]"
+            - generic [ref=e23]: "2"
+            - generic [ref=e24]: number
+          - generic [ref=e25]:
+            - generic [ref=e26]: "[2]"
+            - generic [ref=e27]: "3"
+            - generic [ref=e28]: number
+          - generic [ref=e29]:
+            - generic [ref=e30]: "[3]"
+            - generic [ref=e31]: "4"
+            - generic [ref=e32]: number
+          - generic [ref=e33]:
+            - generic [ref=e34]: "[4]"
+            - generic [ref=e35]: "5"
+            - generic [ref=e36]: number
+        - generic [ref=e37]: "length: 5 • isArray: true"
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - generic [ref=e40]: Basic operations
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - generic [ref=e43]: push (value)
+            - generic [ref=e44]:
+              - 'textbox "e.g. 6 or \"x\" or {\"a\":1}" [ref=e45]'
+              - button "push" [ref=e46] [cursor=pointer]
+          - generic [ref=e47]:
+            - generic [ref=e48]: pop
+            - button "pop" [ref=e50] [cursor=pointer]
+          - generic [ref=e51]:
+            - generic [ref=e52]: unshift (value)
+            - generic [ref=e53]:
+              - textbox "e.g. 0" [ref=e54]
+              - button "unshift" [ref=e55] [cursor=pointer]
+          - generic [ref=e56]:
+            - generic [ref=e57]: shift
+            - button "shift" [ref=e59] [cursor=pointer]
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]: splice(start, deleteCount, items...)
+            - generic [ref=e63]:
+              - spinbutton [ref=e64]
+              - spinbutton [ref=e65]
+              - 'textbox "items CSV e.g. 9,\"x\",{\"a\":1}" [ref=e66]'
+              - button "apply" [ref=e67] [cursor=pointer]
+          - generic [ref=e68]:
+            - generic [ref=e69]: slice(start, end) — non-destructive
+            - generic [ref=e70]:
+              - spinbutton [ref=e71]
+              - spinbutton [ref=e72]
+              - button "slice" [ref=e73] [cursor=pointer]
+          - generic [ref=e74]:
+            - generic [ref=e75]: concat(array)
+            - generic [ref=e76]:
+              - textbox "e.g. [7,8] or \"x\"" [ref=e77]
+              - button "concat" [ref=e78] [cursor=pointer]
+          - generic [ref=e79]:
+            - generic [ref=e80]: reverse
+            - button "reverse" [ref=e82] [cursor=pointer]
+          - generic [ref=e83]:
+            - generic [ref=e84]: sort (compare expression)
+            - generic [ref=e85]:
+              - textbox "e.g. (a,b) => a-b or \"alpha\"" [ref=e86]
+              - button "sort" [ref=e87] [cursor=pointer]
+          - generic [ref=e88]:
+            - generic [ref=e89]: flat(depth)
+            - generic [ref=e90]:
+              - spinbutton [ref=e91]: "1"
+              - button "flat" [ref=e92] [cursor=pointer]
+      - generic [ref=e93]:
+        - generic [ref=e94]: Functional ops (map, filter, reduce, find...)
+        - generic [ref=e95]:
+          - generic [ref=e96]:
+            - generic [ref=e97]: map (expr) e.g. "x => x*2" or "x*2"
+            - generic [ref=e98]:
+              - textbox "x => ..." [ref=e99]
+              - button "map (show)" [ref=e100] [cursor=pointer]
+              - generic [ref=e101]:
+                - checkbox "replace" [ref=e102]
+                - text: replace
+          - generic [ref=e103]:
+            - generic [ref=e104]: filter (expr) e.g. "x => x%2===0" or "x>2"
+            - generic [ref=e105]:
+              - textbox "x => ..." [ref=e106]
+              - button "filter (show)" [ref=e107] [cursor=pointer]
+              - generic [ref=e108]:
+                - checkbox "replace" [ref=e109]
+                - text: replace
+          - generic [ref=e110]:
+            - generic [ref=e111]: reduce (expr) e.g. "(acc,x) => acc+x" and initial value
+            - generic [ref=e112]:
+              - textbox "acc,x => ..." [ref=e113]
+              - textbox "initial e.g. 0" [ref=e114]
+              - button "reduce" [ref=e115] [cursor=pointer]
+              - generic [ref=e116]: returns a value
+          - generic [ref=e117]:
+            - textbox "find expr e.g. \"x=>x>3\" or value 3" [ref=e118]
+            - button "find" [ref=e119] [cursor=pointer]
+            - button "findIndex" [ref=e120] [cursor=pointer]
+            - button "includes" [ref=e121] [cursor=pointer]
+            - button "indexOf" [ref=e122] [cursor=pointer]
+  - generic [ref=e123]:
+    - generic [ref=e124]:
+      - generic [ref=e125]:
+        - generic [ref=e126]: Custom JS snippet (arr is the current array)
+        - textbox "e.g. arr.map(x=>x*10).filter(x=>x>20)" [ref=e127]
+        - generic [ref=e128]:
+          - button "Run (show result)" [ref=e129] [cursor=pointer]
+          - button "Run & replace array" [ref=e130] [cursor=pointer]
+          - button "Show array as code" [ref=e131] [cursor=pointer]
+          - button "Clear output" [ref=e132] [cursor=pointer]
+      - generic [ref=e133]: "[1:54:55 PM] Ready. Edit the input array and try operations."
+    - generic [ref=e134]:
+      - generic [ref=e135]:
+        - generic [ref=e136]: Current array as copyable code
+        - generic [ref=e137]: "[ 1, 2, 3, 4, 5 ]"
+        - generic [ref=e138]:
+          - button "Copy code text" [ref=e139] [cursor=pointer]
+          - button "Download JSON file" [ref=e140] [cursor=pointer]
+          - generic [ref=e141]: "Length: 5 • First: 1 • Last: 5"
+      - generic [ref=e142]:
+        - generic [ref=e143]: Quick tips
+        - list [ref=e144]:
+          - listitem [ref=e145]: Arrays are objects with numeric keys and length property.
+          - listitem [ref=e146]: Many methods are non-destructive (slice, map, filter). Some mutate (push, pop, splice, sort, reverse).
+          - listitem [ref=e147]: Enter functions as "x => x*2" or plain expressions like "x*2". Reduce uses "acc,x => ...".
+```

@@ -1,0 +1,72 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Stack — Visualizer & Playground" [level=1] [ref=e4]
+    - generic [ref=e5]: Interactive demonstration of a Stack (LIFO). Try pushing, popping, peeking, and step through the operation history. Switch between array-backed and linked-list implementations.
+    - generic [ref=e6]: Implementation
+    - generic [ref=e7]:
+      - button "Array-backed" [ref=e8] [cursor=pointer]
+      - button "Linked-list" [ref=e9] [cursor=pointer]
+    - generic [ref=e10]: Value to push
+    - generic [ref=e11]:
+      - textbox "e.g. 42 or hello" [ref=e12]
+      - button "Push" [ref=e13] [cursor=pointer]
+      - button "Pop" [active] [ref=e14] [cursor=pointer]
+    - generic [ref=e15]:
+      - button "Peek" [ref=e16] [cursor=pointer]
+      - button "Clear" [ref=e17] [cursor=pointer]
+      - button "Push Random" [ref=e18] [cursor=pointer]
+      - spinbutton [ref=e19]
+    - generic [ref=e20]: Batch / Simulation
+    - generic [ref=e21]:
+      - spinbutton [ref=e22]
+      - button "Push Many" [ref=e23] [cursor=pointer]
+      - button "Auto Demo (5 ops)" [ref=e24] [cursor=pointer]
+    - generic [ref=e25]: History / Step-through
+    - generic [ref=e26]:
+      - button "Prev" [ref=e27] [cursor=pointer]
+      - button "Next" [ref=e28] [cursor=pointer]
+      - generic [ref=e29]: Step 3 / 3
+      - button "Undo Last" [ref=e30] [cursor=pointer]
+    - generic [ref=e32]: Stack supports push (add to top), pop (remove top), peek (view top). LIFO = Last In First Out.
+  - generic [ref=e34]:
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e37]: Top
+        - generic [ref=e38]: "Capacity: ∞"
+        - generic [ref=e39]:
+          - text: "Size:"
+          - strong [ref=e40]: "0"
+      - generic "Stack visualization" [ref=e41]
+    - generic [ref=e50]:
+      - generic [ref=e51]:
+        - generic [ref=e52]: Implementation
+        - generic [ref=e53]: Array-backed
+      - generic [ref=e54]:
+        - generic [ref=e55]: Top element
+        - generic [ref=e56]: —
+      - generic [ref=e57]:
+        - generic [ref=e58]: Operations performed
+        - generic [ref=e59]: "2"
+      - generic [ref=e60]:
+        - generic [ref=e61]: "[1:55:02 PM] pop() => LOG1"
+        - generic [ref=e62]: "[1:55:02 PM] push(LOG1)"
+      - generic [ref=e63]:
+        - generic [ref=e64]: Pseudocode
+        - generic [ref=e65]:
+          - text: "push(x): if size == capacity => overflow else array[size++] = x"
+          - text: "pop(): if size == 0 => underflow else return array[--size]"
+          - text: "peek(): return array[size-1]"
+      - generic [ref=e66]:
+        - generic [ref=e67]:
+          - generic [ref=e68]: Time (avg)
+          - generic [ref=e69]: "push: O(1)"
+          - generic [ref=e70]: "pop: O(1)"
+          - generic [ref=e71]: "peek: O(1)"
+        - generic [ref=e72]:
+          - generic [ref=e73]: Notes
+          - generic [ref=e74]: Array-backed stacks can be fixed-capacity or dynamically resized; linked-list stacks use nodes and pointers (no preallocated capacity).
+      - generic [ref=e76]: Linked-list view
+```

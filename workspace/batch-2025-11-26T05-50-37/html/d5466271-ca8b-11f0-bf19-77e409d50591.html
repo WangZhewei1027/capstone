@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Stack Visualizer</title>
+<style>
+  :root{
+    --bg:#0f1724;
+    --card:#0b1220;
+    --accent:#06b6d4;
+    --muted:#94a3b8;
+    --glass: rgba(255,255,255,0.03);
+    --success: #10b981;
+    --danger: #ef4444;
+  }
+  *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
+  body{margin:0;background:linear-gradient(180deg,#071028 0%,#081428 60%);color:#e6eef6;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px;}
+  .container{width:1100px;max-width:100%;display:grid;grid-template-columns:360px 1fr;gap:20px;}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:18px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);box-shadow: 0 6px 30px rgba(2,6,23,0.6);}
+  h1{margin:0 0 8px 0;font-size:20px;}
+  .muted{color:var(--muted);font-size:13px;margin-bottom:6px;}
+  label{display:block;font-size:13px;margin-top:10px;margin-bottom:6px;color:var(--muted);}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;}
+  input[type="text"], input[type="number"], select{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:var(--card);color:inherit;min-width:0;}
+  button{background:var(--accent);border:none;color:#012;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600;}
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600;}
+  button.warn{background:var(--danger);color:white;}
+  button.small{padding:6px 8px;font-size:13px;border-radius:6px;}
+  .stack-area{display:flex;gap:20px;align-items:flex-start;height:560px;}
+  .visual{flex:1;display:flex;flex-direction:column;align-items:center;padding:12px;justify-content:center;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border-radius:10px;}
+  .stack-visual{width:220px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border-radius:8px;padding:12px;border:1px dashed rgba(255,255,255,0.03);min-height:420px;display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-start;position:relative;overflow:hidden;}
+  .slot{width:86%;height:48px;margin:6px 0;border-radius:8px;background:var(--glass);display:flex;align-items:center;justify-content:center;color:var(--muted);border:1px solid rgba(255,255,255,0.03);position:relative;transform:translateY(0);transition:transform 300ms ease, background 250ms ease, opacity 250ms ease;}
+  .slot.filled{background:linear-gradient(90deg, rgba(6,182,212,0.12), rgba(6,182,212,0.06));color:#dff8fb;border-color:rgba(6,182,212,0.15);font-weight:700;}
+  .slot.top{box-shadow:0 8px 30px rgba(6,182,212,0.08);border-color:rgba(6,182,212,0.28);}
+  .slot .index{position:absolute;left:8px;font-size:12px;color:var(--muted);}
+  .slot .value{font-size:15px;}
+  .label-top{position:absolute;right:8px;top:12px;background:rgba(255,255,255,0.03);padding:4px 8px;border-radius:8px;font-size:12px;color:var(--muted);}
+  .info{width:320px;padding:12px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));}
+  .stat{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;margin:6px 0;background:rgba(255,255,255,0.01);font-size:13px;}
+  .log{height:200px;overflow:auto;background:rgba(0,0,0,0.06);padding:8px;border-radius:8px;margin-top:10px;font-size:13px;}
+  .controls-row{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;}
+  .mode-toggle{display:flex;gap:8px;}
+  .mode-toggle button{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);padding:6px 8px;border-radius:8px;}
+  .mode-toggle button.active{background:rgba(255,255,255,0.03);color:var(--accent);border-color:rgba(6,182,212,0.18);}
+  .footer{margin-top:12px;font-size:13px;color:var(--muted);line-height:1.4;}
+  .pseudocode{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;margin-top:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;}
+  .time-table{display:flex;gap:8px;margin-top:10px;}
+  .time-card{flex:1;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);font-size:13px;}
+  .history-controls{display:flex;gap:6px;align-items:center;margin-top:8px;}
+  .badge{background:rgba(255,255,255,0.02);padding:6px 8px;border-radius:999px;font-size:12px;color:var(--muted);}
+  .node{display:flex;align-items:center;gap:8px;background:linear-gradient(90deg, rgba(99,102,241,0.06), rgba(99,102,241,0.03));padding:8px;border-radius:8px;border:1px solid rgba(99,102,241,0.06);}
+  .arrow{width:20px;height:2px;background:linear-gradient(90deg,var(--muted),transparent);position:relative;}
+  .arrow::after{content:"";position:absolute;right:0;top:-4px;border-left:8px solid var(--muted);border-top:6px solid transparent;border-bottom:6px solid transparent;}
+  .linked-list-area{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center;padding:12px;}
+  .small-muted{font-size:12px;color:var(--muted);}
+  .ops-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  @media (max-width:980px){
+    .container{grid-template-columns:1fr;align-items:center;}
+    .stack-area{height:auto}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <h1>Stack — Visualizer & Playground</h1>
+    <div class="muted">Interactive demonstration of a Stack (LIFO). Try pushing, popping, peeking, and step through the operation history. Switch between array-backed and linked-list implementations.</div>
+
+    <label>Implementation</label>
+    <div class="mode-toggle" id="modeToggle">
+      <button data-mode="array" class="active">Array-backed</button>
+      <button data-mode="linked">Linked-list</button>
+    </div>
+
+    <label>Value to push</label>
+    <div style="display:flex;gap:8px;">
+      <input id="valueInput" type="text" placeholder="e.g. 42 or hello" />
+      <button id="pushBtn">Push</button>
+      <button id="popBtn" class="warn">Pop</button>
+    </div>
+
+    <div class="controls-row">
+      <button id="peekBtn" class="ghost small">Peek</button>
+      <button id="clearBtn" class="ghost small">Clear</button>
+      <button id="randBtn" class="ghost small">Push Random</button>
+      <input id="capInput" type="number" placeholder="Capacity (0=∞)" style="width:120px" min="0"/>
+    </div>
+
+    <label>Batch / Simulation</label>
+    <div class="controls-row">
+      <input id="bulkInput" type="number" placeholder="How many randoms?" style="width:130px"/>
+      <button id="bulkPush" class="small">Push Many</button>
+      <button id="autoDemo" class="small">Auto Demo (5 ops)</button>
+    </div>
+
+    <label>History / Step-through</label>
+    <div class="history-controls">
+      <button id="stepPrev" class="small ghost">Prev</button>
+      <button id="stepNext" class="small ghost">Next</button>
+      <div class="badge" id="stepBadge">Step 0 / 0</div>
+      <div style="flex:1"></div>
+      <button id="undoBtn" class="small ghost">Undo Last</button>
+    </div>
+
+    <div class="footer">
+      <div class="small-muted" style="margin-top:8px">Stack supports push (add to top), pop (remove top), peek (view top). LIFO = Last In First Out.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stack-area">
+      <div class="visual">
+        <div style="display:flex;gap:12px;align-items:center;width:100%;justify-content:center;margin-bottom:6px;">
+          <div class="label-top">Top</div>
+          <div class="small-muted">Capacity: <span id="capBadge">∞</span></div>
+          <div style="width:6px"></div>
+          <div class="small-muted">Size: <strong id="sizeBadge">0</strong></div>
+        </div>
+
+        <div class="stack-visual" id="stackVisual" aria-live="polite" aria-label="Stack visualization">
+          <!-- slots generated by JS -->
+        </div>
+      </div>
+
+      <div class="info">
+        <div class="stat"><div>Implementation</div><div id="implBadge" style="color:var(--accent);font-weight:700">Array-backed</div></div>
+        <div class="stat"><div>Top element</div><div id="topBadge" class="small-muted">—</div></div>
+        <div class="stat"><div>Operations performed</div><div id="opsBadge" class="small-muted">0</div></div>
+
+        <div class="log" id="opLog"></div>
+
+        <div class="pseudocode">
+          <div style="font-weight:700;margin-bottom:6px">Pseudocode</div>
+          <div style="font-family:ui-monospace,monospace;font-size:13px">
+            push(x): if size == capacity => overflow else array[size++] = x<br/>
+            pop(): if size == 0 => underflow else return array[--size]<br/>
+            peek(): return array[size-1]
+          </div>
+        </div>
+
+        <div class="time-table">
+          <div class="time-card">
+            <div style="font-weight:700">Time (avg)</div>
+            <div style="margin-top:6px" class="small-muted">push: O(1)</div>
+            <div class="small-muted">pop: O(1)</div>
+            <div class="small-muted">peek: O(1)</div>
+          </div>
+          <div class="time-card">
+            <div style="font-weight:700">Notes</div>
+            <div class="small-muted" style="margin-top:6px">Array-backed stacks can be fixed-capacity or dynamically resized; linked-list stacks use nodes and pointers (no preallocated capacity).</div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <div style="font-weight:700;margin-bottom:6px">Linked-list view</div>
+          <div class="linked-list-area" id="linkedArea" style="min-height:64px">
+            <!-- nodes shown when in linked mode -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+Stack Visualizer
+- Two implementations: array-backed (with capacity) and linked-list.
+- Supports push, pop, peek, clear, random, batch push, undo, and stepping through history.
+- Visualization shows vertical stack (top at top) and linked-list nodes when selected.
+*/
+(function(){
+  // DOM elements
+  const modeToggle = document.getElementById('modeToggle');
+  const buttons = modeToggle.querySelectorAll('button');
+  const valueInput = document.getElementById('valueInput');
+  const pushBtn = document.getElementById('pushBtn');
+  const popBtn = document.getElementById('popBtn');
+  const peekBtn = document.getElementById('peekBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const randBtn = document.getElementById('randBtn');
+  const capInput = document.getElementById('capInput');
+  const bulkInput = document.getElementById('bulkInput');
+  const bulkPush = document.getElementById('bulkPush');
+  const autoDemo = document.getElementById('autoDemo');
+  const stackVisual = document.getElementById('stackVisual');
+  const sizeBadge = document.getElementById('sizeBadge');
+  const topBadge = document.getElementById('topBadge');
+  const opsBadge = document.getElementById('opsBadge');
+  const opLog = document.getElementById('opLog');
+  const capBadge = document.getElementById('capBadge');
+  const implBadge = document.getElementById('implBadge');
+  const linkedArea = document.getElementById('linkedArea');
+  const stepPrev = document.getElementById('stepPrev');
+  const stepNext = document.getElementById('stepNext');
+  const stepBadge = document.getElementById('stepBadge');
+  const undoBtn = document.getElementById('undoBtn');
+
+  // State
+  let mode = 'array'; // or 'linked'
+  let capacity = Infinity;
+  let arrayStack = []; // underlying array representation
+  let linkedStack = null; // linked-list head (node: {value, next})
+  let opsCount = 0;
+
+  // History for stepping and undo (stores snapshots)
+  const history = [];
+  let historyIndex = -1; // points to current snapshot
+
+  function push(value){
+    if(mode === 'array'){
+      if(arrayStack.length >= capacity){
+        log('push('+value+') => Overflow (capacity reached)', true);
+        flash('warn');
+        return false;
+      }
+      arrayStack.push(value);
+    } else {
+      // linked-list push: create new head
+      const node = {value: value, next: linkedStack};
+      linkedStack = node;
+    }
+    opsCount++;
+    log('push('+value+')');
+    saveSnapshot('push', value);
+    update();
+    return true;
+  }
+
+  function pop(){
+    if(mode === 'array'){
+      if(arrayStack.length === 0){
+        log('pop() => Underflow (empty)', true);
+        flash('warn');
+        return null;
+      }
+      const v = arrayStack.pop();
+      opsCount++;
+      log('pop() => ' + v);
+      saveSnapshot('pop', v);
+      update();
+      return v;
+    } else {
+      if(!linkedStack){
+        log('pop() => Underflow (empty)', true);
+        flash('warn');
+        return null;
+      }
+      const v = linkedStack.value;
+      linkedStack = linkedStack.next;
+      opsCount++;
+      log('pop() => ' + v);
+      saveSnapshot('pop', v);
+      update();
+      return v;
+    }
+  }
+
+  function peek(){
+    let v = null;
+    if(mode === 'array'){
+      if(arrayStack.length === 0){
+        log('peek() => empty', true);
+        return null;
+      }
+      v = arrayStack[arrayStack.length - 1];
+    } else {
+      if(!linkedStack){
+        log('peek() => empty', true);
+        return null;
+      }
+      v = linkedStack.value;
+    }
+    log('peek() => ' + v);
+    flash('peek');
+    return v;
+  }
+
+  function clearAll(){
+    arrayStack = [];
+    linkedStack = null;
+    opsCount = 0;
+    log('clear()');
+    saveSnapshot('clear', null);
+    update();
+  }
+
+  function saveSnapshot(action, value){
+    // store a deep representation for stepping/undo
+    const snapshot = {
+      mode,
+      capacity: isFinite(capacity) ? capacity : 0,
+      array: arrayStack.slice(),
+      linked: cloneLinked(linkedStack),
+      opsCount,
+      action,
+      value,
+      timestamp: Date.now()
+    };
+    // If we are in the middle of history and perform a new action, truncate future
+    if(historyIndex < history.length - 1){
+      history.splice(historyIndex + 1);
+    }
+    history.push(snapshot);
+    historyIndex = history.length - 1;
+    updateStepBadge();
+  }
+
+  function cloneLinked(node){
+    if(!node) return null;
+    return {value: node.value, next: cloneLinked(node.next)};
+  }
+
+  function restoreSnapshot(idx){
+    const s = history[idx];
+    if(!s) return;
+    mode = s.mode;
+    // apply mode toggle UI
+    setMode(mode, false);
+    arrayStack = s.array.slice();
+    linkedStack = cloneLinked(s.linked);
+    opsCount = s.opsCount;
+    capacity = s.capacity === 0 ? Infinity : s.capacity;
+    capBadge.textContent = isFinite(capacity) ? capacity : '∞';
+    capInput.value = isFinite(capacity) ? capacity : '';
+    log('(replayed) ' + s.action + (s.value !== null && s.value !== undefined ? ' ' + s.value : ''));
+    update(false);
+  }
+
+  function updateStepBadge(){
+    stepBadge.textContent = 'Step ' + (historyIndex+1) + ' / ' + history.length;
+  }
+
+  function update(logOp=true){
+    // update visual based on mode
+    sizeBadge.textContent = mode === 'array' ? arrayStack.length : computeLinkedSize();
+    opsBadge.textContent = opsCount;
+    const top = mode === 'array' ? (arrayStack.length ? arrayStack[arrayStack.length - 1] : '—') : (linkedStack ? linkedStack.value : '—');
+    topBadge.textContent = top;
+
+    implBadge.textContent = mode === 'array' ? 'Array-backed' : 'Linked-list';
+    capBadge.textContent = isFinite(capacity) ? capacity : '∞';
+    renderVisual();
+    renderLinked();
+    updateStepBadge();
+  }
+
+  function computeLinkedSize(){
+    let n=0; let p=linkedStack;
+    while(p){ n++; p=p.next; }
+    return n;
+  }
+
+  function renderVisual(){
+    // For array mode show slots with index labels.
+    // For linked mode show stack order using slots too (but no capacity).
+    const content = [];
+    const maxSlots = mode==='array' && isFinite(capacity) ? Math.max(6, capacity) : Math.max(8, arrayStack.length, computeLinkedSize(), 6);
+    // We'll display up to maxSlots slots; top is at top.
+    const items = mode === 'array' ? arrayStack.slice() : collectLinkedArray();
+    // We want to show some empty slots above the top to visualize space.
+    const emptyCount = Math.max(0, maxSlots - items.length);
+    stackVisual.innerHTML = '';
+    // Build from bottom to top (we append reversed because container is column-reverse)
+    const slots = [];
+    for(let i=0;i<maxSlots;i++){
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      const index = i; // bottom index
+      const idxSpan = document.createElement('div');
+      idxSpan.className = 'index';
+      idxSpan.textContent = ''; // optional index
+      slot.appendChild(idxSpan);
+      const valueSpan = document.createElement('div');
+      valueSpan.className = 'value';
+      slot.appendChild(valueSpan);
+      slots.push({slot, valueSpan, idxSpan});
+    }
+
+    // fill slots from bottom up with items
+    for(let i=0;i<maxSlots;i++){
+      const positionFromBottom = i;
+      const itemIndex = i < items.length ? items[i] : null;
+      const s = slots[i];
+      if(itemIndex !== null){
+        s.slot.classList.add('filled');
+        s.valueSpan.textContent = items[i];
+        s.idxSpan.textContent = (mode==='array' ? i : '');
+      } else {
+        s.valueSpan.textContent = '';
+        s.idxSpan.textContent = '';
+      }
+      stackVisual.appendChild(s.slot);
+    }
+
+    // Now mark the top slot: the last filled one
+    const topIdx = items.length - 1;
+    if(topIdx >= 0){
+      const children = stackVisual.children;
+      // children are bottom->top due to column-reverse and insertion order
+      const topChild = children[topIdx];
+      if(topChild) topChild.classList.add('top');
+    }
+  }
+
+  function collectLinkedArray(){
+    // return array from bottom to top
+    const arr = [];
+    const rev = [];
+    let p = linkedStack;
+    while(p){
+      rev.push(p.value);
+      p = p.next;
+    }
+    for(let i=rev.length-1;i>=0;i--) arr.push(rev[i]);
+    return arr;
+  }
+
+  function renderLinked(){
+    linkedArea.innerHTML = '';
+    if(mode !== 'linked') return;
+    // Show linked nodes left-to-right from head (top) to null
+    let p = linkedStack;
+    if(!p){
+      const empty = document.createElement('div'); empty.className='small-muted'; empty.textContent='(empty)';
+      linkedArea.appendChild(empty);
+      return;
+    }
+    while(p){
+      const n = document.createElement('div'); n.className='node';
+      n.textContent = String(p.value);
+      linkedArea.appendChild(n);
+      if(p.next){
+        const a = document.createElement('div'); a.className='arrow'; linkedArea.appendChild(a);
+      }
+      p = p.next;
+    }
+    const tail = document.createElement('div'); tail.className='small-muted'; tail.style.marginLeft='6px'; tail.textContent='null';
+    linkedArea.appendChild(tail);
+  }
+
+  function log(msg, isWarning){
+    const el = document.createElement('div');
+    el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+    if(isWarning) el.style.color = 'var(--danger)';
+    opLog.prepend(el);
+    // limit log length
+    while(opLog.children.length > 200) opLog.removeChild(opLog.lastChild);
+  }
+
+  function flash(kind){
+    // small highlight animation on stackVisual
+    if(kind === 'warn'){
+      stackVisual.style.transition = 'box-shadow 150ms';
+      stackVisual.style.boxShadow = '0 8px 40px rgba(239,68,68,0.12)';
+      setTimeout(()=>stackVisual.style.boxShadow='none',350);
+    } else if(kind === 'peek'){
+      stackVisual.style.transition = 'box-shadow 150ms';
+      stackVisual.style.boxShadow = '0 8px 40px rgba(6,182,212,0.12)';
+      setTimeout(()=>stackVisual.style.boxShadow='none',350);
+    }
+  }
+
+  // UI event wiring
+  buttons.forEach(b => {
+    b.addEventListener('click', ()=> setMode(b.dataset.mode));
+  });
+
+  function setMode(m, save=true){
+    mode = m;
+    buttons.forEach(b=> b.classList.toggle('active', b.dataset.mode === m));
+    implBadge.textContent = mode === 'array' ? 'Array-backed' : 'Linked-list';
+    // ensure capacity reflects
+    if(mode === 'linked'){
+      capInput.disabled = true;
+      capInput.placeholder = 'N/A (linked)';
+      capBadge.textContent = '∞';
+      capacity = Infinity;
+    } else {
+      capInput.disabled = false;
+      capInput.placeholder = '0 = ∞';
+      capacity = capInput.value ? Number(capInput.value) : Infinity;
+    }
+    // ensure we save snapshot when switching mode
+    if(save) saveSnapshot('modeSwitch', mode);
+    update();
+  }
+
+  pushBtn.addEventListener('click', ()=> {
+    const v = valueInput.value.trim();
+    if(v === '') { flash('warn'); log('push() skipped: empty value', true); return; }
+    push(v);
+    valueInput.value = '';
+  });
+
+  popBtn.addEventListener('click', ()=> pop());
+  peekBtn.addEventListener('click', ()=> peek());
+  clearBtn.addEventListener('click', ()=> { clearAll(); });
+
+  randBtn.addEventListener('click', ()=> {
+    const v = (Math.random()*100|0);
+    push('R'+v);
+  });
+
+  capInput.addEventListener('change', ()=> {
+    const val = Number(capInput.value);
+    if(Number.isNaN(val) || val <= 0){ capacity = Infinity; capInput.value = ''; capBadge.textContent = '∞'; }
+    else { capacity = Math.max(1, val); capBadge.textContent = capacity; }
+    saveSnapshot('setCapacity', capacity === Infinity ? 0 : capacity);
+    update();
+  });
+
+  bulkPush.addEventListener('click', ()=> {
+    const n = Number(bulkInput.value) || 0;
+    if(n <= 0){ flash('warn'); return; }
+    for(let i=0;i<n;i++){
+      push('R'+(Math.random()*100|0));
+    }
+  });
+
+  autoDemo.addEventListener('click', async ()=> {
+    // simple automated demo of pushes and pops
+    const steps = [
+      ()=> push('A'),
+      ()=> push('B'),
+      ()=> push('C'),
+      ()=> pop(),
+      ()=> push('D'),
+      ()=> peek(),
+      ()=> pop(),
+      ()=> pop()
+    ];
+    for(let i=0;i<steps.length;i++){
+      await delay(320);
+      steps[i]();
+    }
+  });
+
+  stepPrev.addEventListener('click', ()=> {
+    if(historyIndex > 0){
+      historyIndex--;
+      restoreSnapshot(historyIndex);
+      updateStepBadge();
+    } else {
+      flash('warn');
+    }
+  });
+
+  stepNext.addEventListener('click', ()=> {
+    if(historyIndex < history.length - 1){
+      historyIndex++;
+      restoreSnapshot(historyIndex);
+      updateStepBadge();
+    } else {
+      flash('warn');
+    }
+  });
+
+  undoBtn.addEventListener('click', ()=> {
+    // Undo last operation: restore previous snapshot
+    if(history.length <= 1) { flash('warn'); return; }
+    // remove last snapshot and restore previous
+    history.pop();
+    historyIndex = history.length - 1;
+    restoreSnapshot(historyIndex);
+    update();
+  });
+
+  // utilities
+  function delay(ms){ return new Promise(res=>setTimeout(res, ms)); }
+
+  // init
+  function init(){
+    arrayStack = [];
+    linkedStack = null;
+    capacity = Infinity;
+    opsCount = 0;
+    opLog.innerHTML = '';
+    history.length = 0; historyIndex = -1;
+    // initial snapshot
+    saveSnapshot('init', null);
+    update();
+  }
+
+  // small keyboard support
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' && document.activeElement === valueInput){ pushBtn.click(); }
+    if(e.key === 'p' && e.ctrlKey){ e.preventDefault(); popBtn.click(); }
+  });
+
+  // start
+  init();
+
+  // expose for console debugging (optional)
+  window._stackViz = {
+    push, pop, peek, clearAll, getState: ()=> ({mode, capacity, arrayStack: arrayStack.slice(), linkedStack: cloneLinked(linkedStack), opsCount}),
+  };
+})();
+</script>
+</body>
+</html>

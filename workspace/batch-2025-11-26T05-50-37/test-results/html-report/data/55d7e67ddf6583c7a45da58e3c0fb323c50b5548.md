@@ -1,0 +1,78 @@
+# Page snapshot
+
+```yaml
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - heading "Linked List — Interactive Demo" [level=1] [ref=e5]
+    - paragraph [ref=e6]: "Explore a singly linked list with operations: append, prepend, insert, delete, find, reverse, and step through traversal."
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e11]: Length
+          - generic [ref=e12]: "4"
+        - generic [ref=e13]: "Head: n1 (\"A\")"
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - generic [ref=e17]: Value
+            - textbox "enter value" [ref=e18]
+          - generic [ref=e19]:
+            - generic [ref=e20]: Index
+            - spinbutton [ref=e21]: "0"
+        - generic [ref=e22]:
+          - button "Append" [ref=e23] [cursor=pointer]
+          - button "Prepend" [ref=e24] [cursor=pointer]
+          - button "Insert at" [ref=e25] [cursor=pointer]
+          - button "Delete value" [ref=e26] [cursor=pointer]
+          - button "Delete at" [ref=e27] [cursor=pointer]
+      - generic [ref=e28]:
+        - button "Find" [ref=e29] [cursor=pointer]
+        - button "Reverse" [ref=e30] [cursor=pointer]
+        - button "Clear" [ref=e31] [cursor=pointer]
+        - button "Randomize" [ref=e32] [cursor=pointer]
+        - generic [ref=e33]:
+          - button "Traverse (step)" [ref=e34] [cursor=pointer]
+          - button "Traverse (auto)" [ref=e35] [cursor=pointer]
+      - generic [ref=e36]:
+        - img
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e40]: A
+            - generic [ref=e41]: n2
+          - generic [ref=e42]:
+            - generic [ref=e44]: B
+            - generic [ref=e45]: n3
+          - generic [ref=e46]:
+            - generic [ref=e48]: C
+            - generic [ref=e49]: n4
+          - generic [ref=e50]:
+            - generic [ref=e52]: D
+            - generic [ref=e53]: "null"
+      - generic [ref=e54]:
+        - generic [ref=e55]: head
+        - generic [ref=e57]: found/highlight
+        - generic [ref=e59]: "Boxes: node.value with a small \"next\" area."
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - generic [ref=e63]: Operation Log
+          - generic [ref=e64]: Recent actions appear here
+        - generic [ref=e65]:
+          - generic [ref=e66]: "[1:54:56 PM] append(\"D\") → added n4"
+          - generic [ref=e67]: "[1:54:56 PM] append(\"C\") → added n3"
+          - generic [ref=e68]: "[1:54:56 PM] append(\"B\") → added n2"
+          - generic [ref=e69]: "[1:54:56 PM] append(\"A\") → added n1"
+      - generic [ref=e70]:
+        - generic [ref=e71]:
+          - generic [ref=e72]: Pseudocode (reverse)
+          - generic [ref=e73]: Iterative
+        - generic [ref=e74]: "function reverse(head): prev = null current = head while current != null: next = current.next current.next = prev prev = current current = next return prev"
+      - generic [ref=e75]:
+        - generic [ref=e76]: Representation (internal)
+        - generic [ref=e77]: "Each node: { id, value, nextId }"
+        - generic [ref=e78]: "n1: { value: \"A\", next: n2 }\\nn2: { value: \"B\", next: n3 }\\nn3: { value: \"C\", next: n4 }\\nn4: { value: \"D\", next: null }"
+  - generic [ref=e79]:
+    - generic [ref=e80]: This demo implements a singly linked list & visualizes pointer changes. Use the controls to experiment.
+    - generic [ref=e81]: Nodes are rendered left-to-right from head → tail.
+```

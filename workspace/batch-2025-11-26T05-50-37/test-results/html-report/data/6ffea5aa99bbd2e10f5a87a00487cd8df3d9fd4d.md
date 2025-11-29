@@ -1,0 +1,69 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Deque (Double-Ended Queue) — Interactive Demo" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Perform operations at either end and watch how a circular-buffer deque works internally.
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - strong [ref=e12]: Operations
+            - generic [ref=e13]: Use the input to push values. You can also fill with random numbers.
+          - generic [ref=e14]: "Capacity: 8"
+        - generic [ref=e15]:
+          - textbox "value (string/number)" [ref=e16]
+          - button "← Push Front" [ref=e17] [cursor=pointer]
+          - button "Push Back →" [ref=e18] [cursor=pointer]
+          - button "Pop Front" [ref=e19] [cursor=pointer]
+          - button "Pop Back" [ref=e20] [cursor=pointer]
+          - button "Peek Front" [ref=e21] [cursor=pointer]
+          - button "Peek Back" [ref=e22] [cursor=pointer]
+          - button "Clear" [ref=e23] [cursor=pointer]
+          - button "Fill Random" [ref=e24] [cursor=pointer]
+        - generic [ref=e25]:
+          - generic [ref=e27]: Deque is empty
+          - generic [ref=e28]:
+            - generic [ref=e29]:
+              - text: "Size:"
+              - strong [ref=e30]: "0"
+            - generic [ref=e31]:
+              - text: "Head index:"
+              - strong [ref=e32]: "0"
+            - generic [ref=e33]:
+              - text: "Tail index:"
+              - strong [ref=e34]: "7"
+            - generic [ref=e35]: "Logical order: []"
+          - generic [ref=e36]:
+            - generic [ref=e37]:
+              - generic [ref=e38]: Animation speed
+              - generic [ref=e39]:
+                - slider [ref=e40]: "200"
+                - generic [ref=e41]: 200ms
+            - generic [ref=e42]:
+              - generic [ref=e43]: Operation log
+              - generic [ref=e45]: "[1:55:12 PM] Deque initialized (capacity 8)."
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - strong [ref=e49]: Internal Circular Buffer
+          - generic [ref=e50]: Double-size on full
+        - generic [ref=e51]:
+          - generic [ref=e54]: head
+          - generic [ref=e62]: Empty slots are shown as dashed boxes. Head/Tail pointers displayed above.
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - strong [ref=e65]: Deque Implementation (JavaScript)
+        - paragraph [ref=e66]: "This implementation uses a circular buffer that doubles capacity when full. Methods: pushFront, pushBack, popFront, popBack, peekFront, peekBack, size, clear, toArray."
+        - generic [ref=e67]: "// JavaScript Deque (circular buffer with dynamic resizing) class Deque { constructor(capacity = 8) { this._cap = Math.max(2, capacity|0); this._arr = new Array(this._cap); this._head = 0; // index of first element this._length = 0; // number of elements } _resize(newCap) { const a = new Array(newCap); for (let i = 0; i < this._length; i++) { a[i] = this._arr[(this._head + i) % this._cap]; } this._arr = a; this._cap = newCap; this._head = 0; } pushBack(value) { if (this._length === this._cap) this._resize(this._cap * 2); this._arr[(this._head + this._length) % this._cap] = value; this._length++; } pushFront(value) { if (this._length === this._cap) this._resize(this._cap * 2); this._head = (this._head - 1 + this._cap) % this._cap; this._arr[this._head] = value; this._length++; } popFront() { if (this._length === 0) return undefined; const v = this._arr[this._head]; this._arr[this._head] = undefined; this._head = (this._head + 1) % this._cap; this._length--; return v; } popBack() { if (this._length === 0) return undefined; const idx = (this._head + this._length - 1) % this._cap; const v = this._arr[idx]; this._arr[idx] = undefined; this._length--; return v; } peekFront() { if (this._length === 0) return undefined; return this._arr[this._head]; } peekBack() { if (this._length === 0) return undefined; return this._arr[(this._head + this._length - 1) % this._cap]; } size() { return this._length; } clear() { this._arr = new Array(this._cap); this._head = 0; this._length = 0; } toArray() { const out = new Array(this._length); for (let i = 0; i < this._length; i++) out[i] = this._arr[(this._head + i) % this._cap]; return out; } }"
+        - generic [ref=e68]: Try the UI to manipulate a live instance of this Deque.
+      - generic [ref=e70]:
+        - strong [ref=e71]: Tips & Notes
+        - list [ref=e72]:
+          - listitem [ref=e73]: Deque supports O(1) amortized operations at both ends.
+          - listitem [ref=e74]: Internally we use a circular buffer. When full we allocate a larger array and copy items linearly.
+          - listitem [ref=e75]: Use deques for sliding windows, BFS, undo buffers, or any place you need both-end access.
+  - contentinfo [ref=e76]: Built for demonstration. Try alternating push/pop on each end and watch head/tail indexes.
+```

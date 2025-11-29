@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Queue Visualizer</title>
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --accent:#3b82f6;
+      --muted:#94a3b8;
+      --success:#10b981;
+      --danger:#ef4444;
+      --box:#071027;
+      --glass: rgba(255,255,255,0.03);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color-scheme: dark;
+    }
+    html,body{height:100%; margin:0; background: linear-gradient(180deg,#071025 0%, #07142a 100%); color:#e6eef6;}
+    .container{max-width:1100px; margin:28px auto; padding:20px; }
+    header{display:flex; gap:16px; align-items:center; margin-bottom:18px;}
+    h1{font-size:20px;margin:0;}
+    p.lead{margin:0;color:var(--muted); font-size:13px;}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); padding:16px; border-radius:10px;}
+    .controls{display:flex; gap:12px; flex-wrap:wrap; margin-top:12px; align-items:center;}
+    .controls > *{margin:4px 0;}
+    input[type="text"], input[type="number"], select{
+      padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:var(--box); color:inherit; outline:none;
+      min-width:110px;
+    }
+    button{
+      background:var(--accent); color:white; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; box-shadow:0 4px 10px rgba(59,130,246,0.12);
+    }
+    button.ghost{background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted);}
+    button.danger{background:var(--danger); box-shadow:0 4px 10px rgba(239,68,68,0.12);}
+    button.small{padding:6px 8px; font-size:13px;}
+    .grid{display:grid; grid-template-columns: 1fr 420px; gap:14px; margin-top:16px;}
+    .vis.card{min-height:220px; display:flex; flex-direction:column; gap:12px; }
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .slots{display:flex; gap:8px; align-items:center; overflow:auto; padding:6px 2px;}
+    .slot{min-width:72px; height:56px; background:var(--box); border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:600; color:#dbeafe; position:relative; border:1px solid rgba(255,255,255,0.03);}
+    .slot.empty{color:var(--muted); font-weight:500; }
+    .index{position:absolute; bottom:4px; right:6px; font-size:11px; color:var(--muted);}
+    .pointer{font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(255,255,255,0.03); color:var(--muted);}
+    .arrow{display:flex; gap:8px; align-items:center;}
+    .arrow .pointer{background:linear-gradient(90deg, rgba(59,130,246,0.12), rgba(16,185,129,0.06)); color: #dbeafe; border:1px solid rgba(255,255,255,0.02); }
+    .info{font-size:13px; color:var(--muted);}
+    .log{background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.03)); border-radius:8px; padding:10px; height:220px; overflow:auto; font-family:monospace; font-size:13px; color:#cfe9ff;}
+    .log p{margin:0 0 8px 0;}
+    .highlight{box-shadow:0 6px 20px rgba(59,130,246,0.16); transform:translateY(-4px); border-color: rgba(59,130,246,0.28);}
+    .pulse{animation:pulse 700ms ease;}
+    @keyframes pulse{
+      0%{transform:scale(0.96); opacity:0.7}
+      40%{transform:scale(1.02); opacity:1}
+      100%{transform:scale(1); opacity:1}
+    }
+    .muted{color:var(--muted);}
+    footer{margin-top:18px; color:var(--muted); font-size:13px;}
+    .status{display:flex; gap:8px; align-items:center; font-size:13px;}
+    .badge{padding:6px 8px; border-radius:8px; background:var(--glass); color:var(--muted); font-weight:600; font-size:13px;}
+    .controls .small-input{width:90px}
+    .center{display:flex; align-items:center; gap:8px;}
+    @media (max-width:980px){ .grid{grid-template-columns:1fr; } .slots{padding:6px 0;} .slot{min-width:64px; height:52px;} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Queue Visualizer</h1>
+        <p class="lead">Interactive demonstration of queue operations (enqueue, dequeue, peek, clear). Try both dynamic and circular implementations.</p>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="vis card">
+        <div class="row">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <label class="muted">Implementation:</label>
+            <select id="implSelect" title="Choose implementation">
+              <option value="dynamic">Dynamic Array Queue</option>
+              <option value="circular">Fixed-size Circular Queue</option>
+            </select>
+
+            <div id="capacityBox" style="display:none; align-items:center;">
+              <label class="muted">Capacity:</label>
+              <input type="number" id="capacityInput" class="small-input" min="2" max="20" value="8" />
+            </div>
+
+            <label class="muted">Value:</label>
+            <input id="valueInput" type="text" placeholder="e.g. 42 or hello" />
+            <button id="enqueueBtn">Enqueue</button>
+            <button id="dequeueBtn" class="ghost">Dequeue</button>
+            <button id="peekBtn" class="ghost small">Peek</button>
+            <button id="clearBtn" class="danger ghost small">Clear</button>
+            <button id="randBtn" class="ghost small">Random</button>
+            <button id="autoBtn" class="ghost small">Auto</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div class="info">
+                <strong id="typeLabel">Dynamic Array Queue</strong>
+                <span class="muted"> — visual representation</span>
+              </div>
+              <div class="status">
+                <div class="badge">size: <span id="sizeBadge">0</span></div>
+                <div class="badge">capacity: <span id="capBadge">auto</span></div>
+              </div>
+            </div>
+
+            <div class="slots" id="slotsContainer" style="margin-top:12px;"></div>
+            <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+              <div class="arrow"><div class="pointer">HEAD</div><div id="headIndex" class="muted" style="margin-left:6px;">-</div></div>
+              <div class="arrow"><div class="pointer">TAIL</div><div id="tailIndex" class="muted" style="margin-left:6px;">-</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="height:100%; display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <h3 style="margin:0 0 6px 0; font-size:16px;">Operation Log</h3>
+              <div class="muted" style="font-size:13px;">Recent queue operations and messages.</div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button id="clearLog" class="ghost small">Clear Log</button>
+            </div>
+          </div>
+
+          <div class="log" id="logArea"></div>
+
+          <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
+            <div class="muted">Tip: Use "Circular" implementation to see wrap-around behavior when capacity is reached.</div>
+            <div style="display:flex; gap:8px;">
+              <button id="demoFill" class="small">Fill</button>
+              <button id="demoEmpty" class="small ghost">Drain</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="muted" style="margin-top:10px;">This demo shows how a queue works: FIFO (first-in, first-out). You can enqueue items to add them to the tail and dequeue from the head.</div>
+    </footer>
+  </div>
+
+  <script>
+    // Queue implementations
+    class DynamicQueue {
+      constructor(){
+        this._arr = [];
+      }
+      enqueue(v){ this._arr.push(v); return true; }
+      dequeue(){ return this._arr.length? this._arr.shift() : undefined; }
+      peek(){ return this._arr.length? this._arr[0] : undefined; }
+      size(){ return this._arr.length; }
+      capacity(){ return 'auto'; }
+      clear(){ this._arr=[]; }
+      internal(){ return this._arr.slice(); } // for rendering in order
+      headIndex(){ return this._arr.length? 0 : -1; }
+      tailIndex(){ return this._arr.length? this._arr.length-1 : -1; }
+    }
+
+    class CircularQueue {
+      constructor(cap){
+        this._cap = Math.max(2, Math.floor(cap));
+        this._arr = new Array(this._cap).fill(null);
+        this._head = 0;
+        this._tail = 0; // points to next insertion index
+        this._count = 0;
+      }
+      enqueue(v){
+        if(this._count === this._cap) return false; // full
+        this._arr[this._tail] = v;
+        this._tail = (this._tail + 1) % this._cap;
+        this._count++;
+        return true;
+      }
+      dequeue(){
+        if(this._count === 0) return undefined;
+        const v = this._arr[this._head];
+        this._arr[this._head] = null;
+        this._head = (this._head + 1) % this._cap;
+        this._count--;
+        return v;
+      }
+      peek(){ return this._count? this._arr[this._head] : undefined; }
+      size(){ return this._count; }
+      capacity(){ return this._cap; }
+      clear(){ this._arr.fill(null); this._head=0; this._tail=0; this._count=0; }
+      internal(){ return this._arr.slice(); }
+      headIndex(){ return this._count? this._head : -1; }
+      tailIndex(){ return this._count? (this._tail - 1 + this._cap)%this._cap : -1; }
+    }
+
+    // DOM elements
+    const implSelect = document.getElementById('implSelect');
+    const capacityBox = document.getElementById('capacityBox');
+    const capacityInput = document.getElementById('capacityInput');
+    const valueInput = document.getElementById('valueInput');
+    const enqueueBtn = document.getElementById('enqueueBtn');
+    const dequeueBtn = document.getElementById('dequeueBtn');
+    const peekBtn = document.getElementById('peekBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const randBtn = document.getElementById('randBtn');
+    const autoBtn = document.getElementById('autoBtn');
+    const slotsContainer = document.getElementById('slotsContainer');
+    const sizeBadge = document.getElementById('sizeBadge');
+    const capBadge = document.getElementById('capBadge');
+    const headIndexLabel = document.getElementById('headIndex');
+    const tailIndexLabel = document.getElementById('tailIndex');
+    const logArea = document.getElementById('logArea');
+    const typeLabel = document.getElementById('typeLabel');
+    const clearLog = document.getElementById('clearLog');
+    const demoFill = document.getElementById('demoFill');
+    const demoEmpty = document.getElementById('demoEmpty');
+
+    let queue = new DynamicQueue();
+    let autoInterval = null;
+    let autoRunning = false;
+
+    function log(msg, kind='info'){
+      const p = document.createElement('p');
+      const t = new Date().toLocaleTimeString();
+      p.textContent = `[${t}] ${msg}`;
+      if(kind==='error') p.style.color='var(--danger)';
+      else if(kind==='ok') p.style.color='var(--success)';
+      logArea.prepend(p);
+    }
+
+    function render(){
+      const impl = implSelect.value;
+      typeLabel.textContent = impl === 'dynamic' ? 'Dynamic Array Queue' : 'Circular Queue';
+      const arr = queue.internal();
+      const size = queue.size();
+      const cap = queue.capacity();
+      sizeBadge.textContent = size;
+      capBadge.textContent = cap;
+      slotsContainer.innerHTML = '';
+
+      if(impl === 'dynamic'){
+        // Render dynamic slots in-order
+        if(arr.length === 0){
+          const emptyBox = document.createElement('div');
+          emptyBox.className = 'slot empty';
+          emptyBox.textContent = 'empty';
+          slotsContainer.appendChild(emptyBox);
+        } else {
+          arr.forEach((val,i)=>{
+            const s = document.createElement('div');
+            s.className = 'slot';
+            s.textContent = String(val);
+            const idx = document.createElement('div');
+            idx.className='index';
+            idx.textContent = i;
+            s.appendChild(idx);
+            slotsContainer.appendChild(s);
+          });
+        }
+        headIndexLabel.textContent = queue.headIndex() >= 0 ? queue.headIndex() : '-';
+        tailIndexLabel.textContent = queue.tailIndex() >= 0 ? queue.tailIndex() : '-';
+      } else {
+        // Circular: render fixed capacity boxes with indices
+        for(let i=0;i<cap;i++){
+          const s = document.createElement('div');
+          s.className = 'slot';
+          const val = arr[i];
+          if(val === null || val === undefined){
+            s.classList.add('empty');
+            s.textContent = '—';
+          } else {
+            s.textContent = String(val);
+          }
+          const idx = document.createElement('div');
+          idx.className='index';
+          idx.textContent = i;
+          s.appendChild(idx);
+          // highlight head/tail
+          if(queue.headIndex() === i){
+            const tag = document.createElement('div');
+            tag.className = 'pointer';
+            tag.style.position='absolute';
+            tag.style.top='6px';
+            tag.style.left='6px';
+            tag.style.fontSize='11px';
+            tag.textContent = 'HEAD';
+            s.appendChild(tag);
+            s.style.boxShadow='0 12px 30px rgba(16,185,129,0.06)';
+            s.style.border='1px solid rgba(16,185,129,0.12)';
+          }
+          if(queue.tailIndex() === i){
+            const tag = document.createElement('div');
+            tag.className = 'pointer';
+            tag.style.position='absolute';
+            tag.style.top='6px';
+            tag.style.right='6px';
+            tag.style.fontSize='11px';
+            tag.textContent = 'TAIL';
+            s.appendChild(tag);
+            s.style.boxShadow='0 12px 30px rgba(59,130,246,0.06)';
+            s.style.border='1px solid rgba(59,130,246,0.12)';
+          }
+          slotsContainer.appendChild(s);
+        }
+        headIndexLabel.textContent = queue.headIndex() >= 0 ? queue.headIndex() : '-';
+        tailIndexLabel.textContent = queue.tailIndex() >= 0 ? queue.tailIndex() : '-';
+      }
+    }
+
+    // Actions
+    function enqueueAction(value){
+      if(value === '' || value == null){
+        log('Cannot enqueue empty value', 'error');
+        flash('enqueueBtn');
+        return;
+      }
+      const ok = queue.enqueue(value);
+      if(ok){
+        log(`Enqueued: ${value}`, 'ok');
+        render();
+        animateLastEnqueue();
+      } else {
+        log('Enqueue failed: queue is full', 'error');
+        flash('enqueueBtn', true);
+      }
+    }
+
+    function dequeueAction(){
+      const v = queue.dequeue();
+      if(v === undefined){
+        log('Dequeue failed: queue is empty', 'error');
+        flash('dequeueBtn', true);
+      } else {
+        log(`Dequeued: ${v}`, 'ok');
+        render();
+        animateDequeue();
+      }
+    }
+
+    function peekAction(){
+      const v = queue.peek();
+      if(v === undefined){
+        log('Peek: queue is empty', 'error');
+        flash('peekBtn', true);
+      } else {
+        log(`Peek: ${v}`, 'info');
+        flashPeek();
+      }
+    }
+
+    function clearAction(){
+      queue.clear();
+      log('Queue cleared', 'info');
+      render();
+    }
+
+    function flash(id, danger=false){
+      const el = document.getElementById(id);
+      if(!el) return;
+      const orig = el.style.boxShadow;
+      el.classList.add('pulse');
+      setTimeout(()=> el.classList.remove('pulse'), 700);
+    }
+
+    function animateLastEnqueue(){
+      // highlight last slot
+      const slots = Array.from(slotsContainer.children);
+      if(slots.length === 0) return;
+      // choose which slot: dynamic -> last slot; circular -> tail index (tail was moved after enqueue, so tailIndex() points to last inserted)
+      let targetIdx = null;
+      if(implSelect.value === 'dynamic'){
+        targetIdx = slots.length - 1;
+      } else {
+        // find slot where element is not empty and has a pointer 'TAIL' (we marked tail)
+        targetIdx = slots.findIndex(s => {
+          return Array.from(s.querySelectorAll('.pointer')).some(p => p.textContent === 'TAIL');
+        });
+        if(targetIdx === -1) targetIdx = null;
+      }
+      if(targetIdx !== null && targetIdx >= 0){
+        const target = slots[targetIdx];
+        target.classList.add('highlight');
+        setTimeout(()=> target.classList.remove('highlight'), 700);
+      }
+    }
+
+    function animateDequeue(){
+      // highlight head slot briefly
+      const slots = Array.from(slotsContainer.children);
+      if(slots.length === 0) return;
+      let targetIdx = null;
+      if(implSelect.value === 'dynamic'){
+        targetIdx = 0;
+      } else {
+        targetIdx = slots.findIndex(s => {
+          return Array.from(s.querySelectorAll('.pointer')).some(p => p.textContent === 'HEAD');
+        });
+        if(targetIdx === -1) targetIdx = null;
+      }
+      if(targetIdx !== null && targetIdx >= 0){
+        const target = slots[targetIdx];
+        target.classList.add('pulse');
+        setTimeout(()=> target.classList.remove('pulse'), 700);
+      }
+    }
+
+    function flashPeek(){
+      // highlight head slot
+      const slots = Array.from(slotsContainer.children);
+      if(slots.length === 0) return;
+      let idx = null;
+      if(implSelect.value === 'dynamic') idx = 0;
+      else idx = slots.findIndex(s => Array.from(s.querySelectorAll('.pointer')).some(p => p.textContent === 'HEAD'));
+      if(idx !== null && idx >= 0){
+        const s = slots[idx];
+        s.style.border = '1px solid rgba(59,130,246,0.18)';
+        setTimeout(()=> s.style.border = '1px solid rgba(255,255,255,0.03)', 600);
+      }
+    }
+
+    // Events
+    enqueueBtn.addEventListener('click', ()=> {
+      enqueueAction(valueInput.value.trim());
+      valueInput.value = '';
+      valueInput.focus();
+    });
+    dequeueBtn.addEventListener('click', ()=> dequeueAction());
+    peekBtn.addEventListener('click', ()=> peekAction());
+    clearBtn.addEventListener('click', ()=> clearAction());
+    randBtn.addEventListener('click', ()=> {
+      const v = Math.random().toString(36).slice(2,7);
+      log(`Generated random: ${v}`, 'info');
+      enqueueAction(v);
+    });
+
+    implSelect.addEventListener('change', ()=> {
+      if(implSelect.value === 'circular'){
+        capacityBox.style.display = 'inline-flex';
+        const cap = parseInt(capacityInput.value,10) || 8;
+        queue = new CircularQueue(cap);
+        capBadge.textContent = cap;
+      } else {
+        capacityBox.style.display = 'none';
+        queue = new DynamicQueue();
+        capBadge.textContent = 'auto';
+      }
+      render();
+      log(`Switched implementation to ${implSelect.value}`, 'info');
+    });
+
+    capacityInput.addEventListener('change', ()=> {
+      if(implSelect.value === 'circular'){
+        const cap = Math.max(2, Math.min(20, parseInt(capacityInput.value)||8));
+        capacityInput.value = cap;
+        queue = new CircularQueue(cap);
+        render();
+        log(`Circular queue capacity set to ${cap}`, 'info');
+      }
+    });
+
+    clearLog.addEventListener('click', ()=> logArea.innerHTML='');
+
+    demoFill.addEventListener('click', ()=>{
+      if(implSelect.value === 'dynamic'){
+        // fill with sample values
+        for(let i=1;i<=6;i++) queue.enqueue('v'+i);
+        log('Demo: filled dynamic queue', 'info');
+      } else {
+        const cap = queue.capacity();
+        for(let i=0;i<cap;i++) queue.enqueue('v'+(i+1));
+        log('Demo: filled circular queue', 'info');
+      }
+      render();
+    });
+
+    demoEmpty.addEventListener('click', ()=>{
+      const n = queue.size();
+      for(let i=0;i<n;i++) { queue.dequeue(); }
+      log('Demo: drained queue', 'info');
+      render();
+    });
+
+    // Auto enqueue toggle
+    autoBtn.addEventListener('click', ()=>{
+      if(autoRunning){
+        clearInterval(autoInterval);
+        autoRunning=false;
+        autoBtn.textContent='Auto';
+        autoBtn.classList.remove('danger');
+        log('Auto enqueuing stopped', 'info');
+      } else {
+        autoRunning=true;
+        autoBtn.textContent='Stop';
+        autoBtn.classList.add('danger');
+        autoInterval = setInterval(()=>{
+          const v = Math.random().toString(36).slice(2,6);
+          const ok = queue.enqueue(v);
+          if(!ok){
+            log('Auto stopped: queue is full', 'error');
+            clearInterval(autoInterval);
+            autoRunning=false;
+            autoBtn.textContent='Auto';
+            autoBtn.classList.remove('danger');
+          } else {
+            log(`Auto enqueued: ${v}`, 'ok');
+            render();
+            animateLastEnqueue();
+          }
+        }, 700);
+        log('Auto enqueuing started', 'info');
+      }
+    });
+
+    // Initialization
+    render();
+    log('Visualizer ready. Try enqueuing items.', 'info');
+
+    // Keyboard support: Enter to enqueue
+    valueInput.addEventListener('keyup', (e)=>{
+      if(e.key === 'Enter') enqueueBtn.click();
+    });
+
+    // Basic accessibility: focus first input
+    valueInput.focus();
+  </script>
+</body>
+</html>

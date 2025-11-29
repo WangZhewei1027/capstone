@@ -1,0 +1,54 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Queue Visualizer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Interactive demonstration of queue operations (enqueue, dequeue, peek, clear). Try both dynamic and circular implementations.
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: "Implementation:"
+        - combobox "Choose implementation" [ref=e12]:
+          - option "Dynamic Array Queue" [selected]
+          - option "Fixed-size Circular Queue"
+        - generic [ref=e13]: "Value:"
+        - textbox "e.g. 42 or hello" [active] [ref=e14]
+        - button "Enqueue" [ref=e15] [cursor=pointer]
+        - button "Dequeue" [ref=e16] [cursor=pointer]
+        - button "Peek" [ref=e17] [cursor=pointer]
+        - button "Clear" [ref=e18] [cursor=pointer]
+        - button "Random" [ref=e19] [cursor=pointer]
+        - button "Auto" [ref=e20] [cursor=pointer]
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - generic [ref=e24]:
+            - strong [ref=e25]: Dynamic Array Queue
+            - text: — visual representation
+          - generic [ref=e26]:
+            - generic [ref=e27]: "size: 0"
+            - generic [ref=e28]: "capacity: auto"
+        - generic [ref=e30]: empty
+        - generic [ref=e31]:
+          - generic [ref=e32]:
+            - generic [ref=e33]: HEAD
+            - generic [ref=e34]: "-"
+          - generic [ref=e35]:
+            - generic [ref=e36]: TAIL
+            - generic [ref=e37]: "-"
+    - generic [ref=e39]:
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - heading "Operation Log" [level=3] [ref=e42]
+          - generic [ref=e43]: Recent queue operations and messages.
+        - button "Clear Log" [ref=e45] [cursor=pointer]
+      - paragraph [ref=e47]: "[1:55:13 PM] Visualizer ready. Try enqueuing items."
+      - generic [ref=e48]:
+        - generic [ref=e49]: "Tip: Use \"Circular\" implementation to see wrap-around behavior when capacity is reached."
+        - generic [ref=e50]:
+          - button "Fill" [ref=e51] [cursor=pointer]
+          - button "Drain" [ref=e52] [cursor=pointer]
+  - contentinfo [ref=e53]:
+    - generic [ref=e54]: "This demo shows how a queue works: FIFO (first-in, first-out). You can enqueue items to add them to the tail and dequeue from the head."
+```
