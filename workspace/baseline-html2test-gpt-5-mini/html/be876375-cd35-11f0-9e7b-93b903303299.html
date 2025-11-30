@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Interactive Graph (Directed / Undirected)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    :root{
+      --bg:#f6f9fc;
+      --panel:#ffffff;
+      --accent:#2563eb;
+      --muted:#6b7280;
+      --danger:#ef4444;
+      --success:#10b981;
+      --node:#111827;
+      --node-fill:#fff;
+      --edge:#374151;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+    body{background:var(--bg);display:flex;align-items:stretch;gap:12px;padding:12px;}
+    .app{
+      display:flex;flex:1;min-height:0;border-radius:8px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,0.08);
+      background:linear-gradient(180deg,rgba(255,255,255,0.9),rgba(250,250,252,0.9));
+    }
+    .canvas-wrap{flex:1;position:relative;display:flex;flex-direction:column}
+    canvas{flex:1;width:100%;height:100%;background:
+      linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.6));cursor:crosshair;}
+    .topbar{
+      display:flex;gap:8px;padding:10px;border-bottom:1px solid rgba(15,23,42,0.04);align-items:center;background:transparent;
+    }
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn,select,input[type="button"]{
+      border:1px solid rgba(15,23,42,0.08);
+      background:var(--panel);
+      padding:8px 10px;border-radius:6px;color:var(--node);cursor:pointer;font-size:13px;
+      box-shadow:0 1px 0 rgba(255,255,255,0.5) inset;
+    }
+    .btn.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,0.08);}
+    .sidebar{
+      width:360px;padding:12px;box-sizing:border-box;background:linear-gradient(180deg,var(--panel),#fbfdff);
+      border-left:1px solid rgba(15,23,42,0.04);overflow:auto;
+    }
+    h3{margin:8px 0 6px 0;font-size:15px;color:var(--node)}
+    .muted{color:var(--muted);font-size:13px;margin-bottom:6px}
+    .info-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    .small{font-size:12px;padding:6px;border-radius:6px;background:#f8fafc;border:1px solid rgba(15,23,42,0.03)}
+    pre{background:#111827;color:#fff;padding:8px;border-radius:6px;overflow:auto;font-size:13px}
+    table{border-collapse:collapse;width:100%;font-size:13px}
+    td,th{border:1px solid rgba(15,23,42,0.06);padding:6px;text-align:center}
+    .legend{display:flex;gap:8px;align-items:center;margin-top:6px}
+    .dot{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,0.06)}
+    .node-dot{background:var(--node-fill);border-color:var(--node)}
+    .edge-dot{width:28px;height:10px;border-radius:4px;background:linear-gradient(90deg,var(--edge),#9ca3af)}
+    .footer{font-size:12px;color:var(--muted);margin-top:10px}
+    .code{white-space:pre-wrap;font-family:monospace;background:#f3f4f6;padding:8px;border-radius:6px;border:1px solid rgba(15,23,42,0.03)}
+    label{font-size:13px;color:var(--muted);display:block;margin-top:8px}
+    input[type="text"],select{padding:8px;border-radius:6px;border:1px solid rgba(15,23,42,0.08);background:#fff}
+    .row{display:flex;gap:6px;align-items:center}
+    .small-btn{padding:6px 8px;font-size:13px;border-radius:6px}
+    .status{font-size:13px;color:var(--muted);padding:6px;border-radius:6px}
+    .highlighted{box-shadow:0 0 0 3px rgba(16,185,129,0.08);border-color:var(--success)}
+    .danger{border-color:var(--danger);box-shadow:0 0 0 3px rgba(239,68,68,0.06)}
+    .matrix-wrap{overflow:auto;max-height:200px;padding:6px;border-radius:6px;border:1px solid rgba(15,23,42,0.03);background:#fff}
+    .note{font-size:12px;color:var(--muted);margin-top:6px}
+    a.link{color:var(--accent);text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <div class="canvas-wrap">
+      <div class="topbar">
+        <div class="controls">
+          <button class="btn active" id="mode-add-node" title="Add nodes by clicking the canvas">Add Node</button>
+          <button class="btn" id="mode-add-edge" title="Connect two nodes (click first then second)">Add Edge</button>
+          <button class="btn" id="mode-move" title="Drag nodes">Move</button>
+          <button class="btn" id="mode-delete" title="Delete nodes/edges">Delete</button>
+
+          <label style="display:flex;align-items:center;gap:8px;margin:0 0 0 8px;font-size:13px;color:var(--muted)">
+            <input type="checkbox" id="global-directed" /> Directed graph
+          </label>
+
+          <button class="btn" id="clear" title="Remove all nodes and edges">Clear</button>
+          <button class="btn" id="random" title="Generate random graph">Random</button>
+        </div>
+
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <div class="status" id="status">Mode: Add Node</div>
+        </div>
+      </div>
+
+      <canvas id="canvas"></canvas>
+      <div style="position:absolute;right:12px;bottom:12px;background:rgba(255,255,255,0.9);padding:8px;border-radius:8px;border:1px solid rgba(15,23,42,0.04);font-size:13px">
+        Nodes: <span id="node-count">0</span> &nbsp; Edges: <span id="edge-count">0</span>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <h3>Graph Controls & Tools</h3>
+      <div class="muted">Interactively build and explore directed or undirected graphs. Use modes to add, connect, move, or remove elements.</div>
+
+      <label>Selected node (for traversals):
+        <select id="node-select"><option value="">— pick node —</option></select>
+      </label>
+
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn" id="bfs-btn">Run BFS</button>
+        <button class="btn" id="dfs-btn">Run DFS</button>
+        <button class="btn" id="stop-traversal">Stop</button>
+      </div>
+
+      <div class="note">Traversal animations highlight nodes/edges in order. Click a node then press BFS/DFS, or pick from the dropdown.</div>
+
+      <h3>Adjacency List</h3>
+      <div class="matrix-wrap" id="adj-list"></div>
+
+      <h3 style="margin-top:10px">Adjacency Matrix</h3>
+      <div class="matrix-wrap" id="adj-matrix"></div>
+
+      <h3 style="margin-top:10px">Examples and Hints</h3>
+      <div class="code">
+        - Click canvas to add nodes. <br/>
+        - Switch to "Add Edge" then click a node and then another to connect. Toggle "Directed graph" to create directed edges.<br/>
+        - Use Move to drag; Delete to remove nodes or edges.<br/>
+        - Self-loop is created by connecting a node to itself.<br/>
+      </div>
+
+      <div class="footer">
+        Built-in demo • Interactive HTML + JavaScript • Designed for learning graph concepts
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Interactive Graph Editor: Directed/Undirected with BFS/DFS + Adjacency views
+    (function(){
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      let DPR = window.devicePixelRatio || 1;
+
+      function resize(){
+        DPR = window.devicePixelRatio || 1;
+        canvas.width = canvas.clientWidth * DPR;
+        canvas.height = canvas.clientHeight * DPR;
+        ctx.setTransform(DPR,0,0,DPR,0,0);
+        draw();
+      }
+      // initial sizing
+      window.addEventListener('resize', resize);
+      setTimeout(resize, 50);
+
+      // Data structures
+      let nodes = []; // {id,label,x,y}
+      let edges = []; // {from,to,directed}
+      let nextNodeId = 1;
+
+      // State
+      let mode = 'add-node'; // add-node, add-edge, move, delete
+      let globalDirected = false;
+      let drag = null; // {node,offsetX,offsetY}
+      let addEdgeSource = null;
+      let selectedNodeId = null;
+      let traversalTimer = null;
+      let traversalStopped = false;
+
+      // UI elements
+      const modeButtons = {
+        'add-node': document.getElementById('mode-add-node'),
+        'add-edge': document.getElementById('mode-add-edge'),
+        'move': document.getElementById('mode-move'),
+        'delete': document.getElementById('mode-delete')
+      };
+      const statusEl = document.getElementById('status');
+      const globalDirectedCheckbox = document.getElementById('global-directed');
+      const nodeCountEl = document.getElementById('node-count');
+      const edgeCountEl = document.getElementById('edge-count');
+      const adjListEl = document.getElementById('adj-list');
+      const adjMatrixEl = document.getElementById('adj-matrix');
+      const nodeSelect = document.getElementById('node-select');
+      const bfsBtn = document.getElementById('bfs-btn');
+      const dfsBtn = document.getElementById('dfs-btn');
+      const stopBtn = document.getElementById('stop-traversal');
+      const clearBtn = document.getElementById('clear');
+      const randomBtn = document.getElementById('random');
+
+      // Setup buttons
+      Object.entries(modeButtons).forEach(([m,btn])=>{
+        btn.addEventListener('click', ()=> setMode(m));
+      });
+      function setMode(m){
+        mode = m;
+        Object.values(modeButtons).forEach(b => b.classList.remove('active'));
+        modeButtons[m].classList.add('active');
+        statusEl.textContent = 'Mode: ' + (m==='add-node'?'Add Node':m==='add-edge'?'Add Edge':m==='move'?'Move':'Delete');
+        canvas.style.cursor = (m==='move') ? 'grab' : 'crosshair';
+        addEdgeSource = null;
+      }
+
+      globalDirectedCheckbox.addEventListener('change', ()=>{
+        globalDirected = !!globalDirectedCheckbox.checked;
+      });
+
+      function addNode(x,y){
+        const id = String(nextNodeId++);
+        const node = {id, label:id, x, y};
+        nodes.push(node);
+        updateNodeList();
+        draw();
+      }
+
+      function findNodeAt(x,y){
+        for(let i = nodes.length-1; i>=0; i--){
+          const n = nodes[i];
+          const dx = x - n.x;
+          const dy = y - n.y;
+          if(Math.hypot(dx,dy) <= NODE_RADIUS) return n;
+        }
+        return null;
+      }
+
+      function addEdge(fromId,toId,directed = globalDirected){
+        // Avoid duplicate exact same directed edge; allow parallel edges? keep single.
+        if(edges.some(e=> e.from===fromId && e.to===toId && e.directed===directed)) return;
+        edges.push({from:fromId,to:toId,directed});
+        updateCounts();
+        draw();
+      }
+
+      function deleteNode(nodeId){
+        nodes = nodes.filter(n=> n.id !== nodeId);
+        edges = edges.filter(e=> e.from !== nodeId && e.to !== nodeId);
+        updateNodeList();
+        draw();
+      }
+
+      function deleteEdge(edgeIndex){
+        edges.splice(edgeIndex,1);
+        updateCounts();
+        draw();
+      }
+
+      function toggleEdgeDir(edgeIndex){
+        edges[edgeIndex].directed = !edges[edgeIndex].directed;
+        draw();
+      }
+
+      // Event handlers
+      const NODE_RADIUS = 20;
+      let isMouseDown = false;
+
+      canvas.addEventListener('mousedown', (ev)=>{
+        const rect = canvas.getBoundingClientRect();
+        const x = (ev.clientX - rect.left);
+        const y = (ev.clientY - rect.top);
+        isMouseDown = true;
+
+        if(mode === 'add-node'){
+          addNode(x,y);
+        } else if(mode === 'add-edge'){
+          const node = findNodeAt(x,y);
+          if(node){
+            if(!addEdgeSource){
+              addEdgeSource = node;
+              // flash selection
+            } else {
+              addEdge(addEdgeSource.id, node.id, globalDirected);
+              addEdgeSource = null;
+            }
+          }
+        } else if(mode === 'move'){
+          const node = findNodeAt(x,y);
+          if(node){
+            drag = {node, offsetX: x-node.x, offsetY: y-node.y};
+            canvas.style.cursor = 'grabbing';
+          }
+        } else if(mode === 'delete'){
+          const edgeIndex = findEdgeAt(x,y);
+          if(edgeIndex !== null){
+            deleteEdge(edgeIndex);
+            return;
+          }
+          const node = findNodeAt(x,y);
+          if(node) deleteNode(node.id);
+        }
+        draw();
+      });
+
+      canvas.addEventListener('mousemove', (ev)=>{
+        const rect = canvas.getBoundingClientRect();
+        const x = (ev.clientX - rect.left);
+        const y = (ev.clientY - rect.top);
+        if(mode === 'move' && drag && isMouseDown){
+          drag.node.x = x - drag.offsetX;
+          drag.node.y = y - drag.offsetY;
+          draw();
+        }
+      });
+
+      canvas.addEventListener('mouseup', (ev)=>{
+        isMouseDown = false;
+        if(drag){
+          drag = null;
+          canvas.style.cursor = 'grab';
+        }
+      });
+
+      // Double click to rename node
+      canvas.addEventListener('dblclick', (ev)=>{
+        const rect = canvas.getBoundingClientRect();
+        const x = (ev.clientX - rect.left);
+        const y = (ev.clientY - rect.top);
+        const node = findNodeAt(x,y);
+        if(node){
+          const newLabel = prompt('Label for node '+node.id, node.label);
+          if(newLabel != null) { node.label = newLabel; updateNodeList(); draw();}
+        }
+      });
+
+      // Detect edge under point for deletion/toggle
+      function findEdgeAt(x,y){
+        for(let i=0;i<edges.length;i++){
+          const e = edges[i];
+          const n1 = nodes.find(n=> n.id===e.from);
+          const n2 = nodes.find(n=> n.id===e.to);
+          if(!n1 || !n2) continue;
+          if(isPointNearEdge(x,y,n1.x,n1.y,n2.x,n2.y,e)) return i;
+        }
+        return null;
+      }
+
+      function isPointNearEdge(px,py,x1,y1,x2,y2,edge){
+        // handle self-loop separately
+        if(x1===x2 && y1===y2){
+          const loopX = x1 + 0.0*NODE_RADIUS;
+          const loopY = y1 - NODE_RADIUS*1.6;
+          const d = Math.hypot(px-loopX, py-loopY);
+          return d < NODE_RADIUS;
+        } else {
+          // distance from point to segment
+          const A = px - x1;
+          const B = py - y1;
+          const C = x2 - x1;
+          const D = y2 - y1;
+          const dot = A*C + B*D;
+          const len2 = C*C + D*D;
+          let t = len2 ? dot / len2 : -1;
+          t = Math.max(0, Math.min(1, t));
+          const projx = x1 + t*C;
+          const projy = y1 + t*D;
+          const dist = Math.hypot(px-projx, py-projy);
+          return dist < 8;
+        }
+      }
+
+      // Drawing
+      function clearCanvas(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+      }
+
+      function draw(){
+        clearCanvas();
+        // edges first
+        edges.forEach((e,i)=>{
+          const n1 = nodes.find(n=> n.id===e.from);
+          const n2 = nodes.find(n=> n.id===e.to);
+          if(!n1 || !n2) return;
+          drawEdge(n1,n2,e.directed);
+        });
+        // nodes on top
+        nodes.forEach(n => drawNode(n));
+        // if in add-edge mode and source selected, draw a highlight
+        if(mode === 'add-edge' && addEdgeSource){
+          ctx.beginPath();
+          ctx.strokeStyle = '#2563EB';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6,6]);
+          ctx.arc(addEdgeSource.x, addEdgeSource.y, NODE_RADIUS+6, 0, Math.PI*2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        updateCounts();
+      }
+
+      function drawNode(n, fill='#fff', stroke='#111827'){
+        // circle
+        ctx.beginPath();
+        ctx.fillStyle = fill;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 2;
+        ctx.arc(n.x, n.y, NODE_RADIUS, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+        // label
+        ctx.fillStyle = '#111827';
+        ctx.font = 'bold 13px Inter, Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(n.label, n.x, n.y);
+      }
+
+      function drawEdge(n1,n2,directed){
+        ctx.strokeStyle = '#374151';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = '#374151';
+        if(n1.id === n2.id){
+          // self-loop: draw arc
+          const cx = n1.x;
+          const cy = n1.y;
+          const r = NODE_RADIUS * 1.2;
+          ctx.beginPath();
+          ctx.arc(cx, cy - NODE_RADIUS - r/2, r, 0.2*Math.PI, 1.3*Math.PI);
+          ctx.stroke();
+          if(directed){
+            // draw arrowhead at end of arc
+            const angle = 1.3*Math.PI;
+            const ax = cx + (cy - NODE_RADIUS - r/2 - cy) * 0 + Math.cos(angle)*r;
+            const ay = (cy - NODE_RADIUS - r/2) + Math.sin(angle)*r;
+            drawArrowhead(ax,ay,angle);
+          }
+          return;
+        }
+
+        // compute line endpoints shortened by node radius circles
+        const dx = n2.x - n1.x;
+        const dy = n2.y - n1.y;
+        const len = Math.hypot(dx,dy);
+        const ux = dx / len;
+        const uy = dy / len;
+        const startX = n1.x + ux * NODE_RADIUS;
+        const startY = n1.y + uy * NODE_RADIUS;
+        const endX = n2.x - ux * NODE_RADIUS;
+        const endY = n2.y - uy * NODE_RADIUS;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+
+        if(directed){
+          // arrowhead pointing to end
+          const angle = Math.atan2(endY - startY, endX - startX);
+          drawArrowhead(endX, endY, angle);
+        } else {
+          // for undirected, optionally draw a small center marker for parallelism - keep simple
+        }
+      }
+
+      function drawArrowhead(x,y,angle){
+        const size = 9;
+        ctx.save();
+        ctx.translate(x,y);
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.lineTo(-size, size/2);
+        ctx.lineTo(-size, -size/2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // UI update helpers
+      function updateCounts(){
+        nodeCountEl.textContent = nodes.length;
+        edgeCountEl.textContent = edges.length;
+        updateAdjList();
+        updateAdjMatrix();
+      }
+
+      function updateNodeList(){
+        // update select and dropdowns
+        nodeSelect.innerHTML = '<option value="">— pick node —</option>';
+        nodes.forEach(n=>{
+          const opt = document.createElement('option');
+          opt.value = n.id;
+          opt.textContent = n.label + ' ('+n.id+')';
+          nodeSelect.appendChild(opt);
+        });
+        updateCounts();
+      }
+
+      function updateAdjList(){
+        // adjacency list grouped by node label
+        const map = new Map();
+        nodes.forEach(n => map.set(n.id, []));
+        edges.forEach(e=>{
+          map.get(e.from).push({to:e.to, directed:e.directed});
+          if(!e.directed){
+            // also add reverse to display adjacency list for undirected
+            map.get(e.to).push({to:e.from, directed:e.directed});
+          }
+        });
+        let html = '';
+        nodes.forEach(n=>{
+          const items = map.get(n.id) || [];
+          html += '<div style="margin-bottom:6px"><strong>'+escapeHtml(n.label+' ('+n.id+')')+'</strong>: ';
+          if(items.length===0) html += '<span class="muted">—</span>';
+          else {
+            html += items.map(it=>{
+              return (it.directed? '&#8594; ' : '') + escapeHtml(displayNodeLabel(it.to));
+            }).join(', ');
+          }
+          html += '</div>';
+        });
+        adjListEl.innerHTML = html || '<div class="muted">No nodes</div>';
+      }
+
+      function updateAdjMatrix(){
+        // nodes ordered by current nodes array
+        if(nodes.length===0){
+          adjMatrixEl.innerHTML = '<div class="muted">No nodes</div>';
+          return;
+        }
+        let html = '<table><thead><tr><th></th>';
+        nodes.forEach(n=> html += '<th>'+escapeHtml(n.label)+'</th>');
+        html += '</tr></thead><tbody>';
+        nodes.forEach((ni, i)=>{
+          html += '<tr><th>'+escapeHtml(ni.label)+'</th>';
+          nodes.forEach((nj,j)=>{
+            const val = adjacencyValue(ni.id,nj.id);
+            html += '<td>'+val+'</td>';
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+        adjMatrixEl.innerHTML = html;
+      }
+
+      function adjacencyValue(a,b){
+        // for unweighted: 1 if edge exists from a->b or undirected edge between them
+        for(const e of edges){
+          if(e.from === a && e.to === b) return e.directed ? '1(→)' : '1';
+          if(!e.directed && e.from === b && e.to === a) return '1';
+        }
+        return '0';
+      }
+
+      function displayNodeLabel(id){
+        const n = nodes.find(xx=> xx.id===id);
+        return n? (n.label + ' ('+n.id+')') : id;
+      }
+
+      function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+      // Traversal: BFS and DFS (iteration over neighbor lists)
+      function getNeighbors(nodeId){
+        const nbrs = [];
+        edges.forEach(e=>{
+          if(e.from === nodeId) nbrs.push(e.to);
+          if(!e.directed && e.to === nodeId) nbrs.push(e.from);
+        });
+        // unique
+        return [...new Set(nbrs)];
+      }
+
+      function runBFS(startId){
+        stopTraversal();
+        const visited = new Set();
+        const queue = [startId];
+        let order = [];
+        visited.add(startId);
+        while(queue.length){
+          const u = queue.shift();
+          order.push(u);
+          const nbrs = getNeighbors(u);
+          nbrs.forEach(v=>{
+            if(!visited.has(v)){
+              visited.add(v);
+              queue.push(v);
+            }
+          });
+        }
+        animateOrder(order);
+      }
+
+      function runDFS(startId){
+        stopTraversal();
+        const visited = new Set();
+        const order = [];
+        function dfs(u){
+          visited.add(u);
+          order.push(u);
+          const nbrs = getNeighbors(u);
+          for(const v of nbrs){
+            if(!visited.has(v)) dfs(v);
+          }
+        }
+        dfs(startId);
+        animateOrder(order);
+      }
+
+      function animateOrder(order){
+        if(!order || order.length===0) return;
+        traversalStopped = false;
+        let i=0;
+        const originalNodeStates = nodes.map(n=> ({id:n.id, x:n.x, y:n.y}));
+        traversalTimer = setInterval(()=>{
+          if(traversalStopped) { clearInterval(traversalTimer); traversalTimer=null; draw(); return; }
+          if(i>0) draw(); // redraw baseline
+          if(i < order.length){
+            // highlight node order[i]
+            const nid = order[i];
+            const n = nodes.find(x=> x.id===nid);
+            if(n){
+              // draw an overlay highlight
+              draw();
+              ctx.beginPath();
+              ctx.fillStyle = 'rgba(37,99,235,0.18)';
+              ctx.strokeStyle = '#2563EB';
+              ctx.lineWidth = 2;
+              ctx.arc(n.x,n.y,NODE_RADIUS+6,0,Math.PI*2);
+              ctx.fill();
+              ctx.stroke();
+
+              // also highlight edges from previous node to current (if any)
+              if(i>0){
+                const prev = order[i-1];
+                highlightEdgeBetween(prev, nid);
+              }
+            }
+            i++;
+          } else {
+            clearInterval(traversalTimer);
+            traversalTimer = null;
+          }
+        }, 650);
+      }
+
+      function highlightEdgeBetween(a,b){
+        // draw a bright overlay on edges between a and b or b and a for undirected
+        edges.forEach(e=>{
+          if((e.from===a && e.to===b) || (!e.directed && e.from===b && e.to===a)){
+            const n1 = nodes.find(n=> n.id===e.from);
+            const n2 = nodes.find(n=> n.id===e.to);
+            if(!n1 || !n2) return;
+            ctx.beginPath();
+            ctx.strokeStyle = '#10B981';
+            ctx.lineWidth = 4;
+            ctx.moveTo(n1.x, n1.y);
+            ctx.lineTo(n2.x, n2.y);
+            ctx.stroke();
+            // arrow overlay for directed edges
+            if(e.directed){
+              const dx = n2.x - n1.x;
+              const dy = n2.y - n1.y;
+              const len = Math.hypot(dx,dy);
+              const ux = dx/len;
+              const uy = dy/len;
+              const endX = n2.x - ux * NODE_RADIUS;
+              const endY = n2.y - uy * NODE_RADIUS;
+              const angle = Math.atan2(endY - (n1.y + uy*NODE_RADIUS), endX - (n1.x + ux*NODE_RADIUS));
+              drawArrowhead(endX, endY, angle);
+            }
+          }
+        });
+      }
+
+      function stopTraversal(){
+        traversalStopped = true;
+        if(traversalTimer){
+          clearInterval(traversalTimer);
+          traversalTimer = null;
+        }
+      }
+
+      // UI wiring
+      bfsBtn.addEventListener('click', ()=>{
+        const start = nodeSelect.value;
+        if(!start){ alert('Pick a start node first.'); return; }
+        runBFS(start);
+      });
+      dfsBtn.addEventListener('click', ()=>{
+        const start = nodeSelect.value;
+        if(!start){ alert('Pick a start node first.'); return; }
+        runDFS(start);
+      });
+      stopBtn.addEventListener('click', stopTraversal);
+
+      clearBtn.addEventListener('click', ()=>{
+        if(!confirm('Clear all nodes and edges?')) return;
+        nodes = [];
+        edges = [];
+        nextNodeId = 1;
+        updateNodeList();
+        draw();
+      });
+
+      randomBtn.addEventListener('click', ()=>{
+        const n = parseInt(prompt('How many nodes? (1-20)','6')) || 6;
+        const p = parseFloat(prompt('Edge probability (0-1)','0.25')) || 0.25;
+        if(n < 1 || n > 50) { alert('Pick between 1 and 50.'); return; }
+        nodes = [];
+        edges = [];
+        nextNodeId = 1;
+        for(let i=0;i<n;i++){
+          const x = 60 + Math.random()*(canvas.clientWidth-120);
+          const y = 60 + Math.random()*(canvas.clientHeight-120);
+          addNode(x,y);
+        }
+        // create random edges
+        for(let i=0;i<n;i++){
+          for(let j=0;j<n;j++){
+            if(i===j && Math.random() < 0.05) {
+              addEdge(nodes[i].id, nodes[j].id, globalDirected);
+            } else if(i!==j && Math.random() < p){
+              // avoid duplicate when undirected: only add j>i if undirected
+              if(!globalDirected && j < i) continue;
+              addEdge(nodes[i].id, nodes[j].id, globalDirected);
+            }
+          }
+        }
+        draw();
+      });
+
+      // Keyboard shortcuts
+      window.addEventListener('keydown', (ev)=>{
+        if(ev.key === 'Escape'){
+          addEdgeSource = null;
+          draw();
+        }
+      });
+
+      // initial draw
+      draw();
+
+      // Utility to keep canvas responsive initially
+      setTimeout(()=>{ resize(); draw(); }, 100);
+
+      // Simple safety: if user clicks on canvas while in add-edge mode and clicks empty space -> cancel
+      canvas.addEventListener('click', (ev)=>{
+        const rect = canvas.getBoundingClientRect();
+        const x = (ev.clientX - rect.left);
+        const y = (ev.clientY - rect.top);
+        if(mode === 'add-edge'){
+          const node = findNodeAt(x,y);
+          if(!node && addEdgeSource){
+            // clicked empty space; cancel selection
+            addEdgeSource = null;
+            draw();
+          }
+        }
+      });
+
+      // INIT: add an example graph
+      (function seedExample(){
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        const coords = [
+          {x:w*0.2, y:h*0.25},
+          {x:w*0.5, y:h*0.18},
+          {x:w*0.8, y:h*0.28},
+          {x:w*0.3, y:h*0.6},
+          {x:w*0.6, y:h*0.6}
+        ];
+        coords.forEach(c=> addNode(c.x,c.y));
+        // add edges (undirected default)
+        addEdge('1','2', false);
+        addEdge('2','3', false);
+        addEdge('1','4', false);
+        addEdge('2','4', false);
+        addEdge('4','5', false);
+        draw();
+      })();
+
+    })();
+  </script>
+</body>
+</html>

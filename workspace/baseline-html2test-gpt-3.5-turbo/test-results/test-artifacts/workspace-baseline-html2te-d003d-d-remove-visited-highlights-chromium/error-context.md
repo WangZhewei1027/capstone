@@ -1,0 +1,41 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Depth-First Search (DFS) Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - paragraph [ref=e4]:
+      - text: This visualization demonstrates
+      - strong [ref=e5]: Depth-First Search (DFS)
+      - text: on a directed graph. Click the
+      - emphasis [ref=e6]: Start DFS
+      - text: button to explore the graph starting from the chosen starting node. Nodes and edges will be highlighted as DFS visits them.
+    - paragraph [ref=e7]: You can change the start node by entering its number (0 to 6) below.
+    - paragraph [ref=e8]:
+      - text: Created by ChatGPT. Learn more about DFS on
+      - link "Wikipedia" [ref=e9] [cursor=pointer]:
+        - /url: https://en.wikipedia.org/wiki/Depth-first_search
+      - text: .
+  - img "Graph visualization" [ref=e11]:
+    - generic "Node 0" [ref=e19] [cursor=pointer]
+    - generic: "0"
+    - generic "Node 1" [ref=e20] [cursor=pointer]
+    - generic: "1"
+    - generic "Node 2" [ref=e21] [cursor=pointer]
+    - generic: "2"
+    - generic "Node 3" [ref=e22] [cursor=pointer]
+    - generic: "3"
+    - generic "Node 4" [ref=e23] [cursor=pointer]
+    - generic: "4"
+    - generic "Node 5" [ref=e24] [cursor=pointer]
+    - generic: "5"
+    - generic "Node 6" [ref=e25] [cursor=pointer]
+    - generic: "6"
+  - generic [ref=e26]:
+    - text: "Start node:"
+    - spinbutton [ref=e27]: "0"
+    - button "Start DFS" [ref=e28] [cursor=pointer]
+    - button "Reset" [ref=e29] [cursor=pointer]
+  - log [ref=e30]:
+    - generic [ref=e31]: Enter a start node and click 'Start DFS' to begin.
+```

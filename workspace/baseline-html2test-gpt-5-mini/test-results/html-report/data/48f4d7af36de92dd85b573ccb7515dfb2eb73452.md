@@ -1,0 +1,60 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Linear Regression — Interactive Demo" [level=1] [ref=e2]
+  - paragraph [ref=e3]: Click on the main plot to add points. Use "Normal Eq." (closed-form) or run Gradient Descent to fit y = θ0 + θ1·x. Generate synthetic data, adjust noise, learning rate, and watch the cost decrease.
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - button "Normal Eq. (closed-form)" [ref=e8] [cursor=pointer]
+        - button "Run GD" [ref=e9] [cursor=pointer]
+        - button "Pause" [disabled] [ref=e10]
+        - button "Step 100 iters" [ref=e11] [cursor=pointer]
+        - button "Clear" [ref=e12] [cursor=pointer]
+        - button "Undo" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e16]: "Learning rate (α): 0.01"
+          - slider [ref=e17]: "0.01"
+        - generic [ref=e18]:
+          - generic [ref=e19]: Batch iters / animate
+          - spinbutton [ref=e20]: "50"
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]: Predict x (domain -10..10)
+          - spinbutton [ref=e24]: "0"
+        - generic [ref=e25]:
+          - generic [ref=e26]: Prediction y
+          - textbox [ref=e27]: "-1.021"
+      - generic [ref=e29]: Cost (MSE) history
+    - generic [ref=e31]:
+      - heading "Model & stats" [level=3] [ref=e32]
+      - generic [ref=e33]:
+        - generic [ref=e34]:
+          - strong [ref=e35]: θ0 (intercept)
+          - generic [ref=e36]: "-1.02120"
+        - generic [ref=e37]:
+          - strong [ref=e38]: θ1 (slope)
+          - generic [ref=e39]: "1.52052"
+        - generic [ref=e40]:
+          - strong [ref=e41]: MSE
+          - generic [ref=e42]: "4.56634"
+        - generic [ref=e43]:
+          - strong [ref=e44]: R²
+          - generic [ref=e45]: "0.9281"
+      - generic [ref=e46]:
+        - heading "Data generation" [level=4] [ref=e47]
+        - generic [ref=e48]: Points
+        - spinbutton [ref=e49]: "40"
+        - generic [ref=e50]: True slope (θ1)
+        - spinbutton [ref=e51]: "1.5"
+        - generic [ref=e52]: True intercept (θ0)
+        - spinbutton [ref=e53]: "-1.0"
+        - generic [ref=e54]: Noise σ (std dev)
+        - spinbutton [ref=e55]: "2.0"
+        - generic [ref=e56]:
+          - button "Generate" [ref=e57] [cursor=pointer]
+          - button "Generate & Replace" [ref=e58] [cursor=pointer]
+      - generic [ref=e59]: "Tips: Click to add points. Use Normal Eq. for exact fit (closed-form). Gradient Descent learns gradually — change α if it diverges or is too slow."
+```

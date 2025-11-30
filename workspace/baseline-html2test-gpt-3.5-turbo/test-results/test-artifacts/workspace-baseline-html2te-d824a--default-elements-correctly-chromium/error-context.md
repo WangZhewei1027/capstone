@@ -1,0 +1,54 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "0/1 Knapsack Problem Solver" [level=1] [ref=e3]
+  - paragraph [ref=e4]: Enter the knapsack capacity and add items (weight and value). Then click "Solve" to find the optimal selection maximizing value without exceeding capacity.
+  - generic [ref=e5]:
+    - text: "Knapsack Capacity:"
+    - spinbutton "Knapsack Capacity:" [ref=e6]: "50"
+  - table [ref=e7]:
+    - rowgroup [ref=e8]:
+      - row "# Item Name Weight Value Remove" [ref=e9]:
+        - cell "#" [ref=e10]
+        - cell "Item Name" [ref=e11]
+        - cell "Weight" [ref=e12]
+        - cell "Value" [ref=e13]
+        - cell "Remove" [ref=e14]
+    - rowgroup [ref=e15]:
+      - row "1 Item 1 10 60 ✖" [ref=e16]:
+        - cell "1" [ref=e17]
+        - cell "Item 1" [ref=e18]
+        - cell "10" [ref=e19]
+        - cell "60" [ref=e20]
+        - cell "✖" [ref=e21]:
+          - button "✖" [ref=e22] [cursor=pointer]
+      - row "2 Item 2 20 100 ✖" [ref=e23]:
+        - cell "2" [ref=e24]
+        - cell "Item 2" [ref=e25]
+        - cell "20" [ref=e26]
+        - cell "100" [ref=e27]
+        - cell "✖" [ref=e28]:
+          - button "✖" [ref=e29] [cursor=pointer]
+      - row "3 Item 3 30 120 ✖" [ref=e30]:
+        - cell "3" [ref=e31]
+        - cell "Item 3" [ref=e32]
+        - cell "30" [ref=e33]
+        - cell "120" [ref=e34]
+        - cell "✖" [ref=e35]:
+          - button "✖" [ref=e36] [cursor=pointer]
+  - generic [ref=e37]:
+    - heading "Add Item" [level=3] [ref=e38]
+    - generic [ref=e39]:
+      - text: "Name:"
+      - textbox "Name:" [ref=e40]:
+        - /placeholder: Item Name
+    - generic [ref=e41]:
+      - text: "Weight:"
+      - spinbutton "Weight:" [ref=e42]
+    - generic [ref=e43]:
+      - text: "Value:"
+      - spinbutton "Value:" [ref=e44]
+    - button "Add Item" [ref=e45] [cursor=pointer]
+  - button "Solve" [ref=e46] [cursor=pointer]
+```

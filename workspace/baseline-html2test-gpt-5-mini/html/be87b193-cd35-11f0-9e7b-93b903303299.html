@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Floyd–Warshall Algorithm Visualizer</title>
+<style>
+  :root{
+    --bg:#fafafa;
+    --panel:#ffffff;
+    --muted:#666;
+    --accent:#2b7cff;
+    --danger:#d9534f;
+    --good:#28a745;
+    --grid:#e9eef9;
+    --cell-w:70px;
+  }
+  html,body{height:100%; margin:0; font-family:Inter,Segoe UI,Roboto,system-ui,-apple-system, "Helvetica Neue", Arial; background:var(--bg); color:#111}
+  header{padding:18px 24px; display:flex; gap:12px; align-items:center; border-bottom:1px solid #eef2f7; background:linear-gradient(180deg,#fff, #fbfdff); position:sticky; top:0; z-index:10}
+  header h1{font-size:18px; margin:0}
+  .container{display:flex; gap:18px; padding:18px; align-items:flex-start; max-width:1200px; margin:0 auto}
+  .left, .right{background:var(--panel); padding:14px; border-radius:10px; box-shadow:0 6px 20px rgba(28,40,60,0.05)}
+  .left{flex:1; min-width:420px}
+  .right{width:420px}
+  label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px}
+  .controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  input[type="number"], input[type="text"], select{padding:6px 8px; border-radius:6px; border:1px solid #e1e7f3; background:#fff; font-size:13px}
+  button{background:var(--accent); color:#fff; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600}
+  button.ghost{background:transparent; color:var(--accent); border:1px solid #dbe9ff}
+  button.warn{background:var(--danger)}
+  button.small{padding:6px 8px; font-size:13px}
+  .row{display:flex; gap:12px; align-items:center; margin-bottom:12px}
+  .matrix-wrap{overflow:auto; background:linear-gradient(180deg,#fff, #fcfdff); padding:10px; border-radius:8px; border:1px solid #f1f5fb}
+  table.matrix{border-collapse:collapse; font-family:monospace; font-size:13px}
+  table.matrix th, table.matrix td{border:1px solid var(--grid); width:var(--cell-w); height:36px; text-align:center; padding:4px}
+  table.matrix th{background:#f6f9ff; color:var(--muted); font-weight:700}
+  td.inf{color:#c3c8d9}
+  td.updated{background:linear-gradient(90deg,#fffbeb,#fff1b8)}
+  td.self-neg{background:linear-gradient(90deg,#ffe7e7,#ffd1d1); color:var(--danger); font-weight:700}
+  .log{height:160px; overflow:auto; background:#081126; color:#9fe0ff; padding:10px; border-radius:6px; font-family:monospace; font-size:13px}
+  .small-muted{font-size:13px; color:var(--muted)}
+  .flex-col{display:flex; flex-direction:column}
+  .status{margin-top:8px; font-weight:700}
+  .play-controls{display:flex; gap:8px; align-items:center}
+  .path-result{padding:8px; background:#f6fbff; border-radius:6px; border:1px solid #e7f2ff; margin-top:8px}
+  .explain{font-size:13px; color:var(--muted); line-height:1.4}
+  .legend{display:flex; gap:8px; margin-top:8px; align-items:center; flex-wrap:wrap}
+  .chip{padding:6px 8px; border-radius:6px; background:#fff; border:1px solid #eef4ff; font-size:13px}
+  .matrix-head{display:flex; gap:12px; align-items:center; margin-bottom:8px}
+  .small{font-size:12px; color:var(--muted)}
+  input[type="range"]{width:140px}
+  .footer{font-size:12px; color:var(--muted); margin-top:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Floyd–Warshall Algorithm Visualizer</h1>
+  <div style="flex:1"></div>
+  <div class="small-muted">All in-browser demo • Supports negative weights • Detects negative cycles</div>
+</header>
+
+<div class="container">
+  <div class="left">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+      <div>
+        <label class="small-muted">Number of nodes</label>
+        <div class="row">
+          <input id="nodeCount" type="number" min="1" max="12" value="5" style="width:72px"/>
+          <button id="makeNodes" class="small">Make matrix</button>
+          <button id="randomGraph" class="ghost small">Random graph</button>
+          <button id="clearGraph" class="ghost small">Clear (INF)</button>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <label class="small-muted">Play speed</label>
+        <div class="row">
+          <input id="speedRange" type="range" min="200" max="1500" value="700"/>
+          <div id="speedLabel" class="small-muted">700 ms/step</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="matrix-head">
+        <div style="flex:1">
+          <label class="small-muted">Adjacency matrix (enter numbers or INF)</label>
+        </div>
+        <div style="text-align:right">
+          <div class="small-muted">Interpretation: cell [i][j] = weight from i→j. INF = no direct edge.</div>
+        </div>
+      </div>
+
+      <div id="adjWrap" class="matrix-wrap" style="margin-bottom:12px"></div>
+
+      <div class="row">
+        <button id="initBtn">Initialize (create dist & next)</button>
+        <button id="stepBtn" class="ghost small">Step</button>
+        <button id="playBtn" class="ghost small">Play</button>
+        <button id="fastRun" class="small">Run to End</button>
+        <button id="resetBtn" class="ghost small">Reset</button>
+        <button id="exportBtn" class="ghost small">Export matrix</button>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:12px">
+        <div style="flex:1">
+          <label class="small-muted">Current k (intermediate node)</label>
+          <div id="kLabel" style="font-weight:700; font-size:16px">k = -</div>
+        </div>
+        <div style="width:220px">
+          <label class="small-muted">Log</label>
+          <div id="log" class="log"></div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:12px">
+        <div style="flex:1">
+          <label class="small-muted">Distance matrix (dist)</label>
+          <div id="distWrap" class="matrix-wrap"></div>
+        </div>
+        <div style="width:220px">
+          <label class="small-muted">Next matrix (for path reconstruction)</label>
+          <div id="nextWrap" class="matrix-wrap"></div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label class="small-muted">From</label>
+          <input id="fromNode" type="number" min="0" value="0" style="width:64px"/>
+        </div>
+        <div>
+          <label class="small-muted">To</label>
+          <input id="toNode" type="number" min="0" value="1" style="width:64px"/>
+        </div>
+        <div style="align-self:flex-end">
+          <button id="pathBtn" class="small">Reconstruct path</button>
+        </div>
+        <div style="flex:1"></div>
+        <div class="small-muted">After initialization and at least partial run.</div>
+      </div>
+
+      <div id="pathResult" class="path-result" style="display:none"></div>
+
+      <div class="legend">
+        <div class="chip">INF = no path</div>
+        <div class="chip">Updated cells highlighted</div>
+        <div class="chip" style="border-color:var(--danger)">dist[i][i] &lt; 0 → negative cycle</div>
+      </div>
+
+      <div class="footer">
+        Floyd–Warshall finds all-pairs shortest paths in a weighted directed graph (works with negative edge weights; negative cycles make distances undefined).
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div style="display:flex; justify-content:space-between; align-items:center">
+      <div>
+        <label class="small-muted">Summary & explanation</label>
+        <div style="font-weight:700; margin-top:6px">Floyd–Warshall</div>
+      </div>
+      <div style="text-align:right">
+        <div class="small-muted">Complexity</div>
+        <div style="font-weight:700; margin-top:6px">Time: O(n^3) • Space: O(n^2)</div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px" class="explain">
+      <p><strong>What it does</strong>: For every pair of nodes (i,j), the algorithm computes the shortest path distance using any intermediate vertices from a set {0..k}. It iteratively expands this set from k=0 to n-1. The key recurrence:
+      dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])</p>
+
+      <p><strong>Path reconstruction</strong>: We maintain a helper matrix Next[i][j] which points to the next vertex after i on a shortest path to j. After updates, Next[i][j] ← Next[i][k] when using k improves dist[i][j]. Reconstruct path by repeatedly following Next[u][v].</p>
+
+      <p><strong>Negative cycles</strong>: If after the algorithm any dist[i][i] < 0, node i is part of or reachable through a negative cycle; shortest paths are then undefined in general.</p>
+
+      <hr/>
+
+      <div style="margin-top:8px; display:flex; gap:8px; align-items:center">
+        <button id="sampleBtn" class="small">Load sample with negative edge</button>
+        <button id="sample2Btn" class="small ghost">Load sample (no negatives)</button>
+      </div>
+
+      <div style="margin-top:12px">
+        <div class="small-muted">Tips</div>
+        <ul style="margin:6px 0 0 18px; color:var(--muted); font-size:13px">
+          <li>Use INF to indicate no direct edge.</li>
+          <li>Try random graphs to see how intermediate k introduces new shorter routes.</li>
+          <li>Reconstruct paths after running to inspect concrete routes.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Utility
+  const INF = Number.POSITIVE_INFINITY;
+
+  // State
+  let n = 5;
+  let adj = []; // strings from editor -> parsed to numbers or INF
+  let dist = null;
+  let nextMat = null;
+  let k = -1; // current intermediate node in [0..n-1], -1 before start
+  let playing = false;
+  let playTimer = null;
+
+  // DOM
+  const adjWrap = document.getElementById('adjWrap');
+  const distWrap = document.getElementById('distWrap');
+  const nextWrap = document.getElementById('nextWrap');
+  const nodeCount = document.getElementById('nodeCount');
+  const makeNodes = document.getElementById('makeNodes');
+  const randomGraph = document.getElementById('randomGraph');
+  const clearGraph = document.getElementById('clearGraph');
+  const initBtn = document.getElementById('initBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const playBtn = document.getElementById('playBtn');
+  const fastRun = document.getElementById('fastRun');
+  const resetBtn = document.getElementById('resetBtn');
+  const logEl = document.getElementById('log');
+  const kLabel = document.getElementById('kLabel');
+  const pathBtn = document.getElementById('pathBtn');
+  const pathResult = document.getElementById('pathResult');
+  const fromNode = document.getElementById('fromNode');
+  const toNode = document.getElementById('toNode');
+  const speedRange = document.getElementById('speedRange');
+  const speedLabel = document.getElementById('speedLabel');
+  const exportBtn = document.getElementById('exportBtn');
+  const sampleBtn = document.getElementById('sampleBtn');
+  const sample2Btn = document.getElementById('sample2Btn');
+  const adjInputs = []; // 2D array of inputs
+
+  // Initialize UI
+  nodeCount.addEventListener('change', ()=> {
+    let val = parseInt(nodeCount.value) || 1;
+    val = Math.max(1, Math.min(12, val));
+    nodeCount.value = val;
+  });
+
+  makeNodes.addEventListener('click', ()=> {
+    n = parseInt(nodeCount.value) || 1;
+    makeMatrix(n);
+  });
+
+  speedRange.addEventListener('input', ()=> {
+    speedLabel.textContent = speedRange.value + ' ms/step';
+  });
+
+  randomGraph.addEventListener('click', ()=> {
+    createRandomGraph();
+  });
+
+  clearGraph.addEventListener('click', ()=> {
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        setAdjValue(i,j, i===j ? "0" : "INF");
+      }
+    }
+  });
+
+  initBtn.addEventListener('click', ()=> {
+    if(!readAdjMatrix()) return;
+    initializeFW();
+  });
+
+  stepBtn.addEventListener('click', ()=> {
+    step();
+  });
+
+  playBtn.addEventListener('click', ()=> {
+    if(playing){ stopPlaying(); } else { startPlaying(); }
+  });
+
+  fastRun.addEventListener('click', ()=> {
+    if(!dist) {
+      if(!readAdjMatrix()) return;
+      initializeFW();
+    }
+    runToEnd();
+  });
+
+  resetBtn.addEventListener('click', ()=> {
+    stopPlaying();
+    dist = null; nextMat = null; k = -1;
+    renderDistNext();
+    kLabel.textContent = 'k = -';
+    log('Reset.');
+    pathResult.style.display='none';
+  });
+
+  pathBtn.addEventListener('click', ()=> {
+    const u = parseInt(fromNode.value);
+    const v = parseInt(toNode.value);
+    if(!dist || !nextMat){
+      alert('Initialize and run at least partially (click Init) before reconstructing paths.');
+      return;
+    }
+    if(Number.isNaN(u) || Number.isNaN(v) || u<0 || v<0 || u>=n || v>=n){
+      alert('Invalid node indices.');
+      return;
+    }
+    const res = reconstructPath(u,v);
+    pathResult.style.display='block';
+    if(!res) {
+      pathResult.innerHTML = '<strong>No path</strong> from '+u+' → '+v;
+    } else {
+      const pathStr = res.path.join(' → ');
+      pathResult.innerHTML = '<strong>Path:</strong> ' + pathStr + '<br><strong>Distance:</strong> ' + (Number.isFinite(res.dist) ? res.dist : 'INF');
+    }
+  });
+
+  exportBtn.addEventListener('click', ()=> {
+    if(!readAdjMatrix()) return;
+    const rows = adj.map(r=> r.join(',')).join('\n');
+    const blob = new Blob([rows], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'adjacency.csv'; document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+  });
+
+  sampleBtn.addEventListener('click', ()=> {
+    // sample with a negative edge but no negative cycle
+    n = 4; nodeCount.value = n; makeMatrix(n);
+    setAdjValue(0,0,'0'); setAdjValue(0,1,'3'); setAdjValue(0,2,'INF'); setAdjValue(0,3,'7');
+    setAdjValue(1,0,'8'); setAdjValue(1,1,'0'); setAdjValue(1,2,'2'); setAdjValue(1,3,'INF');
+    setAdjValue(2,0,'5'); setAdjValue(2,1,'INF'); setAdjValue(2,2,'0'); setAdjValue(2,3,'1');
+    setAdjValue(3,0,'2'); setAdjValue(3,1,'INF'); setAdjValue(3,2,'INF'); setAdjValue(3,3,'0');
+    // Introduce a negative edge 3->1 = -4 (but no negative cycle)
+    setAdjValue(3,1,'-4');
+  });
+
+  sample2Btn.addEventListener('click', ()=> {
+    // sample without negatives
+    n = 5; nodeCount.value = n; makeMatrix(n);
+    for(let i=0;i<n;i++) for(let j=0;j<n;j++) setAdjValue(i,j, i===j ? '0' : 'INF');
+    setAdjValue(0,1,'6'); setAdjValue(0,3,'7');
+    setAdjValue(1,2,'5'); setAdjValue(1,3,'8'); setAdjValue(1,4,'-4');
+    setAdjValue(2,1,'-2');
+    setAdjValue(3,2,'-3'); setAdjValue(3,4,'9');
+    setAdjValue(4,0,'2'); setAdjValue(4,2,'7');
+  });
+
+  // Helpers
+  function makeMatrix(size){
+    stopPlaying();
+    n = size;
+    adj = [];
+    adjInputs.length = 0;
+    adjWrap.innerHTML = '';
+    for(let i=0;i<n;i++){
+      adj[i]=[];
+      const rowDiv = document.createElement('div');
+      rowDiv.style.display='flex';
+      rowDiv.style.gap='6px';
+      rowDiv.style.alignItems='center';
+      rowDiv.style.marginBottom='6px';
+      const label = document.createElement('div');
+      label.style.width='28px';
+      label.style.fontSize='12px';
+      label.style.color='var(--muted)';
+      label.textContent = i;
+      rowDiv.appendChild(label);
+      adjInputs[i]=[];
+      for(let j=0;j<n;j++){
+        const inp = document.createElement('input');
+        inp.type='text';
+        inp.value = (i===j) ? '0' : 'INF';
+        inp.style.width = '64px';
+        inp.addEventListener('change', ()=> {
+          // no immediate parse
+        });
+        adjInputs[i][j]=inp;
+        rowDiv.appendChild(inp);
+      }
+      adjWrap.appendChild(rowDiv);
+    }
+    // labels for columns
+    const colLabels = document.createElement('div');
+    colLabels.style.display='flex';
+    colLabels.style.gap='6px';
+    colLabels.style.alignItems='center';
+    colLabels.style.marginTop='6px';
+    const empty = document.createElement('div'); empty.style.width='28px';
+    colLabels.appendChild(empty);
+    for(let j=0;j<n;j++){
+      const c = document.createElement('div');
+      c.style.width='64px';
+      c.style.textAlign='center';
+      c.style.fontSize='12px';
+      c.style.color='var(--muted)';
+      c.textContent = j;
+      colLabels.appendChild(c);
+    }
+    adjWrap.insertBefore(colLabels, adjWrap.firstChild);
+    // reset algorithm state
+    dist = null; nextMat = null; k = -1;
+    renderDistNext();
+    kLabel.textContent = 'k = -';
+    log('Created ' + n + '×' + n + ' adjacency editor.');
+  }
+
+  function setAdjValue(i,j,val){
+    if(!adjInputs[i] || !adjInputs[i][j]) return;
+    adjInputs[i][j].value = String(val);
+  }
+
+  function createRandomGraph(){
+    stopPlaying();
+    // generate random sparse graph with some negative weights possible
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        if(i===j){ setAdjValue(i,j,'0'); continue; }
+        const p = Math.random();
+        if(p<0.45){
+          // no edge
+          setAdjValue(i,j,'INF');
+        } else {
+          // weight between -5 and 12
+          const val = Math.floor(Math.random()*18)-5;
+          setAdjValue(i,j,String(val));
+        }
+      }
+    }
+    log('Random graph generated.');
+  }
+
+  function readAdjMatrix(){
+    // parse inputs into adj[][] as numbers or INF
+    const newAdj = [];
+    for(let i=0;i<n;i++){
+      newAdj[i]=[];
+      for(let j=0;j<n;j++){
+        const raw = adjInputs[i][j].value.trim();
+        if(raw === '' || raw.toUpperCase() === 'INF' || raw.toUpperCase() === 'INFINITY' || raw === '∞'){
+          newAdj[i][j] = INF;
+        } else {
+          const num = Number(raw);
+          if(Number.isFinite(num)){
+            newAdj[i][j] = num;
+          } else {
+            alert('Invalid value at ['+i+']['+j+']: ' + raw);
+            return false;
+          }
+        }
+      }
+    }
+    adj = newAdj;
+    return true;
+  }
+
+  function initializeFW(){
+    // dist = copy of adj, nextMat init
+    dist = [];
+    nextMat = [];
+    for(let i=0;i<n;i++){
+      dist[i]=[];
+      nextMat[i]=[];
+      for(let j=0;j<n;j++){
+        dist[i][j] = adj[i][j];
+        if(Number.isFinite(adj[i][j])){
+          nextMat[i][j] = j;
+        } else {
+          nextMat[i][j] = null;
+        }
+      }
+    }
+    k = -1;
+    renderDistNext();
+    kLabel.textContent = 'k = -';
+    log('Initialized Floyd–Warshall.');
+    pathResult.style.display='none';
+    checkNegativeDiagonals();
+  }
+
+  function renderDistNext(highlight){
+    // highlight is optional object {i,j} to mark updated cell
+    distWrap.innerHTML = '';
+    nextWrap.innerHTML = '';
+    if(!dist){
+      distWrap.innerHTML = '<div class="small-muted" style="padding:8px">Distance matrix not initialized.</div>';
+      nextWrap.innerHTML = '<div class="small-muted" style="padding:8px">Next matrix not initialized.</div>';
+      return;
+    }
+    // dist table
+    const distTable = document.createElement('table'); distTable.className='matrix';
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    const empty = document.createElement('th'); empty.textContent=''; trh.appendChild(empty);
+    for(let j=0;j<n;j++){ const th=document.createElement('th'); th.textContent=j; trh.appendChild(th); }
+    thead.appendChild(trh); distTable.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for(let i=0;i<n;i++){
+      const tr=document.createElement('tr');
+      const th=document.createElement('th'); th.textContent=i; tr.appendChild(th);
+      for(let j=0;j<n;j++){
+        const td=document.createElement('td');
+        const val = dist[i][j];
+        td.textContent = Number.isFinite(val) ? String(val) : 'INF';
+        if(!Number.isFinite(val)) td.classList.add('inf');
+        if(highlight && highlight.i===i && highlight.j===j) td.classList.add('updated');
+        if(i===j && Number.isFinite(val) && val<0) td.classList.add('self-neg');
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    distTable.appendChild(tbody);
+    distWrap.appendChild(distTable);
+
+    // next table
+    const nextTable = document.createElement('table'); nextTable.className='matrix';
+    const thead2 = document.createElement('thead');
+    const trh2 = document.createElement('tr');
+    const empty2 = document.createElement('th'); empty2.textContent=''; trh2.appendChild(empty2);
+    for(let j=0;j<n;j++){ const th=document.createElement('th'); th.textContent=j; trh2.appendChild(th); }
+    thead2.appendChild(trh2); nextTable.appendChild(thead2);
+    const tbody2 = document.createElement('tbody');
+    for(let i=0;i<n;i++){
+      const tr=document.createElement('tr');
+      const th=document.createElement('th'); th.textContent=i; tr.appendChild(th);
+      for(let j=0;j<n;j++){
+        const td=document.createElement('td');
+        const v = nextMat[i][j];
+        td.textContent = (v===null || v===undefined) ? '-' : String(v);
+        tr.appendChild(td);
+      }
+      tbody2.appendChild(tr);
+    }
+    nextTable.appendChild(tbody2);
+    nextWrap.appendChild(nextTable);
+  }
+
+  function log(msg){
+    const t = new Date().toLocaleTimeString();
+    logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
+  }
+
+  // Step-by-step Floyd–Warshall: we iterate k from 0..n-1; for each k we loop i,j.
+  // We'll maintain indices iIter and jIter to continue where left off.
+  let iIter = 0, jIter = 0;
+
+  function step(){
+    if(!dist){
+      if(!readAdjMatrix()) return;
+      initializeFW();
+      // prepare to start with k=0
+      iIter = 0; jIter = 0; k = -1;
+    }
+    // if completed
+    if(k>=n-1 && iIter>=n){
+      log('Algorithm already finished.');
+      return;
+    }
+    // Begin new k if needed
+    if(jIter===0 && iIter===0){
+      k++;
+      if(k>=n){
+        // done
+        log('Completed all k.');
+        kLabel.textContent = 'k = done';
+        renderDistNext();
+        checkNegativeDiagonals();
+        return;
+      }
+      kLabel.textContent = 'k = ' + k;
+      log('Using intermediate node k=' + k);
+    }
+    // perform a single cell check/update for (iIter, jIter)
+    const i = iIter, j = jIter;
+    const old = dist[i][j];
+    const via = (Number.isFinite(dist[i][k]) && Number.isFinite(dist[k][j])) ? dist[i][k] + dist[k][j] : INF;
+    if(via < old){
+      dist[i][j] = via;
+      nextMat[i][j] = nextMat[i][k]; // follow i->k then k->j
+      log(`Updated dist[${i}][${j}] = ${via} via k=${k} (was ${old===INF?'INF':old})`);
+      renderDistNext({i,j});
+    } else {
+      // render without highlight but update UI for current k
+      renderDistNext();
+    }
+    // advance indices
+    jIter++;
+    if(jIter>=n){ jIter=0; iIter++; }
+    if(iIter>=n){
+      // finished all i,j for this k; reset indices to start next k
+      iIter=0; jIter=0;
+      // after finishing a k, check for negative cycles (intermediate detection)
+      checkNegativeDiagonals();
+    }
+  }
+
+  function runToEnd(){
+    // run all remaining steps quickly (but still update UI)
+    while(true){
+      if(!dist){ if(!readAdjMatrix()) return; initializeFW(); }
+      if(k>=n-1 && iIter>=n) break;
+      step();
+    }
+    log('Run to end finished.');
+  }
+
+  function startPlaying(){
+    if(!dist){ if(!readAdjMatrix()) return; initializeFW(); }
+    playing = true;
+    playBtn.textContent = 'Stop';
+    const ms = parseInt(speedRange.value) || 700;
+    playTimer = setInterval(()=>{
+      // if finished stop
+      if(k>=n-1 && iIter>=n){
+        stopPlaying();
+        log('Play finished.');
+        return;
+      }
+      step();
+    }, ms);
+    log('Started playing (auto-step).');
+  }
+
+  function stopPlaying(){
+    playing = false;
+    playBtn.textContent = 'Play';
+    if(playTimer){ clearInterval(playTimer); playTimer = null; }
+  }
+
+  function checkNegativeDiagonals(){
+    if(!dist) return;
+    let found=false;
+    for(let i=0;i<n;i++){
+      if(Number.isFinite(dist[i][i]) && dist[i][i] < 0){
+        log('Negative cycle detected involving node '+i);
+        found = true;
+        // highlight is done in renderDistNext via self-neg class
+      }
+    }
+    if(found){
+      // render to ensure highlighting
+      renderDistNext();
+    }
+  }
+
+  function reconstructPath(u,v){
+    if(!nextMat) return null;
+    if(nextMat[u][v] === null) return null;
+    const path = [u];
+    let cur = u;
+    const visited = new Set([u]);
+    while(cur !== v){
+      cur = nextMat[cur][v];
+      if(cur === null || cur === undefined) return null;
+      if(visited.has(cur)){
+        // loop detection (happens if negative cycles cause weird next pointers)
+        log('Path reconstruction loop detected; aborting.');
+        return null;
+      }
+      path.push(cur);
+      visited.add(cur);
+    }
+    return {path, dist: dist[u][v]};
+  }
+
+  // initial setup
+  makeMatrix(n);
+  log('Welcome! Edit adjacency matrix, then click Initialize. Use Step / Play to run the algorithm.');
+
+  // Ensure step button is enabled/disabled based on initialization
+  // expose console shortcuts for advanced users
+  window.__fw = {
+    getDist: ()=>dist,
+    getNext: ()=>nextMat
+  };
+})();
+</script>
+</body>
+</html>

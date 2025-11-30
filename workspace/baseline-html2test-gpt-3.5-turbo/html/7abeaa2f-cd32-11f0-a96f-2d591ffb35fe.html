@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Floyd-Warshall Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f0f4f8;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 5px;
+  }
+  #container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  textarea {
+    width: 100%;
+    height: 90px;
+    font-family: monospace;
+    font-size: 14px;
+    padding: 8px;
+    margin-bottom: 10px;
+  }
+  label {
+    font-weight: bold;
+  }
+  button {
+    background: #1976d2;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    cursor: pointer;
+    font-size: 16px;
+    border-radius: 4px;
+  }
+  button:disabled {
+    background: #90caf9;
+    cursor: default;
+  }
+  .tables {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 20px;
+    justify-content: center;
+  }
+  table {
+    border-collapse: collapse;
+    margin-top: 10px;
+    min-width: 280px;
+    background: white;
+    box-shadow: 0 0 8px rgb(0 0 0 / 0.1);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  th, td {
+    border: 1px solid #bbb;
+    padding: 6px 10px;
+    text-align: center;
+    min-width: 30px;
+  }
+  th {
+    background: #1976d2;
+    color: white;
+  }
+  td.infinite {
+    color: #b71c1c;
+    font-weight: bold;
+  }
+  #step-info {
+    margin-top: 20px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+  }
+  #controls {
+    margin-top: 15px;
+    text-align: center;
+  }
+  #error {
+    color: #b71c1c;
+    font-weight: bold;
+    margin-top: 10px;
+    white-space: pre-wrap;
+  }
+  @media (max-width: 600px) {
+    .tables {
+      flex-direction: column;
+      align-items: center;
+    }
+    table {
+      width: 100%;
+      max-width: 400px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="container">
+  <h1>Floyd-Warshall Algorithm Demonstration</h1>
+  <label for="graph-input">Enter graph adjacency matrix (use comma or space separated; use "INF" or "∞" for no direct edge):</label><br />
+  <textarea id="graph-input" aria-label="Graph adjacency matrix input" spellcheck="false">0 3 INF 7
+8 0 2 INF
+5 INF 0 1
+2 INF INF 0</textarea>
+  <div id="error" aria-live="assertive"></div>
+  <button id="start-btn">Start Floyd-Warshall</button>
+
+  <div id="step-info" aria-live="polite" style="min-height: 1.5em;"></div>
+  <div id="controls" aria-label="Step controls" hidden>
+    <button id="prev-step" aria-label="Previous step">&larr; Previous</button>
+    <button id="next-step" aria-label="Next step">Next &rarr;</button>
+    <button id="auto-run" aria-label="Auto run toggle">Auto Run ▶</button>
+    <button id="reset" aria-label="Reset algorithm">Reset 🔄</button>
+  </div>
+
+  <div class="tables">
+    <div>
+      <div><strong>Distance Matrix (D)</strong></div>
+      <div id="distance-matrix"></div>
+    </div>
+    <div>
+      <div><strong>Predecessor Matrix (P)</strong></div>
+      <div id="predecessor-matrix"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const INF = Number.POSITIVE_INFINITY;
+
+  const graphInput = document.getElementById('graph-input');
+  const startBtn = document.getElementById('start-btn');
+  const errorDiv = document.getElementById('error');
+  const stepInfo = document.getElementById('step-info');
+  const distanceMatrixDiv = document.getElementById('distance-matrix');
+  const predecessorMatrixDiv = document.getElementById('predecessor-matrix');
+  const prevStepBtn = document.getElementById('prev-step');
+  const nextStepBtn = document.getElementById('next-step');
+  const autoRunBtn = document.getElementById('auto-run');
+  const resetBtn = document.getElementById('reset');
+  const controlsDiv = document.getElementById('controls');
+
+  let matrices = [];
+  let n = 0;
+  let autoRunInterval = null;
+  let currentStep = -1;
+
+  function parseGraphInput(text) {
+    /*
+      Parses input text to a 2D array representing adjacency matrix, 
+      with INF for no direct edge.
+    */
+    const rows = text.trim().split(/\n+/);
+    const matrix = [];
+    let size = rows.length;
+    for (let r = 0; r < size; r++) {
+      const line = rows[r].trim();
+      if (!line) continue;
+      // Split by comma or whitespace
+      let elements = line.split(/[,\s]+/);
+      if (elements.length !== size) {
+        throw new Error(`Row ${r + 1} length (${elements.length}) does not match expected size (${size}).`);
+      }
+      let row = elements.map(e => {
+        e = e.trim();
+        if (/^(INF|∞|inf)$/i.test(e)) return INF;
+        let val = Number(e);
+        if (Number.isNaN(val)) throw new Error(`Invalid number '${e}' in input.`);
+        if (val < 0) throw new Error('Negative weights not supported in Floyd-Warshall.');
+        return val;
+      });
+      matrix.push(row);
+    }
+    return matrix;
+  }
+
+  function createMatrixHTML(matrix, isDistance) {
+    /*
+      Returns an HTML table element representing the matrix.
+      For distances, INF is shown as ∞ in red.
+      For predecessors, null or -1 is shown as "-".
+    */
+    const table = document.createElement('table');
+    const n = matrix.length;
+
+    // Header row
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    headerRow.appendChild(document.createElement('th')); // blank corner
+    for (let c = 0; c < n; c++) {
+      const th = document.createElement('th');
+      th.textContent = c;
+      th.setAttribute('scope', 'col');
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    // Body rows
+    const tbody = document.createElement('tbody');
+    for (let r = 0; r < n; r++) {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th');
+      th.textContent = r;
+      th.setAttribute('scope', 'row');
+      tr.appendChild(th);
+      for (let c = 0; c < n; c++) {
+        const td = document.createElement('td');
+        let val = matrix[r][c];
+        if (isDistance) {
+          if (val === INF) {
+            td.textContent = '∞';
+            td.classList.add('infinite');
+            td.setAttribute('aria-label', 'Infinity');
+          } else {
+            td.textContent = val.toString();
+            td.setAttribute('aria-label', `Distance ${val}`);
+          }
+        } else {
+          // Predecessor matrix
+          if (val === null || val === -1 || val === undefined) {
+            td.textContent = '-';
+            td.setAttribute('aria-label', 'No predecessor');
+          } else {
+            td.textContent = val.toString();
+            td.setAttribute('aria-label', `Predecessor ${val}`);
+          }
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function floydWarshallSteps(distOrig) {
+    /*
+      Returns an array of step objects representing each iteration of Floyd-Warshall.
+      Each step contains:
+        - k: current intermediate vertex
+        - dist: distance matrix at this step
+        - pred: predecessor matrix at this step
+    */
+    const n = distOrig.length;
+    // Initialize matrices
+    let dist = [];
+    let pred = [];
+    for (let i = 0; i < n; i++) {
+      dist[i] = [];
+      pred[i] = [];
+      for (let j = 0; j < n; j++) {
+        dist[i][j] = distOrig[i][j];
+        if (i === j || distOrig[i][j] === INF) {
+          pred[i][j] = null;
+        } else {
+          pred[i][j] = i;
+        }
+      }
+    }
+    // We'll collect matrices at each outer loop k
+    let steps = [];
+    // Initial step k=-1
+    steps.push({
+      k: -1,
+      dist: JSON.parse(JSON.stringify(dist)),
+      pred: JSON.parse(JSON.stringify(pred)),
+      description: 'Initial distance and predecessor matrices'
+    });
+
+    for (let k = 0; k < n; k++) {
+      // Create new matrices for this step (deep copy)
+      let newDist = [];
+      let newPred = [];
+      for (let i = 0; i < n; i++) {
+        newDist[i] = dist[i].slice();
+        newPred[i] = pred[i].slice();
+      }
+      // Update distances using vertex k as intermediate
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          if (newDist[i][k] === INF || newDist[k][j] === INF) continue;
+          let newDistVal = newDist[i][k] + newDist[k][j];
+          if (newDistVal < newDist[i][j]) {
+            newDist[i][j] = newDistVal;
+            newPred[i][j] = newPred[k][j];
+          }
+        }
+      }
+      dist = newDist;
+      pred = newPred;
+      steps.push({
+        k: k,
+        dist: JSON.parse(JSON.stringify(dist)),
+        pred: JSON.parse(JSON.stringify(pred)),
+        description: `After considering intermediate vertex k = ${k}`
+      });
+    }
+    return steps;
+  }
+
+  function displayStep(stepIndex) {
+    if (stepIndex < 0 || stepIndex >= matrices.length) return;
+    const step = matrices[stepIndex];
+    stepInfo.textContent = step.description;
+
+    // Distance matrix HTML
+    distanceMatrixDiv.innerHTML = '';
+    let distTable = createMatrixHTML(step.dist, true);
+    distanceMatrixDiv.appendChild(distTable);
+
+    // Predecessor matrix HTML
+    predecessorMatrixDiv.innerHTML = '';
+    let predTable = createMatrixHTML(step.pred, false);
+    predecessorMatrixDiv.appendChild(predTable);
+
+    currentStep = stepIndex;
+    prevStepBtn.disabled = currentStep <= 0;
+    nextStepBtn.disabled = currentStep >= matrices.length - 1;
+  }
+
+  function toggleAutoRun() {
+    if (autoRunInterval !== null) {
+      clearInterval(autoRunInterval);
+      autoRunInterval = null;
+      autoRunBtn.textContent = 'Auto Run ▶';
+      prevStepBtn.disabled = false;
+      nextStepBtn.disabled = false;
+      resetBtn.disabled = false;
+      startBtn.disabled = false;
+      graphInput.disabled = false;
+    } else {
+      autoRunBtn.textContent = 'Pause ⏸';
+      prevStepBtn.disabled = true;
+      nextStepBtn.disabled = true;
+      resetBtn.disabled = true;
+      startBtn.disabled = true;
+      graphInput.disabled = true;
+      autoRunInterval = setInterval(() => {
+        if (currentStep >= matrices.length - 1) {
+          toggleAutoRun();
+          return;
+        }
+        displayStep(currentStep + 1);
+      }, 1500);
+    }
+  }
+
+  function resetDemo() {
+    currentStep = 0;
+    displayStep(currentStep);
+  }
+
+  // Event listeners
+  startBtn.addEventListener('click', () => {
+    errorDiv.textContent = '';
+    matrices = [];
+    currentStep = -1;
+    controlsDiv.hidden = true;
+
+    try {
+      const inputMatrix = parseGraphInput(graphInput.value);
+      if (inputMatrix.length === 0) {
+        throw new Error('Input matrix is empty.');
+      }
+      n = inputMatrix.length;
+      // Run Floyd-Warshall to get steps
+      matrices = floydWarshallSteps(inputMatrix);
+
+      controlsDiv.hidden = false;
+      displayStep(0);
+    } catch (e) {
+      errorDiv.textContent = 'Error: ' + e.message;
+      distanceMatrixDiv.innerHTML = '';
+      predecessorMatrixDiv.innerHTML = '';
+      stepInfo.textContent = '';
+      controlsDiv.hidden = true;
+    }
+  });
+
+  prevStepBtn.addEventListener('click', () => {
+    if (currentStep > 0) displayStep(currentStep - 1);
+  });
+
+  nextStepBtn.addEventListener('click', () => {
+    if (currentStep < matrices.length - 1) displayStep(currentStep + 1);
+  });
+
+  autoRunBtn.addEventListener('click', () => {
+    toggleAutoRun();
+  });
+
+  resetBtn.addEventListener('click', () => {
+    if (matrices.length > 0) {
+      displayStep(0);
+    }
+  });
+
+  // Accessibility: Allow keyboard navigation for step controls
+  [prevStepBtn, nextStepBtn, autoRunBtn, resetBtn].forEach(btn => {
+    btn.tabIndex = 0;
+  });
+
+  // Initialize display with default input
+  startBtn.click();
+})();
+</script>
+</body>
+</html>

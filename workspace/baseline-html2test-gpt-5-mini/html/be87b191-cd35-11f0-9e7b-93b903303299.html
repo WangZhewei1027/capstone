@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dijkstra's Algorithm Visualizer</title>
+<style>
+  :root {
+    --bg: #0f1724;
+    --panel: #0b1220;
+    --accent: #1e90ff;
+    --muted: #94a3b8;
+    --card: #071024;
+    --good: #10b981;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e6eef8;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#041028 0%, #071124 100%);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  .app {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 16px;
+    height:100vh;
+    padding:16px;
+    box-sizing:border-box;
+  }
+  .panel {
+    background: linear-gradient(180deg,var(--panel),#051227);
+    border-radius:10px;
+    padding:14px;
+    color:var(--text);
+    box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  h1{font-size:18px;margin:0 0 6px 0}
+  .controls {display:flex;flex-wrap:wrap;gap:8px;}
+  button, .mode-btn {
+    background:transparent;border:1px solid rgba(255,255,255,0.06);
+    color:var(--text);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;
+  }
+  button:hover{border-color:rgba(255,255,255,0.12)}
+  .mode-btn.active{background:linear-gradient(90deg,var(--accent),#7cc0ff);color:#001027;border:none;box-shadow:0 6px 18px rgba(30,144,255,0.12)}
+  .small {padding:6px 8px;font-size:12px}
+  .muted {color:var(--muted);font-size:13px}
+  .row {display:flex;gap:8px;align-items:center}
+  .canvas-wrap {position:relative;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+  svg{width:100%;height:100%;display:block;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent)}
+  .legend {display:flex;gap:8px;flex-wrap:wrap}
+  .legend .item {display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+  .dot {width:14px;height:14px;border-radius:50%}
+  .dot.source{background:var(--accent)}
+  .dot.visited{background:var(--good)}
+  .dot.unvisited{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.04)}
+  .dot.current{background:var(--warn)}
+  .info {font-size:13px;color:var(--muted);padding:8px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent)}
+  .table {max-height:240px;overflow:auto;border-radius:8px;padding:6px;background:rgba(255,255,255,0.01);border:1px solid rgba(255,255,255,0.02)}
+  table{width:100%;border-collapse:collapse;color:var(--text);font-size:13px}
+  th,td{padding:6px 8px;border-bottom:1px dashed rgba(255,255,255,0.02);text-align:left}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  .badge {padding:4px 8px;border-radius:999px;font-size:12px}
+  .badge.visited{background:linear-gradient(90deg,var(--good),#41c18b);color:#032a17}
+  .badge.unvisited{background:transparent;border:1px solid rgba(255,255,255,0.04)}
+  .controls .input {display:flex;gap:6px;align-items:center}
+  input[type=number]{width:74px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)}
+  .footer {margin-top:auto;font-size:12px;color:var(--muted)}
+  .hint{font-size:13px;color:var(--muted)}
+  .top-buttons{display:flex;gap:6px;flex-wrap:wrap}
+  .right-top {display:flex;gap:8px;align-items:center;justify-content:flex-end}
+  .controls .select {padding:7px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--text)}
+  /* SVG node/edge styles */
+  .node {cursor:pointer;transition:transform 0.08s}
+  .node circle {fill:#041534;stroke:#2b86ff;stroke-width:2;filter:drop-shadow(0 2px 6px rgba(20,100,200,0.12))}
+  .node.visited circle {fill:linear-gradient(#032a17,#044128)}
+  .node .label {pointer-events:none;font-weight:600;fill:#dff0ff;font-size:13px}
+  .node .sub {pointer-events:none;fill:#a9d6ff;font-size:11px}
+  .edge {stroke:#2b86ff;stroke-opacity:0.14;stroke-width:3;cursor:pointer}
+  .edge.relax {stroke:#f59e0b;stroke-width:4;stroke-opacity:0.95}
+  .edge.good {stroke:#10b981;stroke-width:4;stroke-opacity:0.95}
+  .edge-label {fill:#bcdfff;font-size:12px;pointer-events:none}
+  .node.current circle {stroke:#f59e0b;stroke-width:3.6}
+  .node.source circle {stroke: #7cc0ff;stroke-width:3.6;box-shadow:none}
+  .node.visited circle {stroke:#10b981; stroke-width:3.6}
+  .control-row {display:flex;gap:8px;align-items:center}
+  .small-muted{font-size:12px;color:var(--muted)}
+  .note{font-size:12px;color:var(--muted);padding:8px;background:rgba(255,255,255,0.01);border-radius:8px}
+  .center {display:flex;align-items:center;justify-content:center}
+  .edge-weight-input{width:70px}
+  .range {width:140px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="panel" id="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h1>Dijkstra's Algorithm — Visualizer</h1>
+        <div class="muted" style="margin-top:4px">Build a graph, pick a source node, and step through Dijkstra's algorithm.</div>
+      </div>
+      <div class="right-top">
+        <button id="randomBtn" title="Generate random graph" class="small">Random</button>
+        <button id="clearBtn" title="Clear graph" class="small">Clear</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="mode-btn active" id="modeAddNode">Add Node</button>
+      <button class="mode-btn" id="modeAddEdge">Add Edge</button>
+      <button class="mode-btn" id="modeSetSource">Set Source</button>
+      <button class="mode-btn" id="modeMove">Move Node</button>
+      <button class="mode-btn" id="modeDelete">Delete</button>
+    </div>
+
+    <div class="control-row">
+      <div style="display:flex;gap:6px;align-items:center">
+        <button id="stepBtn">Step</button>
+        <button id="runBtn">Run</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <label class="small-muted">Delay</label>
+        <input id="delay" type="range" min="100" max="1500" value="500" class="range">
+        <span id="delayVal" class="small-muted">500ms</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="hint">Modes: click the canvas or nodes. For edges: click first node, then second; you'll be prompted for weight.</div>
+    </div>
+
+    <div class="row">
+      <div style="flex:1">
+        <div class="legend">
+          <div class="item"><div class="dot source"></div><div class="muted">Source</div></div>
+          <div class="item"><div class="dot current"></div><div class="muted">Current</div></div>
+          <div class="item"><div class="dot visited"></div><div class="muted">Visited (final)</div></div>
+          <div class="item"><div class="dot unvisited"></div><div class="muted">Unvisited</div></div>
+        </div>
+      </div>
+      <div style="margin-left:auto" class="small-muted">Non-negative weights only</div>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <div style="flex:1">
+        <div class="note">
+          Controls show algorithm state: dist = current shortest known distance; prev = previous node along the path. Use Step to advance one atomic operation (node selection or relaxation).
+        </div>
+      </div>
+    </div>
+
+    <div class="table" id="tableWrap">
+      <table id="stateTable">
+        <thead><tr><th>Node</th><th>Dist</th><th>Prev</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      Tip: Create some nodes, add edges with weights, choose a source, then Step through Dijkstra to see how distances update. Edges highlight during relaxation.
+    </div>
+  </div>
+
+  <div class="canvas-wrap" id="canvasWrap" style="height:100%;border-radius:10px;">
+    <svg id="svgCanvas" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+</div>
+
+<script>
+/*
+  Dijkstra Visualizer
+  - Single-file demonstration
+  - Interactive graph creation:
+    - Add Node: click canvas to add nodes
+    - Add Edge: click two nodes sequentially to create an undirected edge (prompts for weight)
+    - Set Source: click node to set as source for algorithm
+    - Move Node: drag nodes around
+    - Delete: click node or edge to delete
+  - Controls: Step, Run, Reset, Random, Clear
+  - Table shows dist, prev, status
+  - Step-by-step generator yields on node selection and each relaxation
+*/
+
+const svg = document.getElementById('svgCanvas');
+const MODE = { ADD_NODE:'add_node', ADD_EDGE:'add_edge', SET_SOURCE:'set_source', MOVE:'move', DELETE:'delete' };
+let mode = MODE.ADD_NODE;
+
+const panel = document.getElementById('panel');
+const tableBody = document.querySelector('#stateTable tbody');
+const delayInput = document.getElementById('delay');
+const delayVal = document.getElementById('delayVal');
+
+delayInput.addEventListener('input', ()=> delayVal.textContent = delayInput.value + 'ms');
+
+const state = {
+  nodes: [], // {id,x,y,svgGroup}
+  edges: [], // {id,a,b,weight,svg}
+  nextNodeId: 1,
+  source: null
+};
+
+let svgNS = "http://www.w3.org/2000/svg";
+
+function clearSVG() {
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+}
+
+function createNodeSVG(x,y,id) {
+  const g = document.createElementNS(svgNS,'g');
+  g.setAttribute('class','node');
+  g.setAttribute('data-id', id);
+  g.setAttribute('transform', `translate(${x},${y})`);
+  // circle
+  const circle = document.createElementNS(svgNS,'circle');
+  circle.setAttribute('r', 22);
+  circle.setAttribute('cx',0);
+  circle.setAttribute('cy',0);
+  g.appendChild(circle);
+  // label (ID)
+  const label = document.createElementNS(svgNS,'text');
+  label.setAttribute('x',0);
+  label.setAttribute('y',6);
+  label.setAttribute('text-anchor','middle');
+  label.setAttribute('class','label');
+  label.textContent = id;
+  g.appendChild(label);
+  // sub (dist preview)
+  const sub = document.createElementNS(svgNS,'text');
+  sub.setAttribute('x',0);
+  sub.setAttribute('y',34);
+  sub.setAttribute('text-anchor','middle');
+  sub.setAttribute('class','sub');
+  sub.textContent = '';
+  g.appendChild(sub);
+
+  svg.appendChild(g);
+  return g;
+}
+
+function createEdgeSVG(aNode, bNode, weight, id) {
+  const g = document.createElementNS(svgNS,'g');
+  g.setAttribute('class','edge-group');
+  g.setAttribute('data-id', id);
+
+  const line = document.createElementNS(svgNS,'line');
+  line.setAttribute('class','edge');
+  line.setAttribute('x1', aNode.x);
+  line.setAttribute('y1', aNode.y);
+  line.setAttribute('x2', bNode.x);
+  line.setAttribute('y2', bNode.y);
+  g.appendChild(line);
+
+  // weight label
+  const tx = (aNode.x + bNode.x)/2;
+  const ty = (aNode.y + bNode.y)/2;
+  const label = document.createElementNS(svgNS,'text');
+  label.setAttribute('x', tx);
+  label.setAttribute('y', ty - 8);
+  label.setAttribute('text-anchor','middle');
+  label.setAttribute('class','edge-label');
+  label.textContent = weight;
+  g.appendChild(label);
+
+  svg.appendChild(g);
+  return {group:g, line, label};
+}
+
+function updateEdgeSVGPosition(edge) {
+  const a = getNodeById(edge.a);
+  const b = getNodeById(edge.b);
+  const line = edge.svg.line;
+  line.setAttribute('x1', a.x);
+  line.setAttribute('y1', a.y);
+  line.setAttribute('x2', b.x);
+  line.setAttribute('y2', b.y);
+  const tx = (a.x + b.x)/2;
+  const ty = (a.y + b.y)/2;
+  edge.svg.label.setAttribute('x', tx);
+  edge.svg.label.setAttribute('y', ty - 8);
+}
+
+function addNode(x,y) {
+  const id = state.nextNodeId++;
+  const svgGroup = createNodeSVG(x,y,id);
+  const node = {id:id, x:x, y:y, svg:svgGroup};
+  state.nodes.push(node);
+  attachNodeListeners(node);
+  refreshTable();
+  return node;
+}
+
+function removeNode(nodeId) {
+  // remove associated edges
+  const edgesToRemove = state.edges.filter(e => e.a===nodeId || e.b===nodeId);
+  edgesToRemove.forEach(e => removeEdge(e.id));
+  // remove node svg and from state
+  const node = getNodeById(nodeId);
+  if (!node) return;
+  svg.removeChild(node.svg);
+  state.nodes = state.nodes.filter(n => n.id !== nodeId);
+  if (state.source === nodeId) state.source = null;
+  refreshTable();
+}
+
+function addEdge(a,b,weight) {
+  // ensure not duplicate (undirected)
+  const exists = state.edges.some(e => (e.a===a && e.b===b) || (e.a===b && e.b===a));
+  if (exists) return null;
+  const id = 'e' + (state.edges.length+1) + '_' + Date.now();
+  const an = getNodeById(a);
+  const bn = getNodeById(b);
+  const svgEdge = createEdgeSVG(an, bn, weight, id);
+  const edge = {id:id, a:a, b:b, weight: weight, svg: svgEdge};
+  state.edges.push(edge);
+  attachEdgeListeners(edge);
+  refreshTable();
+  return edge;
+}
+
+function removeEdge(edgeId) {
+  const edge = state.edges.find(e => e.id === edgeId);
+  if (!edge) return;
+  svg.removeChild(edge.svg.group);
+  state.edges = state.edges.filter(e => e.id !== edgeId);
+  refreshTable();
+}
+
+function getNodeById(id) {
+  return state.nodes.find(n => n.id === id);
+}
+
+function attachNodeListeners(node) {
+  const g = node.svg;
+  g.addEventListener('mousedown', nodeMouseDown);
+  g.addEventListener('click', nodeClick);
+}
+
+function attachEdgeListeners(edge) {
+  edge.svg.group.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    if (mode === MODE.DELETE) {
+      if (confirm('Delete this edge?')) removeEdge(edge.id);
+    }
+  });
+}
+
+let pendingEdgeStart = null; // node id
+
+function nodeClick(ev) {
+  ev.stopPropagation();
+  const g = ev.currentTarget;
+  const id = parseInt(g.getAttribute('data-id'));
+  if (mode === MODE.ADD_EDGE) {
+    if (!pendingEdgeStart) {
+      pendingEdgeStart = id;
+      highlightNode(id, true); // temporary highlight
+    } else {
+      const a = pendingEdgeStart;
+      const b = id;
+      if (a === b) {
+        alert('Cannot create self-loop for this demo.');
+        clearPendingEdge();
+        return;
+      }
+      let w = prompt('Edge weight (non-negative number):', '1');
+      if (w === null) { clearPendingEdge(); return; }
+      w = Number(w);
+      if (isNaN(w) || w < 0) { alert('Weight must be a non-negative number.'); clearPendingEdge(); return; }
+      addEdge(a,b,w);
+      clearPendingEdge();
+    }
+  } else if (mode === MODE.SET_SOURCE) {
+    state.source = id;
+    markAllNodes(); refreshTable();
+    updateNodeClasses();
+  } else if (mode === MODE.DELETE) {
+    if (confirm('Delete node ' + id + ' ? This removes connected edges too.')) {
+      removeNode(id);
+    }
+  } else if (mode === MODE.MOVE) {
+    // handled by drag start
+  } else if (mode === MODE.ADD_NODE) {
+    // maybe treat click on node as no-op
+  }
+}
+
+function clearPendingEdge() {
+  if (pendingEdgeStart) {
+    highlightNode(pendingEdgeStart, false);
+    pendingEdgeStart = null;
+  }
+}
+
+function highlightNode(id, on) {
+  const n = getNodeById(id);
+  if (!n) return;
+  if (on) n.svg.classList.add('current');
+  else n.svg.classList.remove('current');
+}
+
+function updateNodeClasses(stateMap) {
+  // stateMap: {dist, prev, visited, current, source}
+  state.nodes.forEach(n=>{
+    n.svg.classList.remove('visited','source','current');
+    if (state.source === n.id) n.svg.classList.add('source');
+  });
+}
+
+function markAllNodes() {
+  // used to update labels, etc.
+  state.nodes.forEach(n=>{
+    const sub = n.svg.querySelector('.sub');
+    sub.textContent = '';
+  });
+}
+
+function refreshEdgePositions() {
+  state.edges.forEach(e => updateEdgeSVGPosition(e));
+}
+
+function refreshTable(dijkstraState) {
+  // dijkstraState optional: {dist, prev, visited, current}
+  tableBody.innerHTML = '';
+  state.nodes.forEach(n=>{
+    const tr = document.createElement('tr');
+    const tdNode = document.createElement('td');
+    tdNode.textContent = n.id + (state.source===n.id ? ' (S)' : '');
+    const tdDist = document.createElement('td');
+    const tdPrev = document.createElement('td');
+    const tdStatus = document.createElement('td');
+
+    if (dijkstraState) {
+      const d = dijkstraState.dist[n.id];
+      tdDist.textContent = (d === Infinity ? '∞' : d);
+      tdPrev.textContent = (dijkstraState.prev[n.id] === null ? '-' : dijkstraState.prev[n.id]);
+      if (dijkstraState.visited.has(n.id)) {
+        tdStatus.innerHTML = '<span class="badge visited">visited</span>';
+      } else if (dijkstraState.current === n.id) {
+        tdStatus.innerHTML = '<span class="badge" style="background:linear-gradient(90deg,var(--warn),#fbc08a);color:#2a1204">current</span>';
+      } else {
+        tdStatus.innerHTML = '<span class="badge unvisited">unvisited</span>';
+      }
+      // also update node subtext with dist preview
+      const sub = n.svg.querySelector('.sub');
+      sub.textContent = (d === Infinity ? '' : d);
+      // class updates on svg
+      n.svg.classList.remove('visited','current','source');
+      if (state.source === n.id) n.svg.classList.add('source');
+      if (dijkstraState.visited.has(n.id)) n.svg.classList.add('visited');
+      if (dijkstraState.current === n.id) n.svg.classList.add('current');
+    } else {
+      tdDist.textContent = '-';
+      tdPrev.textContent = '-';
+      tdStatus.innerHTML = '<span class="badge unvisited">unvisited</span>';
+      const sub = n.svg.querySelector('.sub');
+      sub.textContent = '';
+      n.svg.classList.remove('visited','current','source');
+      if (state.source === n.id) n.svg.classList.add('source');
+    }
+
+    tr.appendChild(tdNode);
+    tr.appendChild(tdDist);
+    tr.appendChild(tdPrev);
+    tr.appendChild(tdStatus);
+    tableBody.appendChild(tr);
+  });
+}
+
+/* Mode buttons */
+const modeButtons = {
+  addNode: document.getElementById('modeAddNode'),
+  addEdge: document.getElementById('modeAddEdge'),
+  setSource: document.getElementById('modeSetSource'),
+  move: document.getElementById('modeMove'),
+  del: document.getElementById('modeDelete')
+};
+
+function setMode(m) {
+  mode = m;
+  Object.values(modeButtons).forEach(btn => btn.classList.remove('active'));
+  if (m === MODE.ADD_NODE) modeButtons.addNode.classList.add('active');
+  if (m === MODE.ADD_EDGE) modeButtons.addEdge.classList.add('active');
+  if (m === MODE.SET_SOURCE) modeButtons.setSource.classList.add('active');
+  if (m === MODE.MOVE) modeButtons.move.classList.add('active');
+  if (m === MODE.DELETE) modeButtons.del.classList.add('active');
+  clearPendingEdge();
+}
+
+modeButtons.addNode.addEventListener('click', ()=> setMode(MODE.ADD_NODE));
+modeButtons.addEdge.addEventListener('click', ()=> setMode(MODE.ADD_EDGE));
+modeButtons.setSource.addEventListener('click', ()=> setMode(MODE.SET_SOURCE));
+modeButtons.move.addEventListener('click', ()=> setMode(MODE.MOVE));
+modeButtons.del.addEventListener('click', ()=> setMode(MODE.DELETE));
+
+/* Canvas clicks: add node */
+svg.addEventListener('click', (ev)=>{
+  if (mode !== MODE.ADD_NODE) { clearPendingEdge(); return; }
+  const pt = svg.createSVGPoint();
+  pt.x = ev.clientX;
+  pt.y = ev.clientY;
+  const ctm = svg.getScreenCTM();
+  const loc = pt.matrixTransform(ctm.inverse());
+  addNode(loc.x, loc.y);
+});
+
+/* Dragging nodes */
+let dragNode = null;
+let dragOffset = {x:0,y:0};
+function nodeMouseDown(ev) {
+  if (mode !== MODE.MOVE) return;
+  ev.stopPropagation();
+  const g = ev.currentTarget;
+  const id = parseInt(g.getAttribute('data-id'));
+  const node = getNodeById(id);
+  dragNode = node;
+  const pt = svg.createSVGPoint();
+  pt.x = ev.clientX; pt.y = ev.clientY;
+  const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+  dragOffset.x = loc.x - node.x;
+  dragOffset.y = loc.y - node.y;
+  window.addEventListener('mousemove', nodeMouseMove);
+  window.addEventListener('mouseup', nodeMouseUp);
+}
+function nodeMouseMove(ev) {
+  if (!dragNode) return;
+  const pt = svg.createSVGPoint();
+  pt.x = ev.clientX; pt.y = ev.clientY;
+  const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+  dragNode.x = loc.x - dragOffset.x;
+  dragNode.y = loc.y - dragOffset.y;
+  dragNode.svg.setAttribute('transform', `translate(${dragNode.x},${dragNode.y})`);
+  refreshEdgePositions();
+}
+function nodeMouseUp(ev) {
+  dragNode = null;
+  window.removeEventListener('mousemove', nodeMouseMove);
+  window.removeEventListener('mouseup', nodeMouseUp);
+}
+
+/* Edge/Node delete handled via click listeners */
+
+/* Random graph generator */
+document.getElementById('randomBtn').addEventListener('click', ()=>{
+  clearGraph();
+  const n = Math.floor(Math.random()*5)+5; // 5-9 nodes
+  const w = svg.viewBox.baseVal.width || 1200;
+  const h = svg.viewBox.baseVal.height || 800;
+  // place nodes
+  for (let i=0;i<n;i++) {
+    addNode(120 + Math.random()*(w-240), 80 + Math.random()*(h-160));
+  }
+  // add edges
+  const nodes = state.nodes.map(x=>x.id);
+  // ensure connected: build a random spanning tree
+  const perm = nodes.slice().sort(()=>Math.random()-0.5);
+  for (let i=1;i<perm.length;i++){
+    const a = perm[i];
+    const b = perm[Math.floor(Math.random()*i)];
+    const weight = Math.floor(Math.random()*9)+1;
+    addEdge(a,b,weight);
+  }
+  // add some extra edges
+  const extra = Math.floor(Math.random()*n);
+  for (let i=0;i<extra;i++){
+    const a = nodes[Math.floor(Math.random()*nodes.length)];
+    const b = nodes[Math.floor(Math.random()*nodes.length)];
+    if (a===b) continue;
+    if (state.edges.some(e=> (e.a===a && e.b===b) || (e.a===b && e.b===a))) continue;
+    addEdge(a,b,Math.floor(Math.random()*9)+1);
+  }
+  refreshTable();
+});
+
+/* Clear/Clear all */
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  if (!confirm('Clear the entire graph?')) return;
+  clearGraph();
+});
+
+function clearGraph() {
+  clearSVG();
+  state.nodes = [];
+  state.edges = [];
+  state.nextNodeId = 1;
+  state.source = null;
+  pendingEdgeStart = null;
+  refreshTable();
+}
+
+/* Dijkstra Implementation as generator to step */
+function buildAdjacency() {
+  const adj = {};
+  state.nodes.forEach(n => adj[n.id] = []);
+  state.edges.forEach(e=>{
+    adj[e.a].push({to:e.b, weight:e.weight, edgeId:e.id});
+    adj[e.b].push({to:e.a, weight:e.weight, edgeId:e.id});
+  });
+  return adj;
+}
+
+function* dijkstraGenerator() {
+  if (state.source == null) {
+    alert('Please set a source node (Set Source mode and click a node).');
+    return;
+  }
+  // initialize
+  const nodes = state.nodes.map(n => n.id);
+  const adj = buildAdjacency();
+  const dist = {};
+  const prev = {};
+  const visited = new Set();
+  nodes.forEach(id => { dist[id] = Infinity; prev[id] = null; });
+  dist[state.source] = 0;
+
+  // initial yield to show starting state
+  yield {phase: 'init', dist: structuredClone(dist), prev: structuredClone(prev), visited: new Set(), current: state.source};
+
+  while (visited.size < nodes.length) {
+    // select u = unvisited node with smallest dist
+    let u = null;
+    let min = Infinity;
+    for (const id of nodes) {
+      if (visited.has(id)) continue;
+      if (dist[id] < min) { min = dist[id]; u = id; }
+    }
+    if (u === null || min === Infinity) {
+      // remaining nodes unreachable
+      break;
+    }
+
+    // Node selection yield
+    yield {phase:'select', current:u, dist: structuredClone(dist), prev: structuredClone(prev), visited: new Set([...visited])};
+
+    // mark visited
+    visited.add(u);
+
+    // For visualization: highlight visited node (final)
+    yield {phase:'visit', current:u, dist: structuredClone(dist), prev: structuredClone(prev), visited: new Set([...visited])};
+
+    // relax edges from u one by one
+    const neighbors = adj[u] || [];
+    for (const nb of neighbors) {
+      const v = nb.to;
+      const w = nb.weight;
+      // yield before relaxation to show which edge is considered
+      yield {phase:'consider', current:u, neighbor:v, edgeId: nb.edgeId, dist: structuredClone(dist), prev: structuredClone(prev), visited: new Set([...visited]), weight: w};
+      if (!visited.has(v) && dist[u] + w < dist[v]) {
+        dist[v] = dist[u] + w;
+        prev[v] = u;
+        // yield to show successful relaxation
+        yield {phase:'relax', updated:true, current:u, neighbor:v, edgeId: nb.edgeId, dist: structuredClone(dist), prev: structuredClone(prev), visited: new Set([...visited])};
+      } else {
+        // yield to show no relaxation
+        yield {phase:'relax', updated:false, current:u, neighbor:v, edgeId: nb.edgeId, dist: structuredClone(dist), prev: structuredClone(prev), visited: new Set([...visited])};
+      }
+    }
+  }
+
+  // final state
+  yield {phase:'done', dist: structuredClone(dist), prev: structuredClone(prev), visited: new Set([...visited]), current: null};
+}
+
+/* Control buttons */
+const stepBtn = document.getElementById('stepBtn');
+const runBtn = document.getElementById('runBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+let dijkstraIter = null;
+let autoRunTimer = null;
+let lastState = null;
+
+stepBtn.addEventListener('click', ()=> {
+  if (!dijkstraIter) {
+    dijkstraIter = dijkstraGenerator();
+  }
+  advanceStep();
+});
+
+runBtn.addEventListener('click', ()=>{
+  if (!dijkstraIter) dijkstraIter = dijkstraGenerator();
+  if (!dijkstraIter) return;
+  if (autoRunTimer) {
+    clearInterval(autoRunTimer);
+    autoRunTimer = null;
+    runBtn.textContent = 'Run';
+  } else {
+    runBtn.textContent = 'Pause';
+    autoRunTimer = setInterval(()=>{
+      const done = advanceStep();
+      if (done) {
+        clearInterval(autoRunTimer);
+        autoRunTimer = null;
+        runBtn.textContent = 'Run';
+      }
+    }, Number(delayInput.value));
+  }
+});
+
+resetBtn.addEventListener('click', ()=>{
+  dijkstraIter = null;
+  if (autoRunTimer) { clearInterval(autoRunTimer); autoRunTimer = null; runBtn.textContent='Run'; }
+  // clear highlights and table
+  state.nodes.forEach(n => { n.svg.classList.remove('visited','current'); const sub = n.svg.querySelector('.sub'); sub.textContent=''; });
+  state.edges.forEach(e => e.svg.line.classList.remove('relax','good'));
+  refreshTable();
+});
+
+function advanceStep() {
+  const res = dijkstraIter.next();
+  if (res.done) {
+    dijkstraIter = null;
+    return true;
+  }
+  const s = res.value;
+  handleDijkstraState(s);
+  lastState = s;
+  if (s.phase === 'done') {
+    dijkstraIter = null;
+    return true;
+  }
+  return false;
+}
+
+function handleDijkstraState(s) {
+  // reset edge highlights unless in consider/relax
+  state.edges.forEach(e => {
+    e.svg.line.classList.remove('relax','good');
+  });
+
+  if (s.phase === 'init') {
+    refreshTable(s);
+    // source highlight
+    updateNodeClasses();
+  } else if (s.phase === 'select') {
+    // show current selection (not yet visited)
+    refreshTable(s);
+  } else if (s.phase === 'visit') {
+    // mark visited visually
+    refreshTable(s);
+  } else if (s.phase === 'consider') {
+    // highlight edge being considered and current nodes
+    const edge = state.edges.find(e => e.id === s.edgeId);
+    if (edge) edge.svg.line.classList.add('relax');
+    refreshTable(s);
+  } else if (s.phase === 'relax') {
+    const edge = state.edges.find(e => e.id === s.edgeId);
+    if (edge) {
+      if (s.updated) {
+        edge.svg.line.classList.remove('relax');
+        edge.svg.line.classList.add('good');
+      } else {
+        // leave as relax for a short moment
+        edge.svg.line.classList.add('relax');
+      }
+    }
+    refreshTable(s);
+  } else if (s.phase === 'done') {
+    // show final distances, highlight final tree edges
+    refreshTable(s);
+    // highlight edges that are part of shortest path tree (prev pointers)
+    const prev = s.prev;
+    state.edges.forEach(e => e.svg.line.classList.remove('relax','good'));
+    Object.keys(prev).forEach(v => {
+      const p = prev[v];
+      if (p === null) return;
+      // find edge between p and v
+      const e = state.edges.find(ed => (ed.a===Number(v) && ed.b===p) || (ed.b===Number(v) && ed.a===p));
+      if (e) e.svg.line.classList.add('good');
+    });
+  }
+}
+
+/* Utility to auto-update edge positions on window resize */
+window.addEventListener('resize', ()=> {
+  refreshEdgePositions();
+});
+
+/* Initialize with a small sample graph */
+(function initDemo(){
+  clearGraph();
+  // place some nodes manually
+  const w = svg.viewBox.baseVal.width || 1200;
+  const h = svg.viewBox.baseVal.height || 800;
+  addNode(200,200); //1
+  addNode(460,140); //2
+  addNode(700,210); //3
+  addNode(340,380); //4
+  addNode(820,400); //5
+  addEdge(1,2,4);
+  addEdge(1,4,2);
+  addEdge(2,3,6);
+  addEdge(2,4,5);
+  addEdge(3,5,1);
+  addEdge(4,5,7);
+  state.source = 1;
+  refreshTable();
+})();
+
+/* Extra: clicking empty canvas clears pending edge */
+svg.addEventListener('mousedown',(ev)=> {
+  if (mode === MODE.ADD_EDGE) {
+    // clicking empty space cancels pending
+    // determine if click hit a node: if target is svg then cancel
+    if (ev.target === svg) {
+      clearPendingEdge();
+    }
+  } else {
+    clearPendingEdge();
+  }
+});
+
+// Prevent text selection on double click drag
+document.addEventListener('mousedown', (e)=> { if (e.detail > 1) e.preventDefault(); });
+
+// small helper: deep clone for objects (structuredClone fallback)
+function structuredClone(obj) {
+  // modern browsers support structuredClone; fallback to JSON
+  try { return window.structuredClone(obj); } catch (e) { return JSON.parse(JSON.stringify(obj)); }
+}
+</script>
+</body>
+</html>

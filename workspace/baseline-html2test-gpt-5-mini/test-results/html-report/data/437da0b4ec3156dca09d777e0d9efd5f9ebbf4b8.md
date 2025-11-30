@@ -1,0 +1,94 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Dijkstra's Algorithm — Visualizer" [level=1] [ref=e6]
+        - generic [ref=e7]: Build a graph, pick a source node, and step through Dijkstra's algorithm.
+      - generic [ref=e8]:
+        - button "Random" [ref=e9] [cursor=pointer]
+        - button "Clear" [ref=e10] [cursor=pointer]
+    - generic [ref=e11]:
+      - button "Add Node" [ref=e12] [cursor=pointer]
+      - button "Add Edge" [active] [ref=e13] [cursor=pointer]
+      - button "Set Source" [ref=e14] [cursor=pointer]
+      - button "Move Node" [ref=e15] [cursor=pointer]
+      - button "Delete" [ref=e16] [cursor=pointer]
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - button "Step" [ref=e19] [cursor=pointer]
+        - button "Run" [ref=e20] [cursor=pointer]
+        - button "Reset" [ref=e21] [cursor=pointer]
+      - generic [ref=e22]:
+        - generic [ref=e23]: Delay
+        - slider [ref=e24]: "500"
+        - generic [ref=e25]: 500ms
+    - generic [ref=e27]: "Modes: click the canvas or nodes. For edges: click first node, then second; you'll be prompted for weight."
+    - generic [ref=e28]:
+      - generic [ref=e30]:
+        - generic [ref=e33]: Source
+        - generic [ref=e36]: Current
+        - generic [ref=e39]: Visited (final)
+        - generic [ref=e42]: Unvisited
+      - generic [ref=e43]: Non-negative weights only
+    - generic [ref=e46]: "Controls show algorithm state: dist = current shortest known distance; prev = previous node along the path. Use Step to advance one atomic operation (node selection or relaxation)."
+    - table [ref=e48]:
+      - rowgroup [ref=e49]:
+        - row "Node Dist Prev Status" [ref=e50]:
+          - cell "Node" [ref=e51]
+          - cell "Dist" [ref=e52]
+          - cell "Prev" [ref=e53]
+          - cell "Status" [ref=e54]
+      - rowgroup [ref=e55]:
+        - row "1 (S) - - unvisited" [ref=e56]:
+          - cell "1 (S)" [ref=e57]
+          - cell "-" [ref=e58]
+          - cell "-" [ref=e59]
+          - cell "unvisited" [ref=e60]
+        - row "2 - - unvisited" [ref=e61]:
+          - cell "2" [ref=e62]
+          - cell "-" [ref=e63]
+          - cell "-" [ref=e64]
+          - cell "unvisited" [ref=e65]
+        - row "3 - - unvisited" [ref=e66]:
+          - cell "3" [ref=e67]
+          - cell "-" [ref=e68]
+          - cell "-" [ref=e69]
+          - cell "unvisited" [ref=e70]
+        - row "4 - - unvisited" [ref=e71]:
+          - cell "4" [ref=e72]
+          - cell "-" [ref=e73]
+          - cell "-" [ref=e74]
+          - cell "unvisited" [ref=e75]
+        - row "5 - - unvisited" [ref=e76]:
+          - cell "5" [ref=e77]
+          - cell "-" [ref=e78]
+          - cell "-" [ref=e79]
+          - cell "unvisited" [ref=e80]
+    - generic [ref=e81]: "Tip: Create some nodes, add edges with weights, choose a source, then Step through Dijkstra to see how distances update. Edges highlight during relaxation."
+  - img [ref=e83]:
+    - generic [ref=e84] [cursor=pointer]:
+      - generic: "1"
+    - generic [ref=e86] [cursor=pointer]:
+      - generic: "2"
+    - generic [ref=e88] [cursor=pointer]:
+      - generic: "3"
+    - generic [ref=e90] [cursor=pointer]:
+      - generic: "4"
+    - generic [ref=e92] [cursor=pointer]:
+      - generic: "5"
+    - generic [ref=e94]:
+      - generic: "4"
+    - generic [ref=e96]:
+      - generic: "2"
+    - generic [ref=e98]:
+      - generic: "6"
+    - generic [ref=e100]:
+      - generic: "5"
+    - generic [ref=e102]:
+      - generic: "1"
+    - generic [ref=e104]:
+      - generic: "7"
+```

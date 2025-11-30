@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Adjacency Matrix Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f9f9f9;
+  }
+  h1 {
+    text-align: center;
+  }
+  #graphInput {
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    margin: 5px 0 2px;
+  }
+  textarea {
+    width: 100%;
+    height: 120px;
+    font-family: monospace;
+    font-size: 14px;
+  }
+  button {
+    margin-top: 10px;
+    padding: 8px 15px;
+    font-size: 16px;
+  }
+  #output {
+    margin-top: 30px;
+  }
+  table {
+    border-collapse: collapse;
+    margin: 10px 0;
+  }
+  th, td {
+    border: 1px solid #666;
+    padding: 6px 10px;
+    text-align: center;
+    min-width: 24px;
+  }
+  th {
+    background-color: #ddd;
+  }
+  caption {
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  #nodesInput {
+    width: 50px;
+    font-size: 14px;
+    padding: 4px;
+  }
+  #error {
+    color: red;
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  #graphVisualization {
+    margin-top: 25px;
+    text-align: center;
+  }
+  svg {
+    border: 1px solid #ccc;
+    background: white;
+  }
+</style>
+</head>
+<body>
+  <h1>Adjacency Matrix of a Graph</h1>
+  <div id="graphInput">
+    <label for="nodeCount">Number of Nodes (max 15):</label>
+    <input type="number" id="nodeCount" min="1" max="15" value="5" />
+    
+    <label for="edgeList">Enter edges (one per line), format: <code>source destination</code><br />
+    Nodes are zero-indexed (0 to n-1). For example:<br />
+    0 1<br />
+    0 4<br />
+    1 2<br />
+    1 3<br />
+    1 4</label>
+    <textarea id="edgeList">0 1
+0 4
+1 2
+1 3
+1 4
+2 3
+3 4</textarea>
+    
+    <br />
+    <button id="generateBtn">Generate Adjacency Matrix</button>
+    <div id="error"></div>
+  </div>
+
+  <div id="output"></div>
+
+  <script>
+    /**
+     * This demo allows the user to input:
+     *   - number of nodes
+     *   - list of edges (undirected graph by default)
+     * It generates and displays the adjacency matrix for the graph.
+     * 
+     * Features:
+     * - Validate inputs (nodes and edges)
+     * - Display matrix with row/column labels
+     * - Visualize graph as circles and lines (force-directed simple layout)
+     */
+
+    const nodeCountInput = document.getElementById('nodeCount');
+    const edgeListInput = document.getElementById('edgeList');
+    const generateBtn = document.getElementById('generateBtn');
+    const outputDiv = document.getElementById('output');
+    const errorDiv = document.getElementById('error');
+
+    // Utility: create adjacency matrix n x n filled with 0
+    function createMatrix(n) {
+      const matrix = [];
+      for(let i=0; i<n; i++) {
+        matrix[i] = Array(n).fill(0);
+      }
+      return matrix;
+    }
+
+    // Parse edges input text, returns array of [source, target]
+    // Also validates edges are within node count
+    function parseEdges(text, n) {
+      const lines = text.trim().split('\n');
+      const edges = [];
+      for(let i=0; i<lines.length; i++) {
+        const line = lines[i].trim();
+        if(line === '') continue;
+        const parts = line.split(/[\s,]+/);
+        if(parts.length !== 2) throw new Error(`Invalid edge format on line ${i+1}: "${line}"`);
+        const s = Number(parts[0]);
+        const t = Number(parts[1]);
+        if(!Number.isInteger(s) || !Number.isInteger(t)) {
+          throw new Error(`Edge nodes must be integers on line ${i+1}: "${line}"`);
+        }
+        if(s < 0 || s >= n || t < 0 || t >= n) {
+          throw new Error(`Edge nodes outside valid range on line ${i+1}: "${line}"`);
+        }
+        edges.push([s, t]);
+      }
+      return edges;
+    }
+
+    // Build adjacency matrix from edge list (undirected)
+    function buildAdjacencyMatrix(n, edges) {
+      const matrix = createMatrix(n);
+      edges.forEach(([s,t]) => {
+        matrix[s][t] = 1;
+        matrix[t][s] = 1;
+      });
+      return matrix;
+    }
+
+    // Render adjacency matrix as HTML table with row/column labels
+    function renderMatrix(matrix) {
+      const n = matrix.length;
+      const table = document.createElement('table');
+      table.setAttribute('aria-label', 'Adjacency matrix');
+      const caption = document.createElement('caption');
+      caption.textContent = 'Adjacency Matrix';
+      table.appendChild(caption);
+
+      // Header row
+      const headerRow = document.createElement('tr');
+      headerRow.appendChild(document.createElement('th')); // empty top-left cell
+      for(let col=0; col<n; col++) {
+        const th = document.createElement('th');
+        th.textContent = col;
+        headerRow.appendChild(th);
+      }
+      table.appendChild(headerRow);
+
+      // Rows
+      for(let row=0; row<n; row++) {
+        const tr = document.createElement('tr');
+        const rowHeader = document.createElement('th');
+        rowHeader.textContent = row;
+        tr.appendChild(rowHeader);
+        for(let col=0; col<n; col++) {
+          const td = document.createElement('td');
+          td.textContent = matrix[row][col];
+          if(matrix[row][col] === 1) {
+            td.style.backgroundColor = '#87ceeb88'; // lightly blue for edges
+          }
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      }
+      return table;
+    }
+
+    // Simple graph visualization using SVG and force simulation
+    // We'll do a simple circular layout for this demo
+    function renderGraph(n, edges) {
+      const width = 400;
+      const height = 400;
+      const radius = 150;
+      const cx = width / 2;
+      const cy = height / 2;
+
+      // Calculate node positions in a circle
+      const positions = [];
+      for(let i=0; i<n; i++) {
+        const angle = (2 * Math.PI / n) * i;
+        const x = cx + radius * Math.cos(angle);
+        const y = cy + radius * Math.sin(angle);
+        positions.push({x, y});
+      }
+
+      const svgNS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('width', width);
+      svg.setAttribute('height', height);
+      svg.setAttribute('aria-label', 'Graph visualization');
+
+      // Draw edges first (lines)
+      edges.forEach(([s,t]) => {
+        const line = document.createElementNS(svgNS, 'line');
+        line.setAttribute('x1', positions[s].x);
+        line.setAttribute('y1', positions[s].y);
+        line.setAttribute('x2', positions[t].x);
+        line.setAttribute('y2', positions[t].y);
+        line.setAttribute('stroke', '#666');
+        line.setAttribute('stroke-width', 2);
+        svg.appendChild(line);
+      });
+
+      // Draw nodes (circles)
+      positions.forEach((pos, i) => {
+        const circle = document.createElementNS(svgNS, 'circle');
+        circle.setAttribute('cx', pos.x);
+        circle.setAttribute('cy', pos.y);
+        circle.setAttribute('r', 16);
+        circle.setAttribute('fill', '#1e90ff');
+        circle.setAttribute('stroke', '#055aaf');
+        circle.setAttribute('stroke-width', 2);
+        circle.setAttribute('tabindex', 0);
+        circle.setAttribute('aria-label', `Node ${i}`);
+
+        // Add label
+        const text = document.createElementNS(svgNS, 'text');
+        text.setAttribute('x', pos.x);
+        text.setAttribute('y', pos.y + 6);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('font-size', '14px');
+        text.setAttribute('fill', 'white');
+        text.textContent = i;
+
+        svg.appendChild(circle);
+        svg.appendChild(text);
+      });
+
+      return svg;
+    }
+
+    generateBtn.addEventListener('click', () => {
+      errorDiv.textContent = '';
+      outputDiv.innerHTML = '';
+
+      const n = Number(nodeCountInput.value);
+      if(!Number.isInteger(n) || n < 1 || n > 15) {
+        errorDiv.textContent = 'Number of nodes must be an integer between 1 and 15.';
+        return;
+      }
+
+      let edges;
+      try {
+        edges = parseEdges(edgeListInput.value, n);
+      } catch(e) {
+        errorDiv.textContent = e.message;
+        return;
+      }
+
+      // Build adjacency matrix
+      const matrix = buildAdjacencyMatrix(n, edges);
+
+      // Render adjacency matrix table
+      const matrixTable = renderMatrix(matrix);
+      outputDiv.appendChild(matrixTable);
+
+      // Render graph visualization
+      const graphVis = document.createElement('div');
+      graphVis.id = 'graphVisualization';
+      graphVis.appendChild(renderGraph(n, edges));
+      outputDiv.appendChild(graphVis);
+    });
+
+    // Generate initial on page load
+    generateBtn.click();
+  </script>
+</body>
+</html>

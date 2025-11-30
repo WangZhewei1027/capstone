@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dijkstra's Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    padding: 1rem;
+    background: #2c3e50;
+    color: white;
+    text-align: center;
+  }
+  #container {
+    flex: 1;
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    box-sizing: border-box;
+  }
+  #graph-container {
+    position: relative;
+    width: 70%;
+    background: #f9f9f9;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+  svg {
+    width: 100%;
+    height: 600px;
+    background: #fff;
+    user-select:none;
+  }
+  #controls {
+    width: 30%;
+    max-width: 350px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  label {
+    font-weight: bold;
+  }
+  select, button {
+    padding: 0.5rem;
+    font-size: 1rem;
+  }
+  #log {
+    height: 250px;
+    overflow-y: auto;
+    background: #222;
+    color: #eee;
+    padding: 0.5rem;
+    font-family: monospace;
+    font-size: 14px;
+    border-radius: 4px;
+  }
+  #legend {
+    margin-top: auto;
+    font-size: 0.9rem;
+  }
+  .status-node {
+    stroke-width: 3px;
+  }
+  .node-circle {
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .edge-path {
+    stroke-width: 2px;
+    fill: none;
+    transition: stroke 0.3s ease;
+  }
+  .edge-label {
+    user-select:none;
+    font-size: 12px;
+    fill: #333;
+  }
+  .node-label {
+    user-select:none;
+    font-size: 14px;
+    fill: #222;
+    pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dijkstra's Algorithm Visualization</h1>
+  <p>Click nodes to select the Start and End nodes. Then click "Run Dijkstra" to find shortest path.</p>
+</header>
+<div id="container">
+  <div id="graph-container">
+    <svg id="graph-svg" viewBox="0 0 800 600" tabindex="0" aria-label="Graph visualization"></svg>
+  </div>
+  <div id="controls" aria-label="Controls for Dijkstra's Algorithm">
+    <div>
+      <label for="start-node">Start Node:</label><br />
+      <select id="start-node" aria-describedby="select-start-node-help">
+        <option value="">Select start node</option>
+      </select>
+    </div>
+    <div>
+      <label for="end-node">End Node:</label><br />
+      <select id="end-node" aria-describedby="select-end-node-help">
+        <option value="">Select end node</option>
+      </select>
+    </div>
+    <button id="run-btn" disabled>Run Dijkstra</button>
+    <button id="reset-btn">Reset</button>
+    <h3>Algorithm Log</h3>
+    <div id="log" aria-live="polite" aria-atomic="false"></div>
+    <div id="legend">
+      <strong>Legend:</strong><br />
+      <span style="color:#3498db">&#9679;</span> Unvisited Node<br />
+      <span style="color:#27ae60">&#9679;</span> Visited Node<br />
+      <span style="color:#e74c3c">&#9679;</span> Current Node<br />
+      <span style="color:#f39c12">&#9679;</span> Path Node<br />
+      <br />
+      <svg width="20" height="6" aria-hidden="true" style="vertical-align: middle;">
+        <line x1="2" y1="3" x2="18" y2="3" stroke="#999" stroke-width="2" />
+      </svg> Edge<br />
+      <svg width="20" height="6" aria-hidden="true" style="vertical-align: middle;">
+        <line x1="2" y1="3" x2="18" y2="3" stroke="#f39c12" stroke-width="4" />
+      </svg> Shortest Path Edge<br />
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  // Data structure representing the graph (undirected, weighted)
+  // We'll build a simple sample graph with nodes positioned for visualization
+  // Nodes have id, label, x, y
+  // Edges have from, to, weight
+
+  // Use some colors for states
+  const colors = {
+    unvisited: "#3498db",
+    visited: "#27ae60",
+    current: "#e74c3c",
+    path: "#f39c12",
+  };
+
+  // Graph nodes
+  const nodes = [
+    { id: "A", label: "A", x: 100, y: 100 },
+    { id: "B", label: "B", x: 300, y: 80 },
+    { id: "C", label: "C", x: 500, y: 100 },
+    { id: "D", label: "D", x: 150, y: 250 },
+    { id: "E", label: "E", x: 350, y: 250 },
+    { id: "F", label: "F", x: 550, y: 250 },
+    { id: "G", label: "G", x: 100, y: 400 },
+    { id: "H", label: "H", x: 300, y: 400 },
+    { id: "I", label: "I", x: 500, y: 400 },
+  ];
+
+  // Graph edges (undirected)
+  const edges = [
+    { from: "A", to: "B", weight: 4 },
+    { from: "A", to: "D", weight: 1 },
+    { from: "B", to: "C", weight: 3 },
+    { from: "B", to: "E", weight: 2 },
+    { from: "C", to: "F", weight: 4 },
+    { from: "D", to: "E", weight: 2 },
+    { from: "D", to: "G", weight: 7 },
+    { from: "E", to: "F", weight: 1 },
+    { from: "E", to: "H", weight: 3 },
+    { from: "F", to: "I", weight: 5 },
+    { from: "G", to: "H", weight: 2 },
+    { from: "H", to: "I", weight: 2 },
+  ];
+
+  // Build adjacency list from edges
+  // For bidirectional edges
+  const adjacency = {};
+  for (const node of nodes) {
+    adjacency[node.id] = [];
+  }
+  for (const edge of edges) {
+    adjacency[edge.from].push({ node: edge.to, weight: edge.weight });
+    adjacency[edge.to].push({ node: edge.from, weight: edge.weight });
+  }
+
+  // Select elements
+  const startSelect = document.getElementById("start-node");
+  const endSelect = document.getElementById("end-node");
+  const runBtn = document.getElementById("run-btn");
+  const resetBtn = document.getElementById("reset-btn");
+  const logEl = document.getElementById("log");
+  const svg = document.getElementById("graph-svg");
+
+  let state = {
+    startNodeId: null,
+    endNodeId: null,
+    running: false,
+    distances: {},        // nodeId => distance
+    previous: {},         // nodeId => previous nodeId on path
+    visited: new Set(),
+    unvisited: new Set(),
+    currentNodeId: null,
+    pathNodes: new Set(),
+  };
+
+  // Utility: Clear log
+  function clearLog() {
+    logEl.textContent = "";
+  }
+  // Utility: Log message with timestamp
+  function log(msg) {
+    const time = new Date().toLocaleTimeString();
+    logEl.textContent += `[${time}] ${msg}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Populate select dropdowns
+  function populateSelects() {
+    for (const node of nodes) {
+      const option1 = document.createElement("option");
+      option1.value = node.id;
+      option1.textContent = node.label;
+      startSelect.appendChild(option1);
+
+      const option2 = document.createElement("option");
+      option2.value = node.id;
+      option2.textContent = node.label;
+      endSelect.appendChild(option2);
+    }
+  }
+
+  // Draw the graph
+  // We'll create SVG elements for edges and nodes,
+  // and assign IDs and classes for styling and updates.
+
+  function createEdgeId(from, to) {
+    // consistent id, smaller id first
+    return "edge-" + [from, to].sort().join("-");
+  }
+
+  // Draw edges
+  function drawEdges() {
+    for (const edge of edges) {
+      const fromNode = nodes.find((n) => n.id === edge.from);
+      const toNode = nodes.find((n) => n.id === edge.to);
+
+      // Draw line
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", fromNode.x);
+      line.setAttribute("y1", fromNode.y);
+      line.setAttribute("x2", toNode.x);
+      line.setAttribute("y2", toNode.y);
+      line.setAttribute("stroke", "#999");
+      line.setAttribute("stroke-width", "2");
+      line.setAttribute("class", "edge-path");
+      line.setAttribute("id", createEdgeId(edge.from, edge.to));
+      svg.appendChild(line);
+
+      // Draw weight label - position midpoint with slight offset
+      const midX = (fromNode.x + toNode.x) / 2;
+      const midY = (fromNode.y + toNode.y) / 2;
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", midX);
+      text.setAttribute("y", midY - 5);
+      text.setAttribute("fill", "#333");
+      text.setAttribute("class", "edge-label");
+      text.textContent = edge.weight;
+      text.setAttribute("aria-label", `Edge weight between ${edge.from} and ${edge.to} is ${edge.weight}`);
+      svg.appendChild(text);
+    }
+  }
+
+  // Draw nodes
+  function drawNodes() {
+    for (const node of nodes) {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("id", "node-" + node.id);
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("role", "button");
+      g.setAttribute("aria-label", `Node ${node.label}. Click to select as start or end node.`);
+
+      // Circle
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", node.x);
+      circle.setAttribute("cy", node.y);
+      circle.setAttribute("r", 18);
+      circle.setAttribute("fill", colors.unvisited);
+      circle.setAttribute("stroke", "#333");
+      circle.setAttribute("stroke-width", "2");
+      circle.setAttribute("class", "node-circle");
+
+      // Label text
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.setAttribute("x", node.x);
+      label.setAttribute("y", node.y + 5);
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("class", "node-label");
+      label.textContent = node.label;
+
+      g.appendChild(circle);
+      g.appendChild(label);
+
+      // Click handler to choose start or end node
+      g.addEventListener("click", () => {
+        if (state.running) return;
+        if (!state.startNodeId) {
+          state.startNodeId = node.id;
+          startSelect.value = node.id;
+          log(`Start node selected: ${node.id}`);
+          updateNodeStyles();
+          runBtn.disabled = !(!state.endNodeId || !state.startNodeId ? true : false);
+        } else if (!state.endNodeId && node.id !== state.startNodeId) {
+          state.endNodeId = node.id;
+          endSelect.value = node.id;
+          log(`End node selected: ${node.id}`);
+          updateNodeStyles();
+          runBtn.disabled = !(state.startNodeId && state.endNodeId);
+        }
+      });
+
+      // Keyboard accessibility
+      g.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          g.click();
+        }
+      });
+
+      svg.appendChild(g);
+    }
+  }
+
+  // Update node and edge styles based on algorithm state
+  function updateNodeStyles() {
+    for (const node of nodes) {
+      const g = document.getElementById("node-" + node.id);
+      if (!g) continue;
+      const circle = g.querySelector("circle");
+      if (!circle) continue;
+
+      if (state.pathNodes.has(node.id)) {
+        circle.setAttribute("fill", colors.path);
+        circle.setAttribute("stroke-width", "3");
+      } else if (node.id === state.currentNodeId) {
+        circle.setAttribute("fill", colors.current);
+        circle.setAttribute("stroke-width", "3");
+      } else if (state.visited.has(node.id)) {
+        circle.setAttribute("fill", colors.visited);
+        circle.setAttribute("stroke-width", "2");
+      } else {
+        circle.setAttribute("fill", colors.unvisited);
+        circle.setAttribute("stroke-width", "2");
+      }
+    }
+
+    // Reset all edges to default style
+    for (const edge of edges) {
+      const line = document.getElementById(createEdgeId(edge.from, edge.to));
+      if (!line) continue;
+      if (
+        state.pathEdges &&
+        state.pathEdges.has(createEdgeId(edge.from, edge.to))
+      ) {
+        line.setAttribute("stroke", colors.path);
+        line.setAttribute("stroke-width", "4");
+      } else {
+        line.setAttribute("stroke", "#999");
+        line.setAttribute("stroke-width", "2");
+      }
+    }
+  }
+
+  // Highlight final path edges
+  function highlightPathEdges(path) {
+    const pathEdgesIds = new Set();
+    for (let i = 0; i < path.length - 1; i++) {
+      const edgeId = createEdgeId(path[i], path[i+1]);
+      pathEdgesIds.add(edgeId);
+    }
+    state.pathEdges = pathEdgesIds;
+  }
+
+  // Dijkstra's algorithm implementation with step-by-step visualization
+  // We'll run in async with a delay for animation
+
+  async function runDijkstra(startId, endId) {
+    state.running = true;
+    state.distances = {};
+    state.previous = {};
+    state.visited = new Set();
+    state.unvisited = new Set(nodes.map(n => n.id));
+    state.currentNodeId = null;
+    state.pathNodes = new Set();
+    state.pathEdges = new Set();
+
+    // Init distances
+    for (const node of nodes) {
+      state.distances[node.id] = Infinity;
+      state.previous[node.id] = null;
+    }
+    state.distances[startId] = 0;
+
+    log(`Running Dijkstra's algorithm from ${startId} to ${endId}`);
+
+    while (state.unvisited.size > 0) {
+      // Select the unvisited node with the smallest distance
+      let current = null;
+      let smallestDist = Infinity;
+      for (const nodeId of state.unvisited) {
+        if (state.distances[nodeId] < smallestDist) {
+          smallestDist = state.distances[nodeId];
+          current = nodeId;
+        }
+      }
+      if (current === null) {
+        log("No reachable remaining nodes. Ending.");
+        break;
+      }
+
+      state.currentNodeId = current;
+      updateNodeStyles();
+      log(`Current node: ${current} (distance: ${state.distances[current]})`);
+      await delay(1200);
+
+      if (current === endId) {
+        log(`Reached end node ${endId}. Algorithm finished.`);
+        break;
+      }
+
+      // Check neighbors
+      const neighbors = adjacency[current];
+      for (const { node: neighbor, weight } of neighbors) {
+        if (!state.unvisited.has(neighbor)) continue;
+        const alt = state.distances[current] + weight;
+        if (alt < state.distances[neighbor]) {
+          state.distances[neighbor] = alt;
+          state.previous[neighbor] = current;
+          log(`Updated distance for node ${neighbor} to ${alt} via ${current}`);
+        }
+      }
+
+      state.visited.add(current);
+      state.unvisited.delete(current);
+      updateNodeStyles();
+      await delay(1000);
+    }
+
+    // Construct the shortest path by tracing predecessors
+    let path = [];
+    let iter = endId;
+    if (state.previous[iter] !== null || iter === startId) {
+      while (iter !== null) {
+        path.unshift(iter);
+        iter = state.previous[iter];
+      }
+    }
+
+    if (path.length === 0 || path[0] !== startId) {
+      log("No path found from start to end.");
+      state.running = false;
+      return;
+    }
+
+    log(`Shortest path found: ${path.join(" → ")}`);
+    for (const n of path) {
+      state.pathNodes.add(n);
+    }
+    highlightPathEdges(path);
+    updateNodeStyles();
+
+    state.running = false;
+  }
+
+  // Simple utility to wait ms milliseconds
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Setup event listeners for selects and buttons
+  function setupListeners() {
+    startSelect.addEventListener("change", () => {
+      state.startNodeId = startSelect.value || null;
+      if (state.startNodeId === state.endNodeId) {
+        state.endNodeId = null;
+        endSelect.value = "";
+      }
+      updateNodeStyles();
+      runBtn.disabled = !(state.startNodeId && state.endNodeId);
+      if (state.startNodeId) log(`Start node selected: ${state.startNodeId}`);
+    });
+    endSelect.addEventListener("change", () => {
+      state.endNodeId = endSelect.value || null;
+      if (state.endNodeId === state.startNodeId) {
+        state.startNodeId = null;
+        startSelect.value = "";
+      }
+      updateNodeStyles();
+      runBtn.disabled = !(state.startNodeId && state.endNodeId);
+      if (state.endNodeId) log(`End node selected: ${state.endNodeId}`);
+    });
+
+    runBtn.addEventListener("click", async () => {
+      if (!state.startNodeId || !state.endNodeId || state.running) return;
+
+      clearLog();
+      runBtn.disabled = true;
+      startSelect.disabled = true;
+      endSelect.disabled = true;
+      resetBtn.disabled = true;
+
+      await runDijkstra(state.startNodeId, state.endNodeId);
+
+      runBtn.disabled = false;
+      startSelect.disabled = false;
+      endSelect.disabled = false;
+      resetBtn.disabled = false;
+    });
+
+    resetBtn.addEventListener("click", () => {
+      if (state.running) return;
+      state.startNodeId = null;
+      state.endNodeId = null;
+      startSelect.value = "";
+      endSelect.value = "";
+      clearLog();
+      state.visited = new Set();
+      state.unvisited = new Set(nodes.map(n => n.id));
+      state.distances = {};
+      state.previous = {};
+      state.currentNodeId = null;
+      state.pathNodes = new Set();
+      state.pathEdges = new Set();
+      updateNodeStyles();
+      runBtn.disabled = true;
+    });
+  }
+
+  // Initialize everything
+  function init() {
+    clearLog();
+    populateSelects();
+    drawEdges();
+    drawNodes();
+    updateNodeStyles();
+    setupListeners();
+    runBtn.disabled = true;
+  }
+
+  window.addEventListener("load", init);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fibonacci Sequence Explorer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#4fd1c5; --accent2:#7c3aed;
+      --glass: rgba(255,255,255,0.03);
+      color-scheme: dark;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#071021 0%, #071425 60%); color:#e6eef8; min-height:100vh; padding:24px;
+    }
+    .container{max-width:1100px;margin:0 auto;}
+    header{display:flex;gap:16px;align-items:center;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    p.lead{margin:0;color:var(--muted);font-size:13px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:16px;border-radius:12px; box-shadow: 0 6px 24px rgba(2,6,23,0.7); margin-bottom:16px;}
+    .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    label{font-size:13px;color:var(--muted)}
+    input[type="number"]{width:110px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit}
+    select{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit}
+    button{padding:9px 12px;border-radius:10px;border:0;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#032023;cursor:pointer;font-weight:600}
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.05);color:var(--muted);font-weight:600}
+    .row{display:flex;gap:16px;align-items:flex-start}
+    .col{flex:1}
+    .small{font-size:13px;color:var(--muted)}
+    .output{padding:12px;border-radius:10px;background:var(--glass);margin-top:12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; font-size:13px; white-space:pre-wrap; max-height:320px; overflow:auto;}
+    canvas{width:100%;height:260px;border-radius:8px;display:block}
+    .meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+    .meta .item{background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;font-size:13px;min-width:120px}
+    .legend{display:flex;gap:8px;align-items:center}
+    .dot{width:12px;height:12px;border-radius:3px}
+    .muted{color:var(--muted)}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    a.inline{color:var(--accent);text-decoration:none}
+    @media(max-width:720px){ .row{flex-direction:column} canvas{height:200px} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Fibonacci Sequence Explorer</h1>
+        <p class="lead">Generate Fibonacci numbers, try different algorithms, and visualize growth and ratios.</p>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="controls">
+        <label>
+          n (terms or index):
+          <input id="input-n" type="number" min="0" value="20" />
+        </label>
+
+        <label>
+          Mode:
+          <select id="mode">
+            <option value="sequence">Generate sequence (0..n)</option>
+            <option value="nth">Compute F(n) only</option>
+          </select>
+        </label>
+
+        <label>
+          Algorithm:
+          <select id="algo">
+            <option value="iterative">Iterative (fast, BigInt)</option>
+            <option value="fast-doubling">Fast doubling (log n, BigInt)</option>
+            <option value="recursive-naive">Recursive naive (very slow)</option>
+            <option value="recursive-memo">Recursive with memo (fast for small/medium n)</option>
+          </select>
+        </label>
+
+        <button id="run">Run</button>
+        <button id="copy" class="secondary">Copy Result</button>
+      </div>
+
+      <div class="small" style="margin-top:8px">
+        Note: Results use BigInt internally for exact integer results. Recursive naive is limited to n ≤ 40 to prevent freezing.
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div class="col">
+          <div class="card" style="padding:12px">
+            <div class="small">Result</div>
+            <div id="result" class="output">Press "Run" to compute.</div>
+
+            <div class="meta" id="meta">
+              <!-- filled by JS -->
+            </div>
+          </div>
+        </div>
+
+        <div style="width:420px;max-width:100%">
+          <div class="card" style="padding:12px">
+            <div class="small">Visualization</div>
+            <canvas id="chart" width="800" height="400"></canvas>
+            <div style="display:flex;gap:10px;margin-top:10px;align-items:center">
+              <label class="small" style="margin:0">Log scale</label>
+              <input id="logscale" type="checkbox" />
+              <div style="flex:1"></div>
+              <div class="legend small muted">
+                <div class="dot" style="background:linear-gradient(90deg,var(--accent),var(--accent2))"></div>
+                Fibonacci values (bars)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <details style="margin-top:12px;color:var(--muted)">
+        <summary style="cursor:pointer">About algorithms</summary>
+        <div style="margin-top:8px">
+          <ul>
+            <li><strong>Iterative:</strong> Simple loop using BigInt, O(n).</li>
+            <li><strong>Fast doubling:</strong> Uses binary exponentiation-like recurrence to compute F(n) in O(log n) multiplications.</li>
+            <li><strong>Recursive naive:</strong> Direct recurrence F(n)=F(n-1)+F(n-2), exponential time, only for tiny n.</li>
+            <li><strong>Recursive with memo:</strong> Caches results to make recursion linear time and avoid redundant work.</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+
+    <footer>
+      Built-in demonstration — exact integer results for large n (BigInt). Try n up to a few thousand (fast-doubling recommended).
+    </footer>
+  </div>
+
+  <script>
+    // Utility: quick BigInt conversion and formatting with commas
+    function toBigInt(n){ return typeof n === 'bigint' ? n : BigInt(n); }
+    function fmtBigInt(x){
+      let s = x.toString();
+      let sign = '';
+      if (s[0] === '-') { sign = '-'; s = s.slice(1); }
+      let out = '';
+      for (let i = 0, len = s.length; i < len; i++){
+        let pos = len - i;
+        out = s[i] + out;
+        if ((pos-1) % 3 === 0 && i !== len-1) out = ',' + out;
+      }
+      return sign + out;
+    }
+
+    // Iterative O(n) using BigInt
+    function fibIterative(n){
+      n = Number(n);
+      if (n === 0) return 0n;
+      if (n === 1) return 1n;
+      let a = 0n, b = 1n;
+      for (let i = 2; i <= n; i++){
+        let c = a + b;
+        a = b;
+        b = c;
+      }
+      return b;
+    }
+
+    // Fast doubling algorithm, returns [F(n), F(n+1)]
+    function fibFastDoublingPair(n){
+      // n as Number or BigInt
+      n = BigInt(n);
+      function rec(k){
+        if (k === 0n) return [0n, 1n];
+        const [fk, fk1] = rec(k >> 1n);
+        const c = fk * ((fk1 << 1n) - fk); // F(2k) = Fk*(2*Fk+1 - Fk)
+        const d = fk*fk + fk1*fk1; // F(2k+1) = Fk^2 + Fk+1^2
+        if ((k & 1n) === 0n) {
+          return [c, d];
+        } else {
+          return [d, c + d];
+        }
+      }
+      return rec(n);
+    }
+
+    function fibFastDoubling(n){
+      return fibFastDoublingPair(n)[0];
+    }
+
+    // Recursive naive (extremely slow for n > ~40)
+    function fibRecursiveNaive(n){
+      n = Number(n);
+      if (n <= 1) return BigInt(n);
+      return fibRecursiveNaive(n-1) + fibRecursiveNaive(n-2);
+    }
+
+    // Recursive with memo (top-down)
+    function fibMemo(n, memo = new Map()){
+      n = Number(n);
+      if (n <= 1) return 1n * BigInt(n);
+      if (memo.has(n)) return memo.get(n);
+      const res = fibMemo(n-1, memo) + fibMemo(n-2, memo);
+      memo.set(n, res);
+      return res;
+    }
+
+    // Generate sequence 0..n inclusive using chosen method for each term efficiently
+    function generateSequence(n, method){
+      n = Number(n);
+      const seq = [];
+      if (method === 'iterative'){
+        let a = 0n, b = 1n;
+        if (n >= 0) seq.push(a);
+        for (let i = 1; i <= n; i++){
+          seq.push(b);
+          const c = a + b;
+          a = b; b = c;
+        }
+        return seq;
+      }
+      if (method === 'fast-doubling'){
+        for (let i = 0; i <= n; i++){
+          seq.push(fibFastDoubling(i));
+        }
+        return seq;
+      }
+      if (method === 'recursive-naive'){
+        for (let i = 0; i <= n; i++){
+          seq.push(fibRecursiveNaive(i));
+        }
+        return seq;
+      }
+      if (method === 'recursive-memo'){
+        const memo = new Map();
+        for (let i = 0; i <= n; i++){
+          seq.push(fibMemo(i, memo));
+        }
+        return seq;
+      }
+      // fallback
+      for (let i = 0; i <= n; i++) seq.push(fibFastDoubling(i));
+      return seq;
+    }
+
+    // DOM elements
+    const inputN = document.getElementById('input-n');
+    const algo = document.getElementById('algo');
+    const mode = document.getElementById('mode');
+    const runBtn = document.getElementById('run');
+    const resultNode = document.getElementById('result');
+    const metaNode = document.getElementById('meta');
+    const copyBtn = document.getElementById('copy');
+    const chart = document.getElementById('chart');
+    const ctx = chart.getContext('2d');
+    const logscale = document.getElementById('logscale');
+
+    function clearCanvas(){
+      ctx.clearRect(0,0,chart.width,chart.height);
+      // background
+      ctx.fillStyle = '#071025';
+      ctx.fillRect(0,0,chart.width,chart.height);
+    }
+
+    function drawBars(values, opts = {}){
+      // values: array of BigInt
+      const w = chart.width = chart.clientWidth * devicePixelRatio;
+      const h = chart.height = chart.clientHeight * devicePixelRatio;
+      clearCanvas();
+      if (values.length === 0) return;
+      // convert to numbers for plotting; use log scale optionally
+      const useLog = opts.log;
+      const nums = values.map(v => {
+        let s = v < 0n ? -1 : 1;
+        let abs = v >= 0n ? v : -v;
+        // convert to Number for plotting; may overflow for very large BigInt, so use log10
+        if (abs <= 1n << 52n) {
+          return s * Number(abs);
+        } else {
+          // approximate using digits count: log10(abs)
+          const digits = abs.toString().length;
+          // return something proportional to digits (monotonic)
+          return s * Math.pow(10, digits - 1);
+        }
+      });
+      let plotVals = nums.slice();
+      if (useLog){
+        plotVals = nums.map(x => Math.log10(Math.max(1, Math.abs(x))) * Math.sign(x));
+      }
+      const maxVal = Math.max(...plotVals.map(Math.abs)) || 1;
+      const barW = Math.max(2, Math.floor(w / values.length));
+      const gap = Math.max(1, Math.floor(barW * 0.15));
+      const usableBarW = barW - gap;
+      ctx.save();
+      // Draw grid lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 1 * devicePixelRatio;
+      ctx.beginPath();
+      for (let i = 0; i <= 4; i++){
+        const y = (i/4) * h;
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(w, y + 0.5);
+      }
+      ctx.stroke();
+
+      // Bars
+      for (let i = 0; i < plotVals.length; i++){
+        const val = plotVals[i];
+        const norm = Math.abs(val) / maxVal;
+        const barH = Math.max(1, Math.floor(norm * (h * 0.9)));
+        const x = i * barW + gap/2;
+        const y = h - barH;
+        // gradient fill
+        const g = ctx.createLinearGradient(x, y, x + usableBarW, y + barH);
+        g.addColorStop(0, '#4fd1c5');
+        g.addColorStop(1, '#7c3aed');
+        ctx.fillStyle = g;
+        ctx.fillRect(x + 1, y, usableBarW - 2, barH);
+      }
+
+      // X labels: show 0, n/2, n
+      ctx.fillStyle = '#9aa4b2';
+      ctx.font = `${12 * devicePixelRatio}px Inter, Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const labels = [0, Math.floor((values.length-1)/2), values.length-1];
+      labels.forEach(i => {
+        const x = (i * barW) + barW/2;
+        ctx.fillText(String(i), x, h - 14 * devicePixelRatio);
+      });
+      ctx.restore();
+    }
+
+    // event handlers
+    runBtn.addEventListener('click', run);
+    copyBtn.addEventListener('click', () => {
+      const txt = resultNode.innerText;
+      navigator.clipboard?.writeText(txt).then(()=>{
+        copyBtn.textContent = 'Copied ✓';
+        setTimeout(()=>copyBtn.textContent = 'Copy Result', 1200);
+      }).catch(()=>{ copyBtn.textContent = 'Copy failed'; setTimeout(()=>copyBtn.textContent = 'Copy Result', 1200); });
+    });
+
+    // Allow Enter to run
+    inputN.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') run(); });
+
+    function run(){
+      const nRaw = inputN.value;
+      if (nRaw === '' || isNaN(Number(nRaw))) {
+        resultNode.textContent = 'Please enter a valid integer n (≥ 0).';
+        return;
+      }
+      let n = Number(nRaw);
+      if (!Number.isFinite(n) || n < 0) {
+        resultNode.textContent = 'Please enter a non-negative integer n.';
+        return;
+      }
+      // clamp n
+      if (n > 10000000) { resultNode.textContent = 'n too large.'; return; }
+
+      const chosenMode = mode.value;
+      const chosenAlgo = algo.value;
+
+      // safety: recursive naive limited
+      if (chosenAlgo === 'recursive-naive' && n > 40){
+        resultNode.textContent = 'Recursive naive algorithm is too slow for n > 40. Choose another algorithm or smaller n.';
+        return;
+      }
+
+      // computation
+      const t0 = performance.now();
+      try {
+        if (chosenMode === 'nth'){
+          // compute F(n) only
+          let value;
+          if (chosenAlgo === 'iterative') value = fibIterative(n);
+          else if (chosenAlgo === 'fast-doubling') value = fibFastDoubling(n);
+          else if (chosenAlgo === 'recursive-naive') value = fibRecursiveNaive(n);
+          else if (chosenAlgo === 'recursive-memo') value = fibMemo(n);
+          else value = fibFastDoubling(n);
+
+          const t1 = performance.now();
+          const timeMs = (t1 - t0).toFixed(3);
+          resultNode.textContent = `F(${n}) = ${fmtBigInt(value)}\n\n(Exact integer using BigInt)\nComputed in ${timeMs} ms using ${chosenAlgo}.`;
+
+          // meta
+          metaNode.innerHTML = '';
+          const metaItems = [
+            ['Index', String(n)],
+            ['Digits', String(value.toString().length)],
+            ['Time', `${timeMs} ms`]
+          ];
+          if (n >= 1){
+            // compute ratio F(n)/F(n-1)
+            const prev = (chosenAlgo === 'fast-doubling') ? fibFastDoubling(n-1) :
+                         (chosenAlgo === 'iterative') ? fibIterative(n-1) :
+                         (chosenAlgo === 'recursive-naive' || chosenAlgo === 'recursive-memo') ? (n>0 ? fibFastDoubling(n-1) : 0n) : fibFastDoubling(n-1);
+
+            const ratio = Number(value) && Number(prev) && Math.abs(Number(value)) < 1e307 && Math.abs(Number(prev)) < 1e307
+                          ? (Number(value)/Number(prev))
+                          : null;
+            if (ratio !== null && isFinite(ratio)) metaItems.push(['Ratio F(n)/F(n-1)', ratio.toFixed(12)]);
+            else {
+              // approximate with high precision using string-based division? We'll approximate using decimal digits:
+              // For large n, ratio ≈ phi ≈ 1.618...
+              metaItems.push(['Ratio F(n)/F(n-1)', '≈ φ (golden ratio)']);
+            }
+          }
+          metaItems.forEach(([k,v])=>{
+            const el = document.createElement('div');
+            el.className = 'item';
+            el.innerHTML = `<div style="font-size:12px;color:var(--muted)">${k}</div><div style="margin-top:4px">${v}</div>`;
+            metaNode.appendChild(el);
+          });
+
+          // visualization: show a small range around n (e.g., last 20 terms)
+          const maxPlot = Math.min(80, Math.max(10, n+1));
+          const start = Math.max(0, n - (maxPlot-1));
+          const seq = [];
+          for (let i = start; i <= n; i++) seq.push(fibFastDoubling(i));
+          drawBars(seq, {log: logscale.checked});
+        } else {
+          // sequence mode: generate 0..n
+          const tStartGen = performance.now();
+          const seq = generateSequence(n, chosenAlgo);
+          const tAfter = performance.now();
+          const timeMs = (tAfter - tStartGen).toFixed(3);
+
+          // display first 200 terms in full, otherwise show summary
+          let display;
+          if (seq.length <= 200){
+            display = seq.map((v,i)=>`F(${i}) = ${fmtBigInt(v)}`).join('\n');
+          } else {
+            display = `Showing first 100 and last 100 of ${seq.length} terms:\n\n`;
+            const first = seq.slice(0,100).map((v,i)=>`F(${i}) = ${fmtBigInt(v)}`).join('\n');
+            const last = seq.slice(seq.length-100).map((v,i)=>`F(${seq.length-100+i}) = ${fmtBigInt(v)}`).join('\n');
+            display += first + '\n\n...\n\n' + last;
+          }
+          resultNode.textContent = display + `\n\nComputed in ${timeMs} ms using ${chosenAlgo}.`;
+
+          // meta
+          metaNode.innerHTML = '';
+          const last = seq[seq.length-1];
+          const metaItems = [
+            ['Terms', String(seq.length)],
+            ['Last term digits', String(last.toString().length)],
+            ['Time', `${timeMs} ms`]
+          ];
+          metaItems.forEach(([k,v])=>{
+            const el = document.createElement('div');
+            el.className = 'item';
+            el.innerHTML = `<div style="font-size:12px;color:var(--muted)">${k}</div><div style="margin-top:4px">${v}</div>`;
+            metaNode.appendChild(el);
+          });
+
+          drawBars(seq, {log: logscale.checked});
+        }
+      } catch (err) {
+        resultNode.textContent = 'Error during computation: ' + (err && err.message ? err.message : String(err));
+      }
+    }
+
+    // Initial draw
+    clearCanvas();
+    ctx.fillStyle = '#9aa4b2';
+    ctx.font = `${14 * devicePixelRatio}px Inter, Arial`;
+    ctx.fillText('Visualization will appear here after running.', 12 * devicePixelRatio, 24 * devicePixelRatio);
+
+    // Redraw when resizing
+    let resizeTimer;
+    window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ run(); }, 200); });
+    // toggle log scale redraw
+    logscale.addEventListener('change', ()=>{ run(); });
+
+    // Run once initially
+    run();
+  </script>
+</body>
+</html>

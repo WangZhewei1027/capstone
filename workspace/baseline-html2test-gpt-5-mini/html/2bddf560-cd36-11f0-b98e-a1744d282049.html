@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Queue (FIFO) — Interactive Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --accent:#3b82f6;
+      --muted:#94a3b8;
+      --danger:#ef4444;
+      --success:#10b981;
+      --glass: rgba(255,255,255,0.03);
+    }
+    html,body{height:100%; margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial;}
+    body{background: linear-gradient(180deg,#071024 0%, #071b2a 100%); color:#e6eef8; padding:24px; box-sizing:border-box;}
+    .container{max-width:1100px; margin:0 auto; display:grid; grid-template-columns: 360px 1fr; gap:20px; align-items:start;}
+    .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.04); padding:18px; border-radius:12px; box-shadow: 0 6px 24px rgba(2,6,23,0.6);}
+    h1{font-size:20px; margin:0 0 8px; color:#dbeafe;}
+    p.lead{margin:0 0 14px; color:var(--muted); font-size:13px;}
+    label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px;}
+    .controls{display:flex; gap:8px; margin-bottom:12px; align-items:center;}
+    input[type=text], input[type=number]{background:var(--glass); border:1px solid rgba(255,255,255,0.04); color:inherit; padding:10px 12px; border-radius:8px; outline:none; min-width:0;}
+    input[type=number]{width:110px;}
+    button{background:linear-gradient(180deg,var(--accent), #2563eb); border:none; color:white; padding:10px 12px; border-radius:8px; cursor:pointer; font-weight:600;}
+    button.secondary{background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--muted); font-weight:600;}
+    button.danger{background:linear-gradient(180deg,var(--danger), #b91c1c);}
+    .small{padding:8px 10px; font-size:13px;}
+    .row{display:flex; gap:8px; align-items:center;}
+    .info{font-size:13px; color:var(--muted); margin-top:8px;}
+    .visual{min-height:200px; display:flex; align-items:center; justify-content:center; flex-direction:column;}
+    .queue-area{display:flex; gap:8px; align-items:center; padding:12px; border-radius:10px; background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.03); transition:all .2s; flex-wrap:wrap; justify-content:center;}
+    .node{min-width:62px; padding:10px 12px; background:rgba(255,255,255,0.03); border-radius:8px; border:1px solid rgba(255,255,255,0.04); text-align:center; color:#e6eef8; font-weight:700; position:relative; transform-origin:center center; transition: transform .25s ease, opacity .25s ease, box-shadow .2s;}
+    .node.new{animation:pop .25s ease;}
+    @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+    .node.removed{opacity:0; transform:translateY(-18px) scale(.9);}
+    .label{font-size:12px; color:var(--muted); margin-bottom:6px; text-align:center;}
+    .tag{position:absolute; bottom:-11px; left:50%; transform:translateX(-50%); background:#0b1220; color:var(--muted); font-size:11px; padding:2px 6px; border-radius:6px; border:1px solid rgba(255,255,255,0.03);}
+    .arrows{display:flex; gap:12px; align-items:center; margin-top:12px;}
+    .arrow{font-weight:800; font-size:18px; color:var(--muted);}
+    .log{max-height:220px; overflow:auto; background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02)); border-radius:10px; padding:10px; border:1px solid rgba(255,255,255,0.03); font-family:monospace; font-size:13px; color:#cfe8ff;}
+    .meta{display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap;}
+    .badge{background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.04); padding:6px 8px; border-radius:8px; font-size:13px; color:var(--muted);}
+    .footer{margin-top:12px; font-size:13px; color:var(--muted);}
+    .flexcol{display:flex; flex-direction:column;}
+    .center{display:flex; align-items:center; justify-content:center;}
+    @media (max-width:880px){ .container{grid-template-columns:1fr; } .panel{padding:14px;} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Left controls -->
+    <div class="panel">
+      <h1>Queue (FIFO) Interactive Demo</h1>
+      <p class="lead">A queue is a First-In-First-Out (FIFO) data structure. This demo lets you enqueue and dequeue items, see the internal state, and inspect common operations.</p>
+
+      <label for="valueInput">Value to enqueue</label>
+      <div class="controls">
+        <input id="valueInput" type="text" placeholder="e.g., Task A" />
+        <button id="enqueueBtn">Enqueue</button>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button id="dequeueBtn" class="small secondary">Dequeue</button>
+        <button id="peekBtn" class="small secondary">Peek (front)</button>
+        <button id="clearBtn" class="small danger">Clear</button>
+      </div>
+
+      <label for="capacity">Optional capacity (0 = unbounded)</label>
+      <div class="row" style="margin-bottom:12px;">
+        <input id="capacity" type="number" min="0" value="0" />
+        <button id="applyCap" class="small">Apply</button>
+      </div>
+
+      <div class="meta">
+        <div class="badge">Size: <span id="size">0</span></div>
+        <div class="badge">Front: <span id="frontVal">—</span></div>
+        <div class="badge">Rear: <span id="rearVal">—</span></div>
+        <div class="badge">Capacity: <span id="capVal">∞</span></div>
+      </div>
+
+      <div class="footer">
+        Complexity: Enqueue O(1), Dequeue O(1) — this implementation uses a circular buffer under the hood.
+      </div>
+    </div>
+
+    <!-- Right visualization & log -->
+    <div class="panel">
+      <div class="visual">
+        <div class="label">Queue visualization</div>
+        <div id="queueArea" class="queue-area" aria-live="polite" aria-atomic="true"></div>
+
+        <div class="arrows">
+          <div class="center" style="flex-direction:column; align-items:center;">
+            <div class="arrow">Front ⟵</div>
+          </div>
+          <div style="flex:1"></div>
+          <div class="center" style="flex-direction:column; align-items:center;">
+            <div class="arrow">⟶ Rear</div>
+          </div>
+        </div>
+
+        <div style="width:100%; margin-top:14px;">
+          <div class="label">Operation log</div>
+          <div id="log" class="log" role="log" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/*
+  Queue demo
+  - Implements a circular buffer-backed queue (fixed capacity when set, unbounded by expanding internal buffer).
+  - Provides enqueue, dequeue, peek, clear.
+  - Updates UI visualization and operation log.
+*/
+
+// Simple Queue implementation using a circular buffer.
+// If capacity is 0 => treat as unbounded (we'll expand as needed).
+class Queue {
+  constructor(capacity = 0) {
+    this._cap = capacity > 0 ? Math.max(2, Math.floor(capacity)) : 0; // min 2 when bounded
+    this._arr = this._cap ? new Array(this._cap) : []; // underlying array/buffer
+    this._head = 0; // index of front
+    this._tail = 0; // index where next element will be written
+    this._size = 0;
+  }
+
+  // current capacity (0 => unbounded)
+  capacity() { return this._cap; }
+
+  size() { return this._size; }
+  isEmpty() { return this._size === 0; }
+
+  peek() {
+    if (this.isEmpty()) return undefined;
+    return this._arr[this._head];
+  }
+
+  // ensure capacity for at least 'need' more elements
+  _ensureCapacity(need = 1) {
+    if (this._cap === 0) return; // unbounded mode: underlying array grows with push/shift approach
+    if (this._size + need <= this._cap) return;
+    // need to grow buffer: double it
+    const newCap = Math.max(this._cap * 2, this._size + need);
+    const newArr = new Array(newCap);
+    // copy current elements in order to newArr
+    for (let i = 0; i < this._size; i++) {
+      newArr[i] = this._arr[(this._head + i) % this._cap];
+    }
+    this._arr = newArr;
+    this._cap = newCap;
+    this._head = 0;
+    this._tail = this._size % this._cap;
+  }
+
+  enqueue(value) {
+    if (this._cap === 0) {
+      // unbounded: simple push to array backend
+      this._arr.push(value);
+      this._size++;
+      return true;
+    }
+    // bounded or expandable circular buffer
+    if (this._size >= this._cap) {
+      // buffer full: expand automatically
+      this._ensureCapacity(1);
+    }
+    this._arr[this._tail] = value;
+    this._tail = (this._tail + 1) % this._cap;
+    this._size++;
+    return true;
+  }
+
+  dequeue() {
+    if (this.isEmpty()) return undefined;
+    let val;
+    if (this._cap === 0) {
+      // unbounded: using plain array - shift
+      val = this._arr.shift();
+      this._size--;
+      return val;
+    }
+    val = this._arr[this._head];
+    // optional: clear slot
+    this._arr[this._head] = undefined;
+    this._head = (this._head + 1) % this._cap;
+    this._size--;
+    return val;
+  }
+
+  clear() {
+    if (this._cap === 0) {
+      this._arr = [];
+    } else {
+      this._arr = new Array(this._cap);
+    }
+    this._head = this._tail = this._size = 0;
+  }
+
+  toArray() {
+    if (this._cap === 0) return this._arr.slice();
+    const res = [];
+    for (let i = 0; i < this._size; i++) {
+      res.push(this._arr[(this._head + i) % this._cap]);
+    }
+    return res;
+  }
+}
+
+/* UI wiring */
+const queueArea = document.getElementById('queueArea');
+const logEl = document.getElementById('log');
+const sizeEl = document.getElementById('size');
+const frontEl = document.getElementById('frontVal');
+const rearEl = document.getElementById('rearVal');
+const capEl = document.getElementById('capVal');
+const valueInput = document.getElementById('valueInput');
+const enqueueBtn = document.getElementById('enqueueBtn');
+const dequeueBtn = document.getElementById('dequeueBtn');
+const peekBtn = document.getElementById('peekBtn');
+const clearBtn = document.getElementById('clearBtn');
+const capacityInput = document.getElementById('capacity');
+const applyCapBtn = document.getElementById('applyCap');
+
+let queue = new Queue(0); // start unbounded
+
+function appendLog(text, color) {
+  const line = document.createElement('div');
+  line.textContent = `${new Date().toLocaleTimeString()}: ${text}`;
+  if (color) line.style.color = color;
+  logEl.prepend(line);
+}
+
+// Render queue visually as boxes. Front on left.
+function renderQueue(highlight = {}) {
+  // highlight: {newIndex, removedIndex, peekIndex}
+  queueArea.innerHTML = '';
+  const arr = queue.toArray();
+  if (arr.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'node';
+    empty.style.opacity = '0.6';
+    empty.textContent = 'Empty';
+    queueArea.appendChild(empty);
+  } else {
+    arr.forEach((v, i) => {
+      const n = document.createElement('div');
+      n.className = 'node';
+      n.textContent = String(v);
+      // label front/rear tags
+      if (i === 0) {
+        const t = document.createElement('div'); t.className = 'tag'; t.textContent = 'front';
+        n.appendChild(t);
+      }
+      if (i === arr.length - 1) {
+        const t2 = document.createElement('div'); t2.className = 'tag'; t2.textContent = 'rear';
+        n.appendChild(t2);
+      }
+      // visual highlight
+      if (highlight.newIndex === i) n.classList.add('new');
+      if (highlight.removedIndex === i) n.classList.add('removed');
+      if (highlight.peekIndex === i) { n.style.boxShadow = '0 6px 18px rgba(59,130,246,0.18)'; }
+      queueArea.appendChild(n);
+    });
+  }
+
+  // update meta
+  sizeEl.textContent = queue.size();
+  const front = queue.peek();
+  frontEl.textContent = front !== undefined ? String(front) : '—';
+  const arrRep = queue.toArray();
+  rearEl.textContent = arrRep.length ? String(arrRep[arrRep.length - 1]) : '—';
+  capEl.textContent = queue.capacity() === 0 ? '∞' : String(queue.capacity());
+}
+
+// Hook up controls
+enqueueBtn.addEventListener('click', () => {
+  const val = valueInput.value.trim();
+  const useVal = val === '' ? `Item-${Math.floor(Math.random()*1000)}` : val;
+  const success = queue.enqueue(useVal);
+  if (success) {
+    appendLog(`Enqueued "${useVal}"`, '#a7f3d0');
+    renderQueue({newIndex: queue.size()-1});
+  } else {
+    appendLog(`Failed to enqueue "${useVal}"`, '#fca5a5');
+  }
+  valueInput.value = '';
+  valueInput.focus();
+});
+
+dequeueBtn.addEventListener('click', () => {
+  const before = queue.toArray();
+  const removed = queue.dequeue();
+  if (removed === undefined) {
+    appendLog('Dequeue attempted on empty queue', '#fca5a5');
+    renderQueue();
+    return;
+  }
+  appendLog(`Dequeued "${removed}"`, '#ffd580');
+  // show removed element briefly by rendering with removedIndex = 0 before actual shift (front)
+  // Since we've already dequeued, show a small animation capturing last front removed behavior:
+  renderQueue();
+});
+
+peekBtn.addEventListener('click', () => {
+  const v = queue.peek();
+  if (v === undefined) {
+    appendLog('Peek: queue is empty', '#fca5a5');
+    renderQueue();
+    return;
+  }
+  appendLog(`Peek: "${v}" (front)`, '#bfdbfe');
+  // highlight front
+  renderQueue({peekIndex: 0});
+});
+
+clearBtn.addEventListener('click', () => {
+  queue.clear();
+  appendLog('Cleared queue', '#fda4af');
+  renderQueue();
+});
+
+applyCapBtn.addEventListener('click', () => {
+  const val = Number(capacityInput.value);
+  if (!Number.isFinite(val) || val < 0) {
+    appendLog('Invalid capacity', '#fca5a5');
+    return;
+  }
+  const capVal = Math.floor(val);
+  // create new queue with new capacity and copy elements (if possible)
+  const items = queue.toArray();
+  const maxAllowed = capVal === 0 ? Infinity : capVal;
+  if (items.length > maxAllowed) {
+    // drop oldest items to fit
+    const toKeep = items.slice(items.length - maxAllowed);
+    queue = new Queue(capVal);
+    toKeep.forEach(x => queue.enqueue(x));
+    appendLog(`Applied capacity ${capVal}. Dropped oldest items to fit.`, '#fbcfe8');
+  } else {
+    const newQ = new Queue(capVal);
+    items.forEach(x => newQ.enqueue(x));
+    queue = newQ;
+    appendLog(`Applied capacity ${capVal}.`, '#bbf7d0');
+  }
+  renderQueue();
+});
+
+// allow Enter to enqueue
+valueInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') enqueueBtn.click();
+});
+
+// initial render
+renderQueue();
+
+// Example automated demo sequence to illustrate FIFO (run once)
+(function autoDemo(){
+  appendLog('Demo: enqueue A, B, C, then dequeue twice to show FIFO', '#93c5fd');
+  const demoItems = ['A','B','C'];
+  let step = 0;
+  function next(){
+    if (step < demoItems.length) {
+      queue.enqueue(demoItems[step]);
+      appendLog(`Enqueued "${demoItems[step]}"`, '#a7f3d0');
+      renderQueue({newIndex: queue.size()-1});
+    } else if (step < demoItems.length + 2) {
+      const removed = queue.dequeue();
+      appendLog(`Dequeued "${removed}"`, '#ffd580');
+      renderQueue();
+    } else {
+      appendLog('Demo complete — queue preserves FIFO: A then B were removed first', '#c7f9cc');
+      return;
+    }
+    step++;
+    setTimeout(next, 700);
+  }
+  // run after short delay so the page draws
+  setTimeout(next, 600);
+})();
+
+</script>
+</body>
+</html>

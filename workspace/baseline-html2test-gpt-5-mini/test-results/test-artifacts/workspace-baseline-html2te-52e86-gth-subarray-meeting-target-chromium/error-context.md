@@ -1,0 +1,77 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Sliding Window Visualizer" [level=1] [ref=e4]
+    - paragraph [ref=e5]: Explore fixed-size and variable-size sliding window examples. Input an array, choose a mode and window/target, then step through the algorithm or play an animation to see how the window moves and values update.
+    - generic [ref=e6]: Array (comma separated numbers)
+    - textbox [ref=e7]: 2,1,5,2,8,3,1,4
+    - generic [ref=e8]:
+      - generic [ref=e9] [cursor=pointer]: 2,1,5,2,8,3,1,4
+      - generic [ref=e10] [cursor=pointer]: 4,2,1,7,8,1,2,8,1,0
+      - generic [ref=e11] [cursor=pointer]: 1,1,1,1,1,1,1
+      - generic [ref=e12] [cursor=pointer]: 5,3,8,1,2
+    - generic [ref=e13]: Mode
+    - combobox [ref=e14]:
+      - option "Fixed-size window — sliding sum / max sum (size k)" [selected]
+      - option "Smallest subarray with sum ≥ target (variable-size)"
+    - generic [ref=e15]:
+      - generic [ref=e16]: Window size (k)
+      - spinbutton [ref=e17]: "3"
+    - generic [ref=e18]:
+      - button "Play" [ref=e19] [cursor=pointer]
+      - button "Pause" [ref=e20] [cursor=pointer]
+      - button "Step" [ref=e21] [cursor=pointer]
+      - button "Back" [ref=e22] [cursor=pointer]
+      - button "Reset" [ref=e23] [cursor=pointer]
+      - button "Randomize" [ref=e24] [cursor=pointer]
+      - generic [ref=e25]: Speed
+      - combobox [ref=e26]:
+        - option "0.8s"
+        - option "0.5s" [selected]
+        - option "0.3s"
+        - option "0.12s"
+    - generic [ref=e27]: Ready
+    - generic [ref=e28]: "Tips: Fixed-size shows current window sum and tracks the maximum sum. Smallest-subarray finds the minimum-length contiguous subarray with sum ≥ target by expanding and contracting the window."
+  - generic [ref=e29]:
+    - generic [ref=e30]: Visual representation of the array and sliding window. Use controls to step through.
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e33]: "0"
+        - generic [ref=e34]: "2"
+      - generic [ref=e35]:
+        - generic [ref=e36]: "1"
+        - generic [ref=e37]: "1"
+      - generic [ref=e38]:
+        - generic [ref=e39]: "2"
+        - generic [ref=e40]: "5"
+      - generic [ref=e41]:
+        - generic [ref=e42]: "3"
+        - generic [ref=e43]: "2"
+      - generic [ref=e44]:
+        - generic [ref=e45]: "4"
+        - generic [ref=e46]: "8"
+      - generic [ref=e47]:
+        - generic [ref=e48]: "5"
+        - generic [ref=e49]: "3"
+      - generic [ref=e50]:
+        - generic [ref=e51]: "6"
+        - generic [ref=e52]: "1"
+      - generic [ref=e53]:
+        - generic [ref=e54]: "7"
+        - generic [ref=e55]: "4"
+    - generic [ref=e56]:
+      - generic [ref=e57]:
+        - generic [ref=e58]: Current sum
+        - generic [ref=e59]: "2"
+      - generic [ref=e60]:
+        - generic [ref=e61]: Window indices
+        - generic [ref=e62]: "[0, 0]"
+      - generic [ref=e63]:
+        - generic [ref=e64]: Best found
+        - generic [ref=e65]: initializing
+    - generic [ref=e66]:
+      - generic [ref=e67]: "[11:23:53 PM] Reset and initialized generator."
+      - generic [ref=e68]: "[11:23:53 PM] Added a[0] = 2"
+```

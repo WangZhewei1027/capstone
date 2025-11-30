@@ -1,0 +1,164 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Longest Common Subsequence (LCS) Visualizer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Interactive demo of dynamic programming for LCS. Type two strings, step through the DP table, and reconstruct the LCS.
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - text: String A (columns)
+        - textbox [ref=e10]: ABCBDAB
+      - generic [ref=e11]:
+        - text: String B (rows)
+        - textbox [ref=e12]: BDCABA
+      - generic [ref=e13]:
+        - text: Options
+        - generic [ref=e14]:
+          - button "Compute DP" [ref=e15] [cursor=pointer]
+          - button "Step" [ref=e16] [cursor=pointer]
+          - button "Play" [ref=e17] [cursor=pointer]
+          - button "Pause" [ref=e18] [cursor=pointer]
+          - button "Reconstruct LCS" [ref=e19] [cursor=pointer]
+          - button "Find all LCS (limited)" [ref=e20] [cursor=pointer]
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - button [ref=e23] [cursor=pointer]: AGGTAB / GXTXAYB
+        - button [ref=e24] [cursor=pointer]: ABCDGH / AEDFHR
+        - button [ref=e25] [cursor=pointer]: AXYT / AYZX
+        - button [ref=e26] [cursor=pointer]: ABCBDAB / BDCABA
+        - button [ref=e27] [cursor=pointer]: XMJYAUZ / MZJAWXU
+      - generic [ref=e28]: "DP size: 7×8 • Complexity: O(n×m)"
+  - generic [ref=e29]:
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - strong [ref=e33]: DP Table
+          - generic [ref=e34]: Rows = string B, Columns = string A
+        - generic [ref=e35]:
+          - generic [ref=e38]: current cell
+          - generic [ref=e41]: match (diagonal taken)
+          - generic [ref=e44]: backtrack path
+      - table [ref=e46]:
+        - rowgroup [ref=e47]:
+          - row "j=0 j=1 A j=2 B j=3 C j=4 B j=5 D j=6 A j=7 B" [ref=e48]:
+            - cell [ref=e49]
+            - cell "j=0" [ref=e50]:
+              - generic [ref=e51]: j=0
+            - cell "j=1 A" [ref=e52]:
+              - generic [ref=e53]: j=1
+              - generic [ref=e54]: A
+            - cell "j=2 B" [ref=e55]:
+              - generic [ref=e56]: j=2
+              - generic [ref=e57]: B
+            - cell "j=3 C" [ref=e58]:
+              - generic [ref=e59]: j=3
+              - generic [ref=e60]: C
+            - cell "j=4 B" [ref=e61]:
+              - generic [ref=e62]: j=4
+              - generic [ref=e63]: B
+            - cell "j=5 D" [ref=e64]:
+              - generic [ref=e65]: j=5
+              - generic [ref=e66]: D
+            - cell "j=6 A" [ref=e67]:
+              - generic [ref=e68]: j=6
+              - generic [ref=e69]: A
+            - cell "j=7 B" [ref=e70]:
+              - generic [ref=e71]: j=7
+              - generic [ref=e72]: B
+        - rowgroup [ref=e73]:
+          - row "i=0 0 0 0 0 0 0 0" [ref=e74]:
+            - cell "i=0" [ref=e75]:
+              - generic [ref=e76]: i=0
+            - cell "0" [ref=e77]
+            - cell "0" [ref=e78]
+            - cell "0" [ref=e79]
+            - cell "0" [ref=e80]
+            - cell "0" [ref=e81]
+            - cell "0" [ref=e82]
+            - cell "0" [ref=e83]
+          - row "i=1 B 0 0 0 0 0 0 0" [ref=e84]:
+            - cell "i=1 B" [ref=e85]:
+              - generic [ref=e86]: i=1
+              - generic [ref=e87]: B
+            - cell "0" [ref=e88]
+            - cell "0" [ref=e89]
+            - cell "0" [ref=e90]
+            - cell "0" [ref=e91]
+            - cell "0" [ref=e92]
+            - cell "0" [ref=e93]
+            - cell "0" [ref=e94]
+          - row "i=2 D 0 0 0 0 0 0 0" [ref=e95]:
+            - cell "i=2 D" [ref=e96]:
+              - generic [ref=e97]: i=2
+              - generic [ref=e98]: D
+            - cell "0" [ref=e99]
+            - cell "0" [ref=e100]
+            - cell "0" [ref=e101]
+            - cell "0" [ref=e102]
+            - cell "0" [ref=e103]
+            - cell "0" [ref=e104]
+            - cell "0" [ref=e105]
+          - row "i=3 C 0 0 0 0 0 0 0" [ref=e106]:
+            - cell "i=3 C" [ref=e107]:
+              - generic [ref=e108]: i=3
+              - generic [ref=e109]: C
+            - cell "0" [ref=e110]
+            - cell "0" [ref=e111]
+            - cell "0" [ref=e112]
+            - cell "0" [ref=e113]
+            - cell "0" [ref=e114]
+            - cell "0" [ref=e115]
+            - cell "0" [ref=e116]
+          - row "i=4 A 0 0 0 0 0 0 0" [ref=e117]:
+            - cell "i=4 A" [ref=e118]:
+              - generic [ref=e119]: i=4
+              - generic [ref=e120]: A
+            - cell "0" [ref=e121]
+            - cell "0" [ref=e122]
+            - cell "0" [ref=e123]
+            - cell "0" [ref=e124]
+            - cell "0" [ref=e125]
+            - cell "0" [ref=e126]
+            - cell "0" [ref=e127]
+          - row "i=5 B 0 0 0 0 0 0 0" [ref=e128]:
+            - cell "i=5 B" [ref=e129]:
+              - generic [ref=e130]: i=5
+              - generic [ref=e131]: B
+            - cell "0" [ref=e132]
+            - cell "0" [ref=e133]
+            - cell "0" [ref=e134]
+            - cell "0" [ref=e135]
+            - cell "0" [ref=e136]
+            - cell "0" [ref=e137]
+            - cell "0" [ref=e138]
+          - row "i=6 A 0 0 0 0 0 0 0" [ref=e139]:
+            - cell "i=6 A" [ref=e140]:
+              - generic [ref=e141]: i=6
+              - generic [ref=e142]: A
+            - cell "0" [ref=e143]
+            - cell "0" [ref=e144]
+            - cell "0" [ref=e145]
+            - cell "0" [ref=e146]
+            - cell "0" [ref=e147]
+            - cell "0" [ref=e148]
+            - cell "0" [ref=e149]
+      - generic [ref=e150]:
+        - generic [ref=e151]: Animation speed
+        - slider [ref=e152]: "300"
+        - generic [ref=e153]: 300ms
+    - generic [ref=e154]:
+      - generic [ref=e155]:
+        - strong [ref=e156]: Results
+        - generic [ref=e157]: Length and one LCS (or all if requested).
+      - generic [ref=e158]:
+        - generic [ref=e159]: "LCS length: -"
+        - generic [ref=e160]: "One LCS: -"
+        - generic [ref=e161]: "All LCS (limited):"
+      - generic [ref=e163]:
+        - strong [ref=e164]: About
+        - paragraph [ref=e165]: The DP table stores lengths of LCS for prefixes. dp[i][j] is LCS length of B[0..i-1] and A[0..j-1]. If characters match, dp[i][j] = dp[i-1][j-1]+1; otherwise max(dp[i-1][j], dp[i][j-1]).
+  - generic [ref=e166]: "Tip: Use short strings to see detailed steps. Finding all LCS can grow exponentially; the \"Find all LCS\" button caps results to avoid heavy computation."
+```

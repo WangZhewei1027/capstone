@@ -1,0 +1,421 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL = 'http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/be878a84-cd35-11f0-9e7b-93b903303299.html';
+
+// Page Object Model for interacting with the Priority Queue app
+class PriorityQueuePage {
+  constructor(page) {
+    this.page = page;
+    this.locators = {
+      app: page.locator('.app[role="application"]'),
+      header: page.locator('h1'),
+      lead: page.locator('p.lead'),
+      valueInput: page.locator('#valueInput'),
+      priorityInput: page.locator('#priorityInput'),
+      addBtn: page.locator('#addBtn'),
+      addRandBtn: page.locator('#addRandBtn'),
+      bulkRandBtn: page.locator('#bulkRandBtn'),
+      popBtn: page.locator('#popBtn'),
+      peekBtn: page.locator('#peekBtn'),
+      clearBtn: page.locator('#clearBtn'),
+      modeSelect: page.locator('#modeSelect'),
+      rebuildBtn: page.locator('#rebuildBtn'),
+      demoSeqBtn: page.locator('#demoSeqBtn'),
+      sizeBadge: page.locator('#sizeBadge'),
+      peekBadge: page.locator('#peekBadge'),
+      arrayWrap: page.locator('#arrayWrap'),
+      logArea: page.locator('#logArea'),
+      shortLog: page.locator('#shortLog'),
+      fastToggleBtn: page.locator('#fastToggleBtn'),
+      playAnimBtn: page.locator('#playAnimBtn'),
+      stepBackBtn: page.locator('#stepBackBtn'),
+    };
+  }
+
+  // Wait until initial random initialization completes (the app writes a specific log message)
+  async waitForInitialization(timeout = 15000) {
+    await this.page.waitForFunction(() => {
+      const log = document.getElementById('logArea');
+      if (!log) return false;
+      // look for the initialization message: 'initialized with random items'
+      return Array.from(log.childNodes).some(n => n.textContent && n.textContent.includes('initialized with random items'));
+    }, { timeout });
+  }
+
+  // Get size from the badge
+  async getSize() {
+    const txt = await this.locators.sizeBadge.textContent();
+    return Number(txt.trim());
+  }
+
+  // Get peek text
+  async getPeekText() {
+    return (await this.locators.peekBadge.textContent()).trim();
+  }
+
+  // Click add with provided value and priority (strings)
+  async addItem(value, priority) {
+    await this.locators.valueInput.fill(value ?? '');
+    await this.locators.priorityInput.fill(priority ?? '');
+    await this.locators.addBtn.click();
+  }
+
+  // Click add random
+  async clickAddRandom() {
+    await this.locators.addRandBtn.click();
+  }
+
+  // Click pop
+  async clickPop() {
+    await this.locators.popBtn.click();
+  }
+
+  // Click peek
+  async clickPeek() {
+    await this.locators.peekBtn.click();
+  }
+
+  // Click clear
+  async clickClear() {
+    await this.locators.clearBtn.click();
+  }
+
+  // Select mode: 'min' or 'max'
+  async setMode(mode) {
+    await this.locators.modeSelect.selectOption(mode);
+  }
+
+  // Click fast toggle (changes anim speed label)
+  async clickFastToggle() {
+    await this.locators.fastToggleBtn.click();
+  }
+
+  // Get short log text (most recent action)
+  async getShortLogText() {
+    return (await this.locators.shortLog.textContent()).trim();
+  }
+
+  // Wait until the size badge equals expected (polls until match or timeout)
+  async waitForSize(expected, timeout = 5000) {
+    await this.page.waitForFunction((expected) => {
+      const el = document.getElementById('sizeBadge');
+      if (!el) return false;
+      return Number(el.textContent.trim()) === expected;
+    }, expected, { timeout });
+  }
+
+  // Wait until shortLog contains substring
+  async waitForShortLogContains(substr, timeout = 6000) {
+    await this.page.waitForFunction((s) => {
+      const el1 = document.getElementById('shortLog');
+      if (!el) return false;
+      return el.textContent.includes(s);
+    }, substr, { timeout });
+  }
+
+  // Wait until logArea contains a message fragment
+  async waitForLogContains(substr, timeout = 10000) {
+    await this.page.waitForFunction((s) => {
+      const log1 = document.getElementById('logArea');
+      if (!log) return false;
+      return Array.from(log.childNodes).some(n => n.textContent && n.textContent.includes(s));
+    }, substr, { timeout });
+  }
+
+  // Get arrayWrap text contents concatenated
+  async getArrayTexts() {
+    const nodes = await this.locators.arrayWrap.locator('.cell').allTextContents();
+    return nodes.map(s => s.trim());
+  }
+}
+
+test.describe('Priority Queue Visualizer - end-to-end interactions', () => {
+  let pageErrors = [];
+  let consoleErrors = [];
+
+  test.beforeEach(async ({ page }) => {
+    // collect page errors and console errors for assertion later
+    pageErrors = [];
+    consoleErrors = [];
+    page.on('pageerror', err => pageErrors.push(err));
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg);
+    });
+
+    // Navigate to the page under test
+    await page.goto(APP_URL);
+  });
+
+  test.afterEach(async () => {
+    // Ensure there were no unexpected runtime errors (ReferenceError, TypeError, SyntaxError) during tests
+    // We assert that there are no uncaught page errors and no console error messages emitted.
+    expect(pageErrors.length, `No uncaught page errors expected, got: ${pageErrors.map(e => String(e)).join('; ')}`).toBe(0);
+    expect(consoleErrors.length, `No console.error calls expected, got: ${consoleErrors.map(m => m.text()).join('; ')}`).toBe(0);
+  });
+
+  test('Initial page load displays UI and initializes with random items', async ({ page }) => {
+    // Purpose: Verify that header and lead are present and initialization finishes with random items.
+    const pq = new PriorityQueuePage(page);
+
+    // Basic UI elements should be visible
+    await expect(pq.locators.app).toBeVisible();
+    await expect(pq.locators.header).toHaveText('Priority Queue Visualizer');
+    await expect(pq.locators.lead).toContainText('Binary-heap based priority queue');
+
+    // Wait for the initialization to complete (the app appends a log entry "initialized with random items")
+    await pq.waitForInitialization(15000);
+
+    // After initialization, sizeBadge should be >= 1 (script initializes 5 items)
+    const size = await pq.getSize();
+    expect(size).toBeGreaterThanOrEqual(5);
+
+    // The array display should not show the '(empty)' cell
+    const arrTexts = await pq.getArrayTexts();
+    const containsEmpty = arrTexts.some(t => t.includes('(empty)'));
+    expect(containsEmpty).toBe(false);
+
+    // shortLog should show the latest action
+    const short = await pq.getShortLogText();
+    expect(short.length).toBeGreaterThan(0);
+  });
+
+  test('Add button requires priority and shows alert on missing priority', async ({ page }) => {
+    // Purpose: Attempt to add without priority to trigger the browser alert and ensure no change in size.
+    const pq1 = new PriorityQueuePage(page);
+    await pq.waitForInitialization(15000);
+
+    const beforeSize = await pq.getSize();
+
+    // set value but leave priority blank
+    await pq.locators.valueInput.fill('NoPriority');
+
+    // Handle the alert dialog that the page will show
+    const [dialog] = await Promise.all([
+      page.waitForEvent('dialog'),
+      pq.locators.addBtn.click()
+    ]);
+
+    // Validate the alert message indicates missing priority
+    expect(dialog.message()).toContain('Please enter a numeric priority');
+    await dialog.accept();
+
+    // Size should remain unchanged
+    const afterSize = await pq.getSize();
+    expect(afterSize).toBe(beforeSize);
+
+    // Clear the value input for cleanliness
+    await pq.locators.valueInput.fill('');
+  });
+
+  test('Adding a custom item updates size and peek correctly', async ({ page }) => {
+    // Purpose: Add a known item with a low priority to make sure it surfaces to the top in Min mode
+    const pq2 = new PriorityQueuePage(page);
+    await pq.waitForInitialization(15000);
+
+    const initialSize = await pq.getSize();
+
+    // Add a custom item "TEST_ITEM" with priority 0 (very high priority for min-heap)
+    const dialogPromise = page.waitForEvent('dialog').then(d => d.accept()).catch(() => {});
+    await pq.addItem('TEST_ITEM', '0');
+    // There may be an animation with setTimeout; wait until shortLog shows push or size increased
+    await pq.waitForShortLogContains('push value', 8000).catch(() => null);
+
+    // Ensure the dialog (if any) was handled; (add should not trigger a dialog for valid input)
+    await dialogPromise;
+
+    // Wait for size to increase by 1
+    await pq.waitForSize(initialSize + 1, 8000);
+
+    // Peek should reference TEST_ITEM (or at least show p=0)
+    const peekText = await pq.getPeekText();
+    expect(peekText).toContain('p=0');
+
+    // The array representation should include the TEST_ITEM entry
+    const arrTexts1 = await pq.getArrayTexts();
+    const found = arrTexts.some(t => t.includes('TEST_ITEM'));
+    expect(found).toBe(true);
+  });
+
+  test('Peek button shows an alert with top item and logs the peek', async ({ page }) => {
+    // Purpose: Trigger peek and assert the alert shows the top item and log is updated
+    const pq3 = new PriorityQueuePage(page);
+    await pq.waitForInitialization(15000);
+
+    // Prepare to capture the alert
+    const dialogPromise1 = page.waitForEvent('dialog');
+
+    // Click peek
+    await pq.clickPeek();
+
+    // The app will alert either with Top: ... or 'Heap is empty' depending on state
+    const dialog = await dialogPromise;
+    const message = dialog.message();
+    // Dismiss the dialog (accept)
+    await dialog.accept();
+
+    // The message should either indicate top with 'Top:' or tell heap is empty
+    expect(typeof message).toBe('string');
+    expect(message.length).toBeGreaterThan(0);
+
+    // The app also writes a corresponding log entry; wait for shortLog update
+    await pq.waitForShortLogContains('peek', 5000);
+  });
+
+  test('Pop removes the top element and decreases the size', async ({ page }) => {
+    // Purpose: Verify pop action removes the top item and the size badge decrements
+    const pq4 = new PriorityQueuePage(page);
+    await pq.waitForInitialization(15000);
+
+    const beforeSize1 = await pq.getSize();
+    // Capture the current top text
+    const beforePeek = await pq.getPeekText();
+
+    // Click pop and wait for size change and log
+    await pq.clickPop();
+
+    // Wait until size is decremented by one (allow for animation time)
+    await pq.waitForSize(beforeSize - 1, 10000);
+
+    const afterPeek = await pq.getPeekText();
+    const afterSize1 = await pq.getSize();
+
+    // Size decreased
+    expect(afterSize).toBe(beforeSize - 1);
+
+    // The new peek should differ from the previous top (or be '—' if empty)
+    if (afterSize > 0) {
+      expect(afterPeek).not.toBe(beforePeek);
+    } else {
+      expect(afterPeek).toBe('—');
+    }
+
+    // The short log should indicate a pop happened
+    const short1 = await pq.getShortLogText();
+    expect(short.toLowerCase()).toContain('pop');
+  });
+
+  test('Mode switching to max rebuilds heap and updates peek', async ({ page }) => {
+    // Purpose: Switch heap mode from min to max and confirm the heap is rebuilt under new comparator
+    const pq5 = new PriorityQueuePage(page);
+    await pq.waitForInitialization(15000);
+
+    // Record current peek
+    const beforePeek1 = await pq.getPeekText();
+
+    // Switch to max mode
+    await pq.setMode('max');
+
+    // The app writes a log indicating mode change; wait for it
+    await pq.waitForLogContains('mode set to max', 5000);
+
+    // After rebuild, peek should likely change (since comparator changed), assert peekBadge text exists and contains p=
+    const afterPeek1 = await pq.getPeekText();
+    expect(afterPeek.length).toBeGreaterThan(0);
+    expect(afterPeek).toContain('p=');
+
+    // It's acceptable that peek may or may not change depending on current data, but ensure the action logged
+    const short2 = await pq.getShortLogText();
+    expect(short).toContain('max');
+  });
+
+  test('Clear button empties the heap and updates UI accordingly', async ({ page }) => {
+    // Purpose: Ensure clear removes all elements and UI reflects empty state
+    const pq6 = new PriorityQueuePage(page);
+    await pq.waitForInitialization(15000);
+
+    // Click clear
+    await pq.clickClear();
+
+    // Wait for the cleared log entry
+    await pq.waitForLogContains('cleared heap', 5000);
+
+    // Size should be 0
+    await pq.waitForSize(0, 5000);
+    const size1 = await pq.getSize();
+    expect(size).toBe(0);
+
+    // Array wrap should contain the '(empty)' cell
+    const arrayTexts = await pq.getArrayTexts();
+    const hasEmpty = arrayTexts.some(t => t.includes('(empty)'));
+    expect(hasEmpty).toBe(true);
+
+    // Peek badge should show '—'
+    const peek = await pq.getPeekText();
+    expect(peek).toBe('—');
+  });
+
+  test('Add Random increases size and Fast toggle cycles speed label', async ({ page }) => {
+    // Purpose: Clicking add random adds one item; clicking fast toggle changes its label text
+    const pq7 = new PriorityQueuePage(page);
+    await pq.waitForInitialization(15000);
+
+    const beforeSize2 = await pq.getSize();
+
+    // Click add random
+    await pq.clickAddRandom();
+
+    // Wait until size increases by 1
+    await pq.waitForSize(beforeSize + 1, 10000);
+
+    const afterSize2 = await pq.getSize();
+    expect(afterSize).toBe(beforeSize + 1);
+
+    // Test fast toggle cycles label text (300ms -> 120ms -> 50ms -> 300ms)
+    const btn = pq.locators.fastToggleBtn;
+    const initialText = (await btn.textContent()).trim();
+    expect(initialText).toContain('Speed');
+
+    await pq.clickFastToggle();
+    const text1 = (await btn.textContent()).trim();
+    expect(text1).not.toBe(initialText);
+
+    await pq.clickFastToggle();
+    const text2 = (await btn.textContent()).trim();
+    expect(text2).not.toBe(text1);
+
+    await pq.clickFastToggle();
+    const text3 = (await btn.textContent()).trim();
+    // final should cycle back to something containing 'Speed'
+    expect(text3).toContain('Speed');
+  });
+
+  test('Demo sequence runs multiple operations and logs actions', async ({ page }) => {
+    // Purpose: Run Demo Sequence and ensure multiple push/pop operations occur and are logged
+    const pq8 = new PriorityQueuePage(page);
+    await pq.waitForInitialization(15000);
+
+    // Click demo sequence
+    await pq.locators.demoSeqBtn.click();
+
+    // The demo has several push/pop steps; wait for a log entry indicating a final known action e.g., 'pop ->'
+    await pq.waitForLogContains('pop ->', 20000).catch(() => { /* continue even if not seen quickly */ });
+
+    // Verify that multiple log entries were produced by checking logArea has children
+    const logChildren = await pq.locators.logArea.locator('div').count();
+    expect(logChildren).toBeGreaterThan(0);
+
+    // Ensure size is a non-negative number
+    const size2 = await pq.getSize();
+    expect(size).toBeGreaterThanOrEqual(0);
+  });
+
+  test('Play Animation and Step Back buttons trigger informative alerts', async ({ page }) {
+    // Purpose: These buttons show alerts describing behavior; ensure dialogs appear and their messages are informative.
+    const pq9 = new PriorityQueuePage(page);
+    await pq.waitForInitialization(15000);
+
+    // Play animation button triggers an alert explaining animations
+    const playDialogPromise = page.waitForEvent('dialog');
+    await pq.locators.playAnimBtn.click();
+    const playDialog = await playDialogPromise;
+    expect(playDialog.message()).toContain('Animations play automatically');
+    await playDialog.accept();
+
+    // Step back button triggers an alert explaining it's not implemented
+    const stepDialogPromise = page.waitForEvent('dialog');
+    await pq.locators.stepBackBtn.click();
+    const stepDialog = await stepDialogPromise;
+    expect(stepDialog.message()).toContain('Step back is not implemented');
+    await stepDialog.accept();
+  });
+});

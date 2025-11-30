@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Interactive Linear Regression Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 16px; color: #111; }
+    h1 { margin: 0 0 8px 0; font-size: 20px; }
+    p.lead { margin: 0 0 12px 0; color: #444; font-size: 14px; }
+    .container { display: flex; gap: 16px; flex-wrap: wrap; }
+    .panel { background: #fff; border: 1px solid #ddd; padding: 12px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    #left { flex: 1 1 640px; min-width: 320px; }
+    #right { width: 360px; min-width: 280px; }
+    canvas { background: linear-gradient(#fcfeff,#f7fbff); border-radius: 6px; display:block; width:100%; height: 420px; }
+    #costCanvas { width:100%; height:140px; background:#fafafa; border-radius:6px; display:block; }
+    .controls { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .controls > * { margin: 0; }
+    button { background:#2563eb; color:white; border:none; padding:8px 10px; border-radius:6px; cursor:pointer; }
+    button.secondary { background:#6b7280; }
+    button.warn { background:#b91c1c; }
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+    label { display:block; font-size:12px; color:#444; margin-top:8px; }
+    input[type="range"] { width:100%; }
+    input[type="number"], input[type="text"] { padding:6px 8px; border-radius:6px; border:1px solid #ccc; width:100%; box-sizing:border-box; }
+    .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+    .stat { background:#fbfdff; border:1px solid #eef2ff; padding:8px; border-radius:6px; font-size:13px; }
+    .small { font-size:12px; color:#555; }
+    .hint { font-size:12px; color:#666; margin-top:8px; }
+    .footer { margin-top:12px; font-size:12px; color:#666; }
+    .row { display:flex; gap:8px; }
+    .flex { flex:1; }
+  </style>
+</head>
+<body>
+  <h1>Linear Regression — Interactive Demo</h1>
+  <p class="lead">Click on the main plot to add points. Use "Normal Eq." (closed-form) or run Gradient Descent to fit y = θ0 + θ1·x. Generate synthetic data, adjust noise, learning rate, and watch the cost decrease.</p>
+
+  <div class="container">
+    <div id="left" class="panel">
+      <canvas id="plot" width="800" height="420"></canvas>
+      <div class="controls">
+        <button id="btnNormal">Normal Eq. (closed-form)</button>
+        <button id="btnRunGD">Run GD</button>
+        <button id="btnPause" class="secondary" disabled>Pause</button>
+        <button id="btnStep" class="secondary">Step 100 iters</button>
+        <button id="btnClear" class="warn">Clear</button>
+        <button id="btnUndo" class="secondary">Undo</button>
+      </div>
+
+      <div class="row" style="margin-top:10px; gap:12px;">
+        <div style="flex:1">
+          <label>Learning rate (α): <span id="alphaVal">0.01</span></label>
+          <input type="range" id="alpha" min="0.0001" max="1" step="0.0001" value="0.01">
+        </div>
+        <div style="width:120px;">
+          <label>Batch iters / animate</label>
+          <input type="number" id="iters" min="1" step="1" value="50">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:10px;">
+        <div style="flex:1">
+          <label>Predict x (domain -10..10)</label>
+          <input type="number" id="predictX" value="0" step="0.1">
+        </div>
+        <div style="width:160px;">
+          <label>Prediction y</label>
+          <input type="text" id="predictY" readonly>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <label>Cost (MSE) history</label>
+        <canvas id="costCanvas" width="800" height="140"></canvas>
+      </div>
+    </div>
+
+    <div id="right" class="panel">
+      <h3>Model & stats</h3>
+      <div class="stat-grid">
+        <div class="stat"><strong>θ0 (intercept)</strong><div id="theta0" class="small">—</div></div>
+        <div class="stat"><strong>θ1 (slope)</strong><div id="theta1" class="small">—</div></div>
+        <div class="stat"><strong>MSE</strong><div id="mse" class="small">—</div></div>
+        <div class="stat"><strong>R²</strong><div id="r2" class="small">—</div></div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <h4>Data generation</h4>
+        <label>Points</label>
+        <input type="number" id="genN" value="40" min="2" step="1">
+        <label>True slope (θ1)</label>
+        <input type="number" id="trueSlope" value="1.5" step="0.1">
+        <label>True intercept (θ0)</label>
+        <input type="number" id="trueIntercept" value="-1.0" step="0.1">
+        <label>Noise σ (std dev)</label>
+        <input type="number" id="noise" value="2.0" step="0.1">
+        <div class="controls" style="margin-top:8px;">
+          <button id="btnGen">Generate</button>
+          <button id="btnGenClear" class="secondary">Generate & Replace</button>
+        </div>
+      </div>
+
+      <div class="footer">
+        Tips: Click to add points. Use Normal Eq. for exact fit (closed-form). Gradient Descent learns gradually — change α if it diverges or is too slow.
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // Data & model
+  let xs = []; let ys = [];
+  let theta0 = 0, theta1 = 0;
+  let costHistory = [];
+  const domain = {minX:-10, maxX:10, minY:-10, maxY:10};
+
+  // DOM
+  const plot = document.getElementById('plot');
+  const ctx = plot.getContext('2d');
+  const costCanvas = document.getElementById('costCanvas');
+  const cctx = costCanvas.getContext('2d');
+
+  const btnNormal = document.getElementById('btnNormal');
+  const btnRunGD = document.getElementById('btnRunGD');
+  const btnPause = document.getElementById('btnPause');
+  const btnStep = document.getElementById('btnStep');
+  const btnClear = document.getElementById('btnClear');
+  const btnUndo = document.getElementById('btnUndo');
+  const alphaSlider = document.getElementById('alpha');
+  const alphaVal = document.getElementById('alphaVal');
+  const itersInput = document.getElementById('iters');
+  const predictX = document.getElementById('predictX');
+  const predictY = document.getElementById('predictY');
+  const theta0El = document.getElementById('theta0');
+  const theta1El = document.getElementById('theta1');
+  const mseEl = document.getElementById('mse');
+  const r2El = document.getElementById('r2');
+
+  const genN = document.getElementById('genN');
+  const trueSlope = document.getElementById('trueSlope');
+  const trueIntercept = document.getElementById('trueIntercept');
+  const noiseInput = document.getElementById('noise');
+  const btnGen = document.getElementById('btnGen');
+  const btnGenClear = document.getElementById('btnGenClear');
+
+  // Animation / GD control
+  let running = false;
+  let gdTimer = null;
+
+  // Helpers: map domain to canvas
+  function xToCanvas(x){
+    const w = plot.width;
+    return ( (x - domain.minX) / (domain.maxX - domain.minX) ) * w;
+  }
+  function yToCanvas(y){
+    const h = plot.height;
+    // invert y (canvas y grows downward)
+    return h - ( (y - domain.minY) / (domain.maxY - domain.minY) ) * h;
+  }
+  function canvasToX(px){
+    const w = plot.width;
+    return domain.minX + (px / w) * (domain.maxX - domain.minX);
+  }
+  function canvasToY(py){
+    const h = plot.height;
+    return domain.minY + ((h - py) / h) * (domain.maxY - domain.minY);
+  }
+
+  // Drawing
+  function clearPlot(){
+    ctx.clearRect(0,0,plot.width,plot.height);
+    // background
+    ctx.fillStyle = "rgba(250,252,255,0.6)";
+    ctx.fillRect(0,0,plot.width,plot.height);
+    // grid lines
+    ctx.strokeStyle = "#eef4ff";
+    ctx.lineWidth = 1;
+    const step = 5;
+    for(let x = Math.ceil(domain.minX); x<=domain.maxX; x+=step){
+      const px = xToCanvas(x);
+      ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,plot.height); ctx.stroke();
+    }
+    for(let y = Math.ceil(domain.minY); y<=domain.maxY; y+=step){
+      const py = yToCanvas(y);
+      ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(plot.width,py); ctx.stroke();
+    }
+    // axes
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 1.4;
+    // x axis (y=0)
+    if(domain.minY <= 0 && domain.maxY >= 0){
+      const py = yToCanvas(0);
+      ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(plot.width,py); ctx.stroke();
+    }
+    // y axis (x=0)
+    if(domain.minX <= 0 && domain.maxX >= 0){
+      const px = xToCanvas(0);
+      ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,plot.height); ctx.stroke();
+    }
+  }
+
+  function drawPoints(){
+    ctx.fillStyle = "#0ea5a4";
+    for(let i=0;i<xs.length;i++){
+      const px = xToCanvas(xs[i]), py = yToCanvas(ys[i]);
+      ctx.beginPath();
+      ctx.arc(px,py,5,0,Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.08)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  function drawLine(){
+    // draw regression line y = theta0 + theta1*x
+    if(typeof theta0 !== "number" || typeof theta1 !== "number") return;
+    // compute y at left and right domain edges
+    const xL = domain.minX; const xR = domain.maxX;
+    const yL = theta0 + theta1 * xL;
+    const yR = theta0 + theta1 * xR;
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(xToCanvas(xL), yToCanvas(yL));
+    ctx.lineTo(xToCanvas(xR), yToCanvas(yR));
+    ctx.stroke();
+
+    // draw predicted point if provided
+    const px = Number(predictX.value);
+    if(!isNaN(px)){
+      const pyVal = theta0 + theta1 * px;
+      predictY.value = pyVal.toFixed(3);
+      ctx.fillStyle = "rgba(239,68,68,0.95)";
+      ctx.beginPath(); ctx.arc(xToCanvas(px), yToCanvas(pyVal), 6,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
+    } else {
+      predictY.value = "";
+    }
+  }
+
+  function redraw(){
+    clearPlot();
+    drawPoints();
+    if(xs.length>0) drawLine();
+    drawCost();
+    updateStats();
+  }
+
+  // Cost & stats
+  function computeMSE(t0, t1){
+    if(xs.length===0) return Infinity;
+    let s = 0;
+    for(let i=0;i<xs.length;i++){
+      const pred = t0 + t1*xs[i];
+      const e = pred - ys[i];
+      s += e*e;
+    }
+    return s / xs.length;
+  }
+  function computeR2(t0, t1){
+    if(xs.length===0) return NaN;
+    let ssRes=0, ssTot=0;
+    const ybar = ys.reduce((a,b)=>a+b,0)/ys.length;
+    for(let i=0;i<ys.length;i++){
+      ssRes += Math.pow( (ys[i] - (t0 + t1*xs[i])) , 2);
+      ssTot += Math.pow(ys[i] - ybar, 2);
+    }
+    return 1 - (ssRes/ssTot || 1);
+  }
+  function updateStats(){
+    theta0El.textContent = Number(theta0).toFixed(5);
+    theta1El.textContent = Number(theta1).toFixed(5);
+    const mse = computeMSE(theta0, theta1);
+    mseEl.textContent = (isFinite(mse) ? mse.toFixed(5) : "—");
+    const r2 = computeR2(theta0, theta1);
+    r2El.textContent = (isNaN(r2) ? "—" : r2.toFixed(4));
+  }
+
+  // Normal equation (single feature): slope = cov(x,y)/var(x), intercept = ybar - slope*xbar
+  function fitNormalEq(){
+    if(xs.length < 2){
+      alert("Need at least 2 points to fit.");
+      return;
+    }
+    const n = xs.length;
+    const xbar = xs.reduce((a,b)=>a+b,0)/n;
+    const ybar = ys.reduce((a,b)=>a+b,0)/n;
+    let num=0, den=0;
+    for(let i=0;i<n;i++){
+      num += (xs[i]-xbar)*(ys[i]-ybar);
+      den += (xs[i]-xbar)*(xs[i]-xbar);
+    }
+    if(Math.abs(den) < 1e-12){
+      alert("Cannot fit: all x values are (nearly) identical.");
+      return;
+    }
+    theta1 = num/den;
+    theta0 = ybar - theta1 * xbar;
+    costHistory.push(computeMSE(theta0, theta1));
+    redraw();
+  }
+
+  // Gradient descent (batch)
+  function gradientDescentStep(alpha, iterations){
+    if(xs.length === 0) return;
+    const n = xs.length;
+    // perform 'iterations' batch updates
+    for(let it=0; it<iterations; it++){
+      let grad0 = 0, grad1 = 0;
+      for(let i=0;i<n;i++){
+        const pred = theta0 + theta1 * xs[i];
+        const err = pred - ys[i];
+        grad0 += err;
+        grad1 += err * xs[i];
+      }
+      grad0 /= n; grad1 /= n;
+      theta0 -= alpha * grad0;
+      theta1 -= alpha * grad1;
+      // record cost occasionally
+      if(it % Math.max(1, Math.floor(iterations/10)) === 0){
+        costHistory.push(computeMSE(theta0, theta1));
+      }
+    }
+  }
+
+  // Cost plot
+  function drawCost(){
+    const w = costCanvas.width;
+    const h = costCanvas.height;
+    cctx.clearRect(0,0,w,h);
+    // background
+    cctx.fillStyle = "#fff";
+    cctx.fillRect(0,0,w,h);
+    // axes
+    cctx.strokeStyle = "#e6eefc";
+    cctx.lineWidth = 1;
+    cctx.beginPath(); cctx.moveTo(0,h-20); cctx.lineTo(w,h-20); cctx.stroke();
+    if(costHistory.length===0) return;
+    // compute y scale
+    const maxC = Math.max(...costHistory);
+    const minC = Math.min(...costHistory);
+    const span = Math.max(1e-8, maxC - minC);
+    cctx.strokeStyle = "#2563eb";
+    cctx.lineWidth = 2;
+    cctx.beginPath();
+    for(let i=0;i<costHistory.length;i++){
+      const x = (i/(costHistory.length-1)) * w;
+      const y = h-20 - ((costHistory[i]-minC)/span) * (h-40);
+      if(i===0) cctx.moveTo(x,y); else cctx.lineTo(x,y);
+    }
+    cctx.stroke();
+    // draw latest value
+    cctx.fillStyle = "#111827";
+    cctx.font = "12px sans-serif";
+    const last = costHistory[costHistory.length-1];
+    cctx.fillText("Latest cost: " + last.toFixed(4), 6, 14);
+  }
+
+  // Events
+  plot.addEventListener('click', (e)=>{
+    const rect = plot.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (plot.width / rect.width);
+    const py = (e.clientY - rect.top) * (plot.height / rect.height);
+    const x = canvasToX(px);
+    const y = canvasToY(py);
+    xs.push(x); ys.push(y);
+    // when adding first point, initialize model to pass through it simply
+    if(xs.length===1){ theta0 = ys[0]; theta1 = 0; costHistory = []; }
+    costHistory.push(computeMSE(theta0,theta1));
+    redraw();
+  });
+
+  btnClear.addEventListener('click', ()=>{
+    xs = []; ys = []; costHistory = []; theta0 = 0; theta1 = 0;
+    redraw();
+  });
+  btnUndo.addEventListener('click', ()=>{
+    if(xs.length>0){ xs.pop(); ys.pop(); costHistory = []; redraw(); }
+  });
+  btnNormal.addEventListener('click', ()=>{
+    fitNormalEq();
+  });
+
+  alphaSlider.addEventListener('input', ()=>{
+    alphaVal.textContent = Number(alphaSlider.value).toFixed(4);
+  });
+
+  btnStep.addEventListener('click', ()=>{
+    const iters = Math.max(1, parseInt(itersInput.value || 50));
+    gradientDescentStep(Number(alphaSlider.value), iters);
+    costHistory.push(computeMSE(theta0, theta1));
+    redraw();
+  });
+
+  btnRunGD.addEventListener('click', ()=>{
+    if(running) return;
+    running = true;
+    btnRunGD.disabled = true;
+    btnPause.disabled = false;
+    const iters = Math.max(1, parseInt(itersInput.value || 50));
+    // animate: repeatedly do 'iters' iterations every 100ms
+    gdTimer = setInterval(()=>{
+      gradientDescentStep(Number(alphaSlider.value), iters);
+      costHistory.push(computeMSE(theta0, theta1));
+      redraw();
+    }, 120);
+  });
+
+  btnPause.addEventListener('click', ()=>{
+    if(!running) return;
+    running = false;
+    btnRunGD.disabled = false;
+    btnPause.disabled = true;
+    if(gdTimer) clearInterval(gdTimer);
+    gdTimer = null;
+  });
+
+  predictX.addEventListener('input', redraw);
+
+  // Data generation
+  function generateData(n, slope, intercept, noise, replace){
+    if(replace){ xs = []; ys = []; costHistory = []; }
+    for(let i=0;i<n;i++){
+      const x = Math.random()*(domain.maxX-domain.minX)+domain.minX;
+      const y = intercept + slope * x + gaussRand()*noise;
+      xs.push(x); ys.push(y);
+    }
+    // initialize theta by normal eq for convenience
+    fitNormalEq();
+    redraw();
+  }
+  function gaussRand(){
+    // Box-Muller
+    let u=0,v=0;
+    while(u===0) u=Math.random();
+    while(v===0) v=Math.random();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+  }
+
+  btnGen.addEventListener('click', ()=>{
+    const n = Math.max(1, parseInt(genN.value||40));
+    const slope = Number(trueSlope.value);
+    const intercept = Number(trueIntercept.value);
+    const noise = Math.max(0, Number(noiseInput.value));
+    generateData(n, slope, intercept, noise, false);
+  });
+  btnGenClear.addEventListener('click', ()=>{
+    const n = Math.max(1, parseInt(genN.value||40));
+    const slope = Number(trueSlope.value);
+    const intercept = Number(trueIntercept.value);
+    const noise = Math.max(0, Number(noiseInput.value));
+    generateData(n, slope, intercept, noise, true);
+  });
+
+  // Resize canvases to devicePixelRatio to keep crisp
+  function fixHiDPI(){
+    [plot,costCanvas].forEach(canvas=>{
+      const ratio = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = Math.floor(w * ratio);
+      canvas.height = Math.floor(h * ratio);
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(ratio,0,0,ratio,0,0);
+    });
+    redraw();
+  }
+  window.addEventListener('resize', fixHiDPI);
+  fixHiDPI();
+
+  // initial example
+  generateData(30, 1.5, -1.0, 2.0, true);
+
+  // small keyboard shortcuts
+  window.addEventListener('keydown',(e)=>{
+    if(e.key === " ") { // space toggles run/pause
+      e.preventDefault();
+      if(!running) btnRunGD.click(); else btnPause.click();
+    } else if(e.key === "n" || e.key === "N") { btnNormal.click(); }
+    else if(e.key === "c" || e.key === "C") { btnClear.click(); }
+    else if(e.key === "u" || e.key === "U") { btnUndo.click(); }
+  });
+
+  // expose for debugging (not required)
+  window.__lr_demo = { xs, ys };
+
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Topological Sort Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 1em;
+    background: #f0f0f0;
+  }
+  h1 {
+    text-align: center;
+  }
+  #inputArea, #outputArea {
+    background: white;
+    border-radius: 6px;
+    padding: 1em;
+    margin-bottom: 1em;
+    box-shadow: 0 0 8px #ccc;
+  }
+  label {
+    font-weight: bold;
+  }
+  textarea {
+    width: 100%;
+    height: 100px;
+    font-family: monospace;
+    font-size: 14px;
+    margin-top: 0.5em;
+    margin-bottom: 1em;
+  }
+  button {
+    padding: 0.6em 1.2em;
+    font-size: 16px;
+    background: #0078d7;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #005ea1;
+  }
+  #graph {
+    margin-top: 1em;
+    text-align: center;
+  }
+  svg {
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 6px;
+  }
+  .node circle {
+    fill: #2980b9;
+    stroke: #1c5980;
+    stroke-width: 2;
+  }
+  .node text {
+    fill: white;
+    font-weight: bold;
+    pointer-events: none;
+  }
+  .edgePath path {
+    stroke: #555;
+    stroke-width: 2;
+    fill: none;
+    marker-end: url(#arrowhead);
+  }
+  .topo-step {
+    margin-top: 0.5em;
+    background: #e7f3fe;
+    padding: 0.5em;
+    border-radius: 4px;
+    font-family: monospace;
+  }
+  #error {
+    color: darkred;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+<h1>Topological Sort Demo</h1>
+<div id="inputArea">
+  <label for="graphInput">Enter Directed Acyclic Graph (DAG) edges (one per line):</label>
+  <textarea id="graphInput" placeholder="Format: source target&#10;Example:&#10;5 2&#10;5 0&#10;4 0&#10;4 1&#10;2 3&#10;3 1"></textarea>
+  <button id="runBtn">Run Topological Sort</button>
+  <p><small>Each line defines a directed edge: <code>source target</code> (node names are strings without spaces).</small></p>
+  <p id="error"></p>
+</div>
+<div id="outputArea">
+  <h2>Result</h2>
+  <div><strong>Topological Order:</strong> <span id="topoOrder"></span></div>
+  <div id="steps"></div>
+  <div id="graph"></div>
+</div>
+
+<script>
+// Topological Sort demonstration with graph visualization (using SVG)
+// No external libraries; simple DAG visualization with nodes and edges
+
+class Graph {
+  constructor() {
+    this.adj = new Map(); // Map<node, Set of neighbors>
+  }
+  addNode(node) {
+    if (!this.adj.has(node)) {
+      this.adj.set(node, new Set());
+    }
+  }
+  addEdge(u, v) {
+    this.addNode(u);
+    this.addNode(v);
+    this.adj.get(u).add(v);
+  }
+  getNodes() {
+    return Array.from(this.adj.keys());
+  }
+  getNeighbors(u) {
+    return this.adj.get(u) || new Set();
+  }
+  indegrees() {
+    const indeg = new Map();
+    // initialize
+    for (let node of this.getNodes()) {
+      indeg.set(node, 0);
+    }
+    for (let u of this.getNodes()) {
+      for (let v of this.getNeighbors(u)) {
+        indeg.set(v, indeg.get(v) + 1);
+      }
+    }
+    return indeg;
+  }
+}
+
+// Returns { order: Array, steps: Array of strings } or null on cycle
+function kahnTopologicalSort(graph) {
+  const indeg = graph.indegrees();
+  const queue = [];
+  for (let [node, degree] of indeg) {
+    if (degree === 0) queue.push(node);
+  }
+
+  const order = [];
+  const steps = [];
+
+  let stepCount = 1;
+
+  while (queue.length > 0) {
+    // sorting queue to get deterministic order for demo
+    queue.sort();
+    const u = queue.shift();
+    order.push(u);
+    steps.push(`Step ${stepCount++}: Remove node '${u}' from queue and add to order.`);
+
+    for (let v of graph.getNeighbors(u)) {
+      indeg.set(v, indeg.get(v) - 1);
+      steps.push(`  Decrement indegree of '${v}', new indegree=${indeg.get(v)}.`);
+      if (indeg.get(v) === 0) {
+        queue.push(v);
+        steps.push(`  Node '${v}' added to queue.`);
+      }
+    }
+  }
+
+  if (order.length !== graph.getNodes().length) {
+    return null; // Cycle detected
+  }
+  return { order, steps };
+}
+
+// Simple function to layout nodes in a circle for visualization
+function layoutCircle(nodes, cx, cy, r) {
+  const positions = new Map();
+  const N = nodes.length;
+  for (let i = 0; i < N; i++) {
+    const angle = (2 * Math.PI * i) / N - Math.PI / 2;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    positions.set(nodes[i], { x, y });
+  }
+  return positions;
+}
+
+function createSVGElement(tag, attrs = {}) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    el.setAttribute(k, v);
+  }
+  return el;
+}
+
+function drawGraphSVG(graph, highlightNodes = []) {
+  // Highlight nodes in topological order (optional)
+  // Draw nodes and edges
+
+  const nodes = graph.getNodes().sort();
+  const positions = layoutCircle(nodes, 400, 250, 180);
+
+  const svg = createSVGElement("svg", { width: 800, height: 500 });
+
+  // Arrow marker definition for edges
+  const defs = createSVGElement("defs");
+  const marker = createSVGElement("marker", {
+    id: "arrowhead",
+    markerWidth: "10",
+    markerHeight: "7",
+    refX: "10",
+    refY: "3.5",
+    orient: "auto",
+    fill: "#555",
+  });
+  const path = createSVGElement("path", { d: "M0,0 L10,3.5 L0,7 Z" });
+  marker.appendChild(path);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  // Draw edges as curved lines
+  for (const u of nodes) {
+    const from = positions.get(u);
+    for (const v of graph.getNeighbors(u)) {
+      const to = positions.get(v);
+      // We will draw a quadratic bezier curve from u to v
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const mx = (from.x + to.x) / 2;
+      const my = (from.y + to.y) / 2;
+      const nx = my - from.y + mx;
+      const ny = mx - from.x + my;
+      const pathData = `M ${from.x} ${from.y} Q ${nx} ${ny} ${to.x} ${to.y}`;
+      const edgePath = createSVGElement("path", {
+        d: pathData,
+        "marker-end": "url(#arrowhead)",
+        stroke: "#555",
+        "stroke-width": "2",
+        fill: "none",
+      });
+      svg.appendChild(edgePath);
+    }
+  }
+
+  // Draw nodes
+  nodes.forEach((node, i) => {
+    const pos = positions.get(node);
+    const group = createSVGElement("g", { class: "node" });
+    group.setAttribute("transform", `translate(${pos.x},${pos.y})`);
+
+    const circle = createSVGElement("circle", {
+      r: 22,
+      fill: "#2980b9",
+      stroke: "#1c5980",
+      "stroke-width": 2,
+    });
+    // Highlight ordering by coloring nodes in the topological order
+    if (highlightNodes.length > 0) {
+      const idx = highlightNodes.indexOf(node);
+      if (idx !== -1) {
+        // Gradient from green to blue by order index
+        const colorInterp = (i) =>
+          `hsl(${120 - (120 * i) / highlightNodes.length}, 70%, 50%)`;
+        circle.setAttribute("fill", colorInterp(idx));
+        circle.setAttribute("stroke", "#004d00");
+      }
+    }
+    const text = createSVGElement("text", {
+      "text-anchor": "middle",
+      "dominant-baseline": "middle",
+      fill: "white",
+      "font-weight": "bold",
+      "font-size": "16px",
+      style: "pointer-events:none;",
+    });
+    text.textContent = node;
+
+    group.appendChild(circle);
+    group.appendChild(text);
+    svg.appendChild(group);
+  });
+
+  return svg;
+}
+
+function parseInput(text) {
+  // Parses text into array of edges [u,v]
+  // Ignores empty lines and trims whitespace
+  const lines = text.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  const edges = [];
+  for (const line of lines) {
+    const parts = line.split(/\s+/);
+    if (parts.length !== 2) {
+      throw new Error(`Invalid edge line: '${line}'. Each line must have exactly two nodes.`);
+    }
+    edges.push(parts);
+  }
+  return edges;
+}
+
+function main() {
+  const inputArea = document.getElementById("graphInput");
+  const runBtn = document.getElementById("runBtn");
+  const outputOrder = document.getElementById("topoOrder");
+  const outputSteps = document.getElementById("steps");
+  const outputGraph = document.getElementById("graph");
+  const errorElem = document.getElementById("error");
+
+  runBtn.onclick = () => {
+    // Clear previous outputs
+    outputOrder.textContent = "";
+    outputSteps.innerHTML = "";
+    outputGraph.innerHTML = "";
+    errorElem.textContent = "";
+
+    let edges;
+    try {
+      edges = parseInput(inputArea.value);
+    } catch (e) {
+      errorElem.textContent = e.message;
+      return;
+    }
+
+    // Build graph
+    const graph = new Graph();
+    for (const [u, v] of edges) {
+      graph.addEdge(u, v);
+    }
+    // Also add isolated nodes (nodes not appearing as source but possibly isolated)
+    const allNodes = new Set();
+    for (const [u, v] of edges) {
+      allNodes.add(u);
+      allNodes.add(v);
+    }
+    for (const node of allNodes) graph.addNode(node);
+
+    // Run Kahn's topological sort
+    const result = kahnTopologicalSort(graph);
+    if (!result) {
+      errorElem.textContent = "Cycle detected in the graph. Topological sort not possible.";
+      return;
+    }
+
+    outputOrder.textContent = result.order.join(" → ");
+    // Show steps
+    for (const step of result.steps) {
+      const div = document.createElement("div");
+      div.classList.add("topo-step");
+      div.textContent = step;
+      outputSteps.appendChild(div);
+    }
+
+    // Draw graph with nodes colored by topological order
+    const svg = drawGraphSVG(graph, result.order);
+    outputGraph.appendChild(svg);
+  };
+}
+
+// Initialize sample input on page load
+window.onload = () => {
+  const example = `5 2
+5 0
+4 0
+4 1
+2 3
+3 1`;
+  document.getElementById("graphInput").value = example;
+  main();
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Interactive Linear Regression" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: Fit (Gradient Descent)
+        - generic [ref=e9]: Closed-form (Normal Eq.)
+        - generic [ref=e11]: Data points
+      - generic [ref=e13]: Click on the plot to add points. Drag vertically while holding Shift to adjust noise when generating synthetic data.
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]: Data controls
+        - generic [ref=e17]:
+          - button "Generate Random Data" [ref=e18] [cursor=pointer]
+          - button "Clear" [ref=e19] [cursor=pointer]
+        - generic [ref=e21]: "Number of points: 30"
+        - slider [ref=e22]: "30"
+        - generic [ref=e23]: "True slope (for synthetic): 1.2"
+        - slider [ref=e24]: "1.2"
+        - generic [ref=e25]: "True intercept: 0"
+        - slider [ref=e26]: "0"
+        - generic [ref=e27]: "Noise std (σ): 1"
+        - slider [ref=e28]: "1"
+      - separator [ref=e29]
+      - generic [ref=e30]:
+        - generic [ref=e31]: Gradient Descent
+        - generic [ref=e32]: "Learning rate α: 0.01"
+        - slider [ref=e33]: "0.01"
+        - generic [ref=e34]: "Iterations per second: 200"
+        - slider [ref=e35]: "200"
+        - generic [ref=e36]:
+          - button "Start GD" [ref=e37] [cursor=pointer]
+          - button "Stop" [ref=e38] [cursor=pointer]
+          - button "Reset params" [ref=e39] [cursor=pointer]
+        - generic [ref=e40]: Gradient descent uses batch updates minimizing mean squared error.
+      - separator [ref=e41]
+      - generic [ref=e42]:
+        - strong [ref=e44]: Parameters
+        - generic [ref=e45]: "Gradient Descent: m = 1.0736, b = -0.1422"
+        - generic [ref=e46]: "Closed-form: m = 1.2080, b = -0.2007"
+        - generic [ref=e47]: "Loss (MSE) GD: 1.7196"
+        - generic [ref=e48]: "Loss (MSE) CF: 1.1965"
+        - generic [ref=e49]: "RMSE GD: 1.3113, RMSE CF: 1.0939"
+      - separator [ref=e50]
+      - generic [ref=e51]:
+        - generic [ref=e52]: Predict
+        - generic [ref=e53]:
+          - spinbutton [ref=e54]
+          - button "Predict" [ref=e55] [cursor=pointer]
+      - contentinfo [ref=e56]: "Demo: closed-form (normal equation) vs. gradient descent. Click to add points; generate synthetic linear data; watch the fit update."
+```

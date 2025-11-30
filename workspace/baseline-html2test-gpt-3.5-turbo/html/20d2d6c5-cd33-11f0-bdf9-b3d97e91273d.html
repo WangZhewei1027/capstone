@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Floyd-Warshall Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 1em;
+    background: #f0f0f0;
+  }
+  h1 {
+    text-align: center;
+  }
+  .container {
+    max-width: 900px;
+    margin: auto;
+    background: white;
+    padding: 1em 2em 2em 2em;
+    border-radius: 8px;
+    box-shadow: 0 0 10px #ccc;
+  }
+  label {
+    display: block;
+    margin-top: 1em;
+    font-weight: bold;
+  }
+  textarea, input[type=number] {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 0.3em;
+    font-family: monospace;
+    font-size: 1em;
+  }
+  textarea {
+    min-height: 120px;
+  }
+  button {
+    margin-top: 1em;
+    font-size: 1.1em;
+    padding: 0.5em 1.2em;
+    background: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+  table {
+    border-collapse: collapse;
+    margin-top: 1em;
+    width: 100%;
+  }
+  table, th, td {
+    border: 1px solid #999;
+  }
+  th, td {
+    padding: 0.4em 0.6em;
+    text-align: center;
+    font-family: monospace;
+  }
+  th {
+    background: #e0e0e0;
+  }
+  .infinity {
+    color: #aaa;
+  }
+  .step-controls {
+    margin-top: 1em;
+    text-align: center;
+  }
+  .step-controls button {
+    margin: 0 0.5em;
+    background: #007700;
+  }
+  .step-info {
+    margin-top: 1em;
+    font-family: monospace;
+    font-size: 1.1em;
+    background: #e8f5e9;
+    padding: 0.5em 1em;
+    border-radius: 5px;
+    border: 1px solid #a5d6a7;
+    text-align: center;
+  }
+  .error {
+    color: red;
+    margin-top: 0.5em;
+    font-weight: bold;
+  }
+  .note {
+    font-size: 0.9em;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Floyd-Warshall Algorithm Visualization</h1>
+
+  <label for="numVertices">Number of vertices (1 to 10):</label>
+  <input type="number" id="numVertices" value="4" min="1" max="10" />
+  <div class="note">Vertices will be numbered from 0 to n-1.</div>
+
+  <label for="adjMatrix">Enter adjacency matrix (use infinity or -1 for no edge):</label>
+  <textarea id="adjMatrix" spellcheck="false">0 3 -1 7
+8 0 2 -1
+5 -1 0 1
+2 -1 -1 0</textarea>
+  <div class="note">
+    Each row corresponds to edges from a vertex to others, separated by spaces.<br />
+    For example, the above matrix means edge weights (or no edge) between vertices.
+  </div>
+
+  <button id="startBtn">Run Floyd-Warshall</button>
+
+  <div id="error" class="error"></div>
+
+  <div id="output"></div>
+
+</div>
+
+<script>
+(() => {
+  const INF = Infinity;
+  const maxVertices = 10;
+
+  const numInput = document.getElementById("numVertices");
+  const matrixInput = document.getElementById("adjMatrix");
+  const startBtn = document.getElementById("startBtn");
+  const errorDiv = document.getElementById("error");
+  const outputDiv = document.getElementById("output");
+
+  // Parse the adjacency matrix text area input
+  function parseMatrix(text, n) {
+    let rows = text.trim().split('\n').map(r => r.trim());
+    if (rows.length !== n) return { error: `Expected ${n} rows, but got ${rows.length}` };
+    let matrix = [];
+    for (let i = 0; i < n; i++) {
+      const cols = rows[i].split(/\s+/);
+      if (cols.length !== n) return { error: `Row ${i} expected ${n} columns, but got ${cols.length}` };
+      let row = [];
+      for (let j = 0; j < n; j++) {
+        let valRaw = cols[j].toLowerCase();
+        if (valRaw === "infinity" || valRaw === "inf" || valRaw === "-1") {
+          row.push(INF);
+        } else {
+          let val = Number(valRaw);
+          if (isNaN(val)) return { error: `Invalid number "${cols[j]}" at row ${i} column ${j}` };
+          row.push(val);
+        }
+      }
+      matrix.push(row);
+    }
+    return { matrix };
+  }
+
+  // Create a deep copy of 2D array
+  function copyMatrix(mat) {
+    return mat.map(row => row.slice());
+  }
+
+  // Format a matrix into an HTML table
+  function matrixToTable(mat) {
+    const n = mat.length;
+    let html = "<table><thead><tr><th></th>";
+    for (let j = 0; j < n; j++) html += `<th>${j}</th>`;
+    html += "</tr></thead><tbody>";
+    for (let i = 0; i < n; i++) {
+      html += `<tr><th>${i}</th>`;
+      for (let j = 0; j < n; j++) {
+        let val = mat[i][j];
+        if (val === INF) {
+          html += `<td class="infinity">∞</td>`;
+        } else {
+          html += `<td>${val}</td>`;
+        }
+      }
+      html += "</tr>";
+    }
+    html += "</tbody></table>";
+    return html;
+  }
+
+  // Floyd-Warshall algorithm with step capture
+  function floydWarshall(matrix) {
+    // matrix should be n x n
+    const n = matrix.length;
+    // Dist initialized as copy of matrix
+    let dist = copyMatrix(matrix);
+    // Record the state after each k iteration for visualization
+    // Each step:
+    // { k: <number>, i: <number>, j: <number>, dist: <matrix snapshot>, updated: boolean }
+    const steps = [];
+
+    for (let k = 0; k < n; k++) {
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          let old = dist[i][j];
+          let throughK = (dist[i][k] === INF || dist[k][j] === INF) ? INF : dist[i][k] + dist[k][j];
+          if (throughK < dist[i][j]) {
+            dist[i][j] = throughK;
+            steps.push({
+              k, i, j, dist: copyMatrix(dist), updated: true,
+              oldVal: old, newVal: throughK
+            });
+          } else {
+            // still record step showing no update for completeness
+            steps.push({
+              k, i, j, dist: copyMatrix(dist), updated: false,
+              oldVal: old, newVal: old
+            });
+          }
+        }
+      }
+    }
+
+    return { dist, steps };
+  }
+
+  // Build interface for stepping through the algorithm
+  function visualizeFloydWarshall(steps, n) {
+    outputDiv.innerHTML = "";
+
+    if (steps.length === 0) {
+      outputDiv.innerHTML = "<p>No steps to show (edges may be trivial or single vertex graph).</p>";
+      return;
+    }
+
+    // Controls
+    const controlsDiv = document.createElement("div");
+    controlsDiv.className = "step-controls";
+
+    const prevBtn = document.createElement("button");
+    prevBtn.textContent = "◀ Previous Step";
+    const nextBtn = document.createElement("button");
+    nextBtn.textContent = "Next Step ▶";
+
+    controlsDiv.appendChild(prevBtn);
+    controlsDiv.appendChild(nextBtn);
+
+    // Step info display
+    const stepInfo = document.createElement("div");
+    stepInfo.className = "step-info";
+
+    // Matrix display
+    const matrixContainer = document.createElement("div");
+    matrixContainer.style.marginTop = "1em";
+
+    outputDiv.appendChild(controlsDiv);
+    outputDiv.appendChild(stepInfo);
+    outputDiv.appendChild(matrixContainer);
+
+    let currentStep = -1; // -1 means before any step (initial state)
+
+    // Display state for a given step index
+    function showStep(stepIndex) {
+      if (stepIndex < 0) {
+        // Before any update (initial matrix)
+        stepInfo.textContent = "Initial state before any updates.";
+        matrixContainer.innerHTML = matrixToTable(steps[0].dist.map((row,i) =>
+          row.map((v,j) => (i === j ? 0 : (v === INF ? INF : v)))));
+      } else if (stepIndex >= steps.length) {
+        stepInfo.textContent = `Algorithm finished after ${steps.length} update checks. Final matrix:`;
+        matrixContainer.innerHTML = matrixToTable(steps[steps.length-1].dist);
+      } else {
+        const stp = steps[stepIndex];
+        const updTxt = stp.updated ? "UPDATED" : "No update";
+        stepInfo.innerHTML =
+          `Step ${stepIndex + 1} / ${steps.length}: k=${stp.k}, i=${stp.i}, j=${stp.j} — ${updTxt}` +
+          (stp.updated ? `<br>Updated dist[${stp.i}][${stp.j}]: ${stp.oldVal === INF ? '∞' : stp.oldVal} &rarr; ${stp.newVal === INF ? '∞' : stp.newVal}` : "");
+        matrixContainer.innerHTML = matrixToTable(stp.dist);
+      }
+      currentStep = stepIndex;
+
+      prevBtn.disabled = currentStep <= -1;
+      nextBtn.disabled = currentStep >= steps.length;
+    }
+
+    prevBtn.addEventListener("click", () => {
+      if (currentStep > -1) showStep(currentStep - 1);
+    });
+    nextBtn.addEventListener("click", () => {
+      if (currentStep < steps.length) showStep(currentStep + 1);
+    });
+
+    // Start from initial
+    showStep(-1);
+  }
+
+  // Validate input and run
+  function run() {
+    errorDiv.textContent = "";
+    outputDiv.innerHTML = "";
+    const n = Number(numInput.value);
+    if (!n || n < 1 || n > maxVertices || !Number.isInteger(n)) {
+      errorDiv.textContent = `Number of vertices must be an integer between 1 and ${maxVertices}.`;
+      return;
+    }
+    const {matrix, error} = parseMatrix(matrixInput.value, n);
+    if (error) {
+      errorDiv.textContent = error;
+      return;
+    }
+
+    // Validate diagonal zero
+    for (let i = 0; i < n; i++) {
+      if (matrix[i][i] !== 0 && matrix[i][i] !== INF) {
+        errorDiv.textContent = `Diagonal elements must be 0 or infinity (no self loops), check row ${i}.`;
+        return;
+      }
+    }
+
+    const result = floydWarshall(matrix);
+
+    visualizeFloydWarshall(result.steps, n);
+  }
+
+  startBtn.addEventListener("click", run);
+
+  // On numVertices change, update adjacency matrix area default example if smaller or larger
+  numInput.addEventListener("change", () => {
+    const v = Number(numInput.value);
+    if (!v || v < 1 || v > maxVertices) return;
+    const defaultMatrix = {
+      1: "0",
+      2: "0 1\n1 0",
+      3: "0 4 11\n6 0 2\n3 9 0",
+      4: "0 3 -1 7\n8 0 2 -1\n5 -1 0 1\n2 -1 -1 0",
+      5: `0 3 8 -1 -4
+-1 0 -1 1 7
+-1 4 0 -1 -1
+2 -1 -5 0 -1
+-1 -1 -1 6 0`
+    };
+    if(numInput.value in defaultMatrix){
+      matrixInput.value = defaultMatrix[numInput.value];
+    } else {
+      // Fill with zeros on diagonal and infinities elsewhere
+      let lines = [];
+      for (let i=0; i<v; i++){
+        let row = [];
+        for(let j=0; j<v; j++){
+          row.push(i===j ? "0" : "∞");
+        }
+        lines.push(row.join(" "));
+      }
+      matrixInput.value = lines.join("\n");
+    }
+  });
+})();
+</script>
+</body>
+</html>

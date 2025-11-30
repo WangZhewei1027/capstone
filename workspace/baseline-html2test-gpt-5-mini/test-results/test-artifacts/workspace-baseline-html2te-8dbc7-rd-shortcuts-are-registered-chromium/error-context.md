@@ -1,0 +1,97 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Topological Sort Visualizer" [level=1] [ref=e4]
+    - paragraph [ref=e5]: Interactive demo of topological sort (Kahn's algorithm and DFS-based). Build a directed graph, then run step-by-step or full run. Detects cycles automatically.
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "Add Node (click canvas)" [ref=e8] [cursor=pointer]
+        - button "Add Edge (click source & target)" [ref=e9] [cursor=pointer]
+        - button "Delete (click element)" [ref=e10] [cursor=pointer]
+        - generic [ref=e11]: "Mode: Idle"
+      - generic [ref=e12]:
+        - button "Random DAG" [ref=e13] [cursor=pointer]
+        - spinbutton [ref=e14] [cursor=pointer]: "6"
+        - button "Clear" [ref=e15] [cursor=pointer]
+      - generic [ref=e16]:
+        - button "Run Kahn" [ref=e17] [cursor=pointer]
+        - button "Step Kahn" [ref=e18] [cursor=pointer]
+        - button "Reset Kahn" [ref=e19] [cursor=pointer]
+      - generic [ref=e20]:
+        - button "Run DFS" [ref=e21] [cursor=pointer]
+        - button "Step DFS" [ref=e22] [cursor=pointer]
+        - button "Reset DFS" [ref=e23] [cursor=pointer]
+      - generic [ref=e24]: "Tip: drag nodes to rearrange. Edges are directed (arrows). The UI shows in-degrees; Kahn prioritizes nodes in queue in insertion order."
+    - generic [ref=e25]:
+      - generic [ref=e26]: Algorithm Status
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - text: "Kahn order:"
+          - generic [ref=e29]: "[]"
+        - generic [ref=e30]:
+          - text: "DFS topo:"
+          - generic [ref=e31]: "[]"
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - img [ref=e34]
+          - text: Node
+        - generic [ref=e36]:
+          - img [ref=e37]
+          - text: Current / processed
+        - generic [ref=e39]:
+          - img [ref=e40]
+          - text: Cycle
+    - generic [ref=e42]:
+      - generic [ref=e43]: Console / Steps
+      - generic [ref=e44]:
+        - generic [ref=e45]: Added node 1
+        - generic [ref=e46]: Added node 2
+        - generic [ref=e47]: Added node 3
+        - generic [ref=e48]: Added node 4
+        - generic [ref=e49]: Added node 5
+        - generic [ref=e50]: Added edge 1 → 2
+        - generic [ref=e51]: Added edge 1 → 4
+        - generic [ref=e52]: Added edge 2 → 3
+        - generic [ref=e53]: Added edge 4 → 5
+        - generic [ref=e54]: Added edge 2 → 5
+        - generic [ref=e55]: Added edge 5 → 3
+        - generic [ref=e56]: Seeded example graph
+        - generic [ref=e57]: "Keyboard shortcuts: n=add node, e=add edge, d=delete, Esc=idle. Drag nodes to reposition."
+  - generic [ref=e58]:
+    - generic [ref=e59]:
+      - img [ref=e60]:
+        - generic [ref=e67]:
+          - generic [ref=e68]:
+            - generic [ref=e70]: "1"
+            - generic [ref=e71]: "in: 0"
+          - generic [ref=e72]:
+            - generic [ref=e74]: "2"
+            - generic [ref=e75]: "in: 1"
+          - generic [ref=e76]:
+            - generic [ref=e78]: "3"
+            - generic [ref=e79]: "in: 2"
+          - generic [ref=e80]:
+            - generic [ref=e82]: "4"
+            - generic [ref=e83]: "in: 1"
+          - generic [ref=e84]:
+            - generic [ref=e86]: "5"
+            - generic [ref=e87]: "in: 2"
+      - generic [ref=e88]:
+        - generic [ref=e89]: Click a node to select source/target for edges. Use modes above to add/delete.
+        - generic [ref=e90]: "Nodes: 5"
+        - generic [ref=e91]: "Edges: 6"
+    - generic [ref=e92]:
+      - generic [ref=e94]:
+        - generic [ref=e95]: Graph Info
+        - generic [ref=e96]:
+          - generic [ref=e97]: No cycle detected
+          - generic [ref=e98]: In-degrees shown in small text on nodes
+      - generic [ref=e100]:
+        - generic [ref=e101]: Selected
+        - generic [ref=e102]: None
+        - generic [ref=e103]:
+          - button "Delete Selected" [ref=e104] [cursor=pointer]
+          - button "Center View" [ref=e105] [cursor=pointer]
+```

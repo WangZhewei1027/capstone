@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Adjacency Matrix Visualizer</title>
+<style>
+  :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial; font-size:14px;}
+  body{margin:16px; color:#111;}
+  h1{margin:0 0 8px 0; font-size:20px;}
+  .top{display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+  label{display:inline-flex; gap:6px; align-items:center;}
+  input[type="number"]{width:64px;}
+  .container{display:flex; gap:16px; margin-top:12px; align-items:flex-start;}
+  .left{min-width:320px; max-width:520px;}
+  .controls{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;}
+  button{padding:6px 10px; border:1px solid #bbb; background:#f6f6f6; cursor:pointer; border-radius:6px;}
+  button:hover{background:#eee;}
+  .matrix-wrapper{overflow:auto; max-height:520px; border:1px solid #e0e0e0; padding:8px; border-radius:8px; background:#fff;}
+  table.matrix{border-collapse:collapse; font-size:13px;}
+  table.matrix th, table.matrix td{border:1px solid #e6e6e6; padding:6px; text-align:center; min-width:34px; height:34px;}
+  table.matrix th{background:#fafafa; font-weight:600; position:sticky; top:0; z-index:2;}
+  table.matrix th:first-child{left:0; z-index:3; position:sticky;}
+  td.cell{cursor:pointer; user-select:none;}
+  td.cell.on{background:linear-gradient(180deg,#dff3ff,#bfe8ff);}
+  td.cell.off{background:#fff;}
+  td.cell.selfloop{background:linear-gradient(180deg,#fff3d9,#ffe2b3);}
+  input.weight{width:56px; padding:4px; box-sizing:border-box; text-align:center;}
+  .right{flex:1; min-width:420px;}
+  .canvas-box{width:100%; height:520px; border:1px solid #e0e0e0; border-radius:8px; background:#fff; display:flex; align-items:stretch; position:relative; overflow:hidden;}
+  svg{width:100%; height:100%; display:block; background:linear-gradient(180deg,#ffffff,#fbfbff);}
+  .legend{font-size:12px; margin-top:8px; color:#444;}
+  .adjlist{margin-top:12px; font-family:monospace; white-space:pre; background:#fafafa; padding:8px; border-radius:6px; border:1px dashed #eee; max-height:220px; overflow:auto;}
+  .small{font-size:12px; color:#555;}
+  .importexport{display:flex; gap:8px; align-items:center; margin-left:auto;}
+  textarea#importArea{width:100%; height:80px; box-sizing:border-box; font-family:monospace; font-size:12px; margin-top:8px; padding:6px;}
+  .footer{margin-top:12px; font-size:12px; color:#666;}
+  .node-label{font-size:12px; pointer-events:none;}
+  .btn-danger{background:#ffeceb; border-color:#ffbdb8;}
+</style>
+</head>
+<body>
+<h1>Adjacency Matrix Visualizer</h1>
+<div class="top">
+  <div class="small">Explore graphs by editing the adjacency matrix. Click cells to toggle edges (or enter weights).</div>
+  <div class="importexport">
+    <button id="exportBtn" title="Export graph (JSON)">Export JSON</button>
+    <button id="copyBtn" title="Copy JSON to clipboard">Copy JSON</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="left">
+    <div class="controls">
+      <label># nodes: <input type="number" id="nodeCount" min="1" max="40" value="6"></label>
+      <label><input type="checkbox" id="directed"> Directed</label>
+      <label><input type="checkbox" id="weighted"> Weighted</label>
+      <label><input type="checkbox" id="allowSelf" checked> Allow self-loops</label>
+      <button id="resizeBtn">Resize</button>
+      <button id="randomBtn">Randomize</button>
+      <button id="clearBtn">Clear</button>
+      <button id="symBtn" title="Enforce symmetry for undirected">Enforce Symmetry</button>
+    </div>
+
+    <div class="matrix-wrapper" id="matrixWrap" aria-label="Adjacency matrix">
+      <table class="matrix" id="matrixTable"></table>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button id="importBtn">Import JSON</button>
+      <button id="fromAdjListBtn">From Adjacency List</button>
+    </div>
+
+    <textarea id="importArea" placeholder='Paste exported JSON here or an adjacency list like:
+0: 1 2
+1: 2
+'> </textarea>
+
+    <div class="adjlist" id="adjList"></div>
+  </div>
+
+  <div class="right">
+    <div class="canvas-box" id="canvasBox">
+      <svg id="svg"></svg>
+    </div>
+    <div class="legend">
+      <span style="display:inline-block;width:12px;height:12px;background:#bfe8ff;border-radius:2px;margin-right:6px;vertical-align:middle;"></span> Edge present (unweighted) &nbsp;&nbsp;
+      <span style="display:inline-block;width:12px;height:12px;background:#ffe2b3;border-radius:2px;margin-right:6px;vertical-align:middle;"></span> Self-loop
+    </div>
+  </div>
+</div>
+
+<div class="footer">Tip: Toggle "Weighted" to enter numbers in matrix cells. For undirected graphs, toggle "Enforce Symmetry" to keep matrix symmetric when editing.</div>
+
+<script>
+(function(){
+  // State
+  let n = 6;
+  let directed = false;
+  let weighted = false;
+  let allowSelf = true;
+  let enforceSymmetry = false;
+  const maxNodes = 40;
+
+  // adjacency matrix as numbers: 0 means no edge. Weighted graphs can have any numeric weight. For unweighted use 1 for edge.
+  let A = [];
+
+  // Node positions for drawing
+  let nodes = [];
+
+  // DOM
+  const nodeCountInput = document.getElementById('nodeCount');
+  const directedCb = document.getElementById('directed');
+  const weightedCb = document.getElementById('weighted');
+  const allowSelfCb = document.getElementById('allowSelf');
+  const resizeBtn = document.getElementById('resizeBtn');
+  const randomBtn = document.getElementById('randomBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const symBtn = document.getElementById('symBtn');
+  const matrixTable = document.getElementById('matrixTable');
+  const svg = document.getElementById('svg');
+  const adjListDiv = document.getElementById('adjList');
+  const importArea = document.getElementById('importArea');
+  const importBtn = document.getElementById('importBtn');
+  const fromAdjListBtn = document.getElementById('fromAdjListBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const canvasBox = document.getElementById('canvasBox');
+
+  // Initialize
+  function initMatrix(size){
+    n = Math.max(1, Math.min(maxNodes, size));
+    A = new Array(n);
+    for(let i=0;i<n;i++){
+      A[i] = new Array(n).fill(0);
+    }
+    // default simple example: a path
+    for(let i=0;i<n-1;i++){
+      A[i][i+1] = 1;
+      if(!directed) A[i+1][i] = 1;
+    }
+    randomizePositions();
+  }
+
+  function randomizePositions(){
+    nodes = [];
+    const w = canvasBox.clientWidth;
+    const h = canvasBox.clientHeight;
+    const cx = w/2, cy = h/2;
+    const radius = Math.min(w,h)/2 - 60;
+    for(let i=0;i<n;i++){
+      const ang = (i/n)*Math.PI*2;
+      nodes.push({
+        x: cx + Math.cos(ang)*radius,
+        y: cy + Math.sin(ang)*radius,
+        fx: null, fy: null
+      });
+    }
+  }
+
+  function rebuild(){
+    // update controls
+    nodeCountInput.value = n;
+    directedCb.checked = directed;
+    weightedCb.checked = weighted;
+    allowSelfCb.checked = allowSelf;
+    symBtn.style.opacity = enforceSymmetry ? 1 : 0.65;
+    renderMatrix();
+    drawGraph();
+    renderAdjList();
+  }
+
+  function renderMatrix(){
+    // Clear table
+    while(matrixTable.firstChild) matrixTable.removeChild(matrixTable.firstChild);
+
+    // header row
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    const topLeft = document.createElement('th');
+    topLeft.textContent = '\\';
+    headerRow.appendChild(topLeft);
+    for(let j=0;j<n;j++){
+      const th = document.createElement('th');
+      th.textContent = j;
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    matrixTable.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for(let i=0;i<n;i++){
+      const tr = document.createElement('tr');
+      const rowHeader = document.createElement('th');
+      rowHeader.textContent = i;
+      tr.appendChild(rowHeader);
+
+      for(let j=0;j<n;j++){
+        const td = document.createElement('td');
+        td.dataset.i = i;
+        td.dataset.j = j;
+
+        if(weighted){
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.step = 'any';
+          input.className = 'weight';
+          input.value = (A[i][j] !== 0) ? A[i][j] : '';
+          input.title = `Edge ${i} → ${j}`;
+          input.addEventListener('change', (e)=>{
+            let val = e.target.value.trim();
+            if(val === '' || val === null){
+              setEdge(i,j,0);
+            } else {
+              const num = Number(val);
+              if(!isFinite(num)){ e.target.value=''; setEdge(i,j,0); }
+              else setEdge(i,j,num);
+            }
+            renderMatrix(); drawGraph(); renderAdjList();
+          });
+          input.addEventListener('keydown', (e)=>{
+            if(e.key === 'Enter'){ input.blur(); }
+          });
+          td.appendChild(input);
+        } else {
+          td.classList.add('cell');
+          td.classList.add(A[i][j] ? 'on' : 'off');
+          if(i===j) td.classList.add('selfloop');
+          td.title = `Click to toggle edge ${i} → ${j}`;
+          td.addEventListener('click', ()=>{
+            if(i===j && !allowSelf) return;
+            const newVal = A[i][j] ? 0 : 1;
+            setEdge(i,j,newVal);
+            renderMatrix(); drawGraph(); renderAdjList();
+          });
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    matrixTable.appendChild(tbody);
+  }
+
+  function setEdge(i,j,val){
+    if(i===j && !allowSelf) return;
+    if(!weighted){
+      val = val ? 1 : 0;
+    } else {
+      if(typeof val !== 'number') val = Number(val) || 0;
+    }
+    A[i][j] = val;
+    if(enforceSymmetry){
+      A[j][i] = val;
+    }
+    if(!directed && !enforceSymmetry){
+      // For undirected graphs, it's convenient to mirror toggles unless user wants asymmetry.
+      // We won't auto-mirror unless enforceSymmetry is set; this keeps user control.
+    }
+  }
+
+  function drawGraph(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+    const w = svg.clientWidth;
+    const h = svg.clientHeight;
+
+    // defs for arrowhead
+    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg','marker');
+    marker.setAttribute('id','arrowhead');
+    marker.setAttribute('markerWidth','10');
+    marker.setAttribute('markerHeight','8');
+    marker.setAttribute('refX','10');
+    marker.setAttribute('refY','4');
+    marker.setAttribute('orient','auto');
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d','M0,0 L10,4 L0,8 z');
+    path.setAttribute('fill','#444');
+    marker.appendChild(path);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    // draw edges behind nodes
+    // For each nonzero A[i][j], draw line from i to j
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        const val = A[i][j];
+        if(!val) continue;
+        // skip duplicate drawing for undirected if we've already drawn the opposite? We'll draw both if both set.
+        const ni = nodes[i], nj = nodes[j];
+        if(!ni || !nj) continue;
+
+        const dx = nj.x - ni.x;
+        const dy = nj.y - ni.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const r = 20; // node radius
+        // points offset to avoid overlapping node circles
+        const sx = ni.x + (dx/dist)*r;
+        const sy = ni.y + (dy/dist)*r;
+        const ex = nj.x - (dx/dist)*r;
+        const ey = nj.y - (dy/dist)*r;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1',sx);
+        line.setAttribute('y1',sy);
+        line.setAttribute('x2',ex);
+        line.setAttribute('y2',ey);
+        line.setAttribute('stroke','#4a5568');
+        line.setAttribute('stroke-width','2');
+        line.setAttribute('stroke-opacity','0.9');
+
+        if(directed){
+          line.setAttribute('marker-end','url(#arrowhead)');
+        } else {
+          line.setAttribute('stroke-linecap','round');
+        }
+
+        g.appendChild(line);
+
+        // weight label or simple dot
+        if(weighted){
+          const mx = (sx+ex)/2;
+          const my = (sy+ey)/2;
+          const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+          label.setAttribute('x', mx);
+          label.setAttribute('y', my - 6);
+          label.setAttribute('fill','#222');
+          label.setAttribute('font-size','12');
+          label.setAttribute('text-anchor','middle');
+          label.textContent = A[i][j];
+          g.appendChild(label);
+        }
+
+        // For self-loops, draw small loop
+        if(i===j){
+          // remove the straight line and draw a loop
+          g.removeChild(line);
+          const loop = document.createElementNS('http://www.w3.org/2000/svg','path');
+          const cx = ni.x, cy = ni.y;
+          const loopR = 18;
+          loop.setAttribute('d', `M ${cx+loopR} ${cy} A ${loopR} ${loopR} 0 1 1 ${cx+loopR-1} ${cy+0.1}`);
+          loop.setAttribute('stroke','#b86200');
+          loop.setAttribute('stroke-width','2');
+          loop.setAttribute('fill','none');
+          g.appendChild(loop);
+          if(weighted){
+            const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+            t.setAttribute('x', cx + loopR + 6);
+            t.setAttribute('y', cy - 6);
+            t.setAttribute('fill','#222');
+            t.setAttribute('font-size','12');
+            t.textContent = A[i][j];
+            g.appendChild(t);
+          }
+        }
+
+        svg.appendChild(g);
+      }
+    }
+
+    // nodes on top
+    for(let i=0;i<n;i++){
+      const node = nodes[i] || {x:50+i*30,y:50};
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('class','node');
+      g.dataset.index = i;
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('cx',node.x);
+      circle.setAttribute('cy',node.y);
+      circle.setAttribute('r',20);
+      circle.setAttribute('fill','#fff');
+      circle.setAttribute('stroke','#333');
+      circle.setAttribute('stroke-width','1.5');
+      circle.setAttribute('style','cursor:move;');
+      g.appendChild(circle);
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+      text.setAttribute('x', node.x);
+      text.setAttribute('y', node.y + 4);
+      text.setAttribute('text-anchor','middle');
+      text.setAttribute('class','node-label');
+      text.textContent = i;
+      g.appendChild(text);
+
+      // drag handlers
+      addDragHandlers(g, i);
+
+      svg.appendChild(g);
+    }
+  }
+
+  // Drag nodes to reposition
+  let dragging = {active:false, idx:-1, offsetX:0, offsetY:0};
+  function addDragHandlers(elem, idx){
+    elem.addEventListener('mousedown', (ev)=>{
+      ev.preventDefault();
+      dragging.active = true;
+      dragging.idx = idx;
+      const pt = getSVGPoint(ev);
+      dragging.offsetX = nodes[idx].x - pt.x;
+      dragging.offsetY = nodes[idx].y - pt.y;
+    });
+  }
+  function getSVGPoint(evt){
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const ctm = svg.getScreenCTM().inverse();
+    return pt.matrixTransform(ctm);
+  }
+  window.addEventListener('mousemove', (ev)=>{
+    if(!dragging.active) return;
+    const p = getSVGPoint(ev);
+    const idx = dragging.idx;
+    nodes[idx].x = p.x + dragging.offsetX;
+    nodes[idx].y = p.y + dragging.offsetY;
+    drawGraph();
+  });
+  window.addEventListener('mouseup', (ev)=>{
+    dragging.active = false;
+    dragging.idx = -1;
+  });
+
+  // adjacency list render
+  function renderAdjList(){
+    let out = '';
+    for(let i=0;i<n;i++){
+      const neigh = [];
+      for(let j=0;j<n;j++){
+        if(A[i][j]){
+          if(weighted) neigh.push(`${j}(${A[i][j]})`);
+          else neigh.push(`${j}`);
+        }
+      }
+      out += `${i}: ${neigh.join(' ')}\n`;
+    }
+    adjListDiv.textContent = out;
+  }
+
+  // Randomize graph
+  function randomizeGraph(){
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        if(i===j && !allowSelf){ A[i][j]=0; continue; }
+        if(Math.random() < 0.25){
+          A[i][j] = weighted ? Math.round((Math.random()*9+1)*10)/10 : 1;
+          if(enforceSymmetry) A[j][i] = A[i][j];
+        } else {
+          A[i][j] = 0;
+        }
+      }
+    }
+  }
+
+  // Import / Export
+  function exportJSON(){
+    const data = {
+      n, directed, weighted, allowSelf, enforceSymmetry, A
+    };
+    return JSON.stringify(data, null, 2);
+  }
+
+  function importJSON(text){
+    try{
+      const data = JSON.parse(text);
+      if(!Array.isArray(data.A)) throw new Error('No matrix A');
+      const m = data.A.length;
+      initMatrix(m);
+      n = m;
+      directed = !!data.directed;
+      weighted = !!data.weighted;
+      allowSelf = !!data.allowSelf;
+      enforceSymmetry = !!data.enforceSymmetry;
+      // copy matrix (coerce numbers)
+      for(let i=0;i<n;i++){
+        for(let j=0;j<n;j++){
+          A[i][j] = Number(data.A[i][j]) || 0;
+        }
+      }
+      randomizePositions();
+      rebuild();
+      return true;
+    } catch(err){
+      alert('Import failed: ' + err.message);
+      return false;
+    }
+  }
+
+  // Parse adjacency list like:
+  // 0: 1 2
+  // 1: 2
+  function importFromAdjList(text){
+    const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    const pairs = [];
+    let maxIndex = -1;
+    for(const line of lines){
+      const parts = line.split(':');
+      if(parts.length < 2) continue;
+      const i = Number(parts[0]);
+      if(!Number.isFinite(i)) continue;
+      const items = parts[1].trim().split(/\s+/).filter(Boolean);
+      for(const it of items){
+        // allow weights like 2(3.5)
+        const m = it.match(/^(\d+)(?:\(([-\d.]+)\))?$/);
+        if(m){
+          const j = Number(m[1]);
+          const w = m[2] ? Number(m[2]) : 1;
+          pairs.push([i,j,w]);
+          maxIndex = Math.max(maxIndex, i, j);
+        }
+      }
+    }
+    if(maxIndex < 0) { alert('No valid adjacency list found'); return; }
+    initMatrix(maxIndex+1);
+    for(const [i,j,w] of pairs){
+      A[i][j] = weighted ? w : 1;
+      if(enforceSymmetry) A[j][i] = A[i][j];
+    }
+    randomizePositions();
+    rebuild();
+  }
+
+  // Wire up controls
+  resizeBtn.addEventListener('click', ()=>{
+    const val = parseInt(nodeCountInput.value);
+    if(!Number.isInteger(val) || val < 1 || val > maxNodes){ alert('Enter valid node count (1-'+maxNodes+')'); return; }
+    const old = n;
+    initMatrix(val);
+    // try to copy existing values where possible
+    for(let i=0;i<Math.min(old,n);i++){
+      for(let j=0;j<Math.min(old,n);j++){
+        A[i][j] = A[i][j] || 0;
+      }
+    }
+    randomizePositions();
+    rebuild();
+  });
+
+  directedCb.addEventListener('change', (e)=>{
+    directed = e.target.checked;
+    rebuild();
+  });
+  weightedCb.addEventListener('change', (e)=>{
+    weighted = e.target.checked;
+    rebuild();
+  });
+  allowSelfCb.addEventListener('change', (e)=>{
+    allowSelf = e.target.checked;
+    if(!allowSelf){
+      for(let i=0;i<n;i++) A[i][i]=0;
+    }
+    rebuild();
+  });
+
+  randomBtn.addEventListener('click', ()=>{
+    randomizeGraph();
+    rebuild();
+  });
+
+  clearBtn.addEventListener('click', ()=>{
+    for(let i=0;i<n;i++) for(let j=0;j<n;j++) A[i][j] = 0;
+    rebuild();
+  });
+
+  symBtn.addEventListener('click', ()=>{
+    enforceSymmetry = !enforceSymmetry;
+    if(enforceSymmetry){
+      // force symmetry now
+      for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+        if(A[i][j] && !A[j][i]) A[j][i] = A[i][j];
+      }
+    }
+    rebuild();
+  });
+
+  importBtn.addEventListener('click', ()=>{
+    const text = importArea.value.trim();
+    if(!text){ alert('Paste JSON or adjacency list in the textarea.'); return; }
+    // try parse as JSON first
+    if(text.startsWith('{') || text.startsWith('[')){
+      importJSON(text);
+    } else {
+      importFromAdjList(text);
+    }
+  });
+
+  fromAdjListBtn.addEventListener('click', ()=>{
+    const text = importArea.value.trim();
+    if(!text){ alert('Paste adjacency list into the textarea.'); return; }
+    importFromAdjList(text);
+  });
+
+  exportBtn.addEventListener('click', ()=>{
+    const txt = exportJSON();
+    const w = window.open('about:blank','_blank');
+    w.document.write('<pre>'+escapeHtml(txt)+'</pre>');
+    w.document.title = 'Exported Graph JSON';
+  });
+
+  copyBtn.addEventListener('click', async ()=>{
+    const txt = exportJSON();
+    try{
+      await navigator.clipboard.writeText(txt);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(()=>copyBtn.textContent = 'Copy JSON', 1200);
+    }catch(e){
+      alert('Copy failed. Here is the JSON:\n\n' + txt);
+    }
+  });
+
+  function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // Initialize and start
+  initMatrix(n);
+  rebuild();
+
+  // Responsive: reposition nodes when svg size changes
+  window.addEventListener('resize', ()=> {
+    randomizePositions();
+    drawGraph();
+  });
+
+  // Helpful: double click matrix header to center nodes
+  matrixTable.addEventListener('dblclick',(e)=>{
+    if(e.target.tagName.toLowerCase()==='th'){
+      randomizePositions();
+      drawGraph();
+    }
+  });
+
+  // Keyboard shortcut: 's' to toggle symmetry
+  window.addEventListener('keydown', (e)=>{
+    if(e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)){
+      e.preventDefault();
+      enforceSymmetry = !enforceSymmetry;
+      rebuild();
+    }
+  });
+
+  // Initial sample pattern: cycle
+  (function samplePattern(){
+    for(let i=0;i<n;i++){
+      A[i][(i+1)%n] = 1;
+    }
+    rebuild();
+  })();
+
+})();
+</script>
+</body>
+</html>

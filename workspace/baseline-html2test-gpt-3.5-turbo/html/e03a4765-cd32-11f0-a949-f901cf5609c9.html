@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Floyd-Warshall Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f0f0f0;
+  }
+  h1 {
+    text-align: center;
+  }
+  #matrixInput {
+    margin: 10px auto;
+    max-width: 600px;
+    overflow-x: auto;
+  }
+  table {
+    border-collapse: collapse;
+    margin: 10px 0;
+    width: 100%;
+    max-width: 600px;
+  }
+  th, td {
+    border: 1px solid #666;
+    text-align: center;
+    padding: 8px;
+    min-width: 40px;
+  }
+  input[type="number"] {
+    width: 50px;
+    text-align: center;
+  }
+  button {
+    margin: 10px 5px 20px 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  #output {
+    max-width: 600px;
+    margin: 0 auto;
+    background: white;
+    padding: 15px;
+    border-radius: 6px;
+    box-shadow: 0 0 10px #aaa;
+  }
+  .step {
+    background: #e8f4fc;
+    border-left: 5px solid #2196f3;
+    margin: 10px 0;
+    padding: 10px;
+    font-family: monospace;
+    white-space: pre-wrap;
+  }
+  #distMatrix, #pathMatrix {
+    font-family: monospace;
+    margin-top: 10px;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .highlight {
+    background: #ffff99;
+    font-weight: bold;
+  }
+  #legend {
+    max-width: 600px;
+    margin: 20px auto;
+    font-size: 14px;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+<h1>Floyd-Warshall Algorithm Demonstration</h1>
+<div id="instructions" style="max-width:600px;margin:auto;text-align:center;">
+  <p>Enter the number of vertices and fill the adjacency matrix with weights. Use <code>∞</code> or <code>9999</code> to represent no direct edge.</p>
+</div>
+
+<div style="max-width: 600px; margin: auto; text-align:center;">
+  <label for="vertexCount">Number of vertices (max 10): </label>
+  <input type="number" id="vertexCount" value="4" min="2" max="10" />
+  <button id="generateMatrix">Generate Matrix</button>
+</div>
+
+<form id="matrixForm" style="max-width: 600px; margin: 10px auto;">
+  <div id="matrixInput"></div>
+  <div style="text-align:center;">
+    <button type="submit" id="runAlgorithmBtn">Run Floyd-Warshall</button>
+    <button type="button" id="resetBtn">Reset</button>
+  </div>
+</form>
+
+<div id="output"></div>
+
+<div id="legend" style="max-width:600px;margin:auto;">
+  <p><strong>Legend:</strong></p>
+  <ul>
+    <li><code>∞</code> or <code>9999</code> means no path / infinity distance</li>
+    <li>The matrix displayed after each iteration shows shortest distances so far</li>
+    <li>The path matrix shows the next vertex on the shortest path between nodes</li>
+  </ul>
+</div>
+
+<script>
+(() => {
+  const INF = 9999;
+
+  const vertexCountInput = document.getElementById('vertexCount');
+  const generateMatrixBtn = document.getElementById('generateMatrix');
+  const matrixInputDiv = document.getElementById('matrixInput');
+  const matrixForm = document.getElementById('matrixForm');
+  const outputDiv = document.getElementById('output');
+  const runAlgorithmBtn = document.getElementById('runAlgorithmBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  function createMatrixInput(n) {
+    matrixInputDiv.innerHTML = '';
+    const table = document.createElement('table');
+    const headerRow = document.createElement('tr');
+    headerRow.appendChild(document.createElement('th')); // Top-left empty cell
+    for (let j = 0; j < n; j++) {
+      const th = document.createElement('th');
+      th.textContent = `V${j}`;
+      headerRow.appendChild(th);
+    }
+    table.appendChild(headerRow);
+
+    for (let i = 0; i < n; i++) {
+      const row = document.createElement('tr');
+      const rowHeader = document.createElement('th');
+      rowHeader.textContent = `V${i}`;
+      row.appendChild(rowHeader);
+      for (let j = 0; j < n; j++) {
+        const td = document.createElement('td');
+        if (i === j) {
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.value = '0';
+          input.min = '0';
+          input.max = '9999';
+          input.step = '1';
+          input.name = `weight_${i}_${j}`;
+          input.readOnly = true;
+          input.style.backgroundColor = '#dddddd';
+          td.appendChild(input);
+        } else {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.value = String(INF);
+          input.name = `weight_${i}_${j}`;
+          input.style.textAlign = 'center';
+          input.title = 'Enter edge weight or ∞ for no direct edge';
+          td.appendChild(input);
+        }
+        row.appendChild(td);
+      }
+      table.appendChild(row);
+    }
+    matrixInputDiv.appendChild(table);
+  }
+
+  // Parse matrix from inputs
+  function parseMatrix(n) {
+    const matrix = [];
+    for (let i = 0; i < n; i++) {
+      matrix[i] = [];
+      for (let j = 0; j < n; j++) {
+        const inputName = `weight_${i}_${j}`;
+        const input = matrixForm.elements[inputName];
+        let val = input.value.trim();
+        if (val === '∞' || val.toLowerCase() === 'inf' || val === '') {
+          val = INF;
+        } else {
+          const num = Number(val);
+          if (isNaN(num) || num < 0) {
+            throw new Error(`Invalid weight at (${i},${j}). Must be non-negative number or ∞.`);
+          }
+          val = num;
+        }
+        matrix[i][j] = (val === INF || val >= INF) ? INF : val;
+      }
+    }
+    return matrix;
+  }
+
+  // Format distance for display
+  function distToString(d) {
+    return d >= INF ? '∞' : d.toString();
+  }
+
+  // Initialize path matrix for reconstruction
+  // path[i][j] = next vertex to go from i to j on shortest path, or null if no path
+  function initializePathMatrix(n, dist) {
+    const path = [];
+    for (let i = 0; i < n; i++) {
+      path[i] = [];
+      for (let j = 0; j < n; j++) {
+        if (i === j || dist[i][j] === INF) path[i][j] = null;
+        else path[i][j] = j;
+      }
+    }
+    return path;
+  }
+
+  // Render a square matrix nicely in monospace with labels
+  function renderMatrix(n, matrix, label) {
+    let s = label + '\n';
+    s += '     ';
+    for (let j = 0; j < n; j++) {
+      s += `V${j}`.padStart(5, ' ') + ' ';
+    }
+    s += '\n';
+    for (let i = 0; i < n; i++) {
+      s += `V${i}`.padStart(4, ' ') + ' ';
+      for (let j = 0; j < n; j++) {
+        let val = matrix[i][j];
+        if (val === null || val === undefined) val = '';
+        if (typeof val === 'number') val = distToString(val);
+        s += val.toString().padStart(5, ' ') + ' ';
+      }
+      s += '\n';
+    }
+    return s;
+  }
+
+  // Render path matrix with vertices or '-' if none
+  function renderPathMatrix(n, path) {
+    let s = 'Path matrix (next vertex on shortest path):\n';
+    s += '     ';
+    for (let j = 0; j < n; j++) {
+      s += `V${j}`.padStart(4, ' ') + ' ';
+    }
+    s += '\n';
+    for (let i = 0; i < n; i++) {
+      s += `V${i}`.padStart(4, ' ') + ' ';
+      for (let j = 0; j < n; j++) {
+        s += (path[i][j] === null ? '-' : 'V' + path[i][j]).padStart(4, ' ') + ' ';
+      }
+      s += '\n';
+    }
+    return s;
+  }
+
+  // Floyd-Warshall Algorithm with step-wise output
+  function floydWarshall(n, dist) {
+    // dist is n x n matrix
+    // We will produce iterations showing intermediate matrices
+    // Return final dist and path matrices and an array of steps
+    const path = initializePathMatrix(n, dist);
+
+    const steps = [];
+
+    // We copy dist to avoid mutating original
+    let d = dist.map(row => row.slice());
+
+    for (let k = 0; k < n; k++) {
+      let stepDesc = `Iteration k = ${k} (considering vertex V${k} as intermediate):\n`;
+      let changedPairs = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          if (d[i][k] < INF && d[k][j] < INF && d[i][k] + d[k][j] < d[i][j]) {
+            d[i][j] = d[i][k] + d[k][j];
+            path[i][j] = path[i][k];
+            changedPairs.push(`d[V${i}][V${j}] updated to ${d[i][j]} via V${k}`);
+          }
+        }
+      }
+      if (changedPairs.length === 0) {
+        stepDesc += 'No updates this iteration.\n';
+      } else {
+        stepDesc += changedPairs.join('\n') + '\n';
+      }
+      stepDesc += '\nDistance matrix:\n';
+      stepDesc += renderMatrix(n, d, '');
+      stepDesc += '\n' + renderPathMatrix(n, path);
+
+      steps.push(stepDesc);
+    }
+
+    return {dist: d, path, steps};
+  }
+
+
+  // Reconstruct path from i to j using path matrix
+  function reconstructPath(path, i, j) {
+    if (path[i][j] === null) return null; // no path
+    let route = [i];
+    while (i !== j) {
+      i = path[i][j];
+      if (i === null) return null;
+      route.push(i);
+    }
+    return route;
+  }
+
+  // Format a route as string e.g. V0 -> V2 -> V3
+  function formatRoute(route) {
+    if (!route) return 'No path';
+    return route.map(v => 'V' + v).join(' → ');
+  }
+
+  // Event: generate matrix inputs
+  generateMatrixBtn.onclick = () => {
+    let n = Number(vertexCountInput.value);
+    if (isNaN(n) || n < 2 || n > 10) {
+      alert('Please enter a number between 2 and 10.');
+      return;
+    }
+    createMatrixInput(n);
+    outputDiv.innerHTML = '';
+  };
+
+  // Event: run Floyd-Warshall
+  matrixForm.onsubmit = e => {
+    e.preventDefault();
+    outputDiv.innerHTML = '';
+    const n = Number(vertexCountInput.value);
+    if (isNaN(n) || n < 2 || n > 10) {
+      alert('Invalid number of vertices.');
+      return;
+    }
+    let dist;
+    try {
+      dist = parseMatrix(n);
+    } catch (err) {
+      alert(err.message);
+      return;
+    }
+
+    outputDiv.innerHTML = '<p><strong>Running Floyd-Warshall Algorithm...</strong></p>';
+
+    // Run algorithm
+    // We will show all steps
+    const result = floydWarshall(n, dist);
+
+    // Show each iteration in a collapsible detail
+    let html = '';
+    result.steps.forEach((step, i) => {
+      html += `<details ${i===result.steps.length-1 ? 'open' : ''}><summary>Iteration k = ${i}</summary><pre class="step">${step}</pre></details>`;
+    });
+
+    // Show shortest path example controls
+    html += `<hr/><h3>Shortest Path Reconstruction</h3>
+    <p>Pick start and end vertices to display the shortest path and length.</p>
+    <label for="startVertex">Start vertex: </label>
+    <select id="startVertex">${Array.from({length:n},(_,i)=>`<option value="${i}">V${i}</option>`).join('')}</select>
+    <label for="endVertex" style="margin-left:15px;">End vertex: </label>
+    <select id="endVertex">${Array.from({length:n},(_,i)=>`<option value="${i}">V${i}</option>`).join('')}</select>
+    <button id="showPathBtn">Show Path</button>
+    <pre id="pathOutput" style="background:#eef;padding:10px;margin-top:10px;max-width:600px;"></pre>
+    `;
+
+    outputDiv.innerHTML += html;
+
+    const showPathBtn = document.getElementById('showPathBtn');
+    const pathOutput = document.getElementById('pathOutput');
+    const startSelect = document.getElementById('startVertex');
+    const endSelect = document.getElementById('endVertex');
+
+    showPathBtn.onclick = () => {
+      const start = Number(startSelect.value);
+      const end = Number(endSelect.value);
+      if (start === end) {
+        pathOutput.textContent = `Start and end vertex are the same: V${start}`;
+        return;
+      }
+      const route = reconstructPath(result.path, start, end);
+      if (!route) {
+        pathOutput.textContent = `No path from V${start} to V${end}`;
+      } else {
+        pathOutput.textContent = `Shortest path from V${start} to V${end}:\n${formatRoute(route)}\n\nDistance: ${result.dist[start][end]}`;
+      }
+    };
+
+  };
+
+  // Event: Reset inputs and output
+  resetBtn.onclick = () => {
+    outputDiv.innerHTML = '';
+    createMatrixInput(Number(vertexCountInput.value));
+  };
+
+  // Initial matrix on page load
+  createMatrixInput(Number(vertexCountInput.value));
+
+})();
+</script>
+</body>
+</html>

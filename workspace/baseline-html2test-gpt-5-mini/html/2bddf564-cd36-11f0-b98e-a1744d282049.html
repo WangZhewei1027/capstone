@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Set — Interactive Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0e1720;
+      --card:#f8fafc;
+      --muted:#9aa6b2;
+      --accent:#60a5fa;
+      --success:#16a34a;
+      --danger:#ef4444;
+      --glass: rgba(255,255,255,0.03);
+    }
+    html,body {height:100%;margin:0;background:linear-gradient(180deg,#071021 0%, #0e1720 40%);color:var(--card);font-family:Inter,Segoe UI,Arial,sans-serif;}
+    .app {max-width:1100px;margin:24px auto;padding:20px;}
+    header {display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+    h1{font-size:20px;margin:0;color:#fff;letter-spacing:0.2px}
+    .controls {display:flex;gap:8px;align-items:center;}
+    button {background:var(--glass);border:1px solid rgba(255,255,255,0.06);color:var(--card);padding:8px 12px;border-radius:8px;cursor:pointer;backdrop-filter: blur(4px);}
+    button:hover{transform:translateY(-1px)}
+    .minor {font-size:13px;color:var(--muted);display:flex;gap:12px;align-items:center;}
+    .board {display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px;}
+    .card {background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:12px;padding:12px;cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;min-height:110px;box-shadow: 0 4px 18px rgba(2,6,23,0.5);}
+    .card.disabled {opacity:0.35;pointer-events:none}
+    .card.selected {outline:3px solid rgba(96,165,250,0.28);box-shadow:0 8px 30px rgba(96,165,250,0.06);}
+    .card.correct {outline:3px solid rgba(22,163,74,0.28);box-shadow:0 8px 30px rgba(22,163,74,0.06);}
+    .card.wrong {outline:3px solid rgba(239,68,68,0.28);box-shadow:0 8px 30px rgba(239,68,68,0.06);}
+    .status {display:flex;gap:12px;align-items:center;}
+    .pile {display:flex;align-items:center;gap:8px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)}
+    .small {font-size:13px;color:var(--muted)}
+    footer {margin-top:18px;color:var(--muted);font-size:13px}
+    .hintBtn {background:linear-gradient(90deg,#0ea5e9 0%,#7c3aed 100%);border:none;color:white;}
+    svg {width:100%;height:auto}
+    /* Stripes pattern control */
+    .stripePattern {stroke-width:1.6;stroke-opacity:0.55}
+    @media (max-width:800px){
+      .board {grid-template-columns:repeat(3,1fr)}
+    }
+    @media (max-width:480px){
+      .board {grid-template-columns:repeat(2,1fr)}
+      .card {min-height:88px;padding:8px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Set — Interactive Demo</h1>
+        <div class="minor">Find sets: pick 3 cards where for each attribute (count, shape, shading, color) they are all the same or all different.</div>
+      </div>
+      <div class="controls">
+        <div class="pile" id="deckInfo" title="Deck and score">
+          <div style="font-weight:600" id="score">Score: 0</div>
+          <div class="small" id="deckCount">Deck: 81</div>
+        </div>
+        <button id="hint" class="hintBtn">Hint</button>
+        <button id="deal">Deal +3</button>
+        <button id="new">New Game</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="msg" class="minor" style="margin-bottom:12px"></div>
+      <div class="board" id="board"></div>
+      <footer>
+        Controls: Click cards to select. Buttons: Hint finds a set on the board, Deal +3 adds cards, New Game restarts. If no sets remain the game ends.
+      </footer>
+    </main>
+  </div>
+
+<script>
+/*
+  Set game demo in a single HTML file.
+  Card attributes: number(1-3), shape(0-2), shading(0-2), color(0-2)
+  81 unique cards total.
+*/
+
+// Constants and utilities
+const COLORS = ["#ef4444","#16a34a","#7c3aed"]; // red, green, purple
+const SHAPES = ["diamond","squiggle","oval"]; // mapping for rendering
+const SHADINGS = ["solid","striped","open"];
+const NUMBERS = [1,2,3];
+
+let deck = [];
+let boardCards = []; // array of card objects currently on board
+let selected = []; // indices on board of selected cards
+let score = 0;
+
+const boardEl = document.getElementById('board');
+const msgEl = document.getElementById('msg');
+const deckCountEl = document.getElementById('deckCount');
+const scoreEl = document.getElementById('score');
+const hintBtn = document.getElementById('hint');
+const dealBtn = document.getElementById('deal');
+const newBtn = document.getElementById('new');
+
+// Build full deck
+function buildDeck(){
+  const d = [];
+  let id = 1;
+  for(let n=0;n<3;n++){
+    for(let s=0;s<3;s++){
+      for(let sh=0;sh<3;sh++){
+        for(let c=0;c<3;c++){
+          d.push({number:NUMBERS[n], shape:s, shading:sh, color:c, id:id++});
+        }
+      }
+    }
+  }
+  return d;
+}
+function shuffle(array){
+  for(let i=array.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [array[i],array[j]]=[array[j],array[i]];
+  }
+  return array;
+}
+
+function startGame(){
+  deck = shuffle(buildDeck());
+  boardCards = [];
+  selected = [];
+  score = 0;
+  msgEl.textContent = "Game started — find sets!";
+  fillInitialBoard();
+  render();
+}
+
+function fillInitialBoard(){
+  // Deal 12
+  for(let i=0;i<12;i++){
+    if(deck.length) boardCards.push(deck.pop());
+  }
+  // If starting board has no set, auto-deal 3 until there is or deck empty
+  while(findSetOnBoard()===null && deck.length>0 && boardCards.length<18){
+    for(let i=0;i<3;i++) if(deck.length) boardCards.push(deck.pop());
+  }
+}
+
+function render(){
+  boardEl.innerHTML = "";
+  boardCards.forEach((card, idx)=>{
+    const cardDiv = document.createElement('div');
+    cardDiv.className = 'card';
+    cardDiv.dataset.index = idx;
+    if(selected.includes(idx)) cardDiv.classList.add('selected');
+    // content: an SVG representation
+    cardDiv.appendChild(renderCardSVG(card));
+    cardDiv.addEventListener('click', ()=>onCardClick(idx, cardDiv));
+    boardEl.appendChild(cardDiv);
+  });
+  deckCountEl.textContent = `Deck: ${deck.length}`;
+  scoreEl.textContent = `Score: ${score}`;
+}
+
+function renderCardSVG(card){
+  // Create SVG element with patterns for stripes
+  const xmlns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(xmlns,'svg');
+  svg.setAttribute('viewBox','0 0 160 100');
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+
+  // defs for stripes
+  const defs = document.createElementNS(xmlns,'defs');
+  const pattern = document.createElementNS(xmlns,'pattern');
+  pattern.setAttribute('id','p'+card.id);
+  pattern.setAttribute('patternUnits','userSpaceOnUse');
+  pattern.setAttribute('width','6');
+  pattern.setAttribute('height','6');
+  const line = document.createElementNS(xmlns,'path');
+  line.setAttribute('d','M0,6 L6,0');
+  line.setAttribute('stroke','currentColor');
+  line.setAttribute('class','stripePattern');
+  pattern.appendChild(line);
+  defs.appendChild(pattern);
+  svg.appendChild(defs);
+
+  // color
+  const color = COLORS[card.color];
+
+  // positions for shapes depending on number
+  const positions = computePositions(card.number);
+
+  positions.forEach(pos=>{
+    let shapeEl;
+    if(SHAPES[card.shape]==='diamond'){
+      shapeEl = document.createElementNS(xmlns,'polygon');
+      const w = 28, h=44;
+      const cx=pos.x, cy=pos.y;
+      const points = `${cx},${cy-h/2} ${cx+w/2},${cy} ${cx},${cy+h/2} ${cx-w/2},${cy}`;
+      shapeEl.setAttribute('points',points);
+    } else if(SHAPES[card.shape]==='oval'){
+      shapeEl = document.createElementNS(xmlns,'ellipse');
+      shapeEl.setAttribute('cx',pos.x);
+      shapeEl.setAttribute('cy',pos.y);
+      shapeEl.setAttribute('rx',18);
+      shapeEl.setAttribute('ry',32/2);
+    } else { // squiggle
+      shapeEl = document.createElementNS(xmlns,'path');
+      // simple squiggle path scaled and translated
+      const sx = pos.x, sy = pos.y;
+      const path = `M ${sx-24} ${sy+6} C ${sx-8} ${sy-26}, ${sx+8} ${sy+26}, ${sx+24} ${sy-6} 
+                    C ${sx+8} ${sy+26}, ${sx-8} ${sy-26}, ${sx-24} ${sy+6}`;
+      shapeEl.setAttribute('d',path);
+    }
+
+    // styling based on shading
+    if(SHADINGS[card.shading]==='solid'){
+      shapeEl.setAttribute('fill', color);
+      shapeEl.setAttribute('stroke', color);
+      shapeEl.setAttribute('stroke-width', '1.6');
+    } else if(SHADINGS[card.shading]==='open'){
+      shapeEl.setAttribute('fill','none');
+      shapeEl.setAttribute('stroke', color);
+      shapeEl.setAttribute('stroke-width','2.4');
+    } else { // striped
+      shapeEl.setAttribute('fill', `url(#p${card.id})`);
+      shapeEl.setAttribute('stroke', color);
+      shapeEl.setAttribute('stroke-width','1.6');
+      // pattern color: set currentColor for pattern path and assign computed color via color attribute
+      shapeEl.setAttribute('color', color);
+      // Also set fill opacity slightly for visibility
+      shapeEl.setAttribute('fill-opacity','0.95');
+    }
+    svg.appendChild(shapeEl);
+  });
+
+  return svg;
+}
+
+function computePositions(number){
+  // returns positions across the viewbox for 1-3 shapes
+  const cx = 80;
+  if(number===1) return [{x:cx,y:50}];
+  if(number===2) return [{x:cx-28,y:50},{x:cx+28,y:50}];
+  return [{x:cx-44,y:50},{x:cx,y:50},{x:cx+44,y:50}];
+}
+
+// Click handling
+function onCardClick(idx, el){
+  if(selected.includes(idx)){
+    selected = selected.filter(i=>i!==idx);
+    render();
+    return;
+  }
+  if(selected.length>=3) return;
+  selected.push(idx);
+  render();
+  if(selected.length===3){
+    // Check set
+    const c1 = boardCards[selected[0]];
+    const c2 = boardCards[selected[1]];
+    const c3 = boardCards[selected[2]];
+    if(isSet(c1,c2,c3)){
+      // mark correct visually
+      markSelectionClass('correct');
+      score++;
+      msgEl.textContent = "Set! Good job.";
+      // After short delay replace the cards
+      setTimeout(()=>{
+        removeAndReplaceSelected();
+        selected = [];
+        render();
+        // if board has no sets and deck has cards, keep dealing automatically until set or deck empty
+        if(findSetOnBoard()===null && deck.length>0){
+          // auto-deal up to 3 more and try to create a set
+          dealThree(true);
+        }
+        // Check for game over
+        if(findSetOnBoard()===null && deck.length===0){
+          msgEl.textContent = "No sets remain and deck is empty — game over.";
+        }
+      },450);
+    } else {
+      markSelectionClass('wrong');
+      msgEl.textContent = "Not a set — try again.";
+      // clear selection after a short delay
+      setTimeout(()=>{
+        selected = [];
+        render();
+        msgEl.textContent = "";
+      },750);
+    }
+  }
+}
+
+function markSelectionClass(cls){
+  // add class to selected card elements
+  selected.forEach(i=>{
+    const el = boardEl.querySelector(`[data-index="${i}"]`);
+    if(el){
+      el.classList.add(cls);
+    }
+  });
+}
+
+// Remove selected three from board and replace with new cards from deck (fill positions)
+function removeAndReplaceSelected(){
+  // sort indices descending to remove without reindexing trouble
+  const idxs = [...selected].sort((a,b)=>b-a);
+  idxs.forEach(idx=>{
+    boardCards.splice(idx,1);
+  });
+  // Fill up to 12 (or previous size if >12) by popping deck
+  while(boardCards.length<12 && deck.length>0){
+    boardCards.push(deck.pop());
+  }
+  // If after replacement fewer than 12 but there are still sets not found it is ok.
+}
+
+// Check set rule
+function isSet(a,b,c){
+  return propAllSameOrAllDifferent(a.number,b.number,c.number) &&
+         propAllSameOrAllDifferent(a.shape,b.shape,c.shape) &&
+         propAllSameOrAllDifferent(a.shading,b.shading,c.shading) &&
+         propAllSameOrAllDifferent(a.color,b.color,c.color);
+}
+
+function propAllSameOrAllDifferent(x,y,z){
+  return (x===y && y===z) || (x!==y && x!==z && y!==z);
+}
+
+// Find a set on current board: return indices [i,j,k] or null
+function findSetOnBoard(){
+  const n = boardCards.length;
+  for(let i=0;i<n-2;i++){
+    for(let j=i+1;j<n-1;j++){
+      for(let k=j+1;k<n;k++){
+        if(isSet(boardCards[i], boardCards[j], boardCards[k])){
+          return [i,j,k];
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Hint: highlight one card that participates in a set
+function giveHint(){
+  const set = findSetOnBoard();
+  if(!set){
+    msgEl.textContent = deck.length>0 ? "No set on board. You can deal +3." : "No sets remain.";
+    return;
+  }
+  // flash the three cards briefly
+  set.forEach(i=>{
+    const el = boardEl.querySelector(`[data-index="${i}"]`);
+    if(el){
+      el.classList.add('selected');
+      setTimeout(()=>{ if(el) el.classList.remove('selected'); },1200);
+    }
+  });
+  msgEl.textContent = "Hint shown (three cards highlighted).";
+}
+
+// Deal +3 (manual)
+function dealThree(asAuto=false){
+  if(deck.length===0){
+    msgEl.textContent = "Deck is empty — cannot deal.";
+    return;
+  }
+  // add up to 3 cards
+  for(let i=0;i<3;i++){
+    if(deck.length) boardCards.push(deck.pop());
+  }
+  render();
+  if(!asAuto){
+    // After manual deal, if there is no set, message accordingly
+    if(findSetOnBoard()===null){
+      msgEl.textContent = "Dealt 3 cards — beware, there might still be no set.";
+    } else {
+      msgEl.textContent = "Dealt 3 cards.";
+    }
+  }
+}
+
+// Event listeners for buttons
+hintBtn.addEventListener('click', ()=>{ giveHint(); });
+dealBtn.addEventListener('click', ()=>{ dealThree(false); });
+newBtn.addEventListener('click', ()=>{ startGame(); });
+
+// Start the game on load
+startGame();
+
+// Helpful: show small animation when window resizes (re-render)
+window.addEventListener('resize', ()=>render());
+
+/* Accessibility / quick keyboard: press H for hint, D for deal, N for new game, numbers 1-9 to select cards
+   We'll implement simple keyboard mapping - numeric keys map to visible board cards left-to-right.
+*/
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='h' || e.key==='H') { giveHint(); }
+  if(e.key==='d' || e.key==='D') { dealThree(false); }
+  if(e.key==='n' || e.key==='N') { startGame(); }
+  // digits 1-9 map to board indices 0..8 (visible order)
+  if(/^[1-9]$/.test(e.key)){
+    const idx = parseInt(e.key,10)-1;
+    if(idx < boardCards.length) {
+      const el = boardEl.querySelector(`[data-index="${idx}"]`);
+      if(el) el.click();
+    }
+  }
+});
+
+</script>
+</body>
+</html>

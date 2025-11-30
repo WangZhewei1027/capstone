@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dijkstra's Algorithm - Interactive Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", Arial; margin: 0; display: flex; height: 100vh; }
+  #left { flex: 1; background: #f7f9fc; position: relative; }
+  canvas { width: 100%; height: 100%; display: block; background: linear-gradient(180deg,#fff,#eef3fb); }
+  #right { width: 360px; border-left: 1px solid #ddd; padding: 12px; box-sizing: border-box; overflow:auto; background: #fff; }
+  h2 { margin: 6px 0 10px 0; font-size: 18px; }
+  .controls { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  button, select, input { padding: 6px 8px; font-size: 14px; }
+  button { cursor: pointer; }
+  .mode { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+  .label { font-size: 13px; margin-bottom:6px; color:#333; }
+  table { width:100%; border-collapse: collapse; margin-top:8px; font-size:13px; }
+  th, td { border: 1px solid #e3e6ea; padding:6px 8px; text-align:left; }
+  th { background:#fafafa; font-weight:600; }
+  .small { font-size:12px; color:#666; }
+  #pq { font-size:13px; margin-top:8px; }
+  #info { font-size:13px; color:#444; margin-top:10px; }
+  .hint { font-size:12px; color:#666; margin-top:6px; }
+  .footer { margin-top:12px; font-size:12px; color:#777; }
+  input[type="number"] { width:72px; }
+  label.inline { display:inline-flex; align-items:center; gap:6px; font-size:13px; }
+  #speed { width:140px; }
+</style>
+</head>
+<body>
+  <div id="left">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="right">
+    <h2>Dijkstra's Algorithm — Interactive Demo</h2>
+    <div class="label">Mode</div>
+    <div class="mode">
+      <button id="mode-add-node">Add Node</button>
+      <button id="mode-add-edge">Add Edge</button>
+      <button id="mode-move">Move</button>
+      <button id="mode-delete">Delete</button>
+    </div>
+
+    <div class="label">Selection</div>
+    <div class="controls">
+      <button id="set-source">Set Source</button>
+      <button id="set-target">Set Target</button>
+      <label class="inline"><input type="checkbox" id="undirected" checked> Undirected</label>
+      <input id="default-weight" type="number" value="1" min="0" step="0.1" title="Default weight used when creating an edge">
+    </div>
+
+    <div class="label">Algorithm Controls</div>
+    <div class="controls">
+      <button id="reset">Reset Algorithm</button>
+      <button id="step">Step</button>
+      <button id="run">Run</button>
+      <button id="pause">Pause</button>
+      <label class="inline">Speed <input id="speed" type="range" min="100" max="2000" step="100" value="700"></label>
+    </div>
+
+    <div class="label">Graph Utilities</div>
+    <div class="controls">
+      <button id="clear">Clear Graph</button>
+      <button id="random">Random Graph</button>
+      <button id="auto-layout">Auto Layout</button>
+    </div>
+
+    <div id="info">
+      Click "Add Node" then click canvas to place nodes. Use "Add Edge" to click one node then another (prompt for weight). Move mode drags nodes. Double-click an edge to edit weight. Click a node in Set Source/Target mode to mark them. Delete mode removes clicked node/edge.
+    </div>
+
+    <div class="label">Nodes (dist, prev, visited)</div>
+    <div id="table-wrap">
+      <table id="nodes-table">
+        <thead><tr><th>Node</th><th>Distance</th><th>Prev</th><th>Visited</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="label">Priority Queue</div>
+    <div id="pq">[]</div>
+
+    <div class="hint">When algorithm finishes, the shortest path from source to target (if set) will be highlighted in blue.</div>
+    <div class="footer">Dijkstra's algorithm visualized. Weighted edges; non-negative weights required.</div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  let DPR = window.devicePixelRatio || 1;
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width * DPR);
+    canvas.height = Math.floor(rect.height * DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    draw();
+  }
+  window.addEventListener('resize', () => { DPR = window.devicePixelRatio || 1; resize(); });
+  resize();
+
+  // State
+  let nodes = []; // {id,x,y}
+  let edges = []; // {id, from, to, weight, undirected}
+  let nodeId = 0, edgeId = 0;
+
+  let mode = 'add-node'; // add-node, add-edge, move, delete
+  const modeButtons = {
+    'add-node': document.getElementById('mode-add-node'),
+    'add-edge': document.getElementById('mode-add-edge'),
+    'move': document.getElementById('mode-move'),
+    'delete': document.getElementById('mode-delete')
+  };
+  function setMode(m) {
+    mode = m;
+    Object.keys(modeButtons).forEach(k => modeButtons[k].style.background = (k===m ? '#e0f0ff' : ''));
+    tempEdgeStart = null;
+    draw();
+  }
+  Object.entries(modeButtons).forEach(([k,btn])=>btn.addEventListener('click',()=>setMode(k)));
+  setMode('add-node');
+
+  const undirectedCheckbox = document.getElementById('undirected');
+  const defaultWeightInput = document.getElementById('default-weight');
+
+  // Source/target
+  let source = null, target = null;
+  document.getElementById('set-source').addEventListener('click', ()=> { setMode('move'); clickMode = 'set-source'; });
+  document.getElementById('set-target').addEventListener('click', ()=> { setMode('move'); clickMode = 'set-target'; });
+  let clickMode = null; // 'set-source' or 'set-target' or null
+
+  // Algorithm state
+  let dist = {}; // id -> number
+  let prev = {}; // id -> id or null
+  let visited = {}; // id -> bool
+  let pq = []; // array of {id,dist}
+  let running = false;
+  let autoTimer = null;
+
+  const nodesTableBody = document.querySelector('#nodes-table tbody');
+  const pqDiv = document.getElementById('pq');
+
+  // Buttons
+  document.getElementById('reset').addEventListener('click', resetAlgorithm);
+  document.getElementById('step').addEventListener('click', step);
+  document.getElementById('run').addEventListener('click', runAuto);
+  document.getElementById('pause').addEventListener('click', pauseAuto);
+  document.getElementById('clear').addEventListener('click', ()=>{ if(confirm('Clear entire graph?')) { nodes=[]; edges=[]; nodeId=edgeId=0; source=target=null; resetAlgorithm(); }});
+  document.getElementById('random').addEventListener('click', ()=>{ generateRandomGraph(); });
+  document.getElementById('auto-layout').addEventListener('click', ()=>{ autoLayout(); });
+
+  function generateRandomGraph() {
+    nodes = [];
+    edges = [];
+    nodeId = edgeId = 0;
+    const n = Math.max(4, Math.min(12, Math.round(Math.random()*8)+4));
+    const W = canvas.width / DPR, H = canvas.height / DPR;
+    for(let i=0;i<n;i++){
+      nodes.push({id: nodeId++, x: 50 + Math.random()*(W-100), y: 50 + Math.random()*(H-100)});
+    }
+    // add edges
+    for(let i=0;i<n;i++){
+      for(let j=i+1;j<n;j++){
+        if(Math.random() < 0.35) {
+          const w = +(Math.random()*9+1).toFixed(1);
+          const und = undirectedCheckbox.checked;
+          edges.push({id: edgeId++, from: nodes[i].id, to: nodes[j].id, weight: w, undirected: und});
+        }
+      }
+    }
+    source = nodes[0]?.id ?? null;
+    target = nodes[n-1]?.id ?? null;
+    resetAlgorithm();
+  }
+
+  function autoLayout() {
+    // simple force layout-ish: random jitter and spread
+    const W = canvas.width / DPR, H = canvas.height / DPR;
+    for(let i=0;i<nodes.length;i++){
+      nodes[i].x = 50 + (i % 5) * ((W-100)/Math.min(4,nodes.length)) + Math.random()*20;
+      nodes[i].y = 50 + Math.floor(i/5) * 100 + Math.random()*20;
+    }
+    draw();
+  }
+
+  // Canvas interactions
+  let tempEdgeStart = null;
+  let draggingNode = null;
+  let dragOffset = {x:0,y:0};
+  const R = 20;
+  function getMouse(e){
+    const rect = canvas.getBoundingClientRect();
+    return { x: (e.clientX - rect.left), y: (e.clientY - rect.top) };
+  }
+  function findNodeAt(x,y){
+    for(let i=nodes.length-1;i>=0;i--){
+      const n = nodes[i];
+      const dx = n.x - x, dy = n.y - y;
+      if(dx*dx + dy*dy <= R*R) return n;
+    }
+    return null;
+  }
+  function findEdgeAt(x,y){
+    // return edge if click close to its line
+    for(let i=edges.length-1;i>=0;i--){
+      const e = edges[i];
+      const a = nodes.find(n=>n.id===e.from);
+      const b = nodes.find(n=>n.id===e.to);
+      if(!a || !b) continue;
+      const d = distancePointToSegment(x,y,a.x,a.y,b.x,b.y);
+      if(d < 8) return e;
+    }
+    return null;
+  }
+  function distancePointToSegment(px,py,x1,y1,x2,y2) {
+    const A = px-x1, B = py-y1, C = x2-x1, D = y2-y1;
+    const dot = A*C + B*D;
+    const len2 = C*C + D*D;
+    let t = len2 ? dot / len2 : -1;
+    if(t<0) t=0; else if(t>1) t=1;
+    const nx = x1 + C*t, ny = y1 + D*t;
+    const dx = px - nx, dy = py - ny;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  canvas.addEventListener('mousedown', (e)=>{
+    const m = getMouse(e);
+    const node = findNodeAt(m.x, m.y);
+    if(mode === 'add-node') {
+      // place node
+      nodes.push({id: nodeId++, x: m.x, y: m.y});
+      resetAlgorithm();
+      draw();
+    } else if(mode === 'add-edge') {
+      if(node) {
+        if(!tempEdgeStart) {
+          tempEdgeStart = node;
+        } else if(node.id === tempEdgeStart.id) {
+          // clicked same node -> cancel
+          tempEdgeStart = null;
+        } else {
+          // create edge
+          const w = parseFloat(defaultWeightInput.value) || 1;
+          const und = undirectedCheckbox.checked;
+          edges.push({id: edgeId++, from: tempEdgeStart.id, to: node.id, weight: w, undirected: und});
+          tempEdgeStart = null;
+          resetAlgorithm();
+        }
+        draw();
+      }
+    } else if(mode === 'move') {
+      if(node) {
+        draggingNode = node;
+        dragOffset.x = m.x - node.x;
+        dragOffset.y = m.y - node.y;
+      } else {
+        // might be in set-source/target modes
+        const edge = findEdgeAt(m.x, m.y);
+        if(!node && !edge) {
+          // clicked empty space -> clear clickMode
+          clickMode = null;
+        }
+      }
+    } else if(mode === 'delete') {
+      // delete node or edge
+      if(node) {
+        if(confirm('Delete node and its incident edges?')) {
+          edges = edges.filter(e=>e.from!==node.id && e.to!==node.id);
+          nodes = nodes.filter(n=>n.id!==node.id);
+          if(source===node.id) source=null;
+          if(target===node.id) target=null;
+          resetAlgorithm();
+          draw();
+        }
+      } else {
+        const edge = findEdgeAt(m.x, m.y);
+        if(edge) {
+          if(confirm('Delete edge?')) {
+            edges = edges.filter(e=>e.id!==edge.id);
+            resetAlgorithm();
+            draw();
+          }
+        }
+      }
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e)=>{
+    const m = getMouse(e);
+    if(draggingNode) {
+      draggingNode.x = m.x - dragOffset.x;
+      draggingNode.y = m.y - dragOffset.y;
+      draw();
+    } else {
+      // hover effects for cursor
+      const node = findNodeAt(m.x,m.y);
+      const edge = findEdgeAt(m.x,m.y);
+      canvas.style.cursor = node ? (mode==='move' ? 'grab' : 'pointer') : (edge ? 'pointer' : 'default');
+    }
+  });
+
+  canvas.addEventListener('mouseup', (e)=>{
+    if(draggingNode) {
+      draggingNode = null;
+    } else {
+      const m = getMouse(e);
+      const node = findNodeAt(m.x,m.y);
+      const edge = findEdgeAt(m.x,m.y);
+      if(clickMode && node) {
+        if(clickMode === 'set-source') {
+          source = node.id;
+          resetAlgorithm();
+        } else if(clickMode === 'set-target') {
+          target = node.id;
+        }
+        clickMode = null;
+        draw();
+      } else if(e.detail === 2) {
+        // double click: maybe edit edge weight
+        if(edge) {
+          const input = prompt('Edit edge weight (non-negative):', String(edge.weight));
+          if(input !== null) {
+            const w = parseFloat(input);
+            if(!isFinite(w) || w < 0) alert('Invalid weight.');
+            else { edge.weight = w; resetAlgorithm(); draw(); }
+          }
+        } else if(node) {
+          // double click node to set as source quickly (alt)
+          if(confirm('Set this node as source? OK = source, Cancel = target')) {
+            source = node.id;
+            resetAlgorithm();
+          } else {
+            target = node.id;
+          }
+          draw();
+        }
+      }
+    }
+  });
+
+  // Dijkstra implementation (step-by-step)
+  function resetAlgorithm() {
+    // initialize distances, prev, visited, pq
+    dist = {};
+    prev = {};
+    visited = {};
+    pq = [];
+    nodes.forEach(n => { dist[n.id] = Infinity; prev[n.id] = null; visited[n.id] = false; });
+    if(source != null && nodes.find(n=>n.id===source)) {
+      dist[source] = 0;
+      pq = [{id: source, dist: 0}];
+    } else {
+      pq = [];
+    }
+    running = false;
+    pauseAuto();
+    updateTable();
+    draw();
+  }
+
+  function updateTable() {
+    nodesTableBody.innerHTML = '';
+    const sorted = nodes.slice().sort((a,b)=>a.id - b.id);
+    for(const n of sorted) {
+      const tr = document.createElement('tr');
+      const td0 = document.createElement('td'); td0.textContent = n.id;
+      const td1 = document.createElement('td'); td1.textContent = dist[n.id]===Infinity ? '∞' : +dist[n.id].toFixed(3);
+      const td2 = document.createElement('td'); td2.textContent = prev[n.id]===null ? '-' : prev[n.id];
+      const td3 = document.createElement('td'); td3.textContent = visited[n.id] ? 'yes' : 'no';
+      tr.appendChild(td0); tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      nodesTableBody.appendChild(tr);
+    }
+    pqDiv.textContent = '[' + pq.map(x=>`${x.id}:${(+x.dist.toFixed(3))}`).join(', ') + ']';
+  }
+
+  function popMinFromPQ() {
+    if(pq.length===0) return null;
+    pq.sort((a,b)=>a.dist - b.dist);
+    return pq.shift();
+  }
+
+  // For step granularity, we will: each step pops one node (the min) and relaxes all outgoing edges.
+  // Each call to step executes one "node visit". If there is no source or pq empty -> nothing to do.
+  function step() {
+    if(!source || !nodes.find(n=>n.id===source)) { alert('Set a valid source node before running the algorithm.'); return; }
+    // If all nodes visited or pq empty: finish.
+    // Skip nodes already visited in pq: pop until non-visited node.
+    while(pq.length && visited[pq[0].id]) pq.shift();
+    if(pq.length===0) {
+      running = false;
+      pauseAuto();
+      draw();
+      updateTable();
+      return;
+    }
+    const nodeEntry = popMinFromPQ();
+    if(!nodeEntry) { running=false; pauseAuto(); return; }
+    const u = nodeEntry.id;
+    visited[u] = true;
+    // Relax outgoing edges from u
+    const outgoing = edges.filter(e => e.from === u || (e.undirected && e.to === u)); // include undirected reversed by filtering both directions
+    // But the above includes edges where u is to for undirected; ensure neighbor id is correct
+    for(const e of outgoing) {
+      const v = (e.from === u) ? e.to : e.from;
+      if(visited[v]) continue;
+      const alt = dist[u] + Number(e.weight);
+      if(alt < (dist[v] ?? Infinity)) {
+        dist[v] = alt;
+        prev[v] = u;
+        pq.push({id: v, dist: alt});
+      }
+    }
+    updateTable();
+    draw();
+    // check if finished (no more reachable nodes)
+    if(pq.every(x=>visited[x.id]) || pq.length === 0) {
+      running = false;
+      pauseAuto();
+      draw();
+    }
+  }
+
+  function runAuto() {
+    const interval = Number(document.getElementById('speed').value) || 700;
+    if(running) return;
+    running = true;
+    if(!source || !nodes.find(n=>n.id===source)) { alert('Set a valid source node before running.'); running=false; return; }
+    autoTimer = setInterval(()=>{
+      // attempt a step; if step makes no progress and pq empty, stop
+      // ensure we break when nothing left
+      // Note: if pq empty initially, finish
+      // skip visited entries
+      while(pq.length && visited[pq[0].id]) pq.shift();
+      if(pq.length===0) {
+        running = false;
+        pauseAuto();
+        draw();
+        updateTable();
+        return;
+      }
+      step();
+    }, interval);
+  }
+
+  function pauseAuto() {
+    running = false;
+    if(autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+  }
+
+  document.getElementById('speed').addEventListener('input', ()=>{
+    if(running) {
+      pauseAuto();
+      runAuto();
+    }
+  });
+
+  // Rendering
+  function draw() {
+    ctx.clearRect(0,0,canvas.width,DPR ? canvas.height/DPR*DPR : canvas.height);
+    const W = canvas.width / DPR, H = canvas.height / DPR;
+    // Edges
+    ctx.lineWidth = 2;
+    for(const e of edges) {
+      const a = nodes.find(n=>n.id===e.from);
+      const b = nodes.find(n=>n.id===e.to);
+      if(!a || !b) continue;
+      // Determine style: if part of current shortest path to target or visited
+      const onShortPath = isEdgeOnShortestPath(e);
+      const isVisitedEdge = (visited[a.id] && visited[b.id]);
+      ctx.beginPath();
+      ctx.strokeStyle = onShortPath ? '#1f77b4' : (isVisitedEdge ? '#bbb' : '#888');
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+
+      // arrow for directed edges
+      if(!e.undirected) {
+        drawArrowHead(a.x,a.y,b.x,b.y, onShortPath ? '#1f77b4' : '#888');
+      }
+
+      // weight label (midpoint)
+      const mx = (a.x + b.x)/2, my = (a.y + b.y)/2;
+      ctx.fillStyle = '#222';
+      ctx.font = '13px sans-serif';
+      const txt = String(e.weight);
+      ctx.fillText(txt, mx + 6, my - 6);
+    }
+
+    // If adding edge and a start selected, show temporary line from node to mouse
+    if(mode==='add-edge' && tempEdgeStart && lastMousePos) {
+      ctx.beginPath();
+      ctx.strokeStyle = '#4aa3ff';
+      ctx.setLineDash([6,6]);
+      ctx.moveTo(tempEdgeStart.x,tempEdgeStart.y);
+      ctx.lineTo(lastMousePos.x,lastMousePos.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Nodes
+    for(const n of nodes) {
+      const isSource = (n.id === source);
+      const isTarget = (n.id === target);
+      const isVisited = visited[n.id];
+      const curr = (pq.length && pq[0] && pq[0].id === n.id && !isVisited) && running;
+
+      ctx.beginPath();
+      ctx.fillStyle = isSource ? '#2ecc71' : (isTarget ? '#e74c3c' : (curr ? '#ffeaa7' : (isVisited ? '#dfe7ef' : '#ffffff')));
+      ctx.strokeStyle = '#2b3a4a';
+      ctx.lineWidth = 1.5;
+      ctx.arc(n.x, n.y, R, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+
+      // label
+      ctx.fillStyle = '#111';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(n.id), n.x, n.y);
+
+      // small distance badge
+      const d = dist[n.id];
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = '#333';
+      ctx.fillText(d===Infinity ? '∞' : (+d.toFixed(2)), n.x, n.y + R + 4);
+    }
+
+    // highlight shortest path from source to target if finished
+    if(target != null && prev[target] != null) {
+      const path = reconstructPath(target);
+      if(path.length > 1) {
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#1f77b4';
+        for(let i=0;i<path.length-1;i++){
+          const a = nodes.find(n=>n.id===path[i]);
+          const b = nodes.find(n=>n.id===path[i+1]);
+          if(!a||!b) continue;
+          ctx.beginPath();
+          ctx.moveTo(a.x,a.y);
+          ctx.lineTo(b.x,b.y);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function drawArrowHead(x1,y1,x2,y2, color) {
+    // draw small arrow at 80% of line
+    const t = 0.78;
+    const x = x1 + (x2 - x1)*t;
+    const y = y1 + (y2 - y1)*t;
+    const angle = Math.atan2(y2-y1, x2-x1);
+    const size = 8;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - size*Math.cos(angle - Math.PI/6), y - size*Math.sin(angle - Math.PI/6));
+    ctx.lineTo(x - size*Math.cos(angle + Math.PI/6), y - size*Math.sin(angle + Math.PI/6));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function isEdgeOnShortestPath(e) {
+    // check if edge is between consecutive nodes in prev chain to target
+    if(target == null) return false;
+    const path = reconstructPath(target);
+    for(let i=0;i<path.length-1;i++){
+      const a = path[i], b = path[i+1];
+      if((e.from===a && e.to===b) || (e.undirected && e.from===b && e.to===a) || (e.undirected && e.from===a && e.to===b) || (e.from===b && e.to===a)) {
+        // We'll consider undirected special; essentially check if this edge connects a-b in any orientation
+        if((e.from===a && e.to===b) || (e.from===b && e.to===a) || (e.undirected && ((e.from===a && e.to===b) || (e.from===b && e.to===a)))) return true;
+      }
+    }
+    return false;
+  }
+
+  function reconstructPath(dest) {
+    const path = [];
+    let u = dest;
+    if(prev[u] === null && u !== source) {
+      // if dest==source, return [source]
+      if(u===source) return [source];
+      return [];
+    }
+    while(u !== null) {
+      path.unshift(u);
+      if(u === source) break;
+      u = prev[u];
+      if(u == null) break;
+    }
+    return path;
+  }
+
+  // track mouse pos for temp edge drawing
+  let lastMousePos = null;
+  canvas.addEventListener('mousemove', (e)=>{
+    lastMousePos = getMouse(e);
+    if(mode==='add-edge' && tempEdgeStart) draw();
+  });
+  canvas.addEventListener('mouseleave', ()=>{ lastMousePos = null; draw(); });
+
+  // initialize an example graph
+  function initExample() {
+    nodes = [
+      {id: nodeId++, x: 120, y: 80},
+      {id: nodeId++, x: 260, y: 60},
+      {id: nodeId++, x: 420, y: 90},
+      {id: nodeId++, x: 150, y: 220},
+      {id: nodeId++, x: 320, y: 200},
+      {id: nodeId++, x: 470, y: 220},
+    ];
+    edges = [
+      {id: edgeId++, from: 0, to: 1, weight: 2, undirected: true},
+      {id: edgeId++, from: 0, to: 3, weight: 5, undirected: true},
+      {id: edgeId++, from: 1, to: 2, weight: 3, undirected: true},
+      {id: edgeId++, from: 1, to: 4, weight: 4, undirected: true},
+      {id: edgeId++, from: 2, to: 5, weight: 2, undirected: true},
+      {id: edgeId++, from: 3, to: 4, weight: 2, undirected: true},
+      {id: edgeId++, from: 4, to: 5, weight: 3, undirected: true},
+    ];
+    source = 0; target = 5;
+    resetAlgorithm();
+  }
+
+  // initial example
+  initExample();
+
+  // ensure initial size
+  resize();
+
+  // keyboard shortcuts
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === '1') setMode('add-node');
+    if(e.key === '2') setMode('add-edge');
+    if(e.key === '3') setMode('move');
+    if(e.key === '4') setMode('delete');
+    if(e.key === ' ') { e.preventDefault(); if(running) pauseAuto(); else runAuto(); }
+  });
+
+})();
+</script>
+</body>
+</html>

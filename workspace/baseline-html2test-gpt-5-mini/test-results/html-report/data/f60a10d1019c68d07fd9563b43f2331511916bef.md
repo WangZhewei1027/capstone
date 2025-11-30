@@ -1,0 +1,52 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Fibonacci Sequence Explorer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Generate Fibonacci numbers, try different algorithms, and visualize growth and ratios.
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - text: "n (terms or index):"
+        - spinbutton "n (terms or index):" [ref=e10]: "20"
+      - generic [ref=e11]:
+        - text: "Mode:"
+        - combobox "Mode:" [ref=e12]:
+          - option "Generate sequence (0..n)" [selected]
+          - option "Compute F(n) only"
+      - generic [ref=e13]:
+        - text: "Algorithm:"
+        - combobox "Algorithm:" [ref=e14]:
+          - option "Iterative (fast, BigInt)" [selected]
+          - option "Fast doubling (log n, BigInt)"
+          - option "Recursive naive (very slow)"
+          - option "Recursive with memo (fast for small/medium n)"
+      - button "Run" [ref=e15] [cursor=pointer]
+      - button "Copy Result" [ref=e16] [cursor=pointer]
+    - generic [ref=e17]: "Note: Results use BigInt internally for exact integer results. Recursive naive is limited to n ≤ 40 to prevent freezing."
+    - generic [ref=e18]:
+      - generic [ref=e20]:
+        - generic [ref=e21]: Result
+        - generic [ref=e22]: F(0) = 0 F(1) = 1 F(2) = 1 F(3) = 2 F(4) = 3 F(5) = 5 F(6) = 8 F(7) = 31 F(8) = 12 F(9) = 43 F(10) = 55 F(11) = 98 F(12) = 441 F(13) = 332 F(14) = 773 F(15) = 016 F(16) = 789 F(17) = 795,1 F(18) = 485,2 F(19) = 181,4 F(20) = 567,6 Computed in 0.000 ms using iterative.
+        - generic [ref=e23]:
+          - generic [ref=e24]:
+            - generic [ref=e25]: Terms
+            - generic [ref=e26]: "21"
+          - generic [ref=e27]:
+            - generic [ref=e28]: Last term digits
+            - generic [ref=e29]: "4"
+          - generic [ref=e30]:
+            - generic [ref=e31]: Time
+            - generic [ref=e32]: 0.000 ms
+      - generic [ref=e34]:
+        - generic [ref=e35]: Visualization
+        - generic [ref=e37]:
+          - generic [ref=e38]: Log scale
+          - checkbox [ref=e39]
+          - generic [ref=e40]: Fibonacci values (bars)
+    - group [ref=e42]:
+      - generic "About algorithms" [ref=e43] [cursor=pointer]
+  - contentinfo [ref=e44]: Built-in demonstration — exact integer results for large n (BigInt). Try n up to a few thousand (fast-doubling recommended).
+```

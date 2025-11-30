@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>K-Nearest Neighbors (KNN) Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 1em;
+    text-align: center;
+  }
+  canvas {
+    border: 1px solid #ccc;
+    cursor: crosshair;
+    margin-bottom: 1em;
+  }
+  #info {
+    margin-bottom: 1em;
+  }
+  #controls {
+    margin-bottom: 1em;
+  }
+  .btn {
+    padding: 0.5em 1em;
+    margin: 0 0.5em;
+    cursor: pointer;
+    border: 1px solid #444;
+    border-radius: 4px;
+  }
+  input[type="number"] {
+    width: 3em;
+    font-size: 1em;
+    padding: 0.2em;
+    margin-left: 0.3em;
+  }
+  .legend {
+    display: inline-block;
+    margin: 0 1em;
+    font-size: 0.9em;
+  }
+  .color-box {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    vertical-align: middle;
+    border: 1px solid #333;
+    margin-right: 0.3em;
+  }
+</style>
+</head>
+<body>
+<h1>K-Nearest Neighbors (KNN) Interactive Demo</h1>
+<p id="info">Click on the canvas to add training points. Toggle classes below. Then click "Classify Point" and click anywhere to classify a new point.</p>
+
+<div id="controls">
+  <button id="classA" class="btn" style="background:#e74c3c;color:#fff;">Class A</button>
+  <button id="classB" class="btn" style="background:#3498db;color:#fff;">Class B</button>
+  <button id="clear" class="btn">Clear Data</button>
+  <label for="kInput">K =</label>
+  <input type="number" id="kInput" min="1" max="15" value="3" />
+</div>
+
+<canvas id="canvas" width="600" height="400"></canvas>
+
+<button id="classifyBtn" class="btn">Classify Point</button>
+<button id="resetBtn" class="btn" style="display:none;">Back to Editing</button>
+
+<div style="margin-top:1em;">
+  <span class="legend"><span class="color-box" style="background:#e74c3c;"></span> Class A (Red)</span>
+  <span class="legend"><span class="color-box" style="background:#3498db;"></span> Class B (Blue)</span>
+  <span class="legend"><span class="color-box" style="background:#27ae60;"></span> Classified Point (Green)</span>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const classAButton = document.getElementById('classA');
+  const classBButton = document.getElementById('classB');
+  const clearButton = document.getElementById('clear');
+  const classifyButton = document.getElementById('classifyBtn');
+  const resetButton = document.getElementById('resetBtn');
+  const kInput = document.getElementById('kInput');
+  const info = document.getElementById('info');
+
+  const width = canvas.width;
+  const height = canvas.height;
+  const radius = 7;
+
+  let currentClass = 'A'; // 'A' or 'B'
+  let dataPoints = []; // {x, y, class: 'A' or 'B'}
+  let classifyMode = false;
+
+  function drawPoint(x, y, cls, highlight = false) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    let color;
+    if (cls === 'A') color = '#e74c3c'; // red
+    else if (cls === 'B') color = '#3498db'; // blue
+    else if (cls === 'classified') color = '#27ae60'; // green
+    else color = '#999';
+
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    if (highlight) {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#000';
+      ctx.stroke();
+    } else {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#333';
+      ctx.stroke();
+    }
+  }
+
+  function redraw() {
+    ctx.clearRect(0, 0, width, height);
+    // draw all data points
+    dataPoints.forEach(p => {
+      drawPoint(p.x, p.y, p.class);
+    });
+  }
+
+  function distance(p1, p2) {
+    return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+  }
+
+  function knnClassify(point, k) {
+    if (dataPoints.length === 0) return null;
+
+    // Calculate distance to all points
+    let distances = dataPoints.map(p => ({
+      point: p,
+      dist: distance(p, point)
+    }));
+
+    // Sort by distance asc
+    distances.sort((a,b) => a.dist - b.dist);
+    // Take first k neighbors
+    const neighbors = distances.slice(0, k);
+
+    // Count votes per class
+    const votes = {};
+    neighbors.forEach(n => {
+      votes[n.point.class] = (votes[n.point.class] || 0) + 1;
+    });
+
+    // Find class with max votes
+    let maxVotes = 0;
+    let predictedClass = null;
+    for (const cls in votes) {
+      if (votes[cls] > maxVotes) {
+        maxVotes = votes[cls];
+        predictedClass = cls;
+      }
+    }
+    return { predictedClass, neighbors };
+  }
+
+  // Handle canvas clicks
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+
+    if (classifyMode) {
+      // Classify the clicked point with KNN, draw result
+      const k = Math.min(Math.max(parseInt(kInput.value) || 3, 1), dataPoints.length);
+      if (dataPoints.length === 0) {
+        info.textContent = 'Add training points before classification!';
+        return;
+      }
+      const result = knnClassify({x: cx, y: cy}, k);
+      redraw();
+
+      // Highlight neighbors
+      result.neighbors.forEach(n => {
+        drawPoint(n.point.x, n.point.y, n.point.class, true);
+      });
+
+      // Draw classified point
+      drawPoint(cx, cy, 'classified');
+
+      info.textContent = `Classified point as Class ${result.predictedClass}. (K = ${k})`;
+
+    } else {
+      // Add training point
+      dataPoints.push({ x: cx, y: cy, class: currentClass });
+      drawPoint(cx, cy, currentClass);
+      info.textContent = `Added point to Class ${currentClass}. Total points: ${dataPoints.length}`;
+    }
+  });
+
+  // Toggle class buttons
+  function setClass(newClass) {
+    currentClass = newClass;
+    if (newClass === 'A') {
+      classAButton.style.opacity = '1';
+      classBButton.style.opacity = '0.5';
+    } else {
+      classAButton.style.opacity = '0.5';
+      classBButton.style.opacity = '1';
+    }
+    info.textContent = `Current class to add: Class ${currentClass}`;
+  }
+
+  classAButton.addEventListener('click', () => setClass('A'));
+  classBButton.addEventListener('click', () => setClass('B'));
+
+  clearButton.addEventListener('click', () => {
+    dataPoints = [];
+    redraw();
+    info.textContent = 'All training data cleared.';
+  });
+
+  classifyButton.addEventListener('click', () => {
+    if (dataPoints.length === 0) {
+      info.textContent = 'Add training points first before classification!';
+      return;
+    }
+    classifyMode = true;
+    classifyButton.style.display = 'none';
+    resetButton.style.display = 'inline-block';
+    classAButton.disabled = true;
+    classBButton.disabled = true;
+    clearButton.disabled = true;
+    kInput.disabled = true;
+    info.textContent = 'Click anywhere on the canvas to classify a new point.';
+  });
+
+  resetButton.addEventListener('click', () => {
+    classifyMode = false;
+    classifyButton.style.display = 'inline-block';
+    resetButton.style.display = 'none';
+    classAButton.disabled = false;
+    classBButton.disabled = false;
+    clearButton.disabled = false;
+    kInput.disabled = false;
+    redraw();
+    info.textContent = `Back to editing mode. Current class to add: Class ${currentClass}`;
+  });
+
+  // Initialize
+  setClass('A');
+  redraw();
+
+})();
+</script>
+</body>
+</html>

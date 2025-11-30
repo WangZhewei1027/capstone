@@ -1,0 +1,103 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic "Heap Visualizer (Min & Max)" [ref=e3]:
+    - heading "Heap Visualizer (Min & Max)" [level=1] [ref=e4]
+    - generic [ref=e5]: Explore how a binary heap (array-backed) behaves. Insert, remove, build from array and see per-step swaps!
+    - generic [ref=e6]:
+      - generic [ref=e7]: Heap Type
+      - generic [ref=e8]:
+        - button "Min Heap" [ref=e9] [cursor=pointer]
+        - button "Max Heap" [ref=e10] [cursor=pointer]
+      - generic [ref=e11]: Value to insert (number)
+      - generic [ref=e12]:
+        - spinbutton [ref=e13]
+        - button "Insert" [ref=e14] [cursor=pointer]
+        - button "Peek" [ref=e15] [cursor=pointer]
+        - button "Pop" [ref=e16] [cursor=pointer]
+      - generic [ref=e17]: Build / Load
+      - generic [ref=e18]:
+        - textbox "Comma-separated numbers. e.g. 5,3,8,1" [ref=e19]
+        - button "Build From Array" [ref=e20] [cursor=pointer]
+        - button "Random" [ref=e21] [cursor=pointer]
+      - generic [ref=e22]:
+        - button "Clear" [ref=e23] [cursor=pointer]
+        - 'button "Step Mode: On" [ref=e24] [cursor=pointer]'
+        - combobox [ref=e25]:
+          - option "Slow"
+          - option "Normal" [selected]
+          - option "Fast"
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - strong [ref=e29]: "Size:"
+            - text: "7"
+          - generic [ref=e30]:
+            - strong [ref=e31]: "Peek:"
+            - text: "5"
+          - generic [ref=e32]:
+            - strong [ref=e33]: "Type:"
+            - text: Min
+        - generic [ref=e34]:
+          - generic [ref=e35]: Current swap
+          - generic [ref=e37]: Comparison
+          - generic [ref=e39]: Normal node
+      - generic [ref=e41]:
+        - generic [ref=e42]: "Seeded heap with: [15,10,8,12,20,25,5]"
+        - generic [ref=e43]: Welcome — start by inserting or building a heap.
+      - contentinfo [ref=e44]: "Notes: This is a binary heap visualizer (array representation). Insert and pop are animated with sift-up / sift-down swaps. Step Mode pauses between operations for per-step inspection."
+  - generic [ref=e45]:
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - strong [ref=e48]: Array Representation
+        - generic [ref=e49]: "Indices are 0-based. Parent formula: parent = floor((i-1)/2)"
+      - generic [ref=e50]: Try clicking "Random" to generate a heap
+    - generic [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]: "5"
+        - generic [ref=e54]: "[0]"
+      - generic [ref=e55]:
+        - generic [ref=e56]: "10"
+        - generic [ref=e57]: "[1]"
+      - generic [ref=e58]:
+        - generic [ref=e59]: "8"
+        - generic [ref=e60]: "[2]"
+      - generic [ref=e61]:
+        - generic [ref=e62]: "12"
+        - generic [ref=e63]: "[3]"
+      - generic [ref=e64]:
+        - generic [ref=e65]: "20"
+        - generic [ref=e66]: "[4]"
+      - generic [ref=e67]:
+        - generic [ref=e68]: "25"
+        - generic [ref=e69]: "[5]"
+      - generic [ref=e70]:
+        - generic [ref=e71]: "15"
+        - generic [ref=e72]: "[6]"
+    - generic [ref=e73]:
+      - strong [ref=e74]: Tree View
+      - generic [ref=e75]: Visualized as a complete binary tree. Root at top.
+      - img [ref=e77]:
+        - generic [ref=e84]:
+          - generic [ref=e86]: "5"
+          - generic [ref=e87]: "[0]"
+        - generic [ref=e88]:
+          - generic [ref=e90]: "10"
+          - generic [ref=e91]: "[1]"
+        - generic [ref=e92]:
+          - generic [ref=e94]: "8"
+          - generic [ref=e95]: "[2]"
+        - generic [ref=e96]:
+          - generic [ref=e98]: "12"
+          - generic [ref=e99]: "[3]"
+        - generic [ref=e100]:
+          - generic [ref=e102]: "20"
+          - generic [ref=e103]: "[4]"
+        - generic [ref=e104]:
+          - generic [ref=e106]: "25"
+          - generic [ref=e107]: "[5]"
+        - generic [ref=e108]:
+          - generic [ref=e110]: "15"
+          - generic [ref=e111]: "[6]"
+```

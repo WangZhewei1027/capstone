@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Interactive Hash Table Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --muted:#9aa7bd;
+      --accent:#6ee7b7;
+      --danger:#ff7b7b;
+      --card:#0b1320;
+      --glass: rgba(255,255,255,0.03);
+      font-family: Inter, Roboto, system-ui, Arial, sans-serif;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(120deg,#071021 0%,#081427 60%);color:#e6eef8;}
+    .wrap{max-width:1100px;margin:28px auto;padding:22px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);box-shadow:0 6px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03);}
+    header{display:flex;gap:18px;align-items:center;margin-bottom:18px;}
+    h1{font-size:20px;margin:0;}
+    p.lead{margin:4px 0 0;color:var(--muted);font-size:13px;}
+    .controls{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;}
+    .card{background:var(--card);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.02);}
+    .card.small{padding:8px;}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
+    input[type=text], input[type=number], select{background:var(--glass);border:1px solid rgba(255,255,255,0.03);padding:8px;border-radius:8px;color:inherit;width:220px;}
+    button{background:linear-gradient(180deg,#0ea5a0,#087f75);color:#081622;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+    .btn-danger{background:linear-gradient(180deg,#ff6b6b,#ef4b4b);}
+    .btn-small{padding:6px 8px;font-size:13px}
+    .row{display:flex;gap:12px;align-items:center;}
+    .visual{margin-top:18px;padding:14px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);border-radius:12px;border:1px solid rgba(255,255,255,0.02);}
+    .buckets{display:flex;gap:8px;flex-wrap:wrap;padding:6px;}
+    .bucket{min-width:88px;background:linear-gradient(180deg,#071323,#04202b);padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);position:relative;}
+    .bucket .idx{position:absolute;top:-12px;left:8px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,0.03);font-size:12px;color:var(--muted);}
+    .items{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+    .item{background:linear-gradient(180deg,#0b2840,#06314a);padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);font-size:13px;}
+    .item.kv{display:flex;flex-direction:column;gap:4px;}
+    .key{font-weight:700;color:#d7eef9;}
+    .val{font-size:12px;color:var(--muted);padding-top:3px;}
+    .highlight{box-shadow:0 0 0 3px rgba(110,231,183,0.07);border-color:rgba(110,231,183,0.3)}
+    .notice{margin-top:12px;color:var(--muted);font-size:13px;}
+    .status{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;}
+    .chip{background:rgba(255,255,255,0.02);padding:8px 10px;border-radius:10px;font-size:13px;border:1px solid rgba(255,255,255,0.02);color:var(--muted)}
+    .explain{margin-top:14px;color:var(--muted);font-size:13px;line-height:1.45}
+    .small-muted{font-size:12px;color:var(--muted)}
+    .probe-seq{margin-top:10px;font-size:13px;color:var(--muted)}
+    .controls-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+    .footer{margin-top:18px;color:var(--muted);font-size:12px}
+    .hash-box{padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);font-weight:600}
+    .tomb{opacity:0.55;font-style:italic;color:#ffa691}
+    @media (max-width:900px){ .controls{flex-direction:column;} .controls-right{margin-left:0} .buckets{justify-content:center} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Interactive Hash Table</h1>
+        <p class="lead">Explore how a hash table stores key → value pairs, handles collisions, and resizes.</p>
+      </div>
+      <div class="controls-right" style="margin-left:auto">
+        <div class="card small">
+          <label style="margin-bottom:4px">Collision Method</label>
+          <select id="modeSelect">
+            <option value="separate">Separate chaining (buckets with lists)</option>
+            <option value="linear">Open addressing (linear probing)</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="card">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div style="min-width:240px">
+            <label>Key (string)</label>
+            <input id="keyInput" type="text" placeholder="e.g. user:42" />
+          </div>
+          <div style="min-width:160px">
+            <label>Value (string)</label>
+            <input id="valueInput" type="text" placeholder="e.g. Alice" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <div style="display:flex;gap:8px;">
+              <button id="insertBtn">Insert</button>
+              <button id="getBtn" class="ghost">Get</button>
+              <button id="delBtn" class="ghost btn-danger">Delete</button>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+          <div style="min-width:180px">
+            <label>Initial buckets</label>
+            <input id="sizeInput" type="number" min="2" max="1024" value="8" />
+          </div>
+          <div style="align-self:flex-end;">
+            <button id="resetBtn" class="ghost btn-small">Reset table</button>
+          </div>
+          <div style="align-self:flex-end;">
+            <button id="populateBtn" class="ghost btn-small">Populate sample</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="min-width:260px;">
+        <label>Hash info & load factor</label>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="hash-box" id="hashInfo">Index: —</div>
+          <div class="chip" id="loadChip">Load: 0 / 0</div>
+        </div>
+        <div class="probe-seq" id="probeSeq"></div>
+      </div>
+
+      <div class="card" style="flex:1">
+        <label>Actions</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="rehashBtn" class="ghost btn-small">Force resize (double)</button>
+          <button id="clearBtn" class="ghost btn-small">Clear all</button>
+          <button id="explainBtn" class="ghost btn-small">Explain hash function</button>
+        </div>
+        <div class="notice" id="notice">Tip: Enter a key and press Insert. Click Get to locate a key and highlight where it lives.</div>
+      </div>
+    </div>
+
+    <div class="visual card" id="visualArea">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <strong>Buckets</strong>
+          <span class="small-muted">Visual representation of internal array slots</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="small-muted">Size</div>
+          <div class="chip" id="sizeChip">0</div>
+        </div>
+      </div>
+
+      <div class="buckets" id="bucketsArea" style="margin-top:12px;"></div>
+
+      <div class="status" id="statusArea"></div>
+      <div class="explain" id="explainArea">
+        A hash table maps keys to indices using a hash function. This demo uses a simple string hash and shows two collision strategies:
+        separate chaining (each bucket holds a list) and open addressing with linear probing (store directly in slots and probe for next empty).
+      </div>
+    </div>
+
+    <div class="footer">
+      Built-in simple hash: for each character: h = (h * 31 + charCode) mod bigPrime, then index = h % capacity.
+    </div>
+  </div>
+
+  <script>
+    // Interactive Hash Table Demo
+    (function(){
+      // Utility: simple robust string hash (32-bit)
+      function stringHash(s) {
+        let h = 2166136261 >>> 0; // FNV-1a start
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619) >>> 0;
+        }
+        return h >>> 0; // unsigned
+      }
+
+      // HashTable implementation supporting both modes
+      class HashTable {
+        constructor(size = 8, mode = 'separate') {
+          this.mode = mode; // 'separate' or 'linear'
+          this._init(size);
+        }
+        _init(size) {
+          this.capacity = Math.max(2, Math.floor(size));
+          this.count = 0;
+          this._tombstone = {__tombstone: true};
+          if (this.mode === 'separate') {
+            this.table = Array.from({length: this.capacity}, () => []);
+          } else {
+            this.table = Array.from({length: this.capacity}, () => null);
+          }
+        }
+        _hashToIndex(key) {
+          const h = stringHash(String(key));
+          return {raw: h, idx: h % this.capacity};
+        }
+        loadFactor() {
+          return this.count / this.capacity;
+        }
+        keysEntries() {
+          const out = [];
+          if (this.mode === 'separate') {
+            for (let i = 0; i < this.capacity; i++) {
+              for (const e of this.table[i]) out.push([e.key,e.value]);
+            }
+          } else {
+            for (const slot of this.table) {
+              if (slot && slot !== this._tombstone) out.push([slot.key, slot.value]);
+            }
+          }
+          return out;
+        }
+        put(key, value) {
+          if (this.mode === 'separate') return this._putSeparate(key, value);
+          return this._putLinear(key, value);
+        }
+        _putSeparate(key,value){
+          const {idx} = this._hashToIndex(key);
+          const bucket = this.table[idx];
+          for (const e of bucket) {
+            if (e.key === key) { e.value = value; return {inserted:false, idx}; }
+          }
+          bucket.push({key,value});
+          this.count++;
+          if (this.loadFactor() > 0.7) this._resize(this.capacity * 2);
+          return {inserted:true, idx};
+        }
+        _putLinear(key,value){
+          const {raw} = this._hashToIndex(key);
+          let idx = raw % this.capacity;
+          let firstTomb = -1;
+          for (let probe = 0; probe < this.capacity; probe++) {
+            const slot = this.table[idx];
+            if (slot === null) {
+              const useIdx = firstTomb >= 0 ? firstTomb : idx;
+              this.table[useIdx] = {key,value};
+              this.count++;
+              if (this.loadFactor() > 0.6) this._resize(this.capacity * 2);
+              return {inserted:true, idx:useIdx};
+            } else if (slot === this._tombstone) {
+              if (firstTomb < 0) firstTomb = idx;
+            } else if (slot.key === key) {
+              slot.value = value;
+              return {inserted:false, idx};
+            }
+            idx = (idx + 1) % this.capacity;
+          }
+          // full (rare)
+          this._resize(this.capacity * 2);
+          return this.put(key,value);
+        }
+        get(key) {
+          if (this.mode === 'separate') return this._getSeparate(key);
+          return this._getLinear(key);
+        }
+        _getSeparate(key){
+          const {idx,raw} = this._hashToIndex(key);
+          const bucket = this.table[idx];
+          for (const e of bucket) {
+            if (e.key === key) return {found:true,value:e.value, idx};
+          }
+          return {found:false, idx};
+        }
+        _getLinear(key){
+          const {raw} = this._hashToIndex(key);
+          let idx = raw % this.capacity;
+          for (let probe=0; probe < this.capacity; probe++){
+            const slot = this.table[idx];
+            if (slot === null) return {found:false, idx, probeSeq:null};
+            if (slot !== this._tombstone && slot.key === key) return {found:true, value:slot.value, idx, probeSeq:null};
+            idx = (idx+1) % this.capacity;
+          }
+          return {found:false, idx};
+        }
+        remove(key) {
+          if (this.mode === 'separate') return this._removeSeparate(key);
+          return this._removeLinear(key);
+        }
+        _removeSeparate(key){
+          const {idx} = this._hashToIndex(key);
+          const bucket = this.table[idx];
+          for (let i=0;i<bucket.length;i++){
+            if (bucket[i].key === key) { bucket.splice(i,1); this.count--; return true; }
+          }
+          return false;
+        }
+        _removeLinear(key){
+          const {raw} = this._hashToIndex(key);
+          let idx = raw % this.capacity;
+          for (let probe=0; probe < this.capacity; probe++){
+            const slot = this.table[idx];
+            if (slot === null) return false;
+            if (slot !== this._tombstone && slot.key === key) {
+              this.table[idx] = this._tombstone;
+              this.count--;
+              return true;
+            }
+            idx = (idx+1)%this.capacity;
+          }
+          return false;
+        }
+        clear() {
+          this._init(this.capacity);
+        }
+        _resize(newCap) {
+          const entries = this.keysEntries();
+          this.capacity = Math.max(2, Math.floor(newCap));
+          this.count = 0;
+          if (this.mode === 'separate') this.table = Array.from({length:this.capacity},()=>[]);
+          else this.table = Array.from({length:this.capacity},()=>null);
+          for (const [k,v] of entries) this.put(k,v);
+        }
+        forceResizeDouble() {
+          this._resize(this.capacity * 2);
+        }
+        setMode(mode) {
+          if (mode === this.mode) return;
+          this.mode = mode;
+          const entries = this.keysEntries();
+          this.capacity = Math.max(2, this.capacity);
+          this.count = 0;
+          if (this.mode === 'separate') this.table = Array.from({length:this.capacity},()=>[]);
+          else this.table = Array.from({length:this.capacity},()=>null);
+          for (const [k,v] of entries) this.put(k,v);
+        }
+        // For linear probing: return probe sequence (indices) when searching key
+        probeSequenceFor(key) {
+          if (this.mode !== 'linear') return null;
+          const raw = stringHash(String(key));
+          let idx = raw % this.capacity;
+          const seq = [];
+          for (let i=0;i<this.capacity;i++){
+            seq.push(idx);
+            const slot = this.table[idx];
+            if (slot===null || (slot!==this._tombstone && slot.key===key)) break;
+            idx = (idx+1)%this.capacity;
+          }
+          return seq;
+        }
+      }
+
+      // UI wiring
+      const keyInput = document.getElementById('keyInput');
+      const valueInput = document.getElementById('valueInput');
+      const insertBtn = document.getElementById('insertBtn');
+      const getBtn = document.getElementById('getBtn');
+      const delBtn = document.getElementById('delBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const populateBtn = document.getElementById('populateBtn');
+      const sizeInput = document.getElementById('sizeInput');
+      const bucketsArea = document.getElementById('bucketsArea');
+      const sizeChip = document.getElementById('sizeChip');
+      const loadChip = document.getElementById('loadChip');
+      const modeSelect = document.getElementById('modeSelect');
+      const hashInfo = document.getElementById('hashInfo');
+      const probeSeq = document.getElementById('probeSeq');
+      const rehashBtn = document.getElementById('rehashBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const explainBtn = document.getElementById('explainBtn');
+      const statusArea = document.getElementById('statusArea');
+      const notice = document.getElementById('notice');
+      const explainArea = document.getElementById('explainArea');
+
+      let table = new HashTable(parseInt(sizeInput.value,10), modeSelect.value);
+      render();
+
+      function render() {
+        // Update chips
+        sizeChip.textContent = table.capacity;
+        loadChip.textContent = `${table.count} / ${table.capacity}  (LF ${(table.loadFactor()*100).toFixed(1)}%)`;
+        // Render buckets
+        bucketsArea.innerHTML = '';
+        if (table.mode === 'separate') {
+          for (let i=0;i<table.capacity;i++){
+            const b = document.createElement('div');
+            b.className = 'bucket';
+            b.dataset.idx = i;
+            b.innerHTML = `<div class="idx">#${i}</div>`;
+            const items = document.createElement('div');
+            items.className = 'items';
+            const bucket = table.table[i];
+            if (bucket.length === 0) {
+              const empty = document.createElement('div');
+              empty.className = 'item';
+              empty.textContent = 'empty';
+              empty.style.opacity = 0.5;
+              items.appendChild(empty);
+            } else {
+              for (const e of bucket) {
+                const it = document.createElement('div');
+                it.className = 'item kv';
+                it.innerHTML = `<div class="key">${escapeHtml(String(e.key))}</div><div class="val">${escapeHtml(String(e.value))}</div>`;
+                items.appendChild(it);
+              }
+            }
+            b.appendChild(items);
+            bucketsArea.appendChild(b);
+          }
+        } else {
+          // linear probing: show slots
+          for (let i=0;i<table.capacity;i++){
+            const slot = table.table[i];
+            const b = document.createElement('div');
+            b.className = 'bucket';
+            b.dataset.idx = i;
+            b.innerHTML = `<div class="idx">#${i}</div>`;
+            const items = document.createElement('div'); items.className='items';
+            const it = document.createElement('div');
+            it.className = 'item';
+            if (slot === null) {
+              it.textContent = 'empty';
+              it.style.opacity = 0.5;
+            } else if (slot === table._tombstone) {
+              it.innerHTML = `<span class="tomb">tombstone</span>`;
+            } else {
+              it.classList.add('kv');
+              it.innerHTML = `<div class="key">${escapeHtml(String(slot.key))}</div><div class="val">${escapeHtml(String(slot.value))}</div>`;
+            }
+            items.appendChild(it);
+            b.appendChild(items);
+            bucketsArea.appendChild(b);
+          }
+        }
+        // Show status chips
+        statusArea.innerHTML = '';
+        const m = document.createElement('div'); m.className='chip'; m.textContent = 'Mode: ' + (table.mode === 'separate' ? 'Separate chaining' : 'Linear probing');
+        statusArea.appendChild(m);
+        const c2 = document.createElement('div'); c2.className='chip'; c2.textContent = 'Entries: ' + table.count;
+        statusArea.appendChild(c2);
+        const c3 = document.createElement('div'); c3.className='chip'; c3.textContent = `Capacity: ${table.capacity}`;
+        statusArea.appendChild(c3);
+      }
+
+      // helpers
+      function escapeHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      function highlightIndex(idx) {
+        const all = bucketsArea.querySelectorAll('.bucket');
+        all.forEach(b=>b.classList.toggle('highlight', b.dataset.idx == idx));
+      }
+
+      function clearHighlight() {
+        const all = bucketsArea.querySelectorAll('.bucket');
+        all.forEach(b=>b.classList.remove('highlight'));
+      }
+
+      function showProbeSequence(seq) {
+        if (!seq) { probeSeq.textContent = ''; return; }
+        probeSeq.textContent = 'Probe sequence: ' + seq.map(i=>`#${i}`).join(' → ');
+        // highlight sequence temporarily
+        clearHighlight();
+        seq.forEach((i,idx)=>{
+          setTimeout(()=> {
+            const el = bucketsArea.querySelector(`.bucket[data-idx="${i}"]`);
+            if (el) el.classList.add('highlight');
+            // remove after a moment
+            setTimeout(()=>el && el.classList.remove('highlight'), 900);
+          }, idx*220);
+        });
+      }
+
+      // Events
+      insertBtn.addEventListener('click', ()=>{
+        const k = keyInput.value.trim();
+        if (!k) { notice.textContent = 'Please provide a non-empty key.'; return; }
+        const v = valueInput.value;
+        const res = table.put(k,v);
+        notice.textContent = res.inserted ? `Inserted key "${k}" into index ${res.idx}.` : `Updated existing key "${k}" at index ${res.idx}.`;
+        render();
+        const {idx,raw} = table._hashToIndex(k);
+        hashInfo.textContent = `Index: ${idx}  (raw hash ${raw})`;
+        highlightIndex(idx);
+      });
+
+      getBtn.addEventListener('click', ()=>{
+        const k = keyInput.value.trim();
+        if (!k) { notice.textContent = 'Please provide a key to fetch.'; return; }
+        const res = table.get(k);
+        if (res.found) {
+          notice.textContent = `Found "${k}" => "${res.value}" at index ${res.idx}.`;
+          hashInfo.textContent = `Index: ${res.idx}`;
+          if (table.mode === 'linear') {
+            const seq = table.probeSequenceFor(k);
+            showProbeSequence(seq);
+          } else {
+            highlightIndex(res.idx);
+          }
+        } else {
+          notice.textContent = `Key "${k}" not found (would map to index ${res.idx}).`;
+          hashInfo.textContent = `Index: ${res.idx}`;
+          highlightIndex(res.idx);
+          probeSeq.textContent = '';
+        }
+      });
+
+      delBtn.addEventListener('click', ()=>{
+        const k = keyInput.value.trim();
+        if (!k) { notice.textContent = 'Please provide a key to delete.'; return; }
+        const ok = table.remove(k);
+        notice.textContent = ok ? `Removed key "${k}".` : `Key "${k}" not found.`;
+        render();
+      });
+
+      resetBtn.addEventListener('click', ()=>{
+        const sz = parseInt(sizeInput.value,10) || 8;
+        table = new HashTable(sz, modeSelect.value);
+        notice.textContent = `Table reset to ${sz} buckets with mode ${modeSelect.value}.`;
+        render();
+        clearHighlight();
+        probeSeq.textContent = '';
+        hashInfo.textContent = 'Index: —';
+      });
+
+      populateBtn.addEventListener('click', ()=>{
+        // Some sample keys likely to collide for small table sizes
+        const samples = ['apple','banana','grape','orange','peach','plum','kiwi','pear','berry','melon','lemon','lime','mango','apricot'];
+        for (let i=0; i<Math.min(samples.length, Math.floor(table.capacity*1.2)); i++){
+          table.put(samples[i], `val:${samples[i]}`);
+        }
+        notice.textContent = `Populated with ${Math.min(samples.length, Math.floor(table.capacity*1.2))} sample items.`;
+        render();
+      });
+
+      sizeInput.addEventListener('change', ()=>{
+        // allow changing initial size before reset
+        let v = parseInt(sizeInput.value,10);
+        if (isNaN(v) || v < 2) v = 2;
+        sizeInput.value = v;
+      });
+
+      modeSelect.addEventListener('change', ()=>{
+        table.setMode(modeSelect.value);
+        notice.textContent = `Switched mode to ${modeSelect.value}. Rehashed existing entries.`;
+        render();
+      });
+
+      rehashBtn.addEventListener('click', ()=>{
+        table.forceResizeDouble();
+        notice.textContent = `Forced resize: doubled capacity to ${table.capacity}.`;
+        render();
+      });
+
+      clearBtn.addEventListener('click', ()=>{
+        table.clear();
+        notice.textContent = 'Cleared all entries.';
+        render();
+      });
+
+      explainBtn.addEventListener('click', ()=>{
+        explainArea.innerHTML = `<strong>Hash function used (FNV-1a-like):</strong>
+          <div style="margin-top:8px;color:var(--muted)">
+            We compute a 32-bit unsigned hash from the string (FNV-1a style mix). Then index = hash % capacity.
+            For demonstration we use doubling resize and thresholds:
+            - Separate chaining: resize when load factor > 0.7
+            - Linear probing : resize when load factor > 0.6
+          </div>`;
+      });
+
+      // Live highlight of where a typed key would map
+      keyInput.addEventListener('input', ()=>{
+        const k = keyInput.value;
+        if (!k) { hashInfo.textContent = 'Index: —'; clearHighlight(); probeSeq.textContent = ''; return; }
+        const {raw, idx} = table._hashToIndex(k);
+        hashInfo.textContent = `Index: ${idx}  (raw hash ${raw})`;
+        if (table.mode === 'linear') {
+          const seq = table.probeSequenceFor(k);
+          showProbeSequence(seq);
+        } else {
+          clearHighlight();
+          highlightIndex(idx);
+          probeSeq.textContent = '';
+        }
+      });
+
+      // small keyboard sugar: Enter to insert
+      valueInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') insertBtn.click(); });
+      keyInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') insertBtn.click(); });
+
+      // initial render
+      render();
+
+      // Expose table for debugging in console (developer convenience)
+      window._demoHashTable = table;
+    })();
+  </script>
+</body>
+</html>

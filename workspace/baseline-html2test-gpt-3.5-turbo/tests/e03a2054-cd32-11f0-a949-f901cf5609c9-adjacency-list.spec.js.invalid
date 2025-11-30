@@ -1,0 +1,173 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL =
+  'http://127.0.0.1:5500/workspace/baseline-html2test-gpt-3.5-turbo/html/e03a2054-cd32-11f0-a949-f901cf5609c9.html';
+
+test.describe('Adjacency List Visualization - e03a2054-cd32-11f0-a949-f901cf5609c9', () => {
+  // Arrays to collect console errors and page errors during each test
+  let consoleErrors;
+  let pageErrors;
+
+  test.beforeEach(async ({ page }) => {
+    consoleErrors = [];
+    pageErrors = [];
+
+    // Collect console error messages
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+
+    // Collect uncaught page errors
+    page.on('pageerror', (err) => {
+      pageErrors.push(err.message);
+    });
+
+    // Navigate to the application page and wait for load
+    await page.goto(APP_URL, { waitUntil: 'load' });
+
+    // Wait for the adjacency list header to appear which indicates the initial auto-build finished
+    await page.waitForSelector('#adjList h2');
+  });
+
+  test.afterEach(async () => {
+    // Ensure no unexpected runtime errors were emitted to the console or as page errors
+    expect(consoleErrors, `Console errors detected: ${consoleErrors.join(', ')}`).toHaveLength(0);
+    expect(pageErrors, `Page errors detected: ${pageErrors.join(', ')}`).toHaveLength(0);
+  });
+
+  test('Initial load: prefilled edges are present and adjacency list is rendered', async ({ page }) => {
+    // Purpose: Verify that the page pre-fills example input and automatically builds the graph on load
+
+    const textarea = page.locator('#graphInput');
+    const buildBtn = page.locator('#buildGraphBtn');
+    const adjListDiv = page.locator('#adjList');
+    const errorMsg = page.locator('#errorMsg');
+    const canvas = page.locator('#graphCanvas');
+
+    // Check the textarea was prefilled with the example (basic check for presence of line "A B")
+    await expect(textarea).toHaveValue(/A B/);
+
+    // The auto-build should have run on load; verify adjacency list header exists
+    await expect(adjListDiv.locator('h2')).toBeVisible();
+    await expect(adjListDiv.locator('h2')).toHaveText('Adjacency List');
+
+    // Verify the list items for nodes A-E exist and contain expected adjacency text
+    const items = adjListDiv.locator('li.adj-node');
+    await expect(items).toHaveCount(5);
+
+    // Build expected mapping based on the prefilled example:
+    // A: B, C
+    // B: D
+    // C: D
+    // D: E
+    // E:  (empty)
+    await expect(items.nth(0)).toHaveText('A: B, C');
+    await expect(items.nth(1)).toHaveText('B: D');
+    await expect(items.nth(2)).toHaveText('C: D');
+    await expect(items.nth(3)).toHaveText('D: E');
+    await expect(items.nth(4)).toHaveText('E: ');
+
+    // Ensure no error message is visible after a successful build
+    await expect(errorMsg).toHaveText('');
+
+    // Ensure the canvas element exists and has the expected dimensions
+    await expect(canvas).toBeVisible();
+    const width = await canvas.getAttribute('width');
+    const height = await canvas.getAttribute('height');
+    expect(width).toBe('600');
+    expect(height).toBe('400');
+
+    // Sanity check: clicking the already-clicked button does not produce an error
+    await buildBtn.click();
+    await expect(errorMsg).toHaveText('');
+  });
+
+  test('Building with empty input shows validation error and clears the display', async ({ page }) => {
+    // Purpose: Test the edge case when the input is empty or whitespace-only
+
+    const textarea1 = page.locator('#graphInput');
+    const buildBtn1 = page.locator('#buildGraphBtn');
+    const adjListDiv1 = page.locator('#adjList');
+    const errorMsg1 = page.locator('#errorMsg1');
+
+    // Clear the textarea and set whitespace only
+    await textarea.fill('   \n  ');
+    await buildBtn.click();
+
+    // Expect a validation message prompting for at least one edge
+    await expect(errorMsg).toHaveText('Please enter at least one edge.');
+
+    // The adjacency list display should have been cleared
+    await expect(adjListDiv).toHaveText('', { useInnerText: true });
+  });
+
+  test('Invalid edge format produces descriptive error and does not render adjacency list', async ({ page }) => {
+    // Purpose: Provide malformed edge lines and assert that a helpful error message is shown
+
+    const textarea2 = page.locator('#graphInput');
+    const buildBtn2 = page.locator('#buildGraphBtn');
+    const adjListDiv2 = page.locator('#adjList');
+    const errorMsg2 = page.locator('#errorMsg2');
+
+    // Input an invalid edge format (three tokens on one line)
+    await textarea.fill('A B C');
+    await buildBtn.click();
+
+    // The page should display a parse error describing the offending line
+    await expect(errorMsg).toHaveText(/Invalid edge format on line 1/);
+
+    // No adjacency list should be rendered after the failed parse
+    await expect(adjListDiv).toHaveText('', { useInnerText: true });
+  });
+
+  test('Supports comma-separated edges and displays nodes including nodes with no outgoing edges', async ({ page }) {
+    // Purpose: Verify parsing supports "A,B" format and that nodes with empty neighbor lists are shown
+
+    const textarea3 = page.locator('#graphInput');
+    const buildBtn3 = page.locator('#buildGraphBtn');
+    const adjListDiv3 = page.locator('#adjList');
+    const errorMsg3 = page.locator('#errorMsg3');
+
+    // Use comma-separated edges
+    await textarea.fill('X,Y\nY,Z');
+    await buildBtn.click();
+
+    // Expect no error
+    await expect(errorMsg).toHaveText('');
+
+    // Validate adjacency list content: keys X, Y, Z sorted
+    const items1 = adjListDiv.locator('li.adj-node');
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(0)).toHaveText('X: Y');
+    await expect(items.nth(1)).toHaveText('Y: Z');
+    // Node Z has no outgoing edges; the UI appends a space after the colon
+    await expect(items.nth(2)).toHaveText('Z: ');
+  });
+
+  test('Building a new graph replaces previous display and clears errors', async ({ page }) {
+    // Purpose: Ensure subsequent builds clear previous adjacency list and error messages
+
+    const textarea4 = page.locator('#graphInput');
+    const buildBtn4 = page.locator('#buildGraphBtn');
+    const adjListDiv4 = page.locator('#adjList');
+    const errorMsg4 = page.locator('#errorMsg4');
+
+    // First, ensure initial state has the prefilled graph (already built on load)
+    await expect(adjListDiv.locator('li.adj-node')).toHaveCount(5);
+
+    // Now provide a new small graph and click build
+    await textarea.fill('P Q');
+    await buildBtn.click();
+
+    // The old adjacency list should be replaced with the new one (P and Q)
+    const items2 = adjListDiv.locator('li.adj-node');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0)).toHaveText('P: Q');
+    await expect(items.nth(1)).toHaveText('Q: ');
+
+    // No error message should be visible after a successful rebuild
+    await expect(errorMsg).toHaveText('');
+  });
+});

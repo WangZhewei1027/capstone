@@ -1,0 +1,43 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Red-Black Tree Visualizer" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - spinbutton [ref=e5]
+      - button "Insert" [ref=e6] [cursor=pointer]
+      - button "Delete" [ref=e7] [cursor=pointer]
+      - button "Search" [ref=e8] [cursor=pointer]
+    - generic [ref=e9]:
+      - button "Add 7 Random" [ref=e10] [cursor=pointer]
+      - button "Clear" [ref=e11] [cursor=pointer]
+      - button "Load Sample" [ref=e12] [cursor=pointer]
+    - generic [ref=e13]:
+      - button "◀ Prev" [ref=e14] [cursor=pointer]
+      - button "Play ▶" [ref=e15] [cursor=pointer]
+      - button "Next ▶" [ref=e16] [cursor=pointer]
+      - generic [ref=e17]: Speed
+      - slider [ref=e18]: "800"
+      - generic [ref=e19]: Step 1 / 10
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: red
+        - generic [ref=e24]: black
+        - generic [ref=e26]: nil (not shown)
+      - generic [ref=e28]: "Tree size: 3 • Black-height: 1"
+    - generic [ref=e29]:
+      - generic [ref=e30]: 1. Empty tree
+      - generic [ref=e31]: 2. Inserted 10 as red node (initial)
+      - generic [ref=e32]: 3. Ensure root 10 is black
+      - generic [ref=e33]: 4. Inserted 20 as red node (initial)
+      - generic [ref=e34]: 5. Ensure root 10 is black
+      - generic [ref=e35]: 6. Inserted 30 as red node (initial)
+      - generic [ref=e36]: "7. Case 3 mirror: recolor parent 20->B and grandparent 10->R, left-rotate at 10"
+      - generic [ref=e37]: 8. Left-rotate at 10
+      - generic [ref=e38]: 9. Ensure root 20 is black
+      - generic [ref=e39]: 10. Initial sample inserted (10,20,30)
+    - generic [ref=e40]: "How to use: Insert integers. Click Play to auto-step through algorithm snapshots. Steps capture important color changes and rotations during insert (and search). This visualizer uses a sentinel nil (not drawn by default). Deletion is provided but more complex cases may produce many steps."
+  - img [ref=e43]:
+    - generic [ref=e44]: (empty tree)
+```

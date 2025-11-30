@@ -1,0 +1,270 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL =
+  'http://127.0.0.1:5500/workspace/baseline-html2test-gpt-3.5-turbo/html/7abeaa24-cd32-11f0-a96f-2d591ffb35fe.html';
+
+/**
+ * Page Object for the Merge Sort Visualization page.
+ * Encapsulates selectors and common interactions.
+ */
+class MergeSortPage {
+  /**
+   * @param {import('@playwright/test').Page} page
+   */
+  constructor(page) {
+    this.page = page;
+    this.input = page.locator('#arrayInput');
+    this.sortBtn = page.locator('#sortBtn');
+    this.visualization = page.locator('#visualization');
+    this.stepsLog = page.locator('#stepsLog');
+  }
+
+  // Navigate to the app
+  async goto() {
+    await this.page.goto(APP_URL);
+  }
+
+  // Set input field value
+  async setInput(value) {
+    await this.input.fill(value);
+  }
+
+  // Click the Sort button
+  async clickSort() {
+    await this.sortBtn.click();
+  }
+
+  // Return array of bars elements
+  async getBars() {
+    return this.visualization.locator('.bar');
+  }
+
+  // Return the text content of bars as an array of strings
+  async getBarsText() {
+    const bars = this.visualization.locator('.bar');
+    const count = await bars.count();
+    const texts = [];
+    for (let i = 0; i < count; i++) {
+      texts.push((await bars.nth(i).textContent()).trim());
+    }
+    return texts;
+  }
+
+  // Return steps log text
+  async getStepsLogText() {
+    return (await this.stepsLog.textContent()) || '';
+  }
+
+  // Wait until sorting completes: sort button re-enabled
+  async waitForSortComplete(timeout = 30000) {
+    await this.page.waitForFunction(
+      () => {
+        const btn = document.getElementById('sortBtn');
+        return btn && !btn.disabled;
+      },
+      null,
+      { timeout }
+    );
+  }
+
+  // Wait for a visual feedback class to appear (comparing or merging)
+  async waitForVisualFeedback(timeout = 5000) {
+    await this.page.waitForSelector('.bar.comparing, .bar.merging', {
+      timeout,
+    });
+  }
+}
+
+test.describe('Merge Sort Visualization App (7abeaa24-cd32-11f0-a96f-2d591ffb35fe)', () => {
+  // Arrays to capture console messages and page errors across each test
+  let consoleMessages;
+  let pageErrors;
+
+  test.beforeEach(async ({ page }) => {
+    // Initialize capture arrays
+    consoleMessages = [];
+    pageErrors = [];
+
+    // Capture console messages
+    page.on('console', (msg) => {
+      // store the type and text for debugging and assertions
+      consoleMessages.push({ type: msg.type(), text: msg.text() });
+    });
+
+    // Capture uncaught page errors (e.g., ReferenceError, TypeError)
+    page.on('pageerror', (err) => {
+      pageErrors.push(err);
+    });
+  });
+
+  test('Initial page load: elements present and default state is correct', async ({ page }) => {
+    // Purpose: verify the app loads, UI elements exist, and default input is present
+    const app = new MergeSortPage(page);
+    await app.goto();
+
+    // Basic page assertions
+    await expect(page).toHaveTitle(/Merge Sort Visualization/);
+    await expect(app.input).toBeVisible();
+    await expect(app.sortBtn).toBeVisible();
+    await expect(app.visualization).toBeVisible();
+    await expect(app.stepsLog).toBeVisible();
+
+    // Default input value should match the HTML provided default
+    await expect(app.input).toHaveValue('38,27,43,3,9,82,10');
+
+    // Visualization should be empty before clicking Sort (no bars created yet)
+    await expect(app.visualization.locator('.bar')).toHaveCount(0);
+
+    // Steps log should be empty initially
+    const stepsText = await app.getStepsLogText();
+    expect(stepsText.trim()).toBe('');
+
+    // There should be no uncaught errors just from loading the page
+    expect(pageErrors.length).toBe(0);
+  });
+
+  test('Sorting operation updates DOM, logs steps, and produces a sorted array', async ({ page }) => {
+    // Purpose: provide a small input, start the sort, wait for completion, and verify final state
+    const app1 = new MergeSortPage(page);
+    await app.goto();
+
+    // Use a small array to make test faster
+    await app.setInput('5,2,8');
+
+    // Clear any previous console/page errors
+    consoleMessages = [];
+    pageErrors = [];
+
+    // Click Sort and wait until it finishes (sort button re-enabled)
+    await app.clickSort();
+
+    // During sorting, at least one visual feedback (comparing/merging) should appear
+    // Wait for visible feedback briefly (this confirms dynamic class toggling happens)
+    await app.waitForVisualFeedback(5000);
+
+    // Wait for entire sort to complete (sort button becomes enabled)
+    await app.waitForSortComplete(30000);
+
+    // After completion, steps log should contain initial array and completion message
+    const logText = await app.getStepsLogText();
+    expect(logText).toContain('Initial array: [5, 2, 8]');
+    expect(logText).toContain('Sorting complete! Final sorted array:');
+
+    // Bars should reflect the final sorted order: 2,5,8
+    const barsText = await app.getBarsText();
+    expect(barsText).toEqual(['2', '5', '8']);
+
+    // Ensure there were no uncaught page errors during the sorting process
+    expect(pageErrors.length).toBe(0);
+  });
+
+  test('Visual feedback classes "comparing" and "merging" are applied during sorting', async ({ page }) => {
+    // Purpose: ensure that during sorting, bars receive the 'comparing' and/or 'merging' classes
+    const app2 = new MergeSortPage(page);
+    await app.goto();
+
+    // Use 5 elements to increase chance of seeing class toggles
+    await app.setInput('4,1,3,2,5');
+
+    // Start sorting
+    await app.clickSort();
+
+    // At least one element should have class 'comparing' or 'merging' at some point
+    // We wait for the selector to appear and then assert its classes exist
+    const feedbackSelector = '.bar.comparing, .bar.merging';
+    const el = await page.waitForSelector(feedbackSelector, { timeout: 5000 });
+    expect(el).toBeTruthy();
+
+    // Confirm that the element indeed has one of the expected classes
+    const className = await el.getAttribute('class');
+    expect(className).toMatch(/comparing|merging/);
+
+    // Wait for sort to finish to clean up
+    await app.waitForSortComplete(30000);
+
+    // Ensure no uncaught page errors happened
+    expect(pageErrors.length).toBe(0);
+  });
+
+  test('Edge case: empty input triggers an alert and no sorting occurs', async ({ page }) => {
+    // Purpose: verify alert shown for empty input and that no bars are created
+    const app3 = new MergeSortPage(page);
+    await app.goto();
+
+    // Clear input to make it empty
+    await app.setInput('');
+
+    // Listen for dialog and assert its message
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toBe('Please enter some numbers separated by commas.');
+      await dialog.dismiss();
+    });
+
+    // Click Sort should trigger the alert
+    await app.clickSort();
+
+    // Visualization should remain empty
+    await expect(app.visualization.locator('.bar')).toHaveCount(0);
+
+    // No uncaught page errors expected
+    expect(pageErrors.length).toBe(0);
+  });
+
+  test('Edge case: invalid number input triggers an alert and prevents sorting', async ({ page }) => {
+    // Purpose: entering invalid numbers should show an alert and not create bars
+    const app4 = new MergeSortPage(page);
+    await app.goto();
+
+    await app.setInput('1, two, 3');
+
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toBe('Please enter valid numbers separated by commas.');
+      await dialog.dismiss();
+    });
+
+    await app.clickSort();
+
+    // Since invalid input, no bars should be created
+    await expect(app.visualization.locator('.bar')).toHaveCount(0);
+
+    // No uncaught page errors expected
+    expect(pageErrors.length).toBe(0);
+  });
+
+  test('Full run on default data completes and logs expected split/merge steps', async ({ page }) {
+    // Purpose: run the default 7-element array to verify logs include split/merge steps and final result
+    const app5 = new MergeSortPage(page);
+    await app.goto();
+
+    // Default input prefilled by the page; click Sort
+    await app.clickSort();
+
+    // Wait for some merging log lines to appear in stepsLog (merging messages contain "Merging left")
+    await page.waitForFunction(() => {
+      const log = document.getElementById('stepsLog');
+      return log && log.textContent && log.textContent.includes('Merging left:');
+    }, null, { timeout: 10000 });
+
+    // Wait for full completion
+    await app.waitForSortComplete(60000); // allow more time for the larger input
+
+    const logText1 = await app.getStepsLogText();
+    // Check that some split and merge messages are present
+    expect(logText).toContain('Splitting array at positions');
+    expect(logText).toContain('Merging left:');
+
+    // Final sorted array should be present in the log
+    expect(logText).toMatch(/Sorting complete! Final sorted array: \[.*\]/);
+
+    // Verify that bars show a sorted sequence (text values are nondecreasing)
+    const barsText1 = await app.getBarsText();
+    // convert to numbers and check sorted
+    const nums = barsText.map((t) => Number(t));
+    for (let i = 1; i < nums.length; i++) {
+      expect(nums[i]).toBeGreaterThanOrEqual(nums[i - 1]);
+    }
+
+    // Confirm no uncaught page errors
+    expect(pageErrors.length).toBe(0);
+  });
+});

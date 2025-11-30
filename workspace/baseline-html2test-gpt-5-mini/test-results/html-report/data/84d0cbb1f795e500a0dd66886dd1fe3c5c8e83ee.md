@@ -1,0 +1,81 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Selection Sort" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Find the minimum element and swap it into place. Repeat for each position.
+        - generic [ref=e8]:
+          - generic [ref=e9]: Sorted
+          - generic [ref=e11]: Current minimum
+          - generic [ref=e13]: Current start position
+          - generic [ref=e15]: Element being compared
+      - generic [ref=e17]:
+        - generic [ref=e18]: "Comparisons: 0"
+        - generic [ref=e19]: "Swaps: 0"
+    - generic [ref=e20]:
+      - toolbar "controls" [ref=e21]:
+        - button "Play" [ref=e22] [cursor=pointer]
+        - button "Step" [ref=e23] [cursor=pointer]
+        - button "Reset" [ref=e24] [cursor=pointer]
+        - button "Shuffle" [ref=e25] [cursor=pointer]
+        - generic [ref=e26]:
+          - text: Speed
+          - slider "Speed" [ref=e27]: "40"
+      - generic [ref=e28]:
+        - generic [ref=e29]:
+          - text: Size
+          - slider "Size" [ref=e30]: "20"
+        - button "New Array" [ref=e31] [cursor=pointer]
+    - img "Array bars visualization" [ref=e32]:
+      - generic [ref=e34]: "48"
+      - generic [ref=e36]: "65"
+      - generic [ref=e38]: "32"
+      - generic [ref=e40]: "65"
+      - generic [ref=e42]: "2"
+      - generic [ref=e44]: "8"
+      - generic [ref=e46]: "9"
+      - generic [ref=e48]: "49"
+      - generic [ref=e50]: "64"
+      - generic [ref=e52]: "62"
+      - generic [ref=e54]: "87"
+      - generic [ref=e56]: "85"
+      - generic [ref=e58]: "99"
+      - generic [ref=e60]: "98"
+      - generic [ref=e62]: "6"
+      - generic [ref=e64]: "13"
+      - generic [ref=e66]: "43"
+      - generic [ref=e68]: "80"
+      - generic [ref=e70]: "16"
+      - generic [ref=e72]: "99"
+    - generic [ref=e73]:
+      - generic [ref=e74]: "i: - , j: - , min: -"
+      - generic [ref=e75]: "Progress: 0 / 20"
+      - generic [ref=e76]:
+        - checkbox "Show values" [checked] [ref=e77]
+        - text: Show values
+    - contentinfo [ref=e78]: Use Step to advance one action (compare / new min / swap / mark sorted). Play animates automatically.
+  - generic [ref=e79]:
+    - generic [ref=e80]:
+      - heading "How Selection Sort works" [level=2] [ref=e81]
+      - paragraph [ref=e82]: Selection sort repeatedly selects the smallest remaining element and swaps it into the next position of the sorted portion. It's an in-place algorithm with O(n^2) comparisons (worst/average/best) and O(n) swaps. It is not stable in general.
+    - generic [ref=e83]:
+      - heading "Pseudocode" [level=3] [ref=e84]
+      - generic [ref=e85]: for i from 0 to n-2 minIndex = i for j from i+1 to n-1 if A[j] < A[minIndex] minIndex = j if minIndex != i swap A[i] and A[minIndex]
+    - generic [ref=e86]:
+      - heading "Notes & Complexity" [level=3] [ref=e87]
+      - list [ref=e88]:
+        - listitem [ref=e89]: "Comparisons: Theta(n^2)"
+        - listitem [ref=e90]: "Swaps: O(n) (at most n-1 swaps)"
+        - listitem [ref=e91]: "Space: O(1) extra space"
+        - listitem [ref=e92]: Not stable by default (equal elements may be swapped)
+    - generic [ref=e93]:
+      - heading "Interact with the array" [level=3] [ref=e94]
+      - paragraph [ref=e95]: Drag "Size" or press "New Array" to generate. "Shuffle" randomizes current values. You can toggle values visibility.
+      - generic [ref=e96]:
+        - textbox "e.g. 5,3,8,1,2" [ref=e97]
+        - button "Apply" [ref=e98] [cursor=pointer]
+      - paragraph [ref=e99]: "Tip: numbers separated by commas will create that array."
+```

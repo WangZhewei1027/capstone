@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Binary Search Tree (BST) Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f9f9f9;
+  }
+  h1 {
+    text-align: center;
+  }
+  #bst-input {
+    margin-bottom: 10px;
+  }
+  #bst-input input[type="number"] {
+    padding: 5px;
+    width: 120px;
+    font-size: 16px;
+  }
+  #bst-input button {
+    padding: 6px 12px;
+    font-size: 16px;
+    margin-left: 6px;
+    cursor: pointer;
+  }
+
+  #operations {
+    margin: 15px 0;
+  }
+
+  #operations input[type="number"] {
+    width: 120px;
+    font-size: 16px;
+    padding: 5px;
+  }
+  #operations button {
+    font-size: 16px;
+    padding: 6px 12px;
+    margin-left: 6px;
+    cursor: pointer;
+  }
+  #output {
+    margin-top: 20px;
+    background: #fff;
+    border: 1px solid #ccc;
+    min-height: 100px;
+    padding: 10px;
+    font-family: monospace;
+    white-space: pre-wrap;
+  }
+
+  #tree-container {
+    margin-top: 30px;
+    text-align: center;
+  }
+  svg {
+    border: 1px solid #ccc;
+    background: white;
+  }
+</style>
+</head>
+<body>
+<h1>Binary Search Tree (BST) Interactive Demo</h1>
+
+<div id="bst-input">
+  <label for="insert-value">Insert number:</label>
+  <input type="number" id="insert-value" />
+  <button id="insert-btn">Insert</button>
+  <button id="clear-btn" title="Clear entire tree">Clear Tree</button>
+</div>
+
+<div id="operations">
+  <label for="search-value">Search:</label>
+  <input type="number" id="search-value" />
+  <button id="search-btn">Search</button>
+
+  <label for="delete-value" style="margin-left: 30px;">Delete:</label>
+  <input type="number" id="delete-value" />
+  <button id="delete-btn">Delete</button>
+</div>
+
+<div id="output" aria-live="polite"></div>
+
+<div id="tree-container">
+  <svg id="bst-svg" width="1000" height="400" role="img" aria-label="Binary Search Tree Visualization"></svg>
+</div>
+
+<script>
+  class Node {
+    constructor(val) {
+      this.val = val;
+      this.left = null;
+      this.right = null;
+      this.x = 0; // position for visualization
+      this.y = 0;
+    }
+  }
+
+  class BST {
+    constructor() {
+      this.root = null;
+    }
+
+    insert(val) {
+      this.root = this._insert(this.root, val);
+    }
+
+    _insert(node, val) {
+      if (node === null) return new Node(val);
+      if (val === node.val) return node; // no duplicates
+      if (val < node.val) {
+        node.left = this._insert(node.left, val);
+      } else {
+        node.right = this._insert(node.right, val);
+      }
+      return node;
+    }
+
+    search(val) {
+      return this._search(this.root, val);
+    }
+
+    _search(node, val) {
+      if (node === null) return null;
+      if (val === node.val) return node;
+      else if (val < node.val) return this._search(node.left, val);
+      else return this._search(node.right, val);
+    }
+
+    delete(val) {
+      let found = { deleted: false };
+      this.root = this._delete(this.root, val, found);
+      return found.deleted;
+    }
+
+    _delete(node, val, found) {
+      if (node === null) return null;
+
+      if (val < node.val) {
+        node.left = this._delete(node.left, val, found);
+      } else if (val > node.val) {
+        node.right = this._delete(node.right, val, found);
+      } else {
+        found.deleted = true;
+        // node with only one child or no child
+        if (!node.left) return node.right;
+        if (!node.right) return node.left;
+
+        // node with two children: get inorder successor (smallest in right subtree)
+        let successor = this._minValueNode(node.right);
+        node.val = successor.val;
+        node.right = this._delete(node.right, successor.val, found);
+      }
+      return node;
+    }
+
+    _minValueNode(node) {
+      let current = node;
+      while (current && current.left != null) {
+        current = current.left;
+      }
+      return current;
+    }
+
+    inorder() {
+      let res = [];
+      this._inorder(this.root, res);
+      return res;
+    }
+
+    _inorder(node, res) {
+      if (node === null) return;
+      this._inorder(node.left, res);
+      res.push(node.val);
+      this._inorder(node.right, res);
+    }
+  }
+
+  // --- Visualization ---
+
+  const svg = document.getElementById("bst-svg");
+  const WIDTH = svg.clientWidth;
+  const HEIGHT = svg.clientHeight;
+  const NODE_RADIUS = 20;
+  const LEVEL_HEIGHT = 70;
+
+  function clearSVG() {
+    while (svg.lastChild) svg.removeChild(svg.lastChild);
+  }
+
+  // Assign positions with a DFS + in-order traversal to spread nodes horizontally
+  function assignPositions(root) {
+    let positions = [];
+    let x = 0;
+    function inorderPos(node, depth) {
+      if (node === null) return;
+      inorderPos(node.left, depth + 1);
+      node.x = x;
+      node.y = depth;
+      x++;
+      inorderPos(node.right, depth + 1);
+    }
+    inorderPos(root, 0);
+  }
+
+  // Scale x position to width nicely
+  function scalePositions(maxIndex) {
+    // Map node.x in [0, maxIndex-1] to [NODE_RADIUS*2, WIDTH - NODE_RADIUS*2]
+    return function(x) {
+      if (maxIndex <= 1) return WIDTH / 2;
+      return NODE_RADIUS * 2 + (x / (maxIndex - 1)) * (WIDTH - NODE_RADIUS * 4);
+    };
+  }
+
+  function drawBST(tree, highlightNode = null, deletedNodeVal = null) {
+    clearSVG();
+    if (!tree.root) return;
+
+    assignPositions(tree.root);
+    // Find max x value (number of nodes)
+    const maxIndex = countNodes(tree.root);
+
+    const scaleX = scalePositions(maxIndex);
+
+    function drawEdges(node) {
+      if (!node) return;
+      if (node.left) {
+        drawLine(node, node.left);
+        drawEdges(node.left);
+      }
+      if (node.right) {
+        drawLine(node, node.right);
+        drawEdges(node.right);
+      }
+    }
+
+    function drawLine(parent, child) {
+      const startX = scaleX(parent.x);
+      const startY = parent.y * LEVEL_HEIGHT + NODE_RADIUS + 10;
+      const endX = scaleX(child.x);
+      const endY = child.y * LEVEL_HEIGHT + NODE_RADIUS + 10;
+
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", startX);
+      line.setAttribute("y1", startY);
+      line.setAttribute("x2", endX);
+      line.setAttribute("y2", endY);
+      line.setAttribute("stroke", "#555");
+      line.setAttribute("stroke-width", "2");
+      svg.appendChild(line);
+    }
+
+    function drawNode(node) {
+      const cx = scaleX(node.x);
+      const cy = node.y * LEVEL_HEIGHT + NODE_RADIUS + 10;
+
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("role", "img");
+      g.setAttribute("aria-label", `Node with value ${node.val}`);
+      g.style.cursor = "default";
+
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", cx);
+      circle.setAttribute("cy", cy);
+      circle.setAttribute("r", NODE_RADIUS);
+      circle.setAttribute("stroke", "#333");
+      circle.setAttribute("stroke-width", "2");
+
+      if (highlightNode && node === highlightNode) {
+        circle.setAttribute("fill", "#ffd54f");
+      } else if (deletedNodeVal !== null && node.val === deletedNodeVal) {
+        circle.setAttribute("fill", "#ef5350");
+      } else {
+        circle.setAttribute("fill", "#90caf9");
+      }
+
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", cx);
+      text.setAttribute("y", cy + 6);
+      text.setAttribute("font-size", "14");
+      text.setAttribute("font-weight", "bold");
+      text.setAttribute("fill", "#212121");
+      text.setAttribute("text-anchor", "middle");
+      text.textContent = node.val;
+
+      g.appendChild(circle);
+      g.appendChild(text);
+      svg.appendChild(g);
+    }
+
+    drawEdges(tree.root);
+    drawAllNodes(tree.root);
+
+    function drawAllNodes(node) {
+      if (!node) return;
+      drawAllNodes(node.left);
+      drawNode(node);
+      drawAllNodes(node.right);
+    }
+  }
+
+  function countNodes(node) {
+    if (!node) return 0;
+    return 1 + countNodes(node.left) + countNodes(node.right);
+  }
+
+  // --- UI Logic ---
+
+  const bst = new BST();
+  const output = document.getElementById("output");
+  const insertInput = document.getElementById("insert-value");
+  const insertBtn = document.getElementById("insert-btn");
+  const clearBtn = document.getElementById("clear-btn");
+  const searchInput = document.getElementById("search-value");
+  const searchBtn = document.getElementById("search-btn");
+  const deleteInput = document.getElementById("delete-value");
+  const deleteBtn = document.getElementById("delete-btn");
+
+  function printOutput(message) {
+    output.textContent = message;
+  }
+
+  insertBtn.onclick = () => {
+    const val = Number(insertInput.value);
+    if (Number.isNaN(val)) {
+      printOutput("Please enter a valid number to insert.");
+      return;
+    }
+    if (bst.search(val)) {
+      printOutput(`Value ${val} already exists in the BST (duplicates not allowed).`);
+      insertInput.value = "";
+      drawBST(bst);
+      return;
+    }
+    bst.insert(val);
+    printOutput(`Inserted value: ${val}\nIn-Order Traversal: [${bst.inorder().join(", ")}]`);
+    insertInput.value = "";
+    drawBST(bst);
+  };
+
+  searchBtn.onclick = () => {
+    const val = Number(searchInput.value);
+    if (Number.isNaN(val)) {
+      printOutput("Please enter a valid number to search.");
+      return;
+    }
+    const node = bst.search(val);
+    if (node) {
+      printOutput(`Search: Value ${val} found in the BST.`);
+      drawBST(bst, node);
+    } else {
+      printOutput(`Search: Value ${val} NOT found.`);
+      drawBST(bst);
+    }
+    searchInput.value = "";
+  };
+
+  deleteBtn.onclick = () => {
+    const val = Number(deleteInput.value);
+    if (Number.isNaN(val)) {
+      printOutput("Please enter a valid number to delete.");
+      return;
+    }
+    const deleted = bst.delete(val);
+    if (deleted) {
+      printOutput(`Deleted value: ${val}\nIn-Order Traversal: [${bst.inorder().join(", ")}]`);
+      drawBST(bst, null, val);
+    } else {
+      printOutput(`Delete: Value ${val} not found in BST.`);
+      drawBST(bst);
+    }
+    deleteInput.value = "";
+  };
+
+  clearBtn.onclick = () => {
+    bst.root = null;
+    printOutput("BST cleared.");
+    drawBST(bst);
+    insertInput.value = "";
+    searchInput.value = "";
+    deleteInput.value = "";
+  };
+
+  // Initial draw (empty)
+  drawBST(bst);
+</script>
+</body>
+</html>

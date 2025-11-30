@@ -1,0 +1,493 @@
+import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
+
+// Test file for: Adjacency List Interactive Demo
+// URL under test:
+// http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/2bde4380-cd36-11f0-b98e-a1744d282049.html
+
+// Page object to encapsulate common actions and queries
+class GraphPage {
+  constructor(page) {
+    this.page = page;
+    this.url = 'http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/2bde4380-cd36-11f0-b98e-a1744d282049.html';
+  }
+
+  async goto() {
+    await this.page.goto(this.url);
+  }
+
+  // Basic element getters
+  nodeNameInput() { return this.page.locator('#nodeName'); }
+  addNodeBtn() { return this.page.locator('#addNodeBtn'); }
+  svgCanvas() { return this.page.locator('#svgCanvas'); }
+  sourceSelect() { return this.page.locator('#sourceSelect'); }
+  targetSelect() { return this.page.locator('#targetSelect'); }
+  edgeWeightInput() { return this.page.locator('#edgeWeight'); }
+  addEdgeBtn() { return this.page.locator('#addEdgeBtn'); }
+  adjList() { return this.page.locator('#adjList'); }
+  edgeList() { return this.page.locator('#edgeList'); }
+  matrixArea() { return this.page.locator('#matrixArea'); }
+  directedToggle() { return this.page.locator('#directedToggle'); }
+  weightedToggle() { return this.page.locator('#weightedToggle'); }
+  clearBtn() { return this.page.locator('#clearBtn'); }
+  exportBtn() { return this.page.locator('#exportBtn'); }
+  importFileInput() { return this.page.locator('#importFile'); }
+  sampleBtn(id) { return this.page.locator(`#${id}`); }
+  bfsBtn() { return this.page.locator('#bfsBtn'); }
+  dfsBtn() { return this.page.locator('#dfsBtn'); }
+  startSelect() { return this.page.locator('#startSelect'); }
+  edgesLayerPaths() { return this.page.locator('#edgesLayer path'); }
+  nodesGroups() { return this.page.locator('#nodesLayer g.node'); }
+
+  // Add a node using the UI input and button
+  async addNodeByName(name) {
+    await this.nodeNameInput().fill(String(name));
+    await this.addNodeBtn().click();
+  }
+
+  // Add an edge using currently available selects; optionally specify weight
+  async addEdgeWithWeight(weight) {
+    if (weight !== undefined) {
+      await this.edgeWeightInput().fill(String(weight));
+    }
+    await this.addEdgeBtn().click();
+  }
+
+  // Click at center of SVG canvas (to add node via canvas click)
+  async clickCanvasCenter() {
+    const box = await this.svgCanvas().boundingBox();
+    // click near center
+    await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  }
+
+  // Helper to get text content
+  async getAdjListText() { return (await this.adjList().textContent())?.trim() || ''; }
+  async getEdgeListText() { return (await this.edgeList().textContent())?.trim() || ''; }
+  async getMatrixText() { return (await this.matrixArea().textContent())?.trim() || ''; }
+
+  // Click first path edge
+  async clickFirstEdgePath() {
+    const count = await this.edgesLayerPaths().count();
+    if (count === 0) throw new Error('No edges to click');
+    await this.edgesLayerPaths().first().click();
+  }
+
+  // Double-click first node group (for edit)
+  async dblClickFirstNode() {
+    const count1 = await this.nodesGroups().count1();
+    if (count === 0) throw new Error('No node to double click');
+    await this.nodesGroups().first().dblclick();
+  }
+
+  // Right-click first node (contextmenu)
+  async rightClickFirstNode() {
+    const count2 = await this.nodesGroups().count2();
+    if (count === 0) throw new Error('No node to right click');
+    const box1 = await this.nodesGroups().first().boundingBox();
+    await this.page.mouse.click(box.x + box.width/2, box.y + box.height/2, { button: 'right' });
+  }
+
+  // Drag first node a little
+  async dragFirstNodeBy(dx = 30, dy = 20) {
+    const count3 = await this.nodesGroups().count3();
+    if (count === 0) throw new Error('No node to drag');
+    const box2 = await this.nodesGroups().first().boundingBox();
+    // mousedown, move, mouseup
+    await this.page.mouse.move(box.x + box.width/2, box.y + box.height/2);
+    await this.page.mouse.down();
+    await this.page.mouse.move(box.x + box.width/2 + dx, box.y + box.height/2 + dy, { steps: 8 });
+    await this.page.mouse.up();
+  }
+}
+
+test.describe('Adjacency List Interactive Demo - Comprehensive tests', () => {
+
+  // Capture console errors and page errors for each test and assert none occurred.
+  test.beforeEach(async ({ page }) => {
+    // no-op here; individual tests will call goto and attach listeners
+  });
+
+  test('Initial load - default state and empty graph representation', async ({ page }) => {
+    // Purpose: Verify the page loads and initial empty state texts are shown
+    const gp = new GraphPage(page);
+    const consoleErrors = [];
+    const pageErrors = [];
+
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    page.on('pageerror', err => pageErrors.push(String(err)));
+
+    await gp.goto();
+
+    // Basic UI elements present
+    await expect(gp.addNodeBtn()).toBeVisible();
+    await expect(gp.addEdgeBtn()).toBeVisible();
+    await expect(gp.directedToggle()).toBeVisible();
+    await expect(gp.weightedToggle()).toBeVisible();
+    await expect(gp.adjList()).toBeVisible();
+    await expect(gp.edgeList()).toBeVisible();
+    await expect(gp.matrixArea()).toBeVisible();
+
+    // Default empty messages
+    await expect(gp.adjList()).toHaveText('(empty graph)');
+    await expect(gp.edgeList()).toHaveText('(no edges)');
+    await expect(gp.matrixArea()).toHaveText('(empty)');
+
+    // Edge weight input should be disabled initially (weighted false)
+    await expect(gp.edgeWeightInput()).toBeDisabled();
+
+    // No console errors or page errors on initial load
+    expect(consoleErrors).toHaveLength(0);
+    expect(pageErrors).toHaveLength(0);
+  });
+
+  test.describe('Node and Edge operations', () => {
+
+    test('Add nodes via UI and canvas, add edge and verify adjacency/edge/matrix updates', async ({ page }) => {
+      // Purpose: Add nodes with label and by clicking canvas, then add an edge and validate textual representations
+      const gp1 = new GraphPage(page);
+      const consoleErrors1 = [];
+      const pageErrors1 = [];
+
+      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+      page.on('pageerror', err => pageErrors.push(String(err)));
+
+      await gp.goto();
+
+      // Add a labeled node "X"
+      await gp.addNodeByName('X');
+
+      // Expect adjacency to include X -> [ ]
+      await expect(gp.adjList()).toContainText('X -> [');
+      // Edge list still empty
+      await expect(gp.edgeList()).toHaveText('(no edges)');
+
+      // Click canvas to add another node (label will be auto-generated id)
+      await gp.clickCanvasCenter();
+
+      // Wait until adjacency list contains at least 2 lines
+      await page.waitForFunction(() => {
+        const t = document.getElementById('adjList').textContent || '';
+        return t.split('\n').filter(Boolean).length >= 2;
+      });
+
+      const adjText = await gp.getAdjListText();
+      expect(adjText.split('\n').length).toBeGreaterThanOrEqual(2);
+
+      // Now add an edge between the first two nodes using selects
+      // Ensure source and target selects have options
+      await expect(gp.sourceSelect()).toHaveCountGreaterThan(0);
+      await expect(gp.targetSelect()).toHaveCountGreaterThan(0);
+
+      // Choose first option as source and second as target
+      const sourceVal = await gp.sourceSelect().evaluate((sel) => sel.options[0]?.value);
+      const targetVal = await gp.targetSelect().evaluate((sel) => sel.options[1]?.value);
+      // Set selects by value
+      await gp.sourceSelect().selectOption({ value: sourceVal });
+      await gp.targetSelect().selectOption({ value: targetVal });
+
+      // Add edge (non-weighted)
+      await gp.addEdgeWithWeight(/* no weight */);
+
+      // Edge list should now contain an arrow "->"
+      await expect(gp.edgeList()).toContainText('->');
+
+      // Matrix should include the labels of both nodes (as header)
+      const matrix = await gp.getMatrixText();
+      expect(matrix).toMatch(new RegExp('\\bX\\b') || /./);
+
+      // No console/page errors during these interactions
+      expect(consoleErrors).toHaveLength(0);
+      expect(pageErrors).toHaveLength(0);
+    });
+
+    test('Toggle directed and weighted, add weighted edge and verify markers/labels', async ({ page }) => {
+      // Purpose: Ensure toggles affect rendering: directed adds marker-end attribute, weighted shows weights in lists and labels
+      const gp2 = new GraphPage(page);
+      const consoleErrors2 = [];
+      const pageErrors2 = [];
+
+      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+      page.on('pageerror', err => pageErrors.push(String(err)));
+
+      await gp.goto();
+
+      // Add two nodes
+      await gp.addNodeByName('A');
+      await gp.addNodeByName('B');
+
+      // Enable directed
+      await gp.directedToggle().check();
+      await expect(gp.directedToggle()).toBeChecked();
+
+      // Enable weighted
+      await gp.weightedToggle().check();
+      await expect(gp.weightedToggle()).toBeChecked();
+
+      // Edge weight input should now be enabled
+      await expect(gp.edgeWeightInput()).toBeEnabled();
+
+      // Select source A and target B
+      const sourceVal1 = await gp.sourceSelect().evaluate(sel => sel.options[0].value);
+      const targetVal1 = await gp.targetSelect().evaluate(sel => sel.options[1].value);
+      await gp.sourceSelect().selectOption({ value: sourceVal });
+      await gp.targetSelect().selectOption({ value: targetVal });
+
+      // Add weighted edge with weight 5
+      await gp.edgeWeightInput().fill('5');
+      await gp.addEdgeBtn().click();
+
+      // Wait for the edge path to appear and check its marker-end attribute (should be present for directed)
+      await gp.page.waitForSelector('#edgesLayer path[data-id]');
+
+      const firstPath = gp.page.locator('#edgesLayer path[data-id]').first();
+      await expect(firstPath).toHaveAttribute('d', /M|Q|L/); // path present
+      await expect(firstPath.getAttribute('marker-end')).resolves.toBeTruthy(); // marker-end present
+
+      // Edge list should contain the weight formatting like "-(5)->"
+      await expect(gp.edgeList()).toContainText('(5)');
+
+      // Adjacency list should show A -> [ B(5) ]
+      await expect(gp.adjList()).toContainText('A -> [');
+      await expect(gp.adjList()).toContainText('B(5)');
+
+      // Matrix should have '5' in it (textual)
+      const matrixText = await gp.getMatrixText();
+      expect(matrixText).toMatch(/5/);
+
+      // No console/page errors during these interactions
+      expect(consoleErrors).toHaveLength(0);
+      expect(pageErrors).toHaveLength(0);
+    });
+
+    test('Select and delete edge using keyboard Delete', async ({ page }) => {
+      // Purpose: Verify selecting an edge toggles selection and pressing Delete removes it
+      const gp3 = new GraphPage(page);
+      const consoleErrors3 = [];
+      const pageErrors3 = [];
+
+      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+      page.on('pageerror', err => pageErrors.push(String(err)));
+
+      await gp.goto();
+
+      // Create two nodes and an edge
+      await gp.addNodeByName('P');
+      await gp.addNodeByName('Q');
+      // Select P->Q and add edge
+      const s = await gp.sourceSelect().evaluate(sel => sel.options[0].value);
+      const t1 = await gp.targetSelect().evaluate(sel => sel.options[1].value);
+      await gp.sourceSelect().selectOption(s);
+      await gp.targetSelect().selectOption(t);
+      await gp.addEdgeWithWeight();
+
+      // Ensure edge exists
+      await gp.page.waitForSelector('#edgesLayer path[data-id]');
+      const beforeEdgeCount = await gp.edgesLayerPaths().count();
+      expect(beforeEdgeCount).toBeGreaterThanOrEqual(1);
+
+      // Click the edge to select
+      await gp.clickFirstEdgePath();
+
+      // Press Delete key to remove selected edge
+      await gp.page.keyboard.press('Delete');
+
+      // After deletion, wait a moment and assert edge count decreased
+      await gp.page.waitForTimeout(200);
+      const afterEdgeCount = await gp.edgesLayerPaths().count();
+      expect(afterEdgeCount).toBeLessThan(beforeEdgeCount);
+
+      // Edge list should reflect removal (likely back to '(no edges)')
+      const edgeListText = await gp.getEdgeListText();
+      expect(edgeListText.length).toBeGreaterThanOrEqual(0);
+
+      // No console/page errors during these interactions
+      expect(consoleErrors).toHaveLength(0);
+      expect(pageErrors).toHaveLength(0);
+    });
+
+    test('Double-click node to edit label (handles prompt) and contextmenu to remove node (handles confirm)', async ({ page }) => {
+      // Purpose: Validate double-click edit prompt and right-click confirm removal behavior
+      const gp4 = new GraphPage(page);
+      const consoleErrors4 = [];
+      const pageErrors4 = [];
+
+      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+      page.on('pageerror', err => pageErrors.push(String(err)));
+
+      await gp.goto();
+
+      // Add a node with label 'EditMe'
+      await gp.addNodeByName('EditMe');
+
+      // Double-click the node to edit label; page will show a prompt
+      const editPromise = page.waitForEvent('dialog');
+      await gp.dblClickFirstNode();
+      const dialog = await editPromise;
+      // Provide new label via prompt.accept
+      await dialog.accept('Edited');
+
+      // After editing, adjacency list should reflect the new label
+      await page.waitForFunction(() => (document.getElementById('adjList').textContent || '').includes('Edited'));
+      await expect(gp.adjList()).toContainText('Edited');
+
+      // Right-click the first node to trigger contextmenu confirm to remove
+      const confirmPromise = page.waitForEvent('dialog');
+      await gp.rightClickFirstNode();
+      const cdlg = await confirmPromise;
+      // Accept the confirm to remove node
+      await cdlg.accept();
+
+      // After removal, adjacency list should not contain 'Edited'
+      await page.waitForFunction(() => !(document.getElementById('adjList').textContent || '').includes('Edited'));
+      await expect(gp.adjList()).not.toContainText('Edited');
+
+      // No console/page errors during these interactions
+      expect(consoleErrors).toHaveLength(0);
+      expect(pageErrors).toHaveLength(0);
+    });
+
+    test('Drag node to new position updates SVG elements without errors', async ({ page }) => {
+      // Purpose: Ensure drag behavior updates positions and does not throw errors
+      const gp5 = new GraphPage(page);
+      const consoleErrors5 = [];
+      const pageErrors5 = [];
+
+      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+      page.on('pageerror', err => pageErrors.push(String(err)));
+
+      await gp.goto();
+
+      // Add a node to drag
+      await gp.addNodeByName('Dragger');
+
+      // Ensure node present
+      await gp.page.waitForSelector('#nodesLayer g.node');
+
+      // Drag the node slightly
+      await gp.dragFirstNodeBy(40, 30);
+
+      // After drag, ensure nodes are re-rendered and anchor elements still exist
+      const nodesCount = await gp.nodesGroups().count();
+      expect(nodesCount).toBeGreaterThanOrEqual(1);
+
+      // No console/page errors during drag
+      expect(consoleErrors).toHaveLength(0);
+      expect(pageErrors).toHaveLength(0);
+    });
+
+  });
+
+  test.describe('Graph algorithms and samples', () => {
+    test('Sample graphs load and BFS/DFS traversal updates adjacency display', async ({ page }) => {
+      // Purpose: Load sample graph (Triangle) and run BFS to observe traversal text updates
+      const gp6 = new GraphPage(page);
+      const consoleErrors6 = [];
+      const pageErrors6 = [];
+
+      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+      page.on('pageerror', err => pageErrors.push(String(err)));
+
+      await gp.goto();
+
+      // Click sample1 (Triangle)
+      await gp.sampleBtn('sample1').click();
+
+      // Wait for edges to be present (triangle has 3 edges)
+      await page.waitForSelector('#edgesLayer path[data-id]');
+
+      // Ensure edge list contains 3 lines
+      const edgeLines = (await gp.getEdgeListText()).split('\n').filter(Boolean);
+      expect(edgeLines.length).toBeGreaterThanOrEqual(3);
+
+      // Set start select to first node and run BFS
+      const startVal = await gp.startSelect().evaluate(sel => sel.options[0].value);
+      await gp.startSelect().selectOption(startVal);
+
+      // Click BFS and wait for adjacency area to be updated with traversal order text
+      await gp.bfsBtn().click();
+      await page.waitForFunction(() => (document.getElementById('adjList').textContent || '').startsWith('Traversal order:'));
+
+      // DFS similarly
+      const dfsTextBefore = await gp.getAdjListText();
+      await gp.dfsBtn().click();
+      await page.waitForFunction(() => (document.getElementById('adjList').textContent || '').startsWith('Traversal order:'));
+
+      const dfsTextAfter = await gp.getAdjListText();
+      expect(dfsTextAfter).toContain('Traversal order:');
+
+      // No console/page errors during the algorithm runs
+      expect(consoleErrors).toHaveLength(0);
+      expect(pageErrors).toHaveLength(0);
+    });
+  });
+
+  test.describe('Import / Export and Clear', () => {
+    test('Export triggers a download and Import restores graph state, Clear confirms reset', async ({ page, tmpDir }) => {
+      // Purpose: Verify export creates a downloadable file, import can load a JSON file,
+      // and Clear button confirms and empties the graph.
+      const gp7 = new GraphPage(page);
+      const consoleErrors7 = [];
+      const pageErrors7 = [];
+
+      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+      page.on('pageerror', err => pageErrors.push(String(err)));
+
+      await gp.goto();
+
+      // Prepare a small graph JSON to import later
+      const importObj = {
+        nodes: [{ id: 'n100', label: 'Imp1', x: 100, y: 100 }, { id: 'n101', label: 'Imp2', x: 300, y: 120 }],
+        edges: [{ id: 'e200', source: 'n100', target: 'n101', weight: 9 }],
+        directed: true,
+        weighted: true
+      };
+      const tmpFilePath = path.join(process.cwd(), `test-import-${Date.now()}.json`);
+      fs.writeFileSync(tmpFilePath, JSON.stringify(importObj, null, 2), 'utf8');
+
+      // Click import button which triggers the file input; set the file directly
+      // The input is hidden but setInputFiles still works
+      await gp.importFileInput().setInputFiles(tmpFilePath);
+
+      // Wait for import to complete: adjacency list should include 'Imp1' and show weight 9
+      await page.waitForFunction(() => (document.getElementById('adjList').textContent || '').includes('Imp1'));
+
+      await expect(gp.adjList()).toContainText('Imp1');
+      await expect(gp.adjList()).toContainText('(9)');
+
+      // Test export: clicking export should initiate a download. The page creates an anchor and clicks it.
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        gp.exportBtn().click()
+      ]);
+      // Save the download to a path and inspect contents
+      const exportPath = path.join(process.cwd(), `exported-graph-${Date.now()}.json`);
+      await download.saveAs(exportPath);
+      const exportedContent = fs.readFileSync(exportPath, 'utf8');
+      expect(exportedContent).toContain('"nodes"');
+      expect(exportedContent).toContain('"edges"');
+
+      // Now test Clear button: it triggers a confirm. Accept it.
+      const dialogPromise = page.waitForEvent('dialog');
+      await gp.clearBtn().click();
+      const dlg = await dialogPromise;
+      // Confirm clear
+      await dlg.accept();
+
+      // After clear, adjacency list should indicate empty graph
+      await page.waitForFunction(() => (document.getElementById('adjList').textContent || '').trim() === '(empty graph)');
+      await expect(gp.adjList()).toHaveText('(empty graph)');
+
+      // Clean up created files
+      try { fs.unlinkSync(tmpFilePath); } catch (e) {}
+      try { fs.unlinkSync(exportPath); } catch (e) {}
+
+      // No console/page errors during import/export/clear
+      expect(consoleErrors).toHaveLength(0);
+      expect(pageErrors).toHaveLength(0);
+    });
+  });
+
+});

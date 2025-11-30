@@ -1,0 +1,87 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Insertion Sort Visualizer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Step through insertion sort with comparisons and shifts highlighted.
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: "Array size: 20"
+      - slider [ref=e10]: "20"
+    - generic [ref=e11]:
+      - generic [ref=e12]: "Speed (ms per step): 150"
+      - slider [ref=e13]: "150"
+    - generic [ref=e14]:
+      - generic [ref=e15]: Order
+      - generic [ref=e16]:
+        - button "Ascending" [ref=e17] [cursor=pointer]
+        - button "Descending" [ref=e18] [cursor=pointer]
+    - generic [ref=e19]:
+      - generic [ref=e20]: Controls
+      - generic [ref=e21]:
+        - button "Randomize" [ref=e22] [cursor=pointer]
+        - button "Start" [ref=e23] [cursor=pointer]
+        - button "Pause" [ref=e24] [cursor=pointer]
+        - button "Step" [ref=e25] [cursor=pointer]
+        - button "Reset" [ref=e26] [cursor=pointer]
+    - generic [ref=e27]:
+      - generic [ref=e28]: Range (min - max)
+      - generic [ref=e29]:
+        - spinbutton [ref=e30]: "10"
+        - spinbutton [ref=e31]: "400"
+    - generic [ref=e32]:
+      - generic [ref=e33]: Shuffle seed
+      - generic [ref=e34]:
+        - spinbutton [ref=e35]
+        - button "Apply" [ref=e36] [cursor=pointer]
+  - generic [ref=e37]:
+    - generic [ref=e38]:
+      - generic [ref=e40]: "309"
+      - generic [ref=e42]: "123"
+      - generic [ref=e44]: "156"
+      - generic [ref=e46]: "320"
+      - generic [ref=e48]: "210"
+      - generic [ref=e50]: "167"
+      - generic [ref=e52]: "18"
+      - generic [ref=e54]: "145"
+      - generic [ref=e56]: "207"
+      - generic [ref=e58]: "76"
+      - generic [ref=e60]: "149"
+      - generic [ref=e62]: "356"
+      - generic [ref=e64]: "15"
+      - generic [ref=e66]: "230"
+      - generic [ref=e68]: "88"
+      - generic [ref=e70]: "189"
+      - generic [ref=e72]: "140"
+      - generic [ref=e74]: "306"
+      - generic [ref=e76]: "337"
+      - generic [ref=e78]: "72"
+    - complementary [ref=e79]:
+      - generic [ref=e80]:
+        - generic [ref=e81]:
+          - strong [ref=e82]: Algorithm
+          - generic [ref=e83]: Insertion Sort
+        - generic [ref=e84]: Comparisons / Shifts
+      - generic [ref=e85]:
+        - generic [ref=e86]: for i = 1 to n-1
+        - generic [ref=e87]: key = A[i]
+        - generic [ref=e88]: j = i - 1
+        - generic [ref=e89]: while j >= 0 and A[j] > key
+        - generic [ref=e90]: A[j+1] = A[j]
+        - generic [ref=e91]: j = j - 1
+        - generic [ref=e92]: A[j+1] = key
+      - generic [ref=e93]:
+        - generic [ref=e94]: "Step: 0"
+        - generic [ref=e95]: "Comparisons: 0"
+        - generic [ref=e96]: "Shifts: 0"
+        - generic [ref=e97]: "i: -"
+        - generic [ref=e98]: "j: -"
+      - generic [ref=e99]:
+        - generic [ref=e102]: Normal
+        - generic [ref=e105]: Currently considered
+        - generic [ref=e108]: Key element
+        - generic [ref=e111]: Compare
+      - generic [ref=e113]: "This visualizer animates the classic insertion sort: it builds a sorted prefix by taking the next element (key) and shifting larger elements right to make room."
+```

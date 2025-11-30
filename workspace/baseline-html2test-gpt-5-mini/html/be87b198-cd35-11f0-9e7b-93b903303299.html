@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Knapsack Problem Demo (0/1, Fractional, Brute-force)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 20px; color: #111;}
+    h1 { margin: 0 0 8px 0; font-size: 20px;}
+    p.lead { margin: 0 0 16px 0; color: #444; }
+    .container { display: grid; grid-template-columns: 360px 1fr; gap: 18px; }
+    .panel { border: 1px solid #ddd; padding: 12px; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.03);}
+    label { display:block; font-size: 13px; margin-top:8px; color:#333; }
+    input[type="number"], input[type="text"] { width: calc(100% - 10px); padding:6px; margin-top:6px; box-sizing:border-box; }
+    button { margin-top:10px; padding:8px 10px; border-radius:6px; border:1px solid #2b7; background:linear-gradient(#3c9,#2b8); color:#fff; cursor:pointer;}
+    button.secondary { background: #f5f5f5; color:#222; border:1px solid #ccc; }
+    table { width:100%; border-collapse: collapse; margin-top:8px; font-size:13px; }
+    th, td { padding:6px 8px; border-bottom:1px solid #eee; text-align:left; }
+    .controls-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .small { font-size:12px; padding:6px 8px; border-radius:6px; }
+    .result { margin-top:12px; padding:10px; background:#fbfbff; border:1px solid #e6e6ff; border-radius:6px; }
+    .bar-row { display:flex; gap:6px; align-items:flex-end; margin-top:8px; }
+    .bar { width:40px; background: linear-gradient(#59f,#37c); color:#fff; text-align:center; font-size:11px; border-radius:4px 4px 0 0; padding-top:4px; box-sizing:border-box;}
+    .bar .label { transform: translateY(4px); display:block; padding:4px 2px; font-size:11px; }
+    .fraction { background: linear-gradient(#ffd27f,#ffb347); color:#111; }
+    .warn { color:#a33; font-size:13px; margin-top:8px;}
+    .algo-list { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .dp-table { overflow:auto; max-height:260px; border:1px solid #eee; margin-top:8px; }
+    .dp-table table { border-collapse:collapse; width:100%; font-size:12px; }
+    .dp-table th, .dp-table td { border:1px solid #f0f0f0; padding:4px 6px; text-align:center; }
+    footer { margin-top:14px; font-size:12px; color:#666; }
+  </style>
+</head>
+<body>
+  <h1>Knapsack Problem Demo</h1>
+  <p class="lead">Interactive playground for 0/1 Knapsack (dynamic programming), Fractional (greedy), and brute-force. Add items, pick a capacity, and compare results.</p>
+
+  <div class="container">
+    <div class="panel">
+      <label>New item name</label>
+      <input id="itemName" type="text" placeholder="Item A">
+      <label>Value (benefit)</label>
+      <input id="itemValue" type="number" min="0" value="10">
+      <label>Weight (cost)</label>
+      <input id="itemWeight" type="number" min="1" value="5">
+      <div class="controls-row">
+        <button id="addItem">Add item</button>
+        <button id="randomItems" class="secondary small">Generate random 6</button>
+        <button id="clearItems" class="secondary small">Clear items</button>
+      </div>
+
+      <label style="margin-top:12px">Capacity (max weight)</label>
+      <input id="capacity" type="number" min="0" value="20">
+
+      <div class="algo-list">
+        <button id="runDP" class="small">Run 0/1 DP</button>
+        <button id="runFractional" class="small">Run Fractional (Greedy)</button>
+        <button id="runBrute" class="small">Run Brute-force</button>
+      </div>
+
+      <div id="warnings" class="warn" aria-live="polite"></div>
+
+      <div style="margin-top:12px;">
+        <strong>Items</strong>
+        <table id="itemsTable" aria-live="polite">
+          <thead>
+            <tr><th>#</th><th>Name</th><th>Value</th><th>Weight</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <footer>
+        Tips: 0/1 DP gives exact integer solutions for 0/1 knapsack. Fractional allows splitting items (faster). Brute-force is exact but exponential; disabled for >20 items.
+      </footer>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div><strong>Solution</strong></div>
+        <div id="runtime" style="color:#666; font-size:13px;"></div>
+      </div>
+
+      <div id="resultArea" class="result">
+        No solution computed yet. Add items and choose an algorithm.
+      </div>
+
+      <div id="visual" style="margin-top:12px;"></div>
+
+      <div id="dpViz" class="dp-table" style="display:none;"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // State
+  let items = [];
+  let idCounter = 1;
+
+  // DOM refs
+  const itemName = document.getElementById('itemName');
+  const itemValue = document.getElementById('itemValue');
+  const itemWeight = document.getElementById('itemWeight');
+  const addItemBtn = document.getElementById('addItem');
+  const itemsTableBody = document.querySelector('#itemsTable tbody');
+  const capacityInput = document.getElementById('capacity');
+  const runDPBtn = document.getElementById('runDP');
+  const runFractionalBtn = document.getElementById('runFractional');
+  const runBruteBtn = document.getElementById('runBrute');
+  const randomBtn = document.getElementById('randomItems');
+  const clearBtn = document.getElementById('clearItems');
+  const warnings = document.getElementById('warnings');
+  const resultArea = document.getElementById('resultArea');
+  const visual = document.getElementById('visual');
+  const dpViz = document.getElementById('dpViz');
+  const runtimeEl = document.getElementById('runtime');
+
+  // Helpers
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+  function renderItems(){
+    itemsTableBody.innerHTML = '';
+    items.forEach((it, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${idx+1}</td><td>${escapeHtml(it.name)}</td><td>${it.value}</td><td>${it.weight}</td><td><button data-id="${it.id}" class="delBtn">Del</button></td>`;
+      itemsTableBody.appendChild(tr);
+    });
+    itemsTableBody.querySelectorAll('.delBtn').forEach(btn=>{
+      btn.addEventListener('click', ()=> {
+        const id = parseInt(btn.getAttribute('data-id'));
+        items = items.filter(i => i.id !== id);
+        renderItems();
+      });
+    });
+    warnings.textContent = '';
+    if(items.length > 20) warnings.textContent = "Warning: Many items; brute-force will be disabled for >20 items and DP might be slow if capacity is large.";
+  }
+
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  // Add item
+  addItemBtn.addEventListener('click', ()=>{
+    const name = itemName.value.trim() || ('Item ' + idCounter);
+    let v = Number(itemValue.value);
+    let w = Number(itemWeight.value);
+    if(!isFinite(v) || v < 0) { alert('Value must be >= 0'); return; }
+    if(!isFinite(w) || w <= 0) { alert('Weight must be > 0'); return; }
+    items.push({ id: idCounter++, name, value: Math.round(v), weight: Math.round(w) });
+    itemValue.value = Math.max(0, Math.round(v));
+    itemWeight.value = Math.max(1, Math.round(w));
+    renderItems();
+  });
+
+  randomBtn.addEventListener('click', ()=> {
+    items = [];
+    const n = 6;
+    for(let i=0;i<n;i++){
+      const w = Math.floor(Math.random()*12)+1;
+      const v = Math.floor(Math.random()*20)+1;
+      items.push({ id: idCounter++, name: 'I'+(i+1), value: v, weight: w });
+    }
+    capacityInput.value = Math.floor(Math.random()*30)+10;
+    renderItems();
+  });
+
+  clearBtn.addEventListener('click', ()=> {
+    items = [];
+    renderItems();
+    resultArea.innerHTML = 'Cleared items.';
+    visual.innerHTML = '';
+    dpViz.style.display='none';
+  });
+
+  // Algorithms
+  function fractionalKnapsack(items, capacity){
+    // items: array of {id,name,value,weight}
+    const start = performance.now();
+    const arr = items.map(it => ({...it, ratio: it.value / it.weight}));
+    arr.sort((a,b) => b.ratio - a.ratio);
+    let cap = capacity;
+    const selected = [];
+    let totalV = 0, totalW = 0;
+    for(const it of arr){
+      if(cap <= 0) break;
+      if(it.weight <= cap){
+        selected.push({ ...it, fraction: 1 });
+        cap -= it.weight;
+        totalV += it.value;
+        totalW += it.weight;
+      } else {
+        const frac = cap / it.weight;
+        selected.push({ ...it, fraction: frac });
+        totalV += it.value * frac;
+        totalW += cap;
+        cap = 0;
+      }
+    }
+    const ms = (performance.now()-start).toFixed(3);
+    return { selected, totalValue: totalV, totalWeight: totalW, timeMs: ms };
+  }
+
+  function knapsackDP(items, capacity){
+    // classic 0/1 knapsack DP (integer capacity)
+    // Warning: complexity O(n*capacity) memory O(capacity)
+    const start = performance.now();
+    const n = items.length;
+    const W = Math.floor(capacity);
+    // Safety: if W is huge, abort
+    if(W > 20000 || n * W > 4e7) {
+      throw new Error('DP would be too large (capacity or n too big). Reduce capacity or items.');
+    }
+    // dp[c] = max value achievable with capacity c using first k items (we will keep prev)
+    const dp = new Array(W+1).fill(0);
+    // To reconstruct, we store choices in a 2D boolean table if small, otherwise we use parent pointers.
+    // We'll build a 2D table only if n*W <= 200000 (for visualization). Otherwise reconstruct by iterating items backwards storing states.
+    const smallViz = (n * (W+1) <= 200000);
+    let takeTable = null;
+    if(smallViz){
+      // takeTable[k][c] = true if we took item k (1-based) at capacity c
+      takeTable = Array.from({length: n}, () => new Array(W+1).fill(false));
+    } else {
+      // we'll store snapshot of dp after each item to allow reconstruction by comparing dp values
+      // store copies is expensive; instead we'll remember dp after each item as Uint32Array if small else null - but for now we will reconstruct by running DP again while tracing.
+      takeTable = null;
+    }
+
+    // DP
+    for(let i=0;i<n;i++){
+      const w = items[i].weight;
+      const v = items[i].value;
+      for(let c=W; c>=0; c--){
+        if(c >= w){
+          const cand = dp[c-w] + v;
+          if(cand > dp[c]){
+            if(smallViz) takeTable[i][c] = true;
+            dp[c] = cand;
+          }
+        }
+      }
+    }
+
+    // Reconstruction
+    const selected = [];
+    let rem = W;
+    if(smallViz){
+      // Walk backwards using takeTable
+      for(let i = n-1; i>=0; i--){
+        if(rem <= 0) break;
+        if(takeTable[i][rem]){
+          selected.push(items[i]);
+          rem -= items[i].weight;
+        }
+      }
+    } else {
+      // Re-run DP but keep previous arrays to check membership
+      // We'll compute dp2[k][c] on the fly by processing items backwards to see whether item i was included.
+      // Simpler: iterate items from n-1 to 0, and check if dp[rem] equals dpWithoutItem (we recompute dpWithout for items 0..i-1).
+      // For efficiency, recompute dp prefix arrays incrementally.
+      // Build dpPrefix[i][c] for i from 0..n as dp using first i items. But that's similar cost to original - still O(nW). Acceptable if not huge because earlier we blocked huge sizes.
+      const prefix = Array.from({length: n+1}, () => new Array(W+1).fill(0));
+      for(let i=1;i<=n;i++){
+        const w = items[i-1].weight, v = items[i-1].value;
+        for(let c=0;c<=W;c++){
+          let val = prefix[i-1][c];
+          if(c >= w) val = Math.max(val, prefix[i-1][c-w] + v);
+          prefix[i][c] = val;
+        }
+      }
+      rem = W;
+      for(let i=n;i>=1;i--){
+        if(rem <= 0) break;
+        if(prefix[i][rem] !== prefix[i-1][rem]){
+          // item i-1 was taken
+          selected.push(items[i-1]);
+          rem -= items[i-1].weight;
+        }
+      }
+      // Note: this uses additional memory but only for moderate sizes allowed above.
+      // We'll expose takeTable visualization if smallViz as well.
+      if(smallViz){
+        // Build takeTable for visualization from prefix
+        takeTable = Array.from({length: n}, () => new Array(W+1).fill(false));
+        for(let i=n;i>=1;i--){
+          for(let c=0;c<=W;c++){
+            if(prefix[i][c] !== prefix[i-1][c] && c>=items[i-1].weight) takeTable[i-1][c] = true;
+          }
+        }
+      }
+    }
+
+    const totalValue = dp[W];
+    const totalWeight = selected.reduce((s, it)=> s + it.weight, 0);
+    const timeMs = (performance.now() - start).toFixed(3);
+    return { selected: selected.reverse(), totalValue, totalWeight, timeMs, takeTable, W };
+  }
+
+  function bruteForce(items, capacity){
+    const start = performance.now();
+    const n = items.length;
+    const W = capacity;
+    if(n > 20) throw new Error('Brute-force disabled for n > 20 (exponential).');
+    let bestVal = -Infinity;
+    let bestMask = 0;
+    let bestWeight = 0;
+    const combos = 1<<n;
+    for(let mask=0; mask<combos; mask++){
+      let w=0, v=0;
+      for(let i=0;i<n;i++){
+        if(mask & (1<<i)){ w += items[i].weight; v += items[i].value; }
+        if(w > W) break;
+      }
+      if(w <= W && v > bestVal){
+        bestVal = v;
+        bestMask = mask;
+        bestWeight = w;
+      }
+    }
+    const selected = [];
+    for(let i=0;i<n;i++) if(bestMask & (1<<i)) selected.push(items[i]);
+    const timeMs = (performance.now() - start).toFixed(3);
+    return { selected, totalValue: bestVal === -Infinity ? 0 : bestVal, totalWeight: bestWeight, timeMs };
+  }
+
+  // Visualization helpers
+  function showResult(title, out, algoType, extra){
+    runtimeEl.textContent = `${algoType} • ${out.timeMs} ms`;
+    const v = Math.round((out.totalValue + Number.EPSILON) * 1000)/1000;
+    const w = Math.round((out.totalWeight + Number.EPSILON) * 1000)/1000;
+    const lines = [];
+    lines.push(`<strong>${title}</strong>`);
+    lines.push(`Total value: <strong>${v}</strong> &nbsp;&nbsp; Total weight: <strong>${w}</strong>`);
+    const list = out.selected.map(it => {
+      const frac = ('fraction' in it) ? ` × ${Math.round(it.fraction*1000)/1000}` : '';
+      return `${escapeHtml(it.name)} (v:${it.value}, w:${it.weight})${frac}`;
+    }).join(', ');
+    lines.push(`<div style="margin-top:8px">${list || '<em>(none)</em>'}</div>`);
+    resultArea.innerHTML = lines.join('');
+    renderBars(out.selected, Number(capacityInput.value));
+    // DP visualization
+    if(extra && extra.takeTable){
+      dpViz.style.display='block';
+      dpViz.innerHTML = renderDPTable(extra.takeTable, extra.W, items);
+    } else {
+      dpViz.style.display='none';
+      dpViz.innerHTML = '';
+    }
+  }
+
+  function renderBars(selected, capacity){
+    visual.innerHTML = '';
+    if(!selected || selected.length===0) return;
+    const cap = Math.max(1, Number(capacity) || 1);
+    const maxBarHeight = 160;
+    const fragment = document.createDocumentFragment();
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    // Sort by ratio for nicer colors
+    const sorted = selected.slice().sort((a,b)=> (b.value/b.weight) - (a.value/a.weight));
+    let maxWeight = Math.max(...sorted.map(it => it.weight * (it.fraction || 1)));
+    maxWeight = Math.max(maxWeight, cap/4);
+    for(const it of sorted){
+      const bw = (it.weight * (it.fraction || 1));
+      const height = Math.round((bw / Math.max(cap, maxWeight)) * maxBarHeight) + 14;
+      const div = document.createElement('div');
+      div.className = 'bar' + (it.fraction && it.fraction<1 ? ' fraction' : '');
+      div.style.height = height + 'px';
+      div.title = `${it.name}\nvalue: ${it.value}\nweight: ${it.weight}${it.fraction?`\nfraction: ${Math.round(it.fraction*1000)/1000}`:''}`;
+      div.innerHTML = `<span class="label">${escapeHtml(it.name)}<br/>w:${Math.round(bw*1000)/1000}</span>`;
+      row.appendChild(div);
+    }
+    fragment.appendChild(row);
+    visual.appendChild(fragment);
+  }
+
+  function renderDPTable(takeTable, W, itemsList){
+    // takeTable: [i][c] boolean
+    // We'll show header with capacities 0..W (but limit columns to 50 for readability)
+    const maxCols = 50;
+    const cols = Math.min(W+1, maxCols);
+    const colStep = Math.ceil((W+1)/cols);
+    let html = '<table><thead><tr><th>Item \\ cap</th>';
+    for(let c=0;c<=W;c+=colStep) html += `<th>${c}</th>`;
+    html += '</tr></thead><tbody>';
+    for(let i=0;i<itemsList.length;i++){
+      html += `<tr><td>${escapeHtml(itemsList[i].name)} (w:${itemsList[i].weight})</td>`;
+      for(let c=0;c<=W;c+=colStep){
+        html += `<td>${takeTable[i][c] ? '✓' : ''}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return html;
+  }
+
+  // Button handlers
+  runFractionalBtn.addEventListener('click', ()=>{
+    if(items.length === 0) { alert('No items.'); return; }
+    const cap = Number(capacityInput.value);
+    if(!isFinite(cap) || cap < 0) { alert('Invalid capacity'); return; }
+    try{
+      const out = fractionalKnapsack(items, cap);
+      showResult('Fractional knapsack (greedy)', out, 'Fractional', null);
+    } catch(e){
+      alert('Error: ' + e.message);
+    }
+  });
+
+  runDPBtn.addEventListener('click', ()=>{
+    if(items.length === 0) { alert('No items.'); return; }
+    const cap = Math.floor(Number(capacityInput.value));
+    if(!isFinite(cap) || cap < 0) { alert('Invalid capacity'); return; }
+    try{
+      const out = knapsackDP(items, cap);
+      showResult('0/1 knapsack (dynamic programming)', out, '0/1 DP', { takeTable: out.takeTable, W: out.W });
+    } catch(e){
+      alert('Error: ' + e.message);
+    }
+  });
+
+  runBruteBtn.addEventListener('click', ()=>{
+    if(items.length === 0) { alert('No items.'); return; }
+    if(items.length > 20){ alert('Brute-force disabled for more than 20 items.'); return; }
+    const cap = Number(capacityInput.value);
+    if(!isFinite(cap) || cap < 0) { alert('Invalid capacity'); return; }
+    try{
+      const out = bruteForce(items, cap);
+      showResult('Brute-force exact', out, 'Brute-force', null);
+    } catch(e){
+      alert('Error: ' + e.message);
+    }
+  });
+
+  // Initial sample
+  (()=>{
+    items = [
+      { id: idCounter++, name: 'A', value: 24, weight: 12 },
+      { id: idCounter++, name: 'B', value: 18, weight: 6 },
+      { id: idCounter++, name: 'C', value: 18, weight: 9 },
+      { id: idCounter++, name: 'D', value: 10, weight: 4 },
+      { id: idCounter++, name: 'E', value: 15, weight: 7 }
+    ];
+    capacityInput.value = 25;
+    renderItems();
+  })();
+
+})();
+</script>
+</body>
+</html>

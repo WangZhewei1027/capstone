@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sliding Window Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f0f0f0;
+  }
+  h1 {
+    text-align: center;
+  }
+  #arrayContainer {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+    flex-wrap: wrap;
+    user-select: none;
+  }
+  .array-item {
+    width: 40px;
+    height: 40px;
+    margin: 4px;
+    background: white;
+    border: 2px solid #ccc;
+    border-radius: 6px;
+    line-height: 40px;
+    text-align: center;
+    font-weight: bold;
+    transition: border-color 0.3s, background-color 0.3s;
+    box-sizing: border-box;
+  }
+  .in-window {
+    border-color: #007bff;
+    background-color: #cce5ff;
+  }
+  .window-left {
+    border-top-left-radius: 20px;
+    border-bottom-left-radius: 20px;
+  }
+  .window-right {
+    border-top-right-radius: 20px;
+    border-bottom-right-radius: 20px;
+  }
+  #controls {
+    max-width: 600px;
+    margin: 0 auto 30px auto;
+    padding: 15px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  input[type="text"], input[type="number"] {
+    padding: 7px 10px;
+    margin-right: 10px;
+    font-size: 16px;
+    width: 150px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+  }
+  button {
+    padding: 8px 14px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.25s ease;
+  }
+  button:hover:not(:disabled) {
+    background-color: #0056b3;
+  }
+  button:disabled {
+    background-color: #aaa;
+    cursor: not-allowed;
+  }
+  #sumOutput {
+    text-align: center;
+    font-size: 18px;
+    margin-top: 20px;
+  }
+  #slideControls {
+    margin-top: 20px;
+    text-align: center;
+  }
+  #slideControls button {
+    margin: 0 10px;
+    width: 80px;
+  }
+  #description {
+    max-width: 700px;
+    margin: 0 auto 20px auto;
+    font-size: 16px;
+    color: #222;
+    line-height: 1.5;
+  }
+  #speedLabel {
+    display: inline-block;
+    margin-right: 10px;
+    font-weight: 600;
+  }
+  #speedControl {
+    vertical-align: middle;
+  }
+  #windowSum {
+    font-weight: bold;
+    color: #007bff;
+  }
+</style>
+</head>
+<body>
+<h1>Sliding Window Technique Visualization</h1>
+<div id="description">
+  The sliding window technique is useful for problems involving arrays or strings where you want to consider a subset (window) of elements — often contiguous — and move this window across the array to calculate something, e.g., sums, averages, max/min values. Here we demonstrate it with an integer array and a fixed window size to find the sum of elements in the window as it slides from left to right.
+</div>
+
+<div id="controls">
+  <label>
+    Array (comma separated):
+    <input type="text" id="inputArray" placeholder="e.g. 1,3,-2,8,5,7,6" value="1,3,-2,8,5,7,6" />
+  </label>
+  <label>
+    Window Size:
+    <input type="number" id="inputWindowSize" min="1" value="3" />
+  </label>
+  <button id="btnInitialize">Initialize</button>
+  <div style="margin-top:15px;">
+    <span id="speedLabel">Animation Speed:</span>
+    <input type="range" id="speedControl" min="200" max="2000" step="100" value="800" />
+    <span id="speedDisplay">0.8s</span>
+  </div>
+</div>
+
+<div id="arrayContainer"></div>
+
+<div id="slideControls">
+  <button id="btnPrev" disabled>&lt; Prev</button>
+  <button id="btnNext" disabled>Next &gt;</button>
+  <button id="btnPlay">Play ▶</button>
+  <button id="btnPause" disabled>Pause ❚❚</button>
+</div>
+
+<div id="sumOutput">Current window sum: <span id="windowSum">0</span></div>
+
+<script>
+(() => {
+  const inputArrayEl = document.getElementById('inputArray');
+  const inputWindowSizeEl = document.getElementById('inputWindowSize');
+  const btnInitialize = document.getElementById('btnInitialize');
+  const arrayContainer = document.getElementById('arrayContainer');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+  const btnPlay = document.getElementById('btnPlay');
+  const btnPause = document.getElementById('btnPause');
+  const windowSumEl = document.getElementById('windowSum');
+  const speedControl = document.getElementById('speedControl');
+  const speedDisplay = document.getElementById('speedDisplay');
+
+  let array = [];
+  let windowSize = 1;
+  let currentIndex = 0; // index of window start
+  let intervalId = null;
+  let animationSpeed = Number(speedControl.value);
+
+  function parseArrayInput(str) {
+    // Parse string like "1,3,-2, 8,5,7,6"
+    const parts = str.split(',').map(s => s.trim());
+    const nums = [];
+    for (let p of parts) {
+      if (p === '') continue;
+      const n = Number(p);
+      if (Number.isNaN(n)) return null;
+      nums.push(n);
+    }
+    return nums.length ? nums : null;
+  }
+
+  function clearArrayDisplay() {
+    arrayContainer.innerHTML = '';
+  }
+
+  function createArrayElements(arr) {
+    clearArrayDisplay();
+    for (let i = 0; i < arr.length; i++) {
+      const div = document.createElement('div');
+      div.className = 'array-item';
+      div.textContent = arr[i];
+      div.dataset.index = i;
+      arrayContainer.appendChild(div);
+    }
+  }
+
+  function updateWindowHighlight(startIdx) {
+    const items = arrayContainer.children;
+    for (let i = 0; i < items.length; i++) {
+      items[i].classList.remove('in-window', 'window-left', 'window-right');
+      if (i >= startIdx && i < startIdx + windowSize) {
+        items[i].classList.add('in-window');
+      }
+    }
+    if(windowSize > 0) {
+      if(items[startIdx]) items[startIdx].classList.add('window-left');
+      if(items[startIdx + windowSize - 1]) items[startIdx + windowSize - 1].classList.add('window-right');
+    }
+  }
+
+  function calculateWindowSum(startIdx) {
+    let sum = 0;
+    for(let i = startIdx; i < startIdx + windowSize; i++) {
+      sum += array[i];
+    }
+    return sum;
+  }
+
+  function updateSumDisplay(sum) {
+    windowSumEl.textContent = sum;
+  }
+
+  function updateControls() {
+    // Disable buttons if at edges or no array
+    btnPrev.disabled = currentIndex <= 0;
+    btnNext.disabled = currentIndex >= array.length - windowSize;
+    btnPlay.disabled = array.length === 0 || windowSize == 0 || currentIndex >= array.length - windowSize;
+    btnPause.disabled = intervalId === null;
+    btnInitialize.disabled = false;
+    inputArrayEl.disabled = false;
+    inputWindowSizeEl.disabled = false;
+  }
+
+  function slideToIndex(newIndex) {
+    if(newIndex < 0) newIndex = 0;
+    if(newIndex > array.length - windowSize) newIndex = array.length - windowSize;
+    currentIndex = newIndex;
+    updateWindowHighlight(currentIndex);
+    const sum = calculateWindowSum(currentIndex);
+    updateSumDisplay(sum);
+    updateControls();
+  }
+
+  function playAnimation() {
+    if(intervalId) return;
+    btnPlay.disabled = true;
+    btnPause.disabled = false;
+    btnPrev.disabled = true;
+    btnNext.disabled = true;
+    btnInitialize.disabled = true;
+    inputArrayEl.disabled = true;
+    inputWindowSizeEl.disabled = true;
+
+    intervalId = setInterval(() => {
+      if(currentIndex < array.length - windowSize) {
+        slideToIndex(currentIndex + 1);
+      } else {
+        pauseAnimation();
+      }
+    }, animationSpeed);
+  }
+
+  function pauseAnimation() {
+    if(intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+      updateControls();
+    }
+  }
+
+  btnInitialize.addEventListener('click', () => {
+    const arr = parseArrayInput(inputArrayEl.value);
+    if(arr === null) {
+      alert('Invalid array input! Please enter a comma separated list of numbers.');
+      return;
+    }
+    const wSize = Number(inputWindowSizeEl.value);
+    if(!Number.isInteger(wSize) || wSize < 1 || wSize > arr.length) {
+      alert(`Invalid window size! Must be integer between 1 and array length (${arr.length}).`);
+      return;
+    }
+
+    array = arr;
+    windowSize = wSize;
+    currentIndex = 0;
+    createArrayElements(array);
+    slideToIndex(0);
+  });
+
+  btnPrev.addEventListener('click', () => {
+    slideToIndex(currentIndex - 1);
+  });
+
+  btnNext.addEventListener('click', () => {
+    slideToIndex(currentIndex + 1);
+  });
+
+  btnPlay.addEventListener('click', () => {
+    playAnimation();
+  });
+
+  btnPause.addEventListener('click', () => {
+    pauseAnimation();
+  });
+
+  speedControl.addEventListener('input', () => {
+    animationSpeed = Number(speedControl.value);
+    speedDisplay.textContent = (animationSpeed / 1000).toFixed(1) + 's';
+    if(intervalId) {
+      // Restart interval with new speed
+      clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        if(currentIndex < array.length - windowSize) {
+          slideToIndex(currentIndex + 1);
+        } else {
+          pauseAnimation();
+        }
+      }, animationSpeed);
+    }
+  });
+
+  // Initialize on page load with default values
+  window.addEventListener('load', () => {
+    btnInitialize.click();
+  });
+
+})();
+</script>
+
+</body>
+</html>

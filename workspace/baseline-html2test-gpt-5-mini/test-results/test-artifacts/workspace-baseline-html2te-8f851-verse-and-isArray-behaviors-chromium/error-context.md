@@ -1,0 +1,93 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Array Explorer — Interactive JavaScript Array Demo" [level=1] [ref=e3]
+  - main [ref=e4]:
+    - generic [ref=e5]:
+      - heading "1) Current Array (editable)" [level=2] [ref=e6]
+      - generic [ref=e7]: Edit array as JSON (e.g. [1,2,3] or ["a","b"] or [[1,2],[3]])
+      - textbox "Edit array as JSON (e.g. [1,2,3] or [\"a\",\"b\"] or [[1,2],[3]])" [ref=e8]: "[ 1, 2, 3, 4, 5 ]"
+      - generic [ref=e9]:
+        - button "Load" [ref=e10] [cursor=pointer]
+        - button "Reset Example" [ref=e11] [cursor=pointer]
+        - button "Randomize Numbers" [ref=e12] [cursor=pointer]
+        - button "Sample Mixed Array" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - text: "Type: Array · Length:"
+          - strong [ref=e16]: "5"
+        - generic [ref=e17]: Arrays are ordered collections. This pane shows the array you manipulate with the actions on the right.
+      - heading "Visual representation" [level=3] [ref=e18]
+      - list [ref=e19]:
+        - listitem "index 0" [ref=e20]: "1"
+        - listitem "index 1" [ref=e21]: "2"
+        - listitem "index 2" [ref=e22]: "3"
+        - listitem "index 3" [ref=e23]: "4"
+        - listitem "index 4" [ref=e24]: "5"
+      - heading "Quick operations" [level=3] [ref=e25]
+      - generic [ref=e26]:
+        - button "push()" [ref=e27] [cursor=pointer]
+        - button "pop()" [ref=e28] [cursor=pointer]
+        - button "shift()" [ref=e29] [cursor=pointer]
+        - button "unshift()" [ref=e30] [cursor=pointer]
+        - button "splice()" [ref=e31] [cursor=pointer]
+        - button "slice()" [ref=e32] [cursor=pointer]
+        - button "concat()" [ref=e33] [cursor=pointer]
+        - button "clear (empty)" [ref=e34] [cursor=pointer]
+      - generic [ref=e35]:
+        - generic [ref=e36]: Value(s) (JSON) for push/unshift/splice etc.
+        - textbox "Value(s) (JSON) for push/unshift/splice etc." [ref=e37]:
+          - /placeholder: e.g. "x" or 10 or [7,8]
+    - generic [ref=e38]:
+      - heading "2) Method Playground & Examples" [level=2] [ref=e39]
+      - generic [ref=e40]:
+        - generic [ref=e41]: "Choose operation:"
+        - combobox [ref=e42]:
+          - option "map(fn)" [selected]
+          - option "filter(fn)"
+          - option "reduce(fn, initial)"
+          - option "flat(depth)"
+          - option "flatMap(fn)"
+          - option "sort()"
+          - option "reverse()"
+          - option "slice(start,end)"
+          - option "splice(index,count,items)"
+          - option "concat(array)"
+          - option "find(fn)"
+          - option "findIndex(fn)"
+          - option "includes(value)"
+          - option "indexOf(value)"
+          - option "join(sep)"
+          - option "forEach(fn)"
+          - option "Array.from(iterable)"
+          - option "Array.of(...)"
+          - option "Array.isArray()"
+        - generic [ref=e43]: "Preset function:"
+        - combobox [ref=e44]:
+          - option "x => x * 2" [selected]
+          - option "x => x + 1"
+          - option "even (x % 2 === 0)"
+          - option "toUpperCase"
+          - option "(v,i) => v + i"
+          - option "x => [x, x] (for flatMap)"
+        - generic [ref=e45]: "Extra arg:"
+        - textbox "e.g. 0 or \",\" or true" [ref=e46]
+        - button "Run" [ref=e47] [cursor=pointer]
+        - button "Apply to current" [ref=e48] [cursor=pointer]
+        - button "Preview (no apply)" [ref=e49] [cursor=pointer]
+      - generic [ref=e50]: Preview shows result without changing the current array. Apply modifies the array (and updates the left pane).
+      - heading "Result / Explanation" [level=3] [ref=e51]
+      - generic [ref=e52]: // Result appears here
+      - heading "Console log (operation trace)" [level=3] [ref=e53]
+      - generic [ref=e54]:
+        - generic [ref=e55]: Ready — edit the left pane or use operations to explore Arrays.
+        - generic [ref=e56]: "Examples: destructuring -> const [a,b,...rest] = arr; spread -> [...arr,6]; typed array -> new Int16Array(arr)"
+      - heading "Examples & Tips" [level=3] [ref=e57]
+      - list [ref=e58]:
+        - listitem [ref=e59]: Use JSON input for values (e.g. [10,20] or "x").
+        - listitem [ref=e60]: Preset functions are evaluated with new Function — be careful with input. This demo is local-only.
+        - listitem [ref=e61]: Array is copied for preview; apply will replace the current array with the operation result when appropriate.
+  - contentinfo [ref=e62]: "Built-in demos: push/pop/shift/unshift/splice/slice/map/filter/reduce/flat/flatMap/sort/reverse/concat/find/includes/forEach/Array.from/of/isArray"
+```

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Linear Regression Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      max-width: 900px;
+    }
+    h1 {
+      text-align: center;
+    }
+    #plot {
+      border: 1px solid #ccc;
+    }
+    #controls {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+      justify-content: center;
+    }
+    #controls > div {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    label {
+      font-size: 14px;
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
+    input[type=number] {
+      width: 80px;
+      padding: 4px;
+      font-size: 14px;
+    }
+    button {
+      padding: 8px 14px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: #3a87ad;
+      color: white;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #2e5d73;
+    }
+    #explanation {
+      margin-top: 30px;
+      font-size: 16px;
+      line-height: 1.4;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    canvas {
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+      background: #fff;
+    }
+    #dataPointsCount {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Interactive Linear Regression Demo</h1>
+
+  <canvas id="plot" width="800" height="500"></canvas>
+
+  <div id="controls">
+    <div>
+      <label for="pointCount">Number of points</label>
+      <input type="number" id="pointCount" value="50" min="5" max="200" />
+    </div>
+
+    <div>
+      <label for="noiseLevel">Noise level (std dev)</label>
+      <input type="number" id="noiseLevel" value="10" min="0" max="50" step="1" />
+    </div>
+
+    <div>
+      <label for="slopeInput">True slope (m)</label>
+      <input type="number" id="slopeInput" value="2" step="0.1" />
+    </div>
+
+    <div>
+      <label for="interceptInput">True intercept (b)</label>
+      <input type="number" id="interceptInput" value="5" step="0.1" />
+    </div>
+
+    <div style="align-self: flex-end;">
+      <button id="generateBtn" title="Generate new dataset">Generate Data</button>
+    </div>
+  </div>
+
+  <div id="explanation">
+    <p>
+      This demo illustrates simple <strong>linear regression</strong>, which fits a straight line y = m x + b to a dataset.
+      You can adjust the number of data points, noise level, and true underlying slope/intercept used to generate the points.
+    </p>
+    <p>
+      The blue dots are the generated noisy data points, while the red line is the best fit line computed using the
+      <a href="https://en.wikipedia.org/wiki/Simple_linear_regression#Fitting_the_regression_line" target="_blank">least squares method</a>.
+    </p>
+    <p>
+      The computed parameters are displayed below the plot.
+    </p>
+  </div>
+
+  <div style="text-align:center; margin-top:20px; font-size: 18px;">
+    <span><strong>Estimated slope (m): </strong><span id="estimatedSlope">-</span></span> &nbsp;&nbsp;&nbsp;
+    <span><strong>Estimated intercept (b): </strong><span id="estimatedIntercept">-</span></span> &nbsp;&nbsp;&nbsp;
+    <span><strong>R² (coefficient of determination): </strong><span id="rSquared">-</span></span>
+  </div>
+
+<script>
+  (() => {
+    const canvas = document.getElementById("plot");
+    const ctx = canvas.getContext("2d");
+
+    const pointCountInput = document.getElementById("pointCount");
+    const noiseInput = document.getElementById("noiseLevel");
+    const slopeInput = document.getElementById("slopeInput");
+    const interceptInput = document.getElementById("interceptInput");
+    const generateBtn = document.getElementById("generateBtn");
+
+    const estSlopeElem = document.getElementById("estimatedSlope");
+    const estInterceptElem = document.getElementById("estimatedIntercept");
+    const rSquaredElem = document.getElementById("rSquared");
+
+    // Plot margins and scale info
+    const margin = {top: 40, bottom: 60, left: 70, right: 30};
+    const plotWidth = canvas.width - margin.left - margin.right;
+    const plotHeight = canvas.height - margin.top - margin.bottom;
+
+    // Data storage
+    let dataPoints = [];
+
+    // Utility: Linear regression using least squares
+    // Returns {m, b, r2}
+    function linearRegression(points) {
+      const n = points.length;
+      if (n === 0) return null;
+
+      let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0, sumYY = 0;
+      for (const p of points) {
+        sumX += p.x;
+        sumY += p.y;
+        sumXX += p.x * p.x;
+        sumXY += p.x * p.y;
+        sumYY += p.y * p.y;
+      }
+
+      const denominator = (n * sumXX - sumX * sumX);
+      if (denominator === 0) return null; // vertical line or all x same
+
+      const m = (n * sumXY - sumX * sumY) / denominator;
+      const b = (sumY - m * sumX) / n;
+
+      // Calculate R squared
+      const meanY = sumY / n;
+      let ssTot = 0;
+      let ssRes = 0;
+      for (const p of points) {
+        const yPred = m * p.x + b;
+        ssTot += (p.y - meanY) ** 2;
+        ssRes += (p.y - yPred) ** 2;
+      }
+      const r2 = 1 - ssRes / ssTot;
+
+      return {m, b, r2};
+    }
+
+    // Generate random normal values using Box-Muller
+    function randNormal(mean=0, stddev=1) {
+      let u = 0, v = 0;
+      while(u === 0) u = Math.random();
+      while(v === 0) v = Math.random();
+      let num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      return num * stddev + mean;
+    }
+
+    // Generate dataset according to user params:
+    function generateData(numPoints, noiseStd, slope, intercept) {
+      const points = [];
+      // Generate x values spaced somewhat evenly between 0 and 100
+      for(let i = 0; i < numPoints; i++) {
+        const x = Math.random() * 100;
+        const trueY = slope * x + intercept;
+        const noisyY = trueY + randNormal(0, noiseStd);
+        points.push({x, y: noisyY});
+      }
+      return points;
+    }
+
+    // Plotting functions:
+    function clearPlot() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // White background
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Find min/max for x and y in data (including some padding)
+    function findBounds(points) {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      points.forEach(p => {
+        if(p.x < minX) minX = p.x;
+        if(p.x > maxX) maxX = p.x;
+        if(p.y < minY) minY = p.y;
+        if(p.y > maxY) maxY = p.y;
+      });
+
+      // Add padding (10%)
+      const xPad = (maxX - minX) * 0.1 || 10;
+      const yPad = (maxY - minY) * 0.1 || 10;
+
+      return {
+        minX: minX - xPad,
+        maxX: maxX + xPad,
+        minY: minY - yPad,
+        maxY: maxY + yPad
+      };
+    }
+
+    // Map data coordinate to canvas pixel coordinate
+    // x and y are data coords; bounds is min/max object
+    function toCanvasCoords(x, y, bounds) {
+      const xRatio = (x - bounds.minX) / (bounds.maxX - bounds.minX);
+      const yRatio = (y - bounds.minY) / (bounds.maxY - bounds.minY);
+      const cx = margin.left + xRatio * plotWidth;
+      const cy = margin.top + plotHeight - yRatio * plotHeight; // invert y axis
+      return {cx, cy};
+    }
+
+    // Draw axis
+    function drawAxis(bounds) {
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1;
+      ctx.fillStyle = "#000";
+      ctx.font = "14px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // Y axis line
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top);
+      ctx.lineTo(margin.left, margin.top + plotHeight);
+      ctx.stroke();
+
+      // X axis line
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top + plotHeight);
+      ctx.lineTo(margin.left + plotWidth, margin.top + plotHeight);
+      ctx.stroke();
+
+      // Ticks and labels X axis
+      const xTicks = 10;
+      for(let i = 0; i <= xTicks; i++) {
+        const val = bounds.minX + (bounds.maxX - bounds.minX) * i / xTicks;
+        const xPos = margin.left + (plotWidth) * i / xTicks;
+        ctx.beginPath();
+        ctx.moveTo(xPos, margin.top + plotHeight);
+        ctx.lineTo(xPos, margin.top + plotHeight + 7);
+        ctx.stroke();
+        ctx.fillText(val.toFixed(1), xPos, margin.top + plotHeight + 20);
+      }
+
+      // Ticks and labels Y axis
+      const yTicks = 10;
+      ctx.textAlign = "right";
+      for(let i = 0; i <= yTicks; i++) {
+        const val = bounds.minY + (bounds.maxY - bounds.minY) * i / yTicks;
+        const yPos = margin.top + plotHeight - (plotHeight) * i / yTicks;
+        ctx.beginPath();
+        ctx.moveTo(margin.left - 7, yPos);
+        ctx.lineTo(margin.left, yPos);
+        ctx.stroke();
+        ctx.fillText(val.toFixed(1), margin.left - 12, yPos);
+      }
+
+      // Axis labels
+      ctx.textAlign = "center";
+      ctx.font = "16px Arial";
+      ctx.fillText("X", margin.left + plotWidth / 2, margin.top + plotHeight + 45);
+      ctx.save();
+      ctx.translate(margin.left - 50, margin.top + plotHeight / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText("Y", 0, 0);
+      ctx.restore();
+
+      // Title
+      ctx.font = "18px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Linear Regression: Data and Best Fit Line", margin.left + plotWidth/2, margin.top - 15);
+    }
+
+    // Draw data points
+    function drawPoints(points, bounds) {
+      ctx.fillStyle = "blue";
+      for (const p of points) {
+        const {cx, cy} = toCanvasCoords(p.x, p.y, bounds);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+
+    // Draw regression line
+    function drawRegressionLine(m, b, bounds) {
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 2;
+
+      // Calculate y for minX and maxX
+      const x1 = bounds.minX;
+      const y1 = m * x1 + b;
+      const x2 = bounds.maxX;
+      const y2 = m * x2 + b;
+
+      const {cx: cx1, cy: cy1} = toCanvasCoords(x1, y1, bounds);
+      const {cx: cx2, cy: cy2} = toCanvasCoords(x2, y2, bounds);
+
+      ctx.beginPath();
+      ctx.moveTo(cx1, cy1);
+      ctx.lineTo(cx2, cy2);
+      ctx.stroke();
+    }
+
+    // Main function to generate data, calc regression, draw, update UI
+    function update() {
+      const numPoints = Math.min(Math.max(parseInt(pointCountInput.value), 5), 200);
+      const noise = Math.max(parseFloat(noiseInput.value), 0);
+      const trueSlope = parseFloat(slopeInput.value);
+      const trueIntercept = parseFloat(interceptInput.value);
+
+      dataPoints = generateData(numPoints, noise, trueSlope, trueIntercept);
+
+      const regression = linearRegression(dataPoints);
+
+      clearPlot();
+
+      // Find bounds combining data and regression line for better framing
+      let bounds = findBounds(dataPoints);
+
+      if (regression) {
+        // Include line ends in bounds
+        const lineYs = [regression.m * bounds.minX + regression.b, regression.m * bounds.maxX + regression.b];
+        bounds.minY = Math.min(bounds.minY, ...lineYs);
+        bounds.maxY = Math.max(bounds.maxY, ...lineYs);
+      }
+
+      drawAxis(bounds);
+      drawPoints(dataPoints, bounds);
+
+      if (regression) {
+        drawRegressionLine(regression.m, regression.b, bounds);
+        estSlopeElem.textContent = regression.m.toFixed(4);
+        estInterceptElem.textContent = regression.b.toFixed(4);
+        rSquaredElem.textContent = regression.r2.toFixed(4);
+      } else {
+        estSlopeElem.textContent = "-";
+        estInterceptElem.textContent = "-";
+        rSquaredElem.textContent = "-";
+      }
+    }
+
+    generateBtn.addEventListener("click", () => {
+      update();
+    });
+
+    // Also update when pressing Enter in inputs
+    [pointCountInput, noiseInput, slopeInput, interceptInput].forEach(input => {
+      input.addEventListener("keydown", e => {
+        if(e.key === "Enter") {
+          e.preventDefault();
+          update();
+        }
+      });
+    });
+
+    // Initial draw
+    update();
+  })();
+</script>
+</body>
+</html>

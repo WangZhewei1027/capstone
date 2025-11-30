@@ -1,0 +1,97 @@
+# Page snapshot
+
+```yaml
+- application "Bubble Sort Visualizer" [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Bubble Sort Visualizer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: See how Bubble Sort compares and swaps elements step-by-step.
+    - generic [ref=e7]: Interactive demo • Click Start or Step to run
+  - generic [ref=e8]:
+    - generic [ref=e10]:
+      - generic [ref=e11]: Array Size
+      - generic [ref=e12]:
+        - slider "Array Size" [ref=e13]: "28"
+        - generic [ref=e14]: "28"
+    - generic [ref=e16]:
+      - generic [ref=e17]: Speed
+      - generic [ref=e18]:
+        - slider "Speed" [ref=e19]: "250"
+        - generic [ref=e20]: 250ms
+    - generic [ref=e22]:
+      - generic [ref=e23]: Order
+      - combobox "Sort order" [ref=e24]:
+        - option "Ascending" [selected]
+        - option "Descending"
+    - generic [ref=e26]:
+      - checkbox "Optimized (stop early)" [ref=e27]
+      - text: Optimized (stop early)
+    - generic [ref=e28]:
+      - button "Randomize" [ref=e29] [cursor=pointer]
+      - button "Reset" [ref=e30] [cursor=pointer]
+      - button "Step" [ref=e31] [cursor=pointer]
+      - button "Start" [ref=e32] [cursor=pointer]
+  - generic [ref=e33]:
+    - list "Array values visualized as bars" [ref=e34]:
+      - generic [ref=e35]: "62"
+      - generic [ref=e36]: "87"
+      - generic [ref=e37]: "69"
+      - generic [ref=e38]: "56"
+      - generic [ref=e39]: "23"
+      - generic [ref=e40]: "74"
+      - generic [ref=e41]: "52"
+      - generic [ref=e42]: "91"
+      - generic [ref=e43]: "33"
+      - generic [ref=e44]: "20"
+      - generic [ref=e45]: "21"
+      - generic [ref=e46]: "86"
+      - generic [ref=e47]: "96"
+      - generic [ref=e48]: "80"
+      - generic [ref=e49]: "77"
+      - generic [ref=e50]: "91"
+      - generic [ref=e51]: "52"
+      - generic [ref=e52]: "99"
+      - generic [ref=e53]: "70"
+      - generic [ref=e54]: "59"
+      - generic [ref=e55]: "36"
+      - generic [ref=e56]: "40"
+      - generic [ref=e57]: "23"
+      - generic [ref=e58]: "11"
+      - generic [ref=e59]: "93"
+      - generic [ref=e60]: "15"
+      - generic [ref=e61]: "51"
+      - generic [ref=e62]: "62"
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - generic [ref=e66]: Comparisons
+          - generic [ref=e67]: "0"
+        - generic [ref=e68]:
+          - generic [ref=e69]: Swaps
+          - generic [ref=e70]: "0"
+        - generic [ref=e71]:
+          - generic [ref=e72]: Current i, j
+          - generic [ref=e73]: "-"
+      - generic [ref=e74]:
+        - generic [ref=e75]: 1. procedure bubbleSort(A)
+        - generic [ref=e76]: 2. n ← length(A)
+        - generic [ref=e77]: 3. repeat
+        - generic [ref=e78]: 4. swapped ← false
+        - generic [ref=e79]: 5. for i from 1 to n - 1 do
+        - generic [ref=e80]: 6. if A[i - 1] > A[i] then // compare
+        - generic [ref=e81]: 7. swap(A[i - 1], A[i]) // swap
+        - generic [ref=e82]: 8. swapped ← true
+        - generic [ref=e83]: 9. end if
+        - generic [ref=e84]: 10. end for
+        - generic [ref=e85]: 11. n ← n - 1
+        - generic [ref=e86]: 12. until not swapped
+        - generic [ref=e87]: 13. end procedure
+      - generic [ref=e89]:
+        - generic [ref=e90]:
+          - generic [ref=e91]: Controls
+          - generic [ref=e92]: Start = Play/Pause. Step moves one action.
+        - generic [ref=e94]: Idle
+  - generic [ref=e95]:
+    - generic [ref=e96]: Bubble Sort animation — highlights comparisons & swaps
+    - generic [ref=e97]: Made for learning • Demo
+```

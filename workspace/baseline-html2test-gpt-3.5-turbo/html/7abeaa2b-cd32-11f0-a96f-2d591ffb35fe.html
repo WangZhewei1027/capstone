@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Depth-First Search (DFS) Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  #graphCanvas {
+    border: 1px solid #333;
+    background-color: #f9f9f9;
+  }
+  #controls {
+    margin-top: 15px;
+  }
+  #output {
+    margin-top: 15px;
+    max-width: 600px;
+    font-family: monospace;
+    white-space: pre-line;
+    background: #eee;
+    padding: 10px;
+    border-radius: 6px;
+    min-height: 40px;
+  }
+  button {
+    margin: 0 5px;
+    padding: 8px 15px;
+    font-size: 14px;
+  }
+  label {
+    font-weight: bold;
+    margin-right: 8px;
+  }
+  select {
+    padding: 5px 8px;
+    font-size: 14px;
+  }
+  #legend {
+    margin-top: 20px;
+    max-width: 600px;
+  }
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 15px;
+    font-size: 14px;
+  }
+  .color-box {
+    width: 16px;
+    height: 16px;
+    margin-right: 5px;
+    border: 1px solid #666;
+  }
+</style>
+</head>
+<body>
+<h1>Depth-First Search (DFS) Visualization</h1>
+<canvas id="graphCanvas" width="600" height="400"></canvas>
+<div id="controls">
+  <label for="startNode">Start Node:</label>
+  <select id="startNode"></select>
+  <button id="runDFS">Run DFS</button>
+  <button id="resetGraph">Reset</button>
+</div>
+<div id="output"></div>
+<div id="legend">
+  <div class="legend-item"><div class="color-box" style="background:#7db9e8;"></div>Unvisited</div>
+  <div class="legend-item"><div class="color-box" style="background:#f1c232;"></div>Visiting (recursion stack)</div>
+  <div class="legend-item"><div class="color-box" style="background:#6aaa64;"></div>Visited</div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  const radius = 25;
+
+  // Graph definition (undirected):
+  // 7 nodes (A-G), connected arbitrarily.
+
+  // We'll define nodes with coordinates and edges.
+  const nodes = [
+    { id: 'A', x: 100, y: 100, neighbors: [] },
+    { id: 'B', x: 250, y: 70, neighbors: [] },
+    { id: 'C', x: 400, y: 100, neighbors: [] },
+    { id: 'D', x: 150, y: 250, neighbors: [] },
+    { id: 'E', x: 350, y: 220, neighbors: [] },
+    { id: 'F', x: 500, y: 250, neighbors: [] },
+    { id: 'G', x: 275, y: 350, neighbors: [] },
+  ];
+
+  // Define edges as pairs of node ids
+  const edges = [
+    ['A', 'B'],
+    ['A', 'D'],
+    ['B', 'C'],
+    ['B', 'E'],
+    ['C', 'F'],
+    ['D', 'G'],
+    ['E', 'G'],
+    ['F', 'G'],
+  ];
+
+  // Build neighbors array for each node
+  const nodeMap = new Map();
+  nodes.forEach(n => nodeMap.set(n.id, n));
+  edges.forEach(([n1, n2]) => {
+    nodeMap.get(n1).neighbors.push(nodeMap.get(n2));
+    nodeMap.get(n2).neighbors.push(nodeMap.get(n1));
+  });
+
+  // State to track node visit status:
+  // "unvisited", "visiting", "visited"
+  const visitStatus = {};
+  nodes.forEach(n => { visitStatus[n.id] = "unvisited"; });
+
+  // To animate DFS, we will use async/await and delays
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Draw helpers
+  function drawArrow(fromX, fromY, toX, toY) {
+    // For undirected edges we just draw a simple line.
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(toX, toY);
+    ctx.stroke();
+  }
+
+  function drawEdge(n1, n2) {
+    ctx.strokeStyle = '#999';
+    ctx.lineWidth = 2;
+    drawArrow(n1.x, n1.y, n2.x, n2.y);
+  }
+
+  function drawNode(node) {
+    const status = visitStatus[node.id];
+    let fillColor = '#7db9e8'; // unvisited default
+    if (status === 'visiting') fillColor = '#f1c232'; // orange-ish
+    else if (status === 'visited') fillColor = '#6aaa64'; // green
+
+    ctx.fillStyle = fillColor;
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Draw node label
+    ctx.fillStyle = '#222';
+    ctx.font = '20px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.id, node.x, node.y);
+  }
+
+  function drawGraph() {
+    ctx.clearRect(0, 0, width, height);
+    // Draw edges first
+    edges.forEach(([id1, id2]) => {
+      const n1 = nodeMap.get(id1);
+      const n2 = nodeMap.get(id2);
+      drawEdge(n1, n2);
+    });
+    // Draw nodes over edges
+    nodes.forEach(drawNode);
+  }
+
+  // DFS variables
+  let dfsRunning = false;
+
+  // Output area
+  const output = document.getElementById('output');
+  function logVisit(msg) {
+    output.textContent += msg + '\n';
+    output.scrollTop = output.scrollHeight;
+  }
+
+  async function dfs(node) {
+    visitStatus[node.id] = 'visiting';
+    drawGraph();
+    logVisit(`Visiting node ${node.id}`);
+    await delay(800);
+
+    for (const neighbor of node.neighbors) {
+      if (visitStatus[neighbor.id] === 'unvisited') {
+        await dfs(neighbor);
+      }
+    }
+    visitStatus[node.id] = 'visited';
+    drawGraph();
+    logVisit(`Finished node ${node.id}`);
+    await delay(600);
+  }
+
+  // Controls
+  const startNodeSelect = document.getElementById('startNode');
+  function populateStartNodeOptions() {
+    nodes.forEach(n => {
+      const option = document.createElement('option');
+      option.value = n.id;
+      option.textContent = n.id;
+      startNodeSelect.appendChild(option);
+    });
+  }
+
+  populateStartNodeOptions();
+
+  function reset() {
+    dfsRunning = false;
+    nodes.forEach(n => { visitStatus[n.id] = 'unvisited'; });
+    output.textContent = '';
+    drawGraph();
+    enableControls(true);
+  }
+
+  function enableControls(enable) {
+    document.getElementById('runDFS').disabled = !enable;
+    startNodeSelect.disabled = !enable;
+  }
+
+  document.getElementById('runDFS').addEventListener('click', async () => {
+    if (dfsRunning) return;
+    dfsRunning = true;
+    enableControls(false);
+    output.textContent = '';
+    nodes.forEach(n => { visitStatus[n.id] = 'unvisited'; });
+    drawGraph();
+    const startId = startNodeSelect.value;
+    logVisit(`Starting DFS from node ${startId}`);
+    await dfs(nodeMap.get(startId));
+    logVisit('DFS complete.');
+    dfsRunning = false;
+    enableControls(true);
+  });
+
+  document.getElementById('resetGraph').addEventListener('click', () => {
+    reset();
+  });
+
+  // Initial draw
+  reset();
+
+})();
+</script>
+</body>
+</html>

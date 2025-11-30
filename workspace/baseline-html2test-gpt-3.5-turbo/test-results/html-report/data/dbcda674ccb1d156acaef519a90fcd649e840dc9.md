@@ -1,0 +1,55 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - heading "Longest Common Subsequence (LCS) Calculator" [level=1] [ref=e2]
+  - generic [ref=e3]: "String 1:"
+  - textbox "String 1:" [ref=e4]:
+    - /placeholder: Enter first string
+    - text: ABC
+  - generic [ref=e5]: "String 2:"
+  - textbox "String 2:" [ref=e6]:
+    - /placeholder: Enter second string
+    - text: DEF
+  - button "Calculate LCS" [active] [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - heading "Results" [level=2] [ref=e9]
+    - paragraph [ref=e10]:
+      - strong [ref=e11]: "Length of LCS:"
+      - text: "0"
+    - paragraph [ref=e12]:
+      - strong [ref=e13]: "LCS:"
+      - text: (No common subsequence)
+    - generic [ref=e14]:
+      - heading "DP Matrix (LCS lengths):" [level=3] [ref=e15]
+      - table [ref=e17]:
+        - row "D E F" [ref=e18]:
+          - cell [ref=e19]
+          - cell "D" [ref=e20]
+          - cell "E" [ref=e21]
+          - cell "F" [ref=e22]
+        - row "0 0 0 0" [ref=e23]:
+          - cell [ref=e24]
+          - cell "0" [ref=e25]
+          - cell "0" [ref=e26]
+          - cell "0" [ref=e27]
+          - cell "0" [ref=e28]
+        - row "A 0 0 0 0" [ref=e29]:
+          - cell "A" [ref=e30]
+          - cell "0" [ref=e31]
+          - cell "0" [ref=e32]
+          - cell "0" [ref=e33]
+          - cell "0" [ref=e34]
+        - row "B 0 0 0 0" [ref=e35]:
+          - cell "B" [ref=e36]
+          - cell "0" [ref=e37]
+          - cell "0" [ref=e38]
+          - cell "0" [ref=e39]
+          - cell "0" [ref=e40]
+        - row "C 0 0 0 0" [ref=e41]:
+          - cell "C" [ref=e42]
+          - cell "0" [ref=e43]
+          - cell "0" [ref=e44]
+          - cell "0" [ref=e45]
+          - cell "0" [ref=e46]
+```

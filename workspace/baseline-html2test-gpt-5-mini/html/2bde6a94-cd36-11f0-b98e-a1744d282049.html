@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Knapsack Problem Demonstration</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 20px; color:#222;}
+    h1 { margin-bottom: 6px; }
+    .container { display: flex; gap: 20px; align-items: flex-start; }
+    .controls, .visual { background: #f7f8fb; padding: 14px; border-radius: 8px; box-shadow: 0 2px 6px rgba(20,20,40,0.05); }
+    .controls { width: 360px; }
+    label { display:block; margin-top:8px; font-weight:600; font-size:13px; }
+    input[type="number"], select { width:100%; padding:6px 8px; margin-top:6px; box-sizing:border-box; border-radius:6px; border:1px solid #d6d9e6; }
+    button { margin-top:10px; padding:8px 12px; border-radius:8px; border: none; background:#2b6ef6; color:white; cursor:pointer; }
+    button.secondary { background: #6b7280; }
+    .items-table { width:100%; border-collapse:collapse; margin-top:8px; }
+    .items-table th, .items-table td { border: 1px solid #e3e6f0; padding:6px 8px; text-align:center; }
+    .small { font-size:13px; color:#444; margin-top:6px; }
+    .visual { flex:1; min-width: 420px; }
+    .grid-wrap { max-height:360px; overflow:auto; border:1px solid #e3e6f0; border-radius:6px; background:white; padding:8px; }
+    table.dp-table { border-collapse:collapse; font-size:12px; }
+    table.dp-table td, table.dp-table th { border:1px solid #eaeefb; padding:4px 6px; min-width:36px; text-align:center; }
+    table.dp-table th { background:#eef2ff; position:sticky; top:0; z-index:2; }
+    .dp-cell { transition: background-color 0.15s, transform 0.08s; }
+    .dp-current { background: #fff1c9; transform: scale(1.02); }
+    .dp-chosen { background: #d8f8e6; }
+    .item-list { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .item-card { padding:8px 10px; border-radius:8px; background:white; border:1px solid #e6eefc; display:flex; flex-direction:column; gap:6px; min-width:110px; text-align:center; }
+    .ratio { font-weight:700; color:#0b5394; }
+    .log { margin-top:10px; background:#0f1724; color:#e6f0ff; padding:10px; border-radius:6px; font-family:monospace; font-size:13px; max-height:160px; overflow:auto; }
+    .result { margin-top:10px; padding:10px; border-radius:6px; background:#fff; border:1px solid #e6f0ff; }
+    .footer-note { margin-top:14px; font-size:13px; color:#444; }
+    .flex-row { display:flex; gap:8px; align-items:center; }
+    input[type="checkbox"] { transform:scale(1.1); margin-right:6px; }
+    .warning { color:#9b3b00; font-weight:700; }
+    .small-muted { font-size:12px; color:#666; }
+  </style>
+</head>
+<body>
+  <h1>Knapsack Problem Demonstration</h1>
+  <div class="container">
+    <div class="controls">
+      <label>Number of items</label>
+      <div class="flex-row">
+        <input id="numItems" type="number" min="1" max="20" value="5">
+        <button id="applyN" class="secondary" title="Create inputs for N items">Apply</button>
+      </div>
+
+      <label>Items (weight, value)</label>
+      <table class="items-table" id="itemsTable">
+        <thead><tr><th>#</th><th>Weight</th><th>Value</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="flex-row">
+        <button id="randomize">Randomize</button>
+        <button id="clear" class="secondary">Clear</button>
+      </div>
+
+      <label>Capacity (W)</label>
+      <input id="capacity" type="number" min="0" value="15">
+
+      <label>Algorithm</label>
+      <select id="algorithm">
+        <option value="dp01">0-1 Knapsack (Dynamic Programming)</option>
+        <option value="fractional">Fractional Knapsack (Greedy)</option>
+        <option value="bruteforce">Brute Force (Exact, n ≤ 20)</option>
+      </select>
+
+      <label class="small">Animation & Controls</label>
+      <div class="flex-row">
+        <input id="animate" type="checkbox" checked>
+        <span class="small-muted">Animate steps (DP & Brute)</span>
+      </div>
+      <label class="small">Speed (ms per step)</label>
+      <input id="speed" type="number" min="10" value="80">
+
+      <div class="flex-row" style="margin-top:8px;">
+        <button id="run">Run</button>
+        <button id="explain" class="secondary">Explain</button>
+      </div>
+
+      <div class="footer-note small-muted">
+        Tips: For DP animation, keep capacity ≤ 200 to avoid huge tables. Brute force is exponential — use small n.
+      </div>
+    </div>
+
+    <div class="visual">
+      <div class="item-list" id="itemList"></div>
+
+      <div class="grid-wrap" id="gridWrap">
+        <!-- DP table or other visualizations will appear here -->
+      </div>
+
+      <div class="result" id="resultArea">
+        <strong>Result</strong>
+        <div id="resultText" style="margin-top:8px;">No run yet.</div>
+      </div>
+
+      <div class="log" id="logArea" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script>
+    // Knapsack demonstration script
+    (() => {
+      const numItemsInput = document.getElementById('numItems');
+      const applyNBtn = document.getElementById('applyN');
+      const itemsTableBody = document.querySelector('#itemsTable tbody');
+      const randomizeBtn = document.getElementById('randomize');
+      const clearBtn = document.getElementById('clear');
+      const capacityInput = document.getElementById('capacity');
+      const algorithmSelect = document.getElementById('algorithm');
+      const animateCheckbox = document.getElementById('animate');
+      const speedInput = document.getElementById('speed');
+      const runBtn = document.getElementById('run');
+      const explainBtn = document.getElementById('explain');
+      const gridWrap = document.getElementById('gridWrap');
+      const itemListDiv = document.getElementById('itemList');
+      const resultText = document.getElementById('resultText');
+      const logArea = document.getElementById('logArea');
+
+      // Initialize with default items
+      function initItems(n) {
+        itemsTableBody.innerHTML = '';
+        for (let i = 0; i < n; i++) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${i+1}</td>
+            <td><input class="w" type="number" min="0" value="${Math.floor(Math.random()*10)+1}" style="width:70px"></td>
+            <td><input class="v" type="number" min="0" value="${Math.floor(Math.random()*20)+5}" style="width:70px"></td>`;
+          itemsTableBody.appendChild(tr);
+        }
+        renderItemCards();
+      }
+
+      function getItems() {
+        const rows = Array.from(itemsTableBody.querySelectorAll('tr'));
+        const items = rows.map((tr, idx) => {
+          const w = Number(tr.querySelector('.w').value) || 0;
+          const v = Number(tr.querySelector('.v').value) || 0;
+          return { index: idx+1, weight: Math.max(0, Math.floor(w)), value: Math.max(0, Math.floor(v)) };
+        });
+        return items;
+      }
+
+      function renderItemCards() {
+        const items = getItems();
+        itemListDiv.innerHTML = '';
+        items.forEach(it => {
+          const el = document.createElement('div');
+          el.className = 'item-card';
+          el.innerHTML = `<div style="font-size:12px;color:#666">Item ${it.index}</div>
+            <div style="font-size:14px"><strong>W:</strong> ${it.weight}</div>
+            <div style="font-size:14px"><strong>V:</strong> ${it.value}</div>
+            <div class="ratio">V/W: ${it.weight===0 ? '∞' : (it.value/it.weight).toFixed(2)}</div>`;
+          itemListDiv.appendChild(el);
+        });
+      }
+
+      // Randomize current table items
+      function randomizeItems() {
+        const rows = Array.from(itemsTableBody.querySelectorAll('tr'));
+        rows.forEach(tr => {
+          const w = tr.querySelector('.w');
+          const v = tr.querySelector('.v');
+          w.value = Math.floor(Math.random()*12) + 1;
+          v.value = Math.floor(Math.random()*30) + 1;
+        });
+        renderItemCards();
+      }
+
+      // Clear values
+      function clearItems() {
+        const rows = Array.from(itemsTableBody.querySelectorAll('tr'));
+        rows.forEach(tr => {
+          tr.querySelector('.w').value = 0;
+          tr.querySelector('.v').value = 0;
+        });
+        renderItemCards();
+      }
+
+      // Utilities
+      function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+      // DP 0-1 Knapsack
+      async function runDP(items, W, animate, speed) {
+        log(`Running 0-1 DP (n=${items.length}, W=${W})`);
+        const n = items.length;
+        // If W too big for animation, we limit visual size
+        const visualLimit = 220;
+        const visualW = Math.min(W, visualLimit);
+        // create dp table (n+1) x (W+1)
+        const dp = Array.from({length: n+1}, () => new Array(W+1).fill(0));
+        renderDPTable(dp, items, W);
+
+        const cellEls = buildCellMap(n, W);
+
+        let operations = 0;
+        const start = performance.now();
+        for (let i = 1; i <= n; i++) {
+          const wi = items[i-1].weight;
+          const vi = items[i-1].value;
+          for (let w = 0; w <= W; w++) {
+            // Update visual highlight if animating and within visualW
+            if (animate && w <= visualW) {
+              highlightCell(cellEls, i, w, 'dp-current');
+            }
+            // Compute dp
+            if (wi <= w) {
+              dp[i][w] = Math.max(dp[i-1][w], dp[i-1][w-wi] + vi);
+            } else {
+              dp[i][w] = dp[i-1][w];
+            }
+            operations++;
+            if (animate && w <= visualW) {
+              // update displayed value
+              updateCellValue(cellEls, i, w, dp[i][w]);
+              await sleep(Math.max(5, speed));
+              unhighlightCell(cellEls, i, w, 'dp-current');
+            }
+          }
+        }
+        const end = performance.now();
+        log(`DP complete in ${(end-start).toFixed(2)} ms, operations: ${operations}`);
+
+        // Final render (ensures full table values shown, but large W may be truncated visually)
+        renderDPTable(dp, items, W);
+
+        // Backtrack to find chosen items
+        let w = W;
+        const chosen = [];
+        for (let i = n; i >= 1; i--) {
+          if (dp[i][w] !== dp[i-1][w]) {
+            chosen.push(i-1);
+            w -= items[i-1].weight;
+          }
+        }
+        chosen.reverse();
+
+        // Highlight chosen cells (rows) in table if within visualW
+        const cellEls2 = buildCellMap(n, W);
+        chosen.forEach(idx => {
+          const ri = idx+1;
+          for (let cap = 0; cap <= Math.min(W, visualW); cap++) {
+            markCell(cellEls2, ri, cap, 'dp-chosen');
+          }
+        });
+
+        const totalValue = dp[n][W];
+        const totalWeight = chosen.reduce((s,i)=>s+items[i].weight, 0);
+        showResult({
+          algorithm: '0-1 DP',
+          chosen: chosen.map(i=>({...items[i], index: items[i].index})),
+          value: totalValue,
+          weight: totalWeight,
+          timeMs: (end-start).toFixed(2),
+          operations
+        });
+      }
+
+      // Fractional knapsack (greedy)
+      function runFractional(items, W) {
+        const start = performance.now();
+        log(`Running Fractional Greedy (n=${items.length}, W=${W})`);
+        // Sort by ratio descending
+        const itemsWithRatio = items.map(it => ({...it, ratio: it.weight === 0 ? Infinity : it.value / it.weight}));
+        itemsWithRatio.sort((a,b) => b.ratio - a.ratio);
+
+        let remaining = W;
+        let totalValue = 0;
+        const chosen = [];
+        for (const it of itemsWithRatio) {
+          if (remaining <= 0) break;
+          if (it.weight === 0) {
+            // if infinite ratio due to weight 0 and positive value, take whole (special)
+            if (it.value > 0) {
+              chosen.push({item: it, taken: Infinity});
+              totalValue += it.value;
+            }
+            continue;
+          }
+          if (it.weight <= remaining) {
+            chosen.push({item: it, taken: 1});
+            totalValue += it.value;
+            remaining -= it.weight;
+          } else {
+            const frac = remaining / it.weight;
+            chosen.push({item: it, taken: frac});
+            totalValue += it.value * frac;
+            remaining = 0;
+            break;
+          }
+        }
+        const end = performance.now();
+        renderFractional(itemsWithRatio, chosen, W);
+        showResult({
+          algorithm: 'Fractional Greedy',
+          chosen: chosen.map(c => ({ index: c.item.index, weight: c.item.weight, value: c.item.value, fraction: c.taken })),
+          value: totalValue,
+          weight: W - remaining,
+          timeMs: (end-start).toFixed(2),
+          operations: chosen.length
+        });
+        log(`Fractional done in ${(end-start).toFixed(2)} ms`);
+      }
+
+      // Brute force (exact) - checks all subsets (up to practical limit)
+      async function runBruteForce(items, W, animate, speed) {
+        const n = items.length;
+        if (n > 20) {
+          alert('Brute force will be slow for n > 20. Reduce number of items or choose another algorithm.');
+          return;
+        }
+        log(`Running Brute Force (n=${n}, W=${W})`);
+        const start = performance.now();
+        let bestValue = -Infinity;
+        let bestMask = 0;
+        const totalMasks = 1 << n;
+        let operations = 0;
+
+        // For animation: show subset progression
+        const visual = document.createElement('div');
+        visual.style.padding = '8px';
+        visual.style.fontFamily = 'monospace';
+        gridWrap.innerHTML = '';
+        gridWrap.appendChild(visual);
+
+        for (let mask = 0; mask < totalMasks; mask++) {
+          let sumW = 0, sumV = 0;
+          for (let i = 0; i < n; i++) {
+            if (mask & (1<<i)) {
+              sumW += items[i].weight;
+              sumV += items[i].value;
+            }
+          }
+          operations++;
+          if (sumW <= W && sumV > bestValue) {
+            bestValue = sumV;
+            bestMask = mask;
+          }
+          if (animate) {
+            // display current best quickly
+            visual.textContent = `Checking ${mask+1}/${totalMasks}  current sumW=${sumW}, sumV=${sumV}  bestV=${bestValue}`;
+            await sleep(Math.max(5, speed));
+          }
+        }
+        const end = performance.now();
+        log(`Brute force complete in ${(end-start).toFixed(2)} ms, operations: ${operations}`);
+
+        // extract best items
+        const chosen = [];
+        let totalWeight = 0;
+        for (let i = 0; i < n; i++) {
+          if (bestMask & (1<<i)) {
+            chosen.push(items[i]);
+            totalWeight += items[i].weight;
+          }
+        }
+        renderBruteResult(items, chosen, W);
+        showResult({
+          algorithm: 'Brute Force',
+          chosen: chosen.map(i=>({...i})),
+          value: bestValue,
+          weight: totalWeight,
+          timeMs: (end-start).toFixed(2),
+          operations
+        });
+      }
+
+      // Rendering helpers
+      function renderDPTable(dp, items, W) {
+        const n = dp.length - 1;
+        const capLimit = Math.min(W, 220); // visually limit columns
+        const table = document.createElement('table');
+        table.className = 'dp-table';
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        headRow.appendChild(document.createElement('th')); // row labels
+        for (let w = 0; w <= capLimit; w++) {
+          const th = document.createElement('th');
+          th.textContent = w;
+          headRow.appendChild(th);
+        }
+        if (W > capLimit) {
+          const th = document.createElement('th');
+          th.textContent = `.../${W}`;
+          headRow.appendChild(th);
+        }
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        for (let i = 0; i <= n; i++) {
+          const tr = document.createElement('tr');
+          const rowLabel = document.createElement('th');
+          rowLabel.textContent = i;
+          tr.appendChild(rowLabel);
+          for (let w = 0; w <= capLimit; w++) {
+            const td = document.createElement('td');
+            td.className = 'dp-cell';
+            td.dataset.r = i;
+            td.dataset.c = w;
+            td.textContent = dp[i] ? dp[i][w] : 0;
+            tr.appendChild(td);
+          }
+          if (W > capLimit) {
+            const td = document.createElement('td');
+            td.textContent = '...';
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        gridWrap.innerHTML = '';
+        gridWrap.appendChild(table);
+      }
+
+      // Build map of cell elements for full indexes (only visual columns created)
+      function buildCellMap(n, W) {
+        const table = gridWrap.querySelector('table.dp-table');
+        const capLimit = table ? Math.min(W, 220) : Math.min(W, 220);
+        const map = {};
+        if (!table) return map;
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach((tr, ri) => {
+          // row index label is in first th
+          const cells = tr.querySelectorAll('td.dp-cell');
+          cells.forEach((td, ci) => {
+            const r = ri; // row 0..n
+            const c = ci; // cap 0..capLimit
+            map[`${r},${c}`] = td;
+          });
+        });
+        return map;
+      }
+
+      function highlightCell(map, r, c, cls) {
+        const key = `${r},${c}`;
+        const cell = map[key];
+        if (cell) cell.classList.add(cls);
+      }
+      function unhighlightCell(map, r, c, cls) {
+        const key = `${r},${c}`;
+        const cell = map[key];
+        if (cell) cell.classList.remove(cls);
+      }
+      function updateCellValue(map, r, c, val) {
+        const key = `${r},${c}`;
+        const cell = map[key];
+        if (cell) cell.textContent = val;
+      }
+      function markCell(map, r, c, cls) {
+        const key = `${r},${c}`;
+        const cell = map[key];
+        if (cell) cell.classList.add(cls);
+      }
+
+      // Render fractional result visualization
+      function renderFractional(sortedItems, chosen, W) {
+        const wrap = document.createElement('div');
+        wrap.style.display = 'flex';
+        wrap.style.flexDirection = 'column';
+        const header = document.createElement('div');
+        header.textContent = `Items sorted by V/W (desc). Capacity W=${W}`;
+        header.style.marginBottom = '8px';
+        wrap.appendChild(header);
+
+        const list = document.createElement('div');
+        list.style.display = 'flex';
+        list.style.gap = '8px';
+        list.style.flexWrap = 'wrap';
+        sortedItems.forEach(it => {
+          const el = document.createElement('div');
+          el.className = 'item-card';
+          el.style.minWidth = '120px';
+          el.innerHTML = `<div style="font-size:12px;color:#666">Item ${it.index}</div>
+            <div><strong>W:</strong> ${it.weight}</div>
+            <div><strong>V:</strong> ${it.value}</div>
+            <div class="ratio">${(it.ratio===Infinity)?'∞':it.ratio.toFixed(2)}</div>`;
+          list.appendChild(el);
+        });
+        wrap.appendChild(list);
+
+        const chosenDiv = document.createElement('div');
+        chosenDiv.style.marginTop = '10px';
+        chosenDiv.innerHTML = '<strong>Chosen (with fractions)</strong>';
+        chosen.forEach(c => {
+          const i = c.item;
+          const frac = c.taken === Infinity ? 'whole (weight 0)' : (c.taken === 1 ? '1 (whole)' : c.taken.toFixed(3));
+          const p = document.createElement('div');
+          p.textContent = `Item ${i.index}: take ${frac} of (W=${i.weight}, V=${i.value})`;
+          chosenDiv.appendChild(p);
+        });
+
+        wrap.appendChild(chosenDiv);
+        gridWrap.innerHTML = '';
+        gridWrap.appendChild(wrap);
+      }
+
+      // Brute force final render
+      function renderBruteResult(items, chosen, W) {
+        const wrap = document.createElement('div');
+        const summary = document.createElement('div');
+        summary.textContent = `Capacity W=${W}. Chosen items (${chosen.length}):`;
+        wrap.appendChild(summary);
+        const list = document.createElement('div');
+        list.style.display = 'flex';
+        list.style.gap = '8px';
+        list.style.flexWrap = 'wrap';
+        chosen.forEach(it => {
+          const el = document.createElement('div');
+          el.className = 'item-card';
+          el.innerHTML = `<div style="font-size:12px;color:#666">Item ${it.index}</div>
+            <div><strong>W:</strong> ${it.weight}</div>
+            <div><strong>V:</strong> ${it.value}</div>`;
+          list.appendChild(el);
+        });
+        wrap.appendChild(list);
+        gridWrap.innerHTML = '';
+        gridWrap.appendChild(wrap);
+      }
+
+      // Show result summary
+      function showResult(info) {
+        const parts = [];
+        parts.push(`Algorithm: ${info.algorithm}`);
+        parts.push(`Total value: ${info.value}`);
+        parts.push(`Total weight: ${info.weight}`);
+        parts.push(`Time: ${info.timeMs} ms`);
+        parts.push(`Operations: ${info.operations}`);
+        const chosen = info.chosen;
+        resultText.innerHTML = parts.join('<br>');
+        // Also display chosen items more verbosely
+        const chooseList = document.createElement('div');
+        chooseList.style.marginTop = '8px';
+        if (chosen.length === 0) {
+          chooseList.textContent = 'No items chosen.';
+        } else {
+          const ul = document.createElement('div');
+          chosen.forEach(ci => {
+            const line = document.createElement('div');
+            if (ci.fraction !== undefined) {
+              line.textContent = `Item ${ci.index}: W=${ci.weight}, V=${ci.value}, fraction=${ci.fraction}`;
+            } else {
+              line.textContent = `Item ${ci.index}: W=${ci.weight}, V=${ci.value}`;
+            }
+            ul.appendChild(line);
+          });
+          chooseList.appendChild(ul);
+        }
+        // append to result area (replace)
+        resultText.appendChild(chooseList);
+        // show log area
+        logArea.style.display = 'block';
+      }
+
+      function log(msg) {
+        const now = new Date().toLocaleTimeString();
+        logArea.style.display = 'block';
+        logArea.textContent = `[${now}] ${msg}\n` + logArea.textContent;
+      }
+
+      // Explain button shows short explanation
+      explainBtn.addEventListener('click', () => {
+        alert(`Knapsack Problem:
+- 0-1 knapsack: each item either taken or not. Use dynamic programming to compute optimal total value for capacity W in O(nW) time.
+- Fractional knapsack: you can take fraction of items. Greedy by value/weight ratio gives optimal solution in O(n log n).
+- Brute force: check all subsets, O(2^n) time, exact but impractical for large n.`);
+      });
+
+      // Event handlers
+      applyNBtn.addEventListener('click', () => {
+        const n = Math.max(1, Math.min(20, Math.floor(Number(numItemsInput.value) || 1)));
+        numItemsInput.value = n;
+        initItems(n);
+      });
+
+      randomizeBtn.addEventListener('click', () => { randomizeItems(); });
+
+      clearBtn.addEventListener('click', () => { clearItems(); });
+
+      itemsTableBody.addEventListener('input', () => { renderItemCards(); });
+
+      runBtn.addEventListener('click', async () => {
+        const items = getItems();
+        const W = Math.max(0, Math.floor(Number(capacityInput.value) || 0));
+        if (items.length === 0) { alert('No items defined'); return; }
+        const algo = algorithmSelect.value;
+        const animate = animateCheckbox.checked;
+        const speed = Math.max(5, Number(speedInput.value) || 80);
+        resultText.innerHTML = 'Running...';
+        logArea.style.display = 'none';
+        try {
+          if (algo === 'dp01') {
+            // DP
+            // Validation for big W
+            const capLimit = 2000;
+            if (W > capLimit && animate) {
+              if (!confirm(`Capacity W is large (${W}). Animation or table may be slow. Continue without animation?`)) {
+                return;
+              } else {
+                // disable animation for safety
+                animateCheckbox.checked = false;
+              }
+            }
+            await runDP(items, W, animate, speed);
+          } else if (algo === 'fractional') {
+            runFractional(items, W);
+          } else if (algo === 'bruteforce') {
+            await runBruteForce(items, W, animate, speed);
+          }
+        } catch (err) {
+          console.error(err);
+          alert('Error during execution: ' + err.message);
+        }
+      });
+
+      // Init default
+      initItems(Number(numItemsInput.value) || 5);
+      renderItemCards();
+
+      // Helpful: double-click table row to fill some demo values
+      itemsTableBody.addEventListener('dblclick', (e) => {
+        const tr = e.target.closest('tr');
+        if (!tr) return;
+        tr.querySelector('.w').value = Math.floor(Math.random()*10)+1;
+        tr.querySelector('.v').value = Math.floor(Math.random()*30)+1;
+        renderItemCards();
+      });
+
+      // Small UX: make enter on numItems apply
+      numItemsInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyNBtn.click();
+      });
+
+    })();
+  </script>
+</body>
+</html>

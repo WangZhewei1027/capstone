@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Adjacency Matrix Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f2f5;
+        }
+        h1 {
+            text-align: center;
+        }
+        #graph-input {
+            margin-bottom: 20px;
+        }
+        label, textarea, input, button {
+            display: block;
+            width: 100%;
+            max-width: 600px;
+            margin: 10px auto;
+            font-size: 1rem;
+        }
+        textarea {
+            height: 120px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        button {
+            padding: 10px;
+            background-color: #007acc;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #005fa3;
+        }
+        #matrix-container {
+            max-width: 700px;
+            margin: 20px auto;
+            overflow-x: auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 8px #ccc;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        th, td {
+            border: 1px solid #aaa;
+            padding: 6px 8px;
+        }
+        th {
+            background-color: #007acc;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .node-label {
+            background-color: #dceeff;
+            font-weight: bold;
+            position: sticky;
+            left: 0;
+            z-index: 1;
+        }
+        #error-message {
+            max-width: 600px;
+            margin: 10px auto;
+            color: red;
+            font-weight: bold;
+            height: 1.2em;
+        }
+        #example-graph {
+            max-width: 600px;
+            margin: 10px auto;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Adjacency Matrix Generator</h1>
+    <div id="graph-input">
+        <label for="edge-list">Enter edges of the graph (one per line):<br>
+            Format: node1 node2 [weight]<br>
+            For unweighted graphs, omit weight.<br>
+            Example:<br>
+            A B<br>
+            B C 2<br>
+            C A 5<br>
+            Use spaces or tabs to separate values.
+        </label>
+        <textarea id="edge-list" placeholder="A B\nB C 2\nC A 5"></textarea>
+        <button id="generate-btn">Generate Adjacency Matrix</button>
+        <div id="error-message"></div>
+        <div id="example-graph" style="font-style: italic;"></div>
+    </div>
+    <div id="matrix-container"></div>
+
+    <script>
+        // Function to parse the user input edges text into a graph object
+        // Returns {nodes: Array, adjacency: Map[node][node]=weight}
+        // Supports unweighted (weight=1) or weighted graphs
+        // Nodes can be any string, but trimmed
+        // Edges are considered directed unless the user duplicates edges both ways
+        function parseEdges(input) {
+            const lines = input.trim().split('\n').filter(l => l.trim());
+            const nodesSet = new Set();
+            const adjacency = new Map();
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line === '') continue;
+
+                // Split by whitespace (space/tab)
+                const parts = line.split(/\s+/);
+                if (parts.length < 2) throw `Line ${i+1}: Must have at least two nodes per edge`;
+                const [from, to, weightStr] = parts;
+
+                if (!from || !to) throw `Line ${i+1}: Invalid edge nodes`;
+
+                nodesSet.add(from);
+                nodesSet.add(to);
+
+                let weight = 1;
+                if (weightStr !== undefined) {
+                    weight = parseFloat(weightStr);
+                    if (isNaN(weight)) {
+                        throw `Line ${i+1}: Invalid weight "${weightStr}"`;
+                    }
+                }
+
+                if (!adjacency.has(from)) adjacency.set(from, new Map());
+                adjacency.get(from).set(to, weight);
+            }
+
+            // Sort nodes for consistent order
+            const nodes = Array.from(nodesSet);
+            nodes.sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
+
+            return { nodes, adjacency };
+        }
+
+        // Create and display an adjacency matrix table for the given graph
+        // adjacency: Map[node][node] = weight
+        // nodes: Array of nodes (ordered)
+        // If unweighted, show 1 where edge exists, otherwise weight
+        // Empty edges show 0
+        function displayAdjacencyMatrix(nodes, adjacency) {
+            const container = document.getElementById('matrix-container');
+            container.innerHTML = '';
+
+            const table = document.createElement('table');
+
+            // Create header row: empty top-left cell + nodes as columns
+            const headerRow = document.createElement('tr');
+            const topLeftCell = document.createElement('th');
+            topLeftCell.textContent = '';
+            headerRow.appendChild(topLeftCell);
+
+            for (const node of nodes) {
+                const th = document.createElement('th');
+                th.textContent = node;
+                headerRow.appendChild(th);
+            }
+            table.appendChild(headerRow);
+
+            // Create rows for each node
+            for (const rowNode of nodes) {
+                const row = document.createElement('tr');
+                const rowHeader = document.createElement('th');
+                rowHeader.textContent = rowNode;
+                rowHeader.classList.add('node-label');
+                row.appendChild(rowHeader);
+
+                for (const colNode of nodes) {
+                    const td = document.createElement('td');
+                    const fromMap = adjacency.get(rowNode);
+                    const val = fromMap && fromMap.has(colNode) ? fromMap.get(colNode) : 0;
+                    td.textContent = val === 0 ? '0' : val;
+                    row.appendChild(td);
+                }
+                table.appendChild(row);
+            }
+
+            container.appendChild(table);
+        }
+
+
+        const inputEl = document.getElementById('edge-list');
+        const generateBtn = document.getElementById('generate-btn');
+        const errorMessageEl = document.getElementById('error-message');
+        const exampleGraphEl = document.getElementById('example-graph');
+
+        // Provide an example on load
+        const exampleInput = `A B
+B C 2
+C A 5
+D C
+A D 4`;
+
+        exampleGraphEl.textContent = `Example Input:
+${exampleInput}`;
+
+        inputEl.value = exampleInput;
+
+        generateBtn.addEventListener('click', () => {
+            errorMessageEl.textContent = '';
+            try {
+                const { nodes, adjacency } = parseEdges(inputEl.value);
+                displayAdjacencyMatrix(nodes, adjacency);
+            } catch (e) {
+                errorMessageEl.textContent = e;
+                document.getElementById('matrix-container').innerHTML = '';
+            }
+        });
+
+        // Auto-generate matrix on page load
+        window.addEventListener('load', () => {
+            generateBtn.click();
+        });
+    </script>
+</body>
+</html>

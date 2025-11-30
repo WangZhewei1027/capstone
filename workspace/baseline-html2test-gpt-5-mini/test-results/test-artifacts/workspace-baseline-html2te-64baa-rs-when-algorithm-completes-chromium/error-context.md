@@ -1,0 +1,99 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Merge Sort — Interactive Visualizer" [level=1] [ref=e5]
+      - generic [ref=e6]: Watch how Merge Sort divides the array, compares elements, and merges sorted subarrays. Use controls to step, play/pause, and adjust speed/size.
+    - generic [ref=e7]:
+      - generic [ref=e8]: "Time Complexity: O(n log n)"
+      - generic [ref=e9]: "Space Complexity: O(n)"
+  - generic [ref=e10]:
+    - generic [ref=e11]:
+      - button "New Array" [ref=e12] [cursor=pointer]
+      - button "Start" [ref=e13] [cursor=pointer]
+      - button "Step" [ref=e14] [cursor=pointer]
+      - button "Reset" [ref=e15] [cursor=pointer]
+      - generic [ref=e17]:
+        - generic [ref=e18]: Size
+        - slider [ref=e19] [cursor=pointer]: "40"
+      - generic [ref=e20]:
+        - generic [ref=e21]: Speed
+        - slider [ref=e22] [cursor=pointer]: "200"
+    - generic [ref=e23]:
+      - generic [ref=e24]: "Comparisons: 0"
+      - generic [ref=e25]: "Writes: 0"
+      - generic [ref=e26]: "Steps: 0"
+  - generic [ref=e27]:
+    - generic "66" [ref=e28]
+    - generic "123" [ref=e29]
+    - generic "97" [ref=e30]
+    - generic "62" [ref=e31]
+    - generic "66" [ref=e32]
+    - generic "24" [ref=e33]
+    - generic "253" [ref=e34]
+    - generic "243" [ref=e35]
+    - generic "91" [ref=e36]
+    - generic "263" [ref=e37]
+    - generic "128" [ref=e38]
+    - generic "198" [ref=e39]
+    - generic "289" [ref=e40]
+    - generic "22" [ref=e41]
+    - generic "105" [ref=e42]
+    - generic "200" [ref=e43]
+    - generic "183" [ref=e44]
+    - generic "274" [ref=e45]
+    - generic "244" [ref=e46]
+    - generic "269" [ref=e47]
+    - generic "286" [ref=e48]
+    - generic "264" [ref=e49]
+    - generic "69" [ref=e50]
+    - generic "89" [ref=e51]
+    - generic "249" [ref=e52]
+    - generic "55" [ref=e53]
+    - generic "190" [ref=e54]
+    - generic "261" [ref=e55]
+    - generic "13" [ref=e56]
+    - generic "246" [ref=e57]
+    - generic "166" [ref=e58]
+    - generic "169" [ref=e59]
+    - generic "73" [ref=e60]
+    - generic "21" [ref=e61]
+    - generic "135" [ref=e62]
+    - generic "89" [ref=e63]
+    - generic "51" [ref=e64]
+    - generic "244" [ref=e65]
+    - generic "204" [ref=e66]
+    - generic "211" [ref=e67]
+  - generic [ref=e68]:
+    - generic [ref=e69]:
+      - heading "Controls & Stats" [level=3] [ref=e70]
+      - generic [ref=e71]: Use "Step" to advance one algorithm action. "Start" runs continuously. You can change size or regenerate array anytime (it will stop the current run).
+      - generic [ref=e72]:
+        - generic [ref=e73]:
+          - text: "Array Size:"
+          - strong [ref=e74]: "40"
+        - generic [ref=e75]:
+          - text: "Speed (ms per step):"
+          - strong [ref=e76]: "200"
+        - generic [ref=e77]:
+          - text: "Status:"
+          - strong [ref=e78]: Ready
+      - generic [ref=e79]:
+        - generic [ref=e82]: Unsorted
+        - generic [ref=e85]: Comparing
+        - generic [ref=e88]: Writing / Overwriting
+        - generic [ref=e91]: Merged (finalized)
+    - generic [ref=e92]:
+      - heading "Pseudo-code (Merge Sort)" [level=3] [ref=e93]
+      - generic [ref=e94]:
+        - generic [ref=e95]: "1. mergeSort(A, left, right):"
+        - generic [ref=e96]: "2. if left >= right: return"
+        - generic [ref=e97]: 3. mid = (left + right) // 2
+        - generic [ref=e98]: 4. mergeSort(A, left, mid)
+        - generic [ref=e99]: 5. mergeSort(A, mid+1, right)
+        - generic [ref=e100]: 6. merge the two sorted halves into A[left..right]
+        - generic [ref=e101]: 7. -- Use temporary array, compare heads and copy smaller into A
+  - generic [ref=e102]: "Tip: Try small array sizes and slow speeds when stepping to see the division/merge boundaries clearly."
+```

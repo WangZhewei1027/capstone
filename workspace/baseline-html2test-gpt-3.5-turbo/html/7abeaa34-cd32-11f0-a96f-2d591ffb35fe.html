@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>0/1 Knapsack Problem Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 1em;
+    max-width: 900px;
+  }
+  h1 {
+    text-align: center;
+  }
+  label {
+    display: block;
+    margin: 0.5em 0 0.2em;
+  }
+  input[type=number], textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: monospace;
+    font-size: 1em;
+    padding: 0.3em;
+  }
+  textarea {
+    height: 100px;
+  }
+  button {
+    margin-top: 1em;
+    padding: 0.6em 1.2em;
+    font-size: 1em;
+    cursor: pointer;
+  }
+  .result {
+    margin-top: 1.5em;
+    border-top: 2px solid #444;
+    padding-top: 1em;
+  }
+  table {
+    border-collapse: collapse;
+    margin-top: 0.5em;
+    width: 100%;
+  }
+  th, td {
+    border: 1px solid #666;
+    padding: 0.3em 0.6em;
+    text-align: center;
+  }
+  .explanation {
+    margin-top: 1em;
+    background: #f9f9f9;
+    border: 1px solid #bbb;
+    padding: 0.6em;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+  }
+  .footer {
+    margin-top: 3em;
+    font-size: 0.8em;
+    text-align: center;
+    color: #666;
+  }
+</style>
+</head>
+<body>
+<h1>0/1 Knapsack Problem Solver</h1>
+
+<p>
+  Enter items as one per line in the format: <code>value weight</code><br />
+  Example:<br />
+  <code>60 10<br />
+  100 20<br />
+  120 30</code><br />
+</p>
+
+<label for="items">Items (value weight):</label>
+<textarea id="items" aria-label="List of items with value and weight"></textarea>
+
+<label for="capacity">Knapsack Capacity (weight limit):</label>
+<input type="number" id="capacity" min="1" value="50" aria-label="Knapsack capacity" />
+
+<button id="solveBtn">Solve Knapsack</button>
+
+<div class="result" id="result" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(() => {
+  // Parse input items from textarea
+  function parseItems(text) {
+    const lines = text.trim().split('\n');
+    const items = [];
+    for(let i=0; i<lines.length; i++) {
+      const line = lines[i].trim();
+      if(!line) continue;
+      const parts = line.split(/\s+/);
+      if(parts.length !== 2) {
+        throw new Error(`Line ${i+1} is invalid. Expected format: value weight`);
+      }
+      const value = Number(parts[0]);
+      const weight = Number(parts[1]);
+      if(isNaN(value) || isNaN(weight) || value < 0 || weight <= 0) {
+        throw new Error(`Line ${i+1} invalid values. Value must be ≥ 0, weight > 0`);
+      }
+      items.push({value, weight, index: i+1});
+    }
+    if(items.length === 0) {
+      throw new Error("No valid items provided.");
+    }
+    return items;
+  }
+
+  // Solve 0/1 Knapsack Problem using dynamic programming
+  // Returns {maxValue, selectedItems} 
+  // selectedItems: array of item objects included in optimal solution
+  function knapsack(items, capacity) {
+    const n = items.length;
+    // dp[i][w] = max value using first i items and capacity w
+    // Use one-based indexing for code clarity:
+    // dp array dimensions: (n+1) x (capacity+1)
+    const dp = new Array(n+1);
+    for(let i=0; i<=n; i++) {
+      dp[i] = new Array(capacity+1).fill(0);
+    }
+    // Fill dp table
+    for(let i=1; i<=n; i++) {
+      const {value, weight} = items[i-1];
+      for(let w=0; w<=capacity; w++) {
+        if(weight > w) {
+          dp[i][w] = dp[i-1][w];
+        } else {
+          dp[i][w] = Math.max(
+            dp[i-1][w],
+            dp[i-1][w - weight] + value
+          );
+        }
+      }
+    }
+    // Backtrack to find selected items
+    let w = capacity;
+    const selectedItems = [];
+    for(let i=n; i>0; i--) {
+      if(dp[i][w] !== dp[i-1][w]) {
+        selectedItems.push(items[i-1]);
+        w -= items[i-1].weight;
+      }
+    }
+    selectedItems.reverse();
+
+    return {maxValue: dp[n][capacity], selectedItems, dp};
+  }
+
+  // Render detailed DP table for visualization
+  function renderDpTable(dp, items, capacity) {
+    let html = '<table><thead><tr><th>i\\w</th>';
+    for(let w=0; w<=capacity; w++) {
+      html += `<th>${w}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    for(let i=0; i<=items.length; i++) {
+      html += `<tr><th>${i}</th>`;
+      for(let w=0; w<=capacity; w++) {
+        html += `<td>${dp[i][w]}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return html;
+  }
+
+  // Show explanation of solution
+  function generateExplanation(data) {
+    const {maxValue, selectedItems, dp, capacity, items} = data;
+    let explanation = `Maximum value achievable with capacity ${capacity} is ${maxValue}.\n\n`;
+    explanation += "Items included in the optimal solution:\n";
+    if(selectedItems.length === 0) {
+      explanation += "  None (Knapsack is empty)\n";
+    } else {
+      selectedItems.forEach(({index, value, weight}) => {
+        explanation += `  Item #${index}: value = ${value}, weight = ${weight}\n`;
+      });
+    }
+    explanation += `\nThe DP table rows correspond to items considered (from 0 to ${items.length}), \n` +
+                   `columns correspond to weight capacities (0 to ${capacity}).\n` +
+                   `Each cell dp[i][w] holds the max value achievable using first i items with capacity w.\n` +
+                   `A cell value is the max between not including the item i (same as dp[i-1][w]) \n` +
+                   `or including it (dp[i-1][w - item_weight] + item_value) if possible.\n`;
+    return explanation;
+  }
+
+  // Setup event and interaction
+  const itemsInput = document.getElementById('items');
+  const capacityInput = document.getElementById('capacity');
+  const solveBtn = document.getElementById('solveBtn');
+  const resultDiv = document.getElementById('result');
+
+  // Provide a default example
+  itemsInput.value = "60 10\n100 20\n120 30";
+
+  solveBtn.addEventListener('click', () => {
+    resultDiv.innerHTML = '';
+    try {
+      const items = parseItems(itemsInput.value);
+      const capacity = Number(capacityInput.value);
+      if(isNaN(capacity) || capacity <= 0) {
+        throw new Error("Capacity must be a positive integer.");
+      }
+      const {maxValue, selectedItems, dp} = knapsack(items, capacity);
+
+      let html = `<p><strong>Maximum value the knapsack can hold:</strong> ${maxValue}</p>`;
+      html += "<p><strong>Items selected:</strong></p>";
+      if(selectedItems.length === 0) {
+        html += "<p>(none)</p>";
+      } else {
+        html += '<table><thead><tr><th>Item #</th><th>Value</th><th>Weight</th></tr></thead><tbody>';
+        selectedItems.forEach(({index, value, weight}) => {
+          html += `<tr><td>${index}</td><td>${value}</td><td>${weight}</td></tr>`;
+        });
+        html += '</tbody></table>';
+      }
+
+      html += '<details><summary>Show Dynamic Programming Table</summary>';
+      html += renderDpTable(dp, items, capacity);
+      html += '</details>';
+
+      html += '<details open><summary>Explanation</summary><pre class="explanation">';
+      html += generateExplanation({maxValue, selectedItems, dp, capacity, items});
+      html += '</pre></details>';
+
+      resultDiv.innerHTML = html;
+
+    } catch(e) {
+      resultDiv.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`;
+    }
+  });
+})();
+</script>
+
+<div class="footer">
+  Demonstration of 0/1 Knapsack Problem with dynamic programming.<br/>
+  Format: one item per line - <code>value weight</code>. Capacity is a positive integer.
+</div>
+
+</body>
+</html>

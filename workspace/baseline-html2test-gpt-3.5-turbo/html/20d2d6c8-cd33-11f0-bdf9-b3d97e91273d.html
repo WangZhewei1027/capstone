@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Topological Sort Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    max-width: 900px;
+  }
+  h1 {
+    text-align: center;
+  }
+  textarea {
+    width: 100%;
+    height: 150px;
+    font-family: monospace;
+  }
+  label {
+    font-weight: bold;
+  }
+  #runBtn {
+    margin-top: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+  }
+  #output {
+    margin-top: 20px;
+    background: #f5f5f5;
+    padding: 15px;
+    white-space: pre-wrap;
+    border-radius: 5px;
+    min-height: 50px;
+  }
+  #graphViz {
+    margin-top: 30px;
+    border: 1px solid #ddd;
+    height: 350px;
+    position: relative;
+    overflow: auto;
+  }
+  .node {
+    cursor: default;
+    fill: #4a90e2;
+    stroke: #1c3d72;
+    stroke-width: 2px;
+  }
+  .node.done {
+    fill: #7ed56f;
+    stroke: #2e7d32;
+  }
+  text {
+    pointer-events: none;
+    user-select: none;
+    font-weight: bold;
+    fill: white;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+  .edge {
+    fill: none;
+    stroke: #999;
+    stroke-width: 2px;
+    marker-end: url(#arrowhead);
+  }
+  .edge.highlight {
+    stroke: #e94e77;
+    stroke-width: 3px;
+  }
+</style>
+</head>
+<body>
+  <h1>Topological Sort Demo</h1>
+  <p>Enter a directed acyclic graph (DAG) as edges (one per line):</p>
+  <p>Format: <code>NodeA NodeB</code> means an edge from NodeA → NodeB</p>
+  <textarea id="inputGraph" placeholder="Example:
+5 2
+5 0
+4 0
+4 1
+2 3
+3 1"></textarea>
+  <br />
+  <button id="runBtn">Run Topological Sort</button>
+  <div id="output" aria-live="polite"></div>
+
+  <div id="graphViz" aria-label="Graph visualization"></div>
+
+<script>
+(() => {
+  // Utility to create SVG elements
+  function svgElem(tag, attrs) {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [k,v] of Object.entries(attrs)) {
+      el.setAttribute(k,v);
+    }
+    return el;
+  }
+
+  // Parse input to build graph adjacency list
+  function parseInput(text) {
+    const edges = [];
+    const lines = text.trim().split('\n');
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if(parts.length !== 2) {
+        throw new Error("Each line must contain exactly two nodes separated by space.");
+      }
+      edges.push(parts);
+    }
+    return edges;
+  }
+
+  // Build adjacency list and compute in-degree
+  function buildGraph(edges) {
+    const adj = {};
+    const inDegree = {};
+    const nodes = new Set();
+
+    edges.forEach(([from,to]) => {
+      nodes.add(from);
+      nodes.add(to);
+    });
+
+    nodes.forEach(n => {
+      adj[n] = [];
+      inDegree[n] = 0;
+    });
+
+    edges.forEach(([from,to]) => {
+      adj[from].push(to);
+      inDegree[to]++;
+    });
+
+    return {adj, inDegree, nodes: Array.from(nodes)};
+  }
+
+  // Topological sort using Kahn's algorithm, with step callback
+  async function topologicalSort(adj, inDegree, nodes, stepCallback) {
+    const queue = [];
+    const order = [];
+
+    for (const n of nodes) {
+      if (inDegree[n] === 0) {
+        queue.push(n);
+      }
+    }
+
+    // Use a queue but visually show progress at each step
+    while(queue.length) {
+      const n = queue.shift();
+      order.push(n);
+      await stepCallback(n, order.slice());
+
+      for (const nbr of adj[n]) {
+        inDegree[nbr]--;
+        if (inDegree[nbr] === 0) {
+          queue.push(nbr);
+        }
+      }
+    }
+
+    if (order.length !== nodes.length) {
+      throw new Error("Graph contains a cycle - topological sort not possible.");
+    }
+    return order;
+  }
+
+  // Layout graph nodes in a circle since no obvious layering without topology calculation upfront
+  // We will place nodes evenly spaced in circle for visualization simplicity
+  function layoutNodes(nodes, width, height) {
+    const centerX = width/2;
+    const centerY = height/2;
+    const radius = Math.min(width,height)/2 - 80;
+    const pos = {};
+    const N = nodes.length;
+
+    nodes.forEach((n,i) => {
+      const angle = (2*Math.PI * i)/N - Math.PI/2; // start from top
+      pos[n] = {
+        x: centerX + radius*Math.cos(angle),
+        y: centerY + radius*Math.sin(angle),
+      };
+    });
+    return pos;
+  }
+
+  // Draw graph with SVG
+  function drawGraph(adj, nodes, highlightNodes=[]) {
+    const container = document.getElementById("graphViz");
+    container.innerHTML = "";
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    const svg = svgElem("svg", {width: width, height: height});
+    container.appendChild(svg);
+
+    // Define arrowhead
+    const defs = svgElem("defs", {});
+    const marker = svgElem("marker", {
+      id:"arrowhead", markerWidth:"10", markerHeight:"7",
+      refX:"10", refY:"3.5", orient:"auto", markerUnits:"strokeWidth",
+    });
+    const path = svgElem("path", {d:"M0,0 L10,3.5 L0,7 Z", fill:"#999"});
+    marker.appendChild(path);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    // positions
+    const positions = layoutNodes(nodes, width, height);
+
+    // Draw edges first to be under nodes
+    for (const from of nodes) {
+      for (const to of adj[from]) {
+        const start = positions[from];
+        const end = positions[to];
+
+        // Calculate line start and end with small offset so arrow touches edge of node circle
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const offset = 20;
+        const x1 = start.x + (dx/dist)*offset;
+        const y1 = start.y + (dy/dist)*offset;
+        const x2 = end.x - (dx/dist)*offset;
+        const y2 = end.y - (dy/dist)*offset;
+
+        const edge = svgElem("line", {
+          x1:x1, y1:y1, x2:x2, y2:y2,
+          class:"edge"
+        });
+        svg.appendChild(edge);
+      }
+    }
+
+    // Draw nodes
+    for (const n of nodes) {
+      const {x,y} = positions[n];
+      const g = svgElem("g", {class:"node-group"});
+      g.setAttribute("data-node", n);
+      // Circle
+      const circle = svgElem("circle", {
+        cx:x, cy:y, r:20,
+        class: highlightNodes.includes(n) ? "node done" : "node"
+      });
+      // Text
+      const text = svgElem("text", {
+        x:x, y:y+6, "text-anchor": "middle",
+        "font-size":"14"
+      });
+      text.textContent = n;
+      g.appendChild(circle);
+      g.appendChild(text);
+      svg.appendChild(g);
+    }
+  }
+
+  // Animate topological sort step by step
+  async function runTopologicalSort(edges) {
+    const output = document.getElementById("output");
+    output.textContent = "Parsing graph and building adjacency list...";
+    let graph;
+    try {
+      graph = buildGraph(edges);
+    } catch(e) {
+      output.textContent = "Error building graph: " + e.message;
+      return;
+    }
+
+    drawGraph(graph.adj, graph.nodes);
+    output.textContent = "Starting topological sort...\n";
+
+    const highlighted = new Set();
+
+    try {
+      const order = await topologicalSort(graph.adj, {...graph.inDegree}, graph.nodes, async (node, currentOrder) => {
+        highlighted.add(node);
+        drawGraph(graph.adj, graph.nodes, Array.from(highlighted));
+        output.textContent = `Visited node: ${node}\nCurrent topological order: ${currentOrder.join(" → ")}\n`;
+        await new Promise(r => setTimeout(r, 1000));
+      });
+
+      output.textContent += "\nTopological sort completed!\n\nFinal order:\n" + order.join(" → ");
+    } catch(e) {
+      output.textContent = "Error: " + e.message;
+    }
+
+  }
+
+  document.getElementById("runBtn").addEventListener("click", () => {
+    const input = document.getElementById("inputGraph").value;
+    if (!input.trim()) {
+      alert("Please enter graph edges.");
+      return;
+    }
+    // Parse and run
+    try {
+      const edges = parseInput(input);
+      runTopologicalSort(edges);
+    } catch(e) {
+      document.getElementById("output").textContent = "Parsing error: " + e.message;
+    }
+  });
+
+  // Fill example on load
+  const example = 
+`5 2
+5 0
+4 0
+4 1
+2 3
+3 1`;
+  document.getElementById("inputGraph").value = example;
+
+  // Run first example automatically
+  window.addEventListener('load', () => {
+    document.getElementById("runBtn").click();
+  });
+})();
+</script>
+</body>
+</html>

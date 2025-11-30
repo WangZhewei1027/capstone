@@ -1,0 +1,98 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Quick Sort Visualization" [level=1] [ref=e5]
+      - generic [ref=e6]: Interactive demo showing pivot selection, partitioning, and swaps
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - text: Array Size
+        - slider "Array Size" [ref=e10]: "40"
+      - generic [ref=e11]:
+        - text: Speed
+        - slider "Speed" [ref=e12]: "35"
+      - generic [ref=e13]:
+        - text: Pivot
+        - combobox "Pivot" [ref=e14]:
+          - option "Last Element" [selected]
+          - option "First Element"
+          - option "Middle Element"
+          - option "Random"
+          - option "Median of Three"
+      - button "New Array" [ref=e15] [cursor=pointer]
+      - button "Shuffle" [ref=e16] [cursor=pointer]
+      - button "Start Sort" [ref=e17] [cursor=pointer]
+      - button "Pause" [ref=e18] [cursor=pointer]
+      - button "Cancel" [ref=e19] [cursor=pointer]
+  - generic [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e24]: "13"
+        - generic [ref=e26]: "64"
+        - generic [ref=e28]: "24"
+        - generic [ref=e30]: "74"
+        - generic [ref=e32]: "61"
+        - generic [ref=e34]: "59"
+        - generic [ref=e36]: "54"
+        - generic [ref=e38]: "47"
+        - generic [ref=e40]: "24"
+        - generic [ref=e42]: "36"
+        - generic [ref=e44]: "69"
+        - generic [ref=e46]: "20"
+        - generic [ref=e48]: "79"
+        - generic [ref=e50]: "41"
+        - generic [ref=e52]: "89"
+        - generic [ref=e54]: "91"
+        - generic [ref=e56]: "32"
+        - generic [ref=e58]: "17"
+        - generic [ref=e60]: "58"
+        - generic [ref=e62]: "40"
+        - generic [ref=e64]: "42"
+        - generic [ref=e66]: "53"
+        - generic [ref=e68]: "81"
+        - generic [ref=e70]: "49"
+        - generic [ref=e72]: "31"
+        - generic [ref=e74]: "28"
+        - generic [ref=e76]: "63"
+        - generic [ref=e78]: "95"
+        - generic [ref=e80]: "69"
+        - generic [ref=e82]: "53"
+        - generic [ref=e84]: "7"
+        - generic [ref=e86]: "42"
+        - generic [ref=e88]: "27"
+        - generic [ref=e90]: "36"
+        - generic [ref=e92]: "14"
+        - generic [ref=e94]: "24"
+        - generic [ref=e96]: "66"
+        - generic [ref=e98]: "69"
+        - generic [ref=e100]: "38"
+        - generic [ref=e102]: "73"
+      - generic [ref=e103]:
+        - generic [ref=e104]: "Comparisons: 0"
+        - generic [ref=e105]: "Swaps: 0"
+      - generic [ref=e106]:
+        - generic [ref=e107]: "Speed: 35"
+        - generic [ref=e108]: "Pivot: Last Element"
+      - generic [ref=e110]:
+        - generic [ref=e111]: Pivot
+        - generic [ref=e113]: Comparing
+        - generic [ref=e115]: Swapped
+        - generic [ref=e117]: Sorted
+    - complementary [ref=e119]:
+      - generic [ref=e120]:
+        - strong [ref=e121]: Algorithm Info
+        - generic [ref=e122]: Quick Sort is a divide-and-conquer sorting algorithm. It picks a pivot and partitions the array so that elements less than pivot come before it and greater elements after. Then it recursively sorts the partitions.
+      - generic [ref=e123]:
+        - strong [ref=e124]: Recursion Stack
+        - generic [ref=e126]: Stack is empty (idle)
+      - generic [ref=e127]:
+        - strong [ref=e128]: Controls
+        - generic [ref=e129]:
+          - text: "- New Array: generate a fresh random array."
+          - text: "- Shuffle: randomize current array."
+          - text: "- Start Sort: animate Quick Sort on the current array."
+          - text: "- Pause / Resume and Cancel available during sorting."
+  - contentinfo [ref=e130]: "Tip: Try different pivot strategies (First, Last, Middle, Random, Median of Three) and watch how partitioning behavior changes."
+```

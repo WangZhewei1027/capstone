@@ -1,0 +1,46 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "0/1 Knapsack Problem Solver" [level=1] [ref=e2]
+  - paragraph [ref=e3]: Enter items with their weights and values, then specify the maximum knapsack capacity. The solver will find the maximum total value achievable without exceeding capacity.
+  - generic [ref=e4]:
+    - table "Items input table" [ref=e5]:
+      - rowgroup [ref=e6]:
+        - row "# Weight Value Remove" [ref=e7]:
+          - cell "#" [ref=e8]
+          - cell "Weight" [ref=e9]
+          - cell "Value" [ref=e10]
+          - cell "Remove" [ref=e11]
+      - rowgroup [ref=e12]:
+        - row "1 3 25 Remove item 1" [ref=e13]:
+          - cell "1" [ref=e14]
+          - cell "3" [ref=e15]:
+            - spinbutton [ref=e16]: "3"
+          - cell "25" [ref=e17]:
+            - spinbutton [ref=e18]: "25"
+          - cell "Remove item 1" [ref=e19]:
+            - button "Remove item 1" [ref=e20]: −
+        - row "2 2 20 Remove item 2" [ref=e21]:
+          - cell "2" [ref=e22]
+          - cell "2" [ref=e23]:
+            - spinbutton [ref=e24]: "2"
+          - cell "20" [ref=e25]:
+            - spinbutton [ref=e26]: "20"
+          - cell "Remove item 2" [ref=e27]:
+            - button "Remove item 2" [ref=e28]: −
+        - row "3 1 15 Remove item 3" [ref=e29]:
+          - cell "3" [ref=e30]
+          - cell "1" [ref=e31]:
+            - spinbutton [ref=e32]: "1"
+          - cell "15" [ref=e33]:
+            - spinbutton [ref=e34]: "15"
+          - cell "Remove item 3" [ref=e35]:
+            - button "Remove item 3" [ref=e36]: −
+    - button "Add Item +" [ref=e37]
+    - paragraph [ref=e38]:
+      - strong [ref=e40]: "Knapsack Capacity:"
+      - spinbutton "Knapsack Capacity:" [ref=e41]: "5"
+    - button "Solve" [ref=e42]
+  - generic "Dynamic programming table container" [ref=e44]
+```

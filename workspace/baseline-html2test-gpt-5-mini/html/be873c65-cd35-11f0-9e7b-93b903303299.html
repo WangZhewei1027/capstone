@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Interactive Hash Map Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#4fd1c5; --accent2:#7c5cff;
+      --white:#e6eef6; --red:#ff6b6b;
+    }
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#051023 0%, #081426 60%); color:var(--white);}
+    .wrap{max-width:1100px;margin:24px auto;padding:20px;}
+    header{display:flex;gap:18px;align-items:center;margin-bottom:14px}
+    h1{font-size:20px;margin:0}
+    p.small{margin:4px 0;color:var(--muted);font-size:13px}
+    .grid{display:grid;grid-template-columns:360px 1fr;gap:18px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);padding:14px;border-radius:10px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type="text"], input[type="number"], select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--white)}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    button{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;padding:8px 10px;border-radius:8px;color:#021017;cursor:pointer;font-weight:600}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--white)}
+    .muted{color:var(--muted);font-size:13px}
+    .status{margin-top:10px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);font-size:13px}
+    .map-area{padding:12px;display:flex;gap:12px;flex-direction:column;align-items:stretch}
+    .buckets{display:flex;flex-wrap:wrap;gap:10px;padding:8px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));}
+    .bucket{width:120px;min-height:48px;border-radius:8px;border:1px dashed rgba(255,255,255,0.03);padding:8px;background:rgba(255,255,255,0.01);position:relative}
+    .bindex{position:absolute;top:6px;right:6px;font-size:12px;color:var(--muted)}
+    .node{display:inline-flex;gap:6px;align-items:center;padding:6px;border-radius:8px;background:rgba(0,0,0,0.3);margin:6px 0;color:var(--white);font-size:13px;border:1px solid rgba(255,255,255,0.03)}
+    .node .k{font-weight:700;color:var(--accent2);padding-right:6px}
+    .node .v{color:var(--muted);font-weight:600}
+    .highlight{box-shadow:0 0 12px rgba(127,90,255,0.45);border-color:rgba(127,90,255,0.9)}
+    .found{box-shadow:0 0 12px rgba(79,209,197,0.45);border-color:rgba(79,209,197,0.9)}
+    .small-muted{font-size:12px;color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center}
+    footer{opacity:0.9;margin-top:14px;color:var(--muted);font-size:13px}
+    pre{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;overflow:auto;font-size:12px;color:var(--muted)}
+    .legend{display:flex;gap:8px;align-items:center;margin-top:10px}
+    .chip{padding:6px 8px;border-radius:6px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);font-size:12px}
+    .controls-right{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+    .flex{display:flex;gap:8px;align-items:center}
+    .badge{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;font-weight:700;color:var(--white)}
+    .note{font-size:13px;color:var(--muted);margin-top:8px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div style="flex:1">
+        <h1>Hash Map — Interactive Demonstration</h1>
+        <p class="small">Visualize how a hash map stores key-value pairs, handles collisions (separate chaining), and resizes as load increases.</p>
+      </div>
+      <div style="text-align:right">
+        <div class="small-muted">Implementation: separate chaining, string/number keys</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <div style="flex:1">
+            <label>Key (string/number)</label>
+            <input id="keyInput" type="text" value="apple">
+            <label style="margin-top:8px">Value</label>
+            <input id="valueInput" type="text" value="red">
+            <div class="controls">
+              <button id="putBtn">Put / Insert</button>
+              <button id="getBtn" class="ghost">Get</button>
+              <button id="deleteBtn" class="ghost">Delete</button>
+              <button id="clearBtn" class="ghost">Clear</button>
+            </div>
+            <div class="note">Tip: Insert keys that collide (e.g., "a", "p", "q" when capacity small) to see chaining.</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label>Animation Speed</label>
+          <input id="speed" type="range" min="0" max="1000" value="300">
+          <div class="row" style="margin-top:8px">
+            <div class="small-muted">Slow</div>
+            <div style="flex:1"><input id="stepMode" type="checkbox" style="margin-left:6px"> <span class="small-muted">Step mode (pause after highlights)</span></div>
+          </div>
+        </div>
+
+        <div class="status" id="status">
+          <div>Capacity: <span id="capacity">8</span> &nbsp;|&nbsp; Size: <span id="size">0</span> &nbsp;|&nbsp; Load factor: <span id="load">0.00</span></div>
+          <div style="margin-top:8px" class="small-muted">Resize threshold: <span id="threshold">0.75</span></div>
+        </div>
+
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+          <button id="fillBtn" class="ghost">Fill with sample entries</button>
+          <button id="randomBtn" class="ghost">Insert random 20</button>
+          <button id="forceResizeBtn" class="ghost">Force resize (double)</button>
+          <div style="flex:1"></div>
+          <div class="chip">Collision handling: separate chaining</div>
+        </div>
+
+        <div style="margin-top:10px">
+          <div class="legend">
+            <div class="chip">Highlight = bucket visited</div>
+            <div class="chip">Found = matching key</div>
+            <div class="chip">Resize rehashes everything</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label>Source (implementation)</label>
+          <pre id="source" style="height:220px;overflow:auto"></pre>
+        </div>
+
+      </div>
+
+      <div class="card">
+        <div class="map-area">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="small-muted">Buckets (array of chains). Click a bucket to inspect its entries.</div>
+            <div class="small-muted">Click a node to copy its key/value</div>
+          </div>
+          <div id="buckets" class="buckets"></div>
+          <div id="log" style="margin-top:10px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);min-height:56px;color:var(--muted)"></div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      This demo uses a simple hash function (djb2) for strings and numeric hashing for numbers. Designed for learning: real production hash maps use more sophisticated hashing and memory management.
+    </footer>
+  </div>
+
+  <script>
+    // HashMap implementation (separate chaining)
+    class HashMap {
+      constructor(initialCapacity = 8, loadFactor = 0.75) {
+        this._capacity = Math.max(4, initialCapacity);
+        this._buckets = Array.from({length: this._capacity}, () => []);
+        this._size = 0;
+        this._loadFactor = loadFactor;
+      }
+
+      _hash(key) {
+        // Basic djb2 for strings, simple for numbers; fall back to string conversion
+        if (typeof key === 'number') {
+          // mix bits of the number
+          let h = key | 0;
+          h = ((h >>> 16) ^ h) * 0x45d9f3b;
+          h = ((h >>> 16) ^ h) * 0x45d9f3b;
+          h = (h >>> 16) ^ h;
+          return h >>> 0;
+        }
+        const str = String(key);
+        let hash = 5381;
+        for (let i = 0; i < str.length; i++) {
+          hash = ((hash << 5) + hash) + str.charCodeAt(i); /* hash * 33 + c */
+          hash = hash | 0;
+        }
+        return hash >>> 0; // unsigned
+      }
+
+      _index(hash) {
+        return hash % this._capacity;
+      }
+
+      size() { return this._size; }
+      capacity() { return this._capacity; }
+      loadFactor() { return this._size / this._capacity; }
+      threshold() { return this._loadFactor; }
+
+      get(key, walker=null) {
+        const hash = this._hash(key);
+        const idx = this._index(hash);
+        const bucket = this._buckets[idx];
+        if (walker) walker.visitBucket(idx);
+        for (let i = 0; i < bucket.length; i++) {
+          if (bucket[i].key === key) {
+            if (walker) walker.visitNode(idx,i,true);
+            return bucket[i].value;
+          }
+          if (walker) walker.visitNode(idx,i,false);
+        }
+        return undefined;
+      }
+
+      put(key, value, walker=null) {
+        const hash = this._hash(key);
+        const idx = this._index(hash);
+        const bucket = this._buckets[idx];
+        if (walker) walker.visitBucket(idx);
+        for (let i = 0; i < bucket.length; i++) {
+          if (bucket[i].key === key) {
+            bucket[i].value = value;
+            if (walker) walker.visitNode(idx,i,true);
+            return 'updated';
+          }
+          if (walker) walker.visitNode(idx,i,false);
+        }
+        bucket.push({key, value});
+        this._size++;
+        if (this.loadFactor() > this._loadFactor) {
+          this._resize(this._capacity * 2, walker);
+        }
+        return 'inserted';
+      }
+
+      delete(key, walker=null) {
+        const hash = this._hash(key);
+        const idx = this._index(hash);
+        const bucket = this._buckets[idx];
+        if (walker) walker.visitBucket(idx);
+        for (let i = 0; i < bucket.length; i++) {
+          if (bucket[i].key === key) {
+            bucket.splice(i,1);
+            this._size--;
+            if (walker) walker.visitNode(idx,i,true);
+            // optional shrink omitted for simplicity
+            return true;
+          }
+          if (walker) walker.visitNode(idx,i,false);
+        }
+        return false;
+      }
+
+      _resize(newCapacity, walker=null) {
+        // Rehash all entries
+        const oldBuckets = this._buckets;
+        this._capacity = Math.max(4, newCapacity);
+        this._buckets = Array.from({length: this._capacity}, () => []);
+        this._size = 0;
+        if (walker) walker.log('Resizing to ' + this._capacity + ' and rehashing all entries...');
+        for (let i = 0; i < oldBuckets.length; i++) {
+          const bucket = oldBuckets[i];
+          for (let j = 0; j < bucket.length; j++) {
+            const entry = bucket[j];
+            // Use put but without triggering further resize
+            const hash = this._hash(entry.key);
+            const idx = this._index(hash);
+            this._buckets[idx].push({key: entry.key, value: entry.value});
+            this._size++;
+            if (walker) walker.rehashStep(entry.key, idx);
+          }
+        }
+      }
+
+      entries() {
+        // returns array of {bucketIndex, key, value}
+        const out = [];
+        for (let i = 0; i < this._buckets.length; i++) {
+          for (let j = 0; j < this._buckets[i].length; j++) {
+            out.push({bucket:i, key:this._buckets[i][j].key, value:this._buckets[i][j].value});
+          }
+        }
+        return out;
+      }
+    }
+
+    // UI & visualization
+    const map = new HashMap(8, 0.75);
+    const bucketsEl = document.getElementById('buckets');
+    const capacityEl = document.getElementById('capacity');
+    const sizeEl = document.getElementById('size');
+    const loadEl = document.getElementById('load');
+    const thresholdEl = document.getElementById('threshold');
+    const logEl = document.getElementById('log');
+    const sourceEl = document.getElementById('source');
+
+    function updateStats() {
+      capacityEl.textContent = map.capacity();
+      sizeEl.textContent = map.size();
+      loadEl.textContent = map.loadFactor().toFixed(2);
+      thresholdEl.textContent = map.threshold();
+    }
+
+    function renderBuckets() {
+      bucketsEl.innerHTML = '';
+      const cap = map.capacity();
+      for (let i = 0; i < cap; i++) {
+        const bucket = document.createElement('div');
+        bucket.className = 'bucket';
+        bucket.dataset.index = i;
+        const idx = document.createElement('div');
+        idx.className = 'bindex';
+        idx.textContent = i;
+        bucket.appendChild(idx);
+        const list = map._buckets[i];
+        if (list.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'small-muted';
+          empty.style.fontSize='12px';
+          empty.textContent = '(empty)';
+          bucket.appendChild(empty);
+        } else {
+          list.forEach((entry, j) => {
+            const node = document.createElement('div');
+            node.className = 'node';
+            node.dataset.bucket = i;
+            node.dataset.pos = j;
+            const k = document.createElement('div'); k.className = 'k'; k.textContent = entry.key;
+            const v = document.createElement('div'); v.className = 'v'; v.textContent = String(entry.value);
+            node.appendChild(k);
+            node.appendChild(v);
+            node.title = 'Click to copy';
+            node.addEventListener('click', (e) => {
+              e.stopPropagation();
+              navigator.clipboard?.writeText(JSON.stringify({key:entry.key, value:entry.value})).then(()=> {
+                flashLog('Copied { key: "'+entry.key+'", value: "'+entry.value+'" } to clipboard');
+              }).catch(()=> flashLog('Copied (failed to clipboard)'));
+            });
+            bucket.appendChild(node);
+          });
+        }
+        bucket.addEventListener('click', () => {
+          flashLog('Bucket ' + i + ' contains ' + list.length + ' entries');
+        });
+        bucketsEl.appendChild(bucket);
+      }
+      updateStats();
+    }
+
+    // walker object for visualization callbacks
+    class Walker {
+      constructor(speed, stepMode) {
+        this.speed = speed;
+        this.stepMode = stepMode;
+        this._promises = [];
+        this._activeHighlights = [];
+      }
+      async visitBucket(idx) {
+        await this._pause();
+        const bucket = document.querySelector('.bucket[data-index="'+idx+'"]');
+        if (bucket) {
+          bucket.classList.add('highlight');
+          this._activeHighlights.push(bucket);
+          this.log('Visiting bucket ' + idx);
+          if (!this.stepMode) await this._sleep(this.speed);
+        }
+      }
+      async visitNode(bidx, pos, matched) {
+        await this._pause();
+        const sel = '.bucket[data-index="'+bidx+'"] .node[data-pos="'+pos+'"]';
+        const node = document.querySelector(sel);
+        if (node) {
+          node.classList.add(matched ? 'found' : 'highlight');
+          this._activeHighlights.push(node);
+          this.log((matched ? 'Found match' : 'Checking') + ' at bucket ' + bidx + ' pos ' + pos);
+          if (!this.stepMode) await this._sleep(this.speed);
+        }
+      }
+      async rehashStep(key, idx) {
+        await this._pause();
+        this.log('Rehash: placed key "'+key+'" into bucket '+idx);
+        // briefly highlight target bucket
+        const bucket = document.querySelector('.bucket[data-index="'+idx+'"]');
+        if (bucket) {
+          bucket.classList.add('highlight');
+          this._activeHighlights.push(bucket);
+          if (!this.stepMode) await this._sleep(Math.max(60, this.speed/4));
+        }
+      }
+      clearHighlights() {
+        this._activeHighlights.forEach(el => {
+          el.classList.remove('highlight','found');
+        });
+        this._activeHighlights = [];
+      }
+      log(msg) {
+        flashLog(msg);
+      }
+      _sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+      async _pause() {
+        if (this.stepMode) {
+          // create a promise that will be resolved when the user clicks 'Next'
+          await new Promise(resolve => {
+            const handler = () => {
+              document.removeEventListener('click', handler);
+              resolve();
+            };
+            // clicking anywhere (except on buttons) will proceed; also show a brief hint
+            document.addEventListener('click', handler);
+            flashLog('Step mode: click anywhere to continue', 1400);
+          });
+        }
+      }
+    }
+
+    // helpers
+    function flashLog(msg, timeout=2000) {
+      logEl.textContent = msg;
+      if (timeout>0) {
+        setTimeout(()=> {
+          if (logEl.textContent === msg) logEl.textContent = '';
+        }, timeout);
+      }
+    }
+
+    // wire UI
+    const keyInput = document.getElementById('keyInput');
+    const valueInput = document.getElementById('valueInput');
+    const putBtn = document.getElementById('putBtn');
+    const getBtn = document.getElementById('getBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const fillBtn = document.getElementById('fillBtn');
+    const randomBtn = document.getElementById('randomBtn');
+    const forceResizeBtn = document.getElementById('forceResizeBtn');
+    const speedEl = document.getElementById('speed');
+    const stepModeEl = document.getElementById('stepMode');
+
+    function parseKey(s){
+      // try to parse numbers for convenience
+      if (s === '') return '';
+      const n = Number(s);
+      if (!Number.isNaN(n) && String(n) === s) return n;
+      return s;
+    }
+
+    async function doPut(key, value) {
+      const speed = 1000 - Number(speedEl.value); // invert so slider intuitive
+      const walker = new Walker(Math.max(40,speed), stepModeEl.checked);
+      walker.clearHighlights();
+      const result = map.put(key, value, walker);
+      renderBuckets();
+      walker.clearHighlights();
+      flashLog('Put: ' + String(key) + ' -> ' + String(value) + ' ('+result+')', 2500);
+    }
+
+    async function doGet(key) {
+      const speed = 1000 - Number(speedEl.value);
+      const walker = new Walker(Math.max(40,speed), stepModeEl.checked);
+      walker.clearHighlights();
+      const val = map.get(key, walker);
+      renderBuckets();
+      walker.clearHighlights();
+      if (val === undefined) flashLog('Get: Key "'+String(key)+'" not found', 2500);
+      else flashLog('Get: "'+String(key)+'" -> "'+String(val)+'"', 3500);
+    }
+
+    async function doDelete(key) {
+      const speed = 1000 - Number(speedEl.value);
+      const walker = new Walker(Math.max(40,speed), stepModeEl.checked);
+      walker.clearHighlights();
+      const ok = map.delete(key, walker);
+      renderBuckets();
+      walker.clearHighlights();
+      if (ok) flashLog('Deleted key "'+String(key)+'"', 2200);
+      else flashLog('Delete: key "'+String(key)+'" not found', 2200);
+    }
+
+    putBtn.addEventListener('click', async () => {
+      const key = parseKey(keyInput.value.trim());
+      const value = valueInput.value;
+      await doPut(key, value);
+    });
+
+    getBtn.addEventListener('click', async () => {
+      const key = parseKey(keyInput.value.trim());
+      await doGet(key);
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      const key = parseKey(keyInput.value.trim());
+      await doDelete(key);
+    });
+
+    clearBtn.addEventListener('click', () => {
+      // reset the map
+      while (map.size() > 0) {
+        // cheap re-init
+        break;
+      }
+      // re-create
+      const newCap = 8;
+      const load = map._loadFactor;
+      // replace internal fields
+      map._capacity = newCap;
+      map._buckets = Array.from({length:newCap}, ()=>[]);
+      map._size = 0;
+      updateStats();
+      renderBuckets();
+      flashLog('Cleared map');
+    });
+
+    fillBtn.addEventListener('click', () => {
+      const samples = [
+        ['apple','red'],['banana','yellow'],['grape','purple'],['lemon','yellow'],
+        ['melon','green'],['peach','pink'],['apricot','orange'],['plum','violet'],
+        ['kiwi','brown'],['pear','green'],['mango','orange'],['lime','green']
+      ];
+      (async ()=> {
+        for (const [k,v] of samples) {
+          await doPut(k,v);
+        }
+      })();
+    });
+
+    randomBtn.addEventListener('click', () => {
+      (async ()=> {
+        for (let i=0;i<20;i++){
+          const k = 'k'+Math.floor(Math.random()*1000);
+          const v = Math.random().toString(36).slice(2,7);
+          await doPut(k,v);
+        }
+      })();
+    });
+
+    forceResizeBtn.addEventListener('click', () => {
+      map._resize(map.capacity()*2);
+      renderBuckets();
+      flashLog('Forced resize to capacity ' + map.capacity());
+    });
+
+    // load source code into pre (for readability we show the core class string)
+    sourceEl.textContent = (HashMap.toString());
+
+    // initial render
+    renderBuckets();
+    updateStats();
+
+    // Utility: find colliding key for a given key (same bucket index)
+    // Not exposed in UI but used by dev console if needed
+    window.findCollisionFor = function(origKey){
+      const origHash = map._hash(origKey);
+      const targetIdx = map._index(origHash);
+      let attempt = 0;
+      while (attempt < 200000) {
+        attempt++;
+        const cand = String(origKey) + '#' + attempt;
+        if (map._index(map._hash(cand)) === targetIdx && cand !== origKey) return cand;
+      }
+      return null;
+    };
+
+    // keyboard shortcuts (Enter to put)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && document.activeElement && (document.activeElement.tagName==='INPUT')) {
+        e.preventDefault();
+        putBtn.click();
+      }
+    });
+  </script>
+</body>
+</html>

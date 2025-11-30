@@ -1,0 +1,52 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Prim's Algorithm Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - img [ref=e6]:
+      - generic [ref=e9] [cursor=pointer]: "1"
+      - generic [ref=e12] [cursor=pointer]: "2"
+      - generic [ref=e15] [cursor=pointer]: "3"
+      - generic [ref=e18] [cursor=pointer]: "4"
+      - generic [ref=e21] [cursor=pointer]: "5"
+      - generic [ref=e24] [cursor=pointer]: "6"
+      - generic [ref=e25]: "3"
+      - generic [ref=e27]: "8"
+      - generic [ref=e29]: "13"
+      - generic [ref=e30]: "13"
+      - generic [ref=e31]: "16"
+      - generic [ref=e33]: "19"
+      - generic [ref=e35]: "8"
+      - generic [ref=e37]: "11"
+      - generic [ref=e39]: "3"
+      - generic [ref=e41]: "1"
+      - generic [ref=e43]: "10"
+      - generic [ref=e44]: "12"
+      - generic [ref=e46]: "13"
+      - generic [ref=e48]: "20"
+      - generic [ref=e49]: "16"
+    - generic [ref=e50]:
+      - generic [ref=e51]:
+        - heading "Graph Input" [level=2] [ref=e52]
+        - generic [ref=e53]: "Number of nodes (2-10):"
+        - spinbutton "Number of nodes (2-10):" [ref=e54]: "6"
+        - button "Generate Random Graph" [ref=e55] [cursor=pointer]
+        - text: Click on nodes to select start node for Prim's algorithm.
+      - generic [ref=e56]:
+        - heading "Run Prim's Algorithm" [level=2] [ref=e57]
+        - button "Start Prim's Algorithm" [disabled] [ref=e58]
+        - button "Next Step" [disabled] [ref=e59]
+        - button "Reset Algorithm" [disabled] [ref=e60]
+      - generic [ref=e61]:
+        - heading "Log:" [level=2] [ref=e62]
+        - generic [ref=e63]: "[11:00:10 PM] Generated random graph with 6 nodes and 15 edges."
+      - generic [ref=e64]:
+        - text: "How to use:"
+        - text: 1. Generate a random weighted undirected graph.
+        - text: 2. Click on a node to select it as the start node.
+        - text: 3. Press "Start Prim's Algorithm".
+        - text: 4. Use "Next Step" button to advance algorithm step by step.
+        - text: 5. Edges in green are included in the MST.
+```

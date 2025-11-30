@@ -1,0 +1,52 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Adjacency Matrix Generator" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - text: "Enter edges of the graph (one per line):"
+      - text: "Format: node1 node2 [weight]"
+      - text: For unweighted graphs, omit weight.
+      - text: "Example:"
+      - text: A B
+      - text: B C 2
+      - text: C A 5
+      - text: Use spaces or tabs to separate values.
+    - 'textbox "Enter edges of the graph (one per line): Format: node1 node2 [weight] For unweighted graphs, omit weight. Example: A B B C 2 C A 5 Use spaces or tabs to separate values." [ref=e5]':
+      - /placeholder: A B\nB C 2\nC A 5
+      - text: A B B C 2 C A 5 D C A D 4
+    - button "Generate Adjacency Matrix" [ref=e6] [cursor=pointer]
+    - generic [ref=e8]: "Example Input: A B B C 2 C A 5 D C A D 4"
+  - table [ref=e10]:
+    - row "A B C D" [ref=e11]:
+      - cell [ref=e12]
+      - cell "A" [ref=e13]
+      - cell "B" [ref=e14]
+      - cell "C" [ref=e15]
+      - cell "D" [ref=e16]
+    - row "A 0 1 0 4" [ref=e17]:
+      - cell "A" [ref=e18]
+      - cell "0" [ref=e19]
+      - cell "1" [ref=e20]
+      - cell "0" [ref=e21]
+      - cell "4" [ref=e22]
+    - row "B 0 0 2 0" [ref=e23]:
+      - cell "B" [ref=e24]
+      - cell "0" [ref=e25]
+      - cell "0" [ref=e26]
+      - cell "2" [ref=e27]
+      - cell "0" [ref=e28]
+    - row "C 5 0 0 0" [ref=e29]:
+      - cell "C" [ref=e30]
+      - cell "5" [ref=e31]
+      - cell "0" [ref=e32]
+      - cell "0" [ref=e33]
+      - cell "0" [ref=e34]
+    - row "D 0 0 1 0" [ref=e35]:
+      - cell "D" [ref=e36]
+      - cell "0" [ref=e37]
+      - cell "0" [ref=e38]
+      - cell "1" [ref=e39]
+      - cell "0" [ref=e40]
+```

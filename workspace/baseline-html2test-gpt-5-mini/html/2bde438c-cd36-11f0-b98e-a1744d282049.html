@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Binary Search Visualizer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 18px; color: #111; background: #f7f8fb; }
+  h1 { margin: 0 0 8px 0; font-size: 20px; }
+  .controls, .visual, .info { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(16,24,40,0.06); margin-bottom: 12px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  label { font-size: 13px; color: #333; }
+  input[type="text"], input[type="number"] { padding:6px 8px; border-radius:6px; border:1px solid #ddd; min-width: 160px; }
+  button { padding:8px 10px; border-radius:6px; border:1px solid #d0d7de; background:white; cursor:pointer; }
+  button.primary { background:#0b5fff; color:white; border-color:#0b5fff; }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
+  .array { display:flex; gap:6px; margin-top:12px; flex-wrap:wrap; }
+  .cell { width:48px; height:48px; border-radius:6px; background:#f3f4f6; display:flex; flex-direction:column; align-items:center; justify-content:center; font-weight:600; color:#111; position:relative; border:2px solid transparent; transition: transform 140ms ease, background 140ms ease, border-color 140ms ease; }
+  .cell.index { font-weight:400; font-size:11px; color:#666; position:absolute; left:6px; top:4px; }
+  .cell.low { border-color:#16a34a; box-shadow: 0 6px 18px rgba(22,163,74,0.08); transform: translateY(-6px); }
+  .cell.high { border-color:#ef4444; box-shadow: 0 6px 18px rgba(239,68,68,0.08); transform: translateY(-6px); }
+  .cell.mid { border-color:#f59e0b; box-shadow: 0 6px 18px rgba(245,158,11,0.08); transform: translateY(-6px); }
+  .cell.compare { background:#fff7ed; }
+  .cell.found { background:#ecfdf5; border-color:#10b981; transform: translateY(-6px); }
+  .legend { display:flex; gap:8px; margin-top:8px; font-size:13px; color:#444; }
+  .legend span { display:flex; gap:6px; align-items:center; }
+  .box { width:12px; height:12px; border-radius:3px; display:inline-block; }
+  .lowbox { background:#16a34a; } .highbox { background:#ef4444; } .midbox { background:#f59e0b; } .foundbox{ background:#10b981; }
+  .log { max-height:180px; overflow:auto; background:#0f172a0d; padding:8px; border-radius:6px; margin-top:12px; font-family: monospace; font-size:13px; }
+  .code { background:#0b1220; color:#e6eef8; padding:8px; border-radius:6px; font-family: monospace; font-size:13px; white-space:pre; line-height:1.5; }
+  .code .line { display:block; padding:2px 6px; border-radius:4px; }
+  .code .hl { background: rgba(255,255,255,0.06); }
+  .stack { margin-top:8px; display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+  .frame { border-radius:6px; padding:6px 8px; background:#eef2ff; color:#0f172a; min-width:80px; text-align:center; font-size:13px; }
+  .small { font-size:12px; color:#4b5563; }
+  .footer { font-size:13px; color:#444; display:flex; gap:8px; align-items:center; margin-top:8px; }
+  input[type=range] { -webkit-appearance: none; height:6px; background:#e6e9ef; border-radius:6px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width:14px; height:14px; background:#0b5fff; border-radius:50%; box-shadow:0 1px 3px rgba(11,95,255,0.3); }
+  .status { padding:8px 10px; border-radius:8px; background:#fff; border:1px solid #e6eef5; }
+</style>
+</head>
+<body>
+  <h1>Binary Search Visualizer</h1>
+
+  <div class="controls">
+    <div class="row">
+      <label>Array (comma separated numbers):</label>
+      <input id="arrayInput" type="text" value="1,3,5,7,9,11,13" />
+      <label><input id="autoSort" type="checkbox" checked /> Auto-sort & unique</label>
+      <button id="genRandom">Random (7)</button>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <label>Target value:</label>
+      <input id="targetInput" type="number" value="7" />
+      <label style="margin-left:8px;">Mode:</label>
+      <select id="modeSelect">
+        <option value="iterative">Iterative</option>
+        <option value="recursive">Recursive (simulate stack)</option>
+      </select>
+      <button id="resetBtn">Reset</button>
+      <button id="stepBtn" class="primary">Step</button>
+      <button id="runBtn">Run</button>
+      <label style="margin-left:8px;">Speed:</label>
+      <input id="speed" type="range" min="200" max="2000" step="100" value="800" title="ms per step" />
+      <span id="speedVal" class="small">800ms</span>
+    </div>
+    <div class="footer">
+      <div class="small">Tip: Binary search requires a sorted array. If "Auto-sort & unique" is checked, input will be sorted & deduped automatically.</div>
+    </div>
+  </div>
+
+  <div class="visual">
+    <div class="row">
+      <div style="flex:1;">
+        <div class="array" id="arrayArea"></div>
+        <div class="legend">
+          <span><span class="box lowbox"></span> low</span>
+          <span><span class="box highbox"></span> high</span>
+          <span><span class="box midbox"></span> mid (checking)</span>
+          <span><span class="box foundbox"></span> found</span>
+        </div>
+      </div>
+      <div style="width:360px;">
+        <div style="display:flex; gap:8px;">
+          <div style="flex:1;">
+            <div class="small">Algorithm (Iterative)</div>
+            <div id="iterCode" class="code" style="margin-top:6px;">
+              <span class="line" data-line="1">1  low = 0</span>
+              <span class="line" data-line="2">2  high = n - 1</span>
+              <span class="line" data-line="3">3  while low <= high:</span>
+              <span class="line" data-line="4">4      mid = (low + high) // 2</span>
+              <span class="line" data-line="5">5      if arr[mid] == target: return mid</span>
+              <span class="line" data-line="6">6      elif arr[mid] &lt; target: low = mid + 1</span>
+              <span class="line" data-line="7">7      else: high = mid - 1</span>
+              <span class="line" data-line="8">8  return -1</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;">
+          <div class="small">Algorithm (Recursive)</div>
+          <div id="recCode" class="code" style="margin-top:6px;">
+            <span class="line" data-line="1">1  function binarySearch(arr, low, high, target):</span>
+            <span class="line" data-line="2">2      if low &gt; high: return -1</span>
+            <span class="line" data-line="3">3      mid = (low + high) // 2</span>
+            <span class="line" data-line="4">4      if arr[mid] == target: return mid</span>
+            <span class="line" data-line="5">5      elif arr[mid] &lt; target:</span>
+            <span class="line" data-line="6">6          return binarySearch(arr, mid+1, high, target)</span>
+            <span class="line" data-line="7">7      else:</span>
+            <span class="line" data-line="8">8          return binarySearch(arr, low, mid-1, target)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <div style="flex:1">
+        <div class="small">Execution Log</div>
+        <div id="log" class="log"></div>
+      </div>
+      <div style="width:320px;">
+        <div class="small">Call Stack (recursive mode)</div>
+        <div id="stackArea" class="stack"></div>
+        <div id="status" class="status" style="margin-top:8px;">Ready</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // DOM elements
+  const arrayInput = document.getElementById('arrayInput');
+  const autoSort = document.getElementById('autoSort');
+  const genRandom = document.getElementById('genRandom');
+  const targetInput = document.getElementById('targetInput');
+  const modeSelect = document.getElementById('modeSelect');
+  const resetBtn = document.getElementById('resetBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const runBtn = document.getElementById('runBtn');
+  const arrayArea = document.getElementById('arrayArea');
+  const logEl = document.getElementById('log');
+  const iterCode = document.getElementById('iterCode');
+  const recCode = document.getElementById('recCode');
+  const stackArea = document.getElementById('stackArea');
+  const statusEl = document.getElementById('status');
+  const speedRange = document.getElementById('speed');
+  const speedVal = document.getElementById('speedVal');
+
+  let arr = [];
+  let target = null;
+  let state = null;
+  let intervalId = null;
+  let speed = parseInt(speedRange.value);
+
+  // CSS helpers
+  function clearCodeHighlights() {
+    iterCode.querySelectorAll('.line').forEach(l => l.classList.remove('hl'));
+    recCode.querySelectorAll('.line').forEach(l => l.classList.remove('hl'));
+  }
+
+  function hlIter(line) {
+    clearCodeHighlights();
+    const el = iterCode.querySelector('.line[data-line="'+line+'"]');
+    if(el) el.classList.add('hl');
+  }
+  function hlRec(line) {
+    clearCodeHighlights();
+    const el = recCode.querySelector('.line[data-line="'+line+'"]');
+    if(el) el.classList.add('hl');
+  }
+
+  // Parse input array
+  function parseArrayInput() {
+    let text = arrayInput.value.trim();
+    if(!text) { arr = []; return; }
+    let parts = text.split(',').map(s => s.trim()).filter(s=>s.length);
+    let nums = parts.map(s => {
+      let v = Number(s);
+      return isNaN(v) ? null : v;
+    }).filter(v => v !== null);
+    if(nums.length === 0) { arr = []; return; }
+    if(autoSort.checked) {
+      nums = Array.from(new Set(nums)).sort((a,b)=>a-b);
+    }
+    arr = nums;
+  }
+
+  function renderArray(highlights = {}) {
+    // highlights: {low: i, high: j, mid: k, compare: k, found: index}
+    arrayArea.innerHTML = '';
+    for(let i=0;i<arr.length;i++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if(i===highlights.low) cell.classList.add('low');
+      if(i===highlights.high) cell.classList.add('high');
+      if(i===highlights.mid) cell.classList.add('mid');
+      if(i===highlights.compare) cell.classList.add('compare');
+      if(i===highlights.found) cell.classList.add('found');
+      const idx = document.createElement('div');
+      idx.className='index';
+      idx.textContent = i;
+      cell.appendChild(idx);
+      const val = document.createElement('div');
+      val.textContent = arr[i];
+      cell.appendChild(val);
+      arrayArea.appendChild(cell);
+    }
+  }
+
+  function log(...msgs) {
+    const line = document.createElement('div');
+    line.textContent = msgs.join(' ');
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // State management for iterative
+  function initIterative() {
+    state = {
+      mode: 'iterative',
+      low: 0,
+      high: arr.length - 1,
+      mid: null,
+      done: false,
+      steps:0,
+      foundIndex: null
+    };
+    clearOutputs();
+    renderArray();
+    hlIter(1);
+    log("Iterative: initialized. low=0, high=" + state.high);
+    statusEl.textContent = 'Ready (iterative)';
+    stackArea.innerHTML = '';
+  }
+
+  // State management for recursive (simulate stack)
+  function initRecursive() {
+    state = {
+      mode: 'recursive',
+      stack: [],
+      done: false,
+      steps: 0,
+      foundIndex: null
+    };
+    // push initial call
+    state.stack.push({low:0, high: arr.length - 1, state: 'enter', mid: null});
+    clearOutputs();
+    renderArray();
+    updateStackUI();
+    hlRec(1);
+    log("Recursive: push initial call: low=0, high=" + (arr.length-1));
+    statusEl.textContent = 'Ready (recursive)';
+  }
+
+  function clearOutputs(){
+    logEl.innerHTML = '';
+    clearCodeHighlights();
+  }
+
+  // Step functions
+  function stepIterative() {
+    if(!state || state.mode !== 'iterative') return;
+    if(state.done) { log("Already finished."); return; }
+    // if start of algorithm highlight initialization lines
+    if(state.steps === 0) {
+      hlIter(2);
+      renderArray({low: state.low, high: state.high});
+      state.steps++;
+      return;
+    }
+
+    if(state.low > state.high) {
+      state.done = true;
+      state.foundIndex = -1;
+      renderArray();
+      hlIter(8);
+      log("Range empty: low ("+state.low+") > high ("+state.high+"). Not found.");
+      statusEl.textContent = 'Not found';
+      return;
+    }
+
+    // compute mid
+    state.mid = Math.floor((state.low + state.high)/2);
+    hlIter(4);
+    renderArray({low:state.low, high:state.high, mid:state.mid, compare: state.mid});
+    log("Check mid="+state.mid+" value="+arr[state.mid]);
+
+    // comparison step (one iteration)
+    setTimeout(()=> {
+      if(arr[state.mid] === target) {
+        state.done = true;
+        state.foundIndex = state.mid;
+        renderArray({found: state.mid});
+        hlIter(5);
+        log("Found target at index", state.mid);
+        statusEl.textContent = 'Found at index ' + state.mid;
+      } else if(arr[state.mid] < target) {
+        hlIter(6);
+        log("arr[mid] < target -> move low to", state.mid+1);
+        state.low = state.mid + 1;
+        renderArray({low:state.low, high:state.high});
+      } else {
+        hlIter(7);
+        log("arr[mid] > target -> move high to", state.mid-1);
+        state.high = state.mid - 1;
+        renderArray({low:state.low, high:state.high});
+      }
+      state.steps++;
+      // if after update low>high and not done then next step will detect
+    }, 60);
+  }
+
+  function stepRecursive() {
+    if(!state || state.mode !== 'recursive') return;
+    if(state.done) { log("Already finished."); return; }
+    if(state.stack.length === 0) {
+      state.done = true;
+      if(state.foundIndex == null) {
+        state.foundIndex = -1;
+        log("Stack empty. Not found.");
+        statusEl.textContent = 'Not found';
+      }
+      return;
+    }
+
+    const frame = state.stack[state.stack.length -1]; // peek
+    updateStackUI();
+    // If invalid range, pop and simulate return -1
+    if(frame.low > frame.high) {
+      hlRec(2);
+      log("Call: low="+frame.low+", high="+frame.high+" -> low>high, return -1");
+      state.stack.pop();
+      updateStackUI();
+      state.steps++;
+      return;
+    }
+
+    if(frame.state === 'enter') {
+      // check low>high done above, now compute mid
+      frame.mid = Math.floor((frame.low + frame.high)/2);
+      frame.state = 'compare';
+      hlRec(3);
+      renderArray({low: frame.low, high: frame.high, mid: frame.mid, compare: frame.mid});
+      log("Call: low="+frame.low+", high="+frame.high+". mid="+frame.mid+" (value="+arr[frame.mid]+")");
+      state.steps++;
+      return;
+    }
+
+    if(frame.state === 'compare') {
+      const mid = frame.mid;
+      hlRec(4);
+      if(arr[mid] === target) {
+        state.done = true;
+        state.foundIndex = mid;
+        renderArray({found: mid});
+        log("arr[mid] == target -> found at index "+mid);
+        statusEl.textContent = 'Found at index ' + mid;
+        // clear the stack to indicate completion
+        state.stack = [];
+        updateStackUI();
+        state.steps++;
+        return;
+      } else if(arr[mid] < target) {
+        hlRec(5);
+        log("arr[mid] < target -> recurse right: low="+(mid+1)+", high="+frame.high);
+        // push new frame for right half
+        state.stack.push({low: mid+1, high: frame.high, state: 'enter', mid: null});
+        updateStackUI();
+        state.steps++;
+        return;
+      } else {
+        hlRec(7);
+        log("arr[mid] > target -> recurse left: low="+frame.low+", high="+(mid-1));
+        state.stack.push({low: frame.low, high: mid-1, state: 'enter', mid: null});
+        updateStackUI();
+        state.steps++;
+        return;
+      }
+    }
+  }
+
+  // Update recursive stack UI
+  function updateStackUI() {
+    stackArea.innerHTML = '';
+    state && state.stack && state.stack.forEach((f, idx) => {
+      const el = document.createElement('div');
+      el.className = 'frame';
+      el.innerHTML = "<div>low="+f.low+"</div><div>high="+f.high+"</div>" + (f.mid!==null?("<div class='small'>mid="+f.mid+"</div>"):"");
+      stackArea.appendChild(el);
+    });
+  }
+
+  // Run (auto) control
+  function runAuto() {
+    if(intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+      runBtn.textContent = 'Run';
+      stepBtn.disabled = false;
+      resetBtn.disabled = false;
+      arrayInput.disabled = false;
+      targetInput.disabled = false;
+      modeSelect.disabled = false;
+      genRandom.disabled = false;
+      return;
+    }
+    runBtn.textContent = 'Pause';
+    stepBtn.disabled = false;
+    resetBtn.disabled = true;
+    arrayInput.disabled = true;
+    targetInput.disabled = true;
+    modeSelect.disabled = true;
+    genRandom.disabled = true;
+    intervalId = setInterval(() => {
+      if(state.mode === 'iterative') {
+        if(state.done) { runAuto(); return; }
+        stepIterative();
+        if(state.done) { runAuto(); }
+      } else {
+        if(state.done || state.stack.length===0) { runAuto(); return; }
+        stepRecursive();
+        if(state.done || state.stack.length===0) { runAuto(); }
+      }
+    }, speed);
+  }
+
+  // Reset
+  function resetAll() {
+    if(intervalId) { clearInterval(intervalId); intervalId=null; runBtn.textContent='Run'; }
+    parseArrayInput();
+    const t = Number(targetInput.value);
+    target = isNaN(t) ? null : t;
+    clearCodeHighlights();
+    if(modeSelect.value === 'iterative') initIterative();
+    else initRecursive();
+    stepBtn.disabled = false;
+    runBtn.disabled = false;
+    arrayInput.disabled = false;
+    targetInput.disabled = false;
+    genRandom.disabled = false;
+    statusEl.textContent = 'Ready';
+  }
+
+  // Event listeners
+  genRandom.addEventListener('click', ()=>{
+    const n = 7;
+    const values = new Set();
+    while(values.size < n) {
+      const v = Math.floor(Math.random()*41) - 10; // -10..30
+      values.add(v);
+    }
+    const arrVals = Array.from(values).sort((a,b)=>a-b);
+    arrayInput.value = arrVals.join(',');
+    parseArrayInput();
+    resetAll();
+  });
+
+  resetBtn.addEventListener('click', resetAll);
+
+  stepBtn.addEventListener('click', ()=>{
+    parseArrayInput();
+    const t = Number(targetInput.value);
+    target = isNaN(t) ? null : t;
+    if(target === null || arr.length===0) {
+      alert("Provide an array and a numeric target.");
+      return;
+    }
+    if(!state) resetAll();
+    if(state.mode === 'iterative') stepIterative();
+    else stepRecursive();
+  });
+
+  runBtn.addEventListener('click', ()=>{
+    // ensure parsed
+    parseArrayInput();
+    const t = Number(targetInput.value);
+    target = isNaN(t) ? null : t;
+    if(target === null || arr.length===0) {
+      alert("Provide an array and a numeric target.");
+      return;
+    }
+    if(!state) resetAll();
+    runAuto();
+  });
+
+  modeSelect.addEventListener('change', ()=>{
+    parseArrayInput();
+    resetAll();
+  });
+
+  speedRange.addEventListener('input', ()=>{
+    speed = parseInt(speedRange.value);
+    speedVal.textContent = speed + "ms";
+    if(intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+      runAuto(); // restart with new speed
+    }
+  });
+
+  arrayInput.addEventListener('change', () => {
+    parseArrayInput();
+  });
+
+  // On load
+  parseArrayInput();
+  resetAll();
+
+  // Keyboard: pressing Enter on target runs one step
+  targetInput.addEventListener('keydown', (e)=> {
+    if(e.key === 'Enter') {
+      stepBtn.click();
+    }
+  });
+
+  // Initial render
+  renderArray();
+
+  // Expose some helpful info in log
+  log("Welcome! Use Step to go one step at a time or Run to animate.");
+  log("Current array:", arrayInput.value);
+  log("Target:", targetInput.value);
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Linked List Visualizer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: "Interactive singly linked list: insert, remove, search, traverse, and reverse with animations."
+    - generic [ref=e7]: "Tip: use \"Step\" to animate traversal. Values are strings/numbers."
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - textbox "value (e.g. 42)" [ref=e10]
+      - spinbutton [ref=e11]
+      - generic [ref=e12]:
+        - button "Add Head" [ref=e13] [cursor=pointer]
+        - button "Add Tail" [ref=e14] [cursor=pointer]
+        - button "Insert At" [ref=e15] [cursor=pointer]
+    - generic [ref=e16]:
+      - button "Delete Head" [ref=e17] [cursor=pointer]
+      - button "Delete Tail" [ref=e18] [cursor=pointer]
+      - button "Delete At" [ref=e19] [cursor=pointer]
+      - button "Delete Value" [ref=e20] [cursor=pointer]
+    - generic [ref=e21]:
+      - button "Search" [ref=e22] [cursor=pointer]
+      - button "Traverse" [ref=e23] [cursor=pointer]
+      - button "Step" [ref=e24] [cursor=pointer]
+      - button "Reverse" [ref=e25] [cursor=pointer]
+    - generic [ref=e26]:
+      - button "Random List" [ref=e27] [cursor=pointer]
+      - button "Clear" [ref=e28] [cursor=pointer]
+  - generic [ref=e29]:
+    - generic [ref=e31]: List is empty. Add nodes to begin.
+    - generic [ref=e32]:
+      - generic [ref=e35]: "// Current list values: [] // You can perform operations like addHead, addTail, insertAt(index), removeAt(index), find(value), reverse()"
+      - generic [ref=e37]:
+        - generic [ref=e38]: List Info
+        - generic [ref=e39]: "Size: 0"
+        - generic [ref=e40]: "Head: null"
+        - generic [ref=e41]: "Tail: null"
+  - contentinfo [ref=e42]:
+    - generic [ref=e43]: This demo implements a singly linked list in JavaScript and visualizes nodes and pointers.
+    - generic [ref=e44]: "Author: Interactive Demo"
+```

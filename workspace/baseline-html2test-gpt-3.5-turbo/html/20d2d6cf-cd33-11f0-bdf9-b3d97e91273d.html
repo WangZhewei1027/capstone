@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sliding Window Visualizer</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f0f4f8;
+    color: #333;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 5px;
+  }
+  p {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #555;
+  }
+  #container {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  label {
+    display: inline-block;
+    margin: 10px 0 5px 0;
+    font-weight: bold;
+  }
+  input[type="text"], input[type="number"] {
+    width: 100%;
+    padding: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    margin-bottom: 15px;
+  }
+  button {
+    padding: 10px 20px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 5px;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    margin-bottom: 15px;
+  }
+  button:disabled {
+    background-color: #8ab4f8;
+    cursor: not-allowed;
+  }
+  .array-visual {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .array-item {
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+    background: white;
+    border-radius: 5px;
+    border: 1.5px solid #ccc;
+    text-align: center;
+    font-weight: bold;
+    user-select: none;
+    transition: background-color 0.3s, border-color 0.3s;
+  }
+  .window {
+    background-color: #007bff;
+    color: white;
+    border-color: #0056b3;
+  }
+  .current-max {
+    border-color: #28a745 !important;
+    box-shadow: 0 0 8px #28a745;
+  }
+  #steps {
+    max-height: 220px;
+    overflow-y: auto;
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    color: #222;
+    line-height: 1.5;
+    font-family: monospace;
+    user-select: none;
+    box-shadow: 0 3px 8px rgb(0 0 0 / 0.1);
+  }
+  #steps p {
+    margin: 4px 0;
+  }
+  #controls {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  #speedLabel {
+    margin-left: 10px;
+    font-weight: normal;
+    font-size: 0.9rem;
+    color: #555;
+  }
+  #speed {
+    vertical-align: middle;
+  }
+  @media (max-width: 480px) {
+    .array-item {
+      width: 32px;
+      height: 32px;
+      line-height: 32px;
+      font-size: 0.85rem;
+    }
+  }
+</style>
+</head>
+<body>
+  <h1>Sliding Window Maximum Visualizer</h1>
+  <p>Demonstration of the Sliding Window technique to find maximums in each window</p>
+  <div id="container">
+    <label for="arrayInput">Enter array (comma separated numbers):</label>
+    <input type="text" id="arrayInput" placeholder="e.g. 2,1,3,4,6,3,8,9,10,12,56" />
+    <label for="windowSize">Window size (k):</label>
+    <input type="number" id="windowSize" min="1" placeholder="e.g. 3" />
+    <div id="controls">
+      <button id="startBtn">Start Visualization</button>
+      <label for="speed">Speed:</label>
+      <input type="range" id="speed" min="100" max="2000" value="800" step="100" />
+      <span id="speedLabel">800 ms</span>
+    </div>
+    <div class="array-visual" id="arrayVisual"></div>
+    <h3>Steps:</h3>
+    <div id="steps"></div>
+  </div>
+
+<script>
+(() => {
+  const arrayInput = document.getElementById('arrayInput');
+  const windowSizeInput = document.getElementById('windowSize');
+  const startBtn = document.getElementById('startBtn');
+  const arrayVisual = document.getElementById('arrayVisual');
+  const stepsDiv = document.getElementById('steps');
+  const speedInput = document.getElementById('speed');
+  const speedLabel = document.getElementById('speedLabel');
+
+  let currentTimeout = null;
+
+  speedInput.addEventListener('input', () => {
+    speedLabel.textContent = speedInput.value + ' ms';
+  });
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function clearVisual() {
+    arrayVisual.innerHTML = '';
+    stepsDiv.innerHTML = '';
+  }
+
+  function renderArray(arr, windowStart, windowEnd, deque, currentMaxIndex) {
+    arrayVisual.innerHTML = '';
+    const n = arr.length;
+    for(let i=0; i<n; i++) {
+      const div = document.createElement('div');
+      div.className = 'array-item';
+      div.textContent = arr[i];
+
+      // Highlight window
+      if(i >= windowStart && i <= windowEnd) {
+        div.classList.add('window');
+      }
+
+      // Highlight current max
+      if(i === currentMaxIndex) {
+        div.classList.add('current-max');
+      }
+
+      // Show deque elements as border color (for explanation)
+      if(deque.includes(i)) {
+        div.style.borderStyle = 'dashed';
+      }
+
+      arrayVisual.appendChild(div);
+    }
+  }
+
+  function logStep(text) {
+    const p = document.createElement('p');
+    p.textContent = text;
+    stepsDiv.appendChild(p);
+    stepsDiv.scrollTop = stepsDiv.scrollHeight;
+  }
+
+  async function visualizeSlidingWindowMax(arr, k) {
+    clearVisual();
+    const n = arr.length;
+    if(k > n) {
+      logStep('Window size larger than array length. No output.');
+      return;
+    }
+    let deque = []; // Will store indices; elements in deque are always in descending order by value
+
+    logStep(`Starting sliding window maximum with window size k=${k}...`);
+    // Process first k elements
+    for(let i=0; i<k; i++) {
+      while(deque.length && arr[i] >= arr[deque[deque.length-1]]) {
+        logStep(`Removing index ${deque[deque.length-1]} (value ${arr[deque[deque.length-1]]}) from deque because ${arr[i]} >= ${arr[deque[deque.length-1]]}`);
+        deque.pop();
+        renderArray(arr, 0, i, deque, deque.length ? deque[0] : null);
+        await sleep(speedInput.value);
+      }
+      deque.push(i);
+      logStep(`Adding index ${i} (value ${arr[i]}) to deque`);
+      renderArray(arr, 0, i, deque, deque[0]);
+      await sleep(speedInput.value);
+    }
+
+    logStep(`Window [0..${k-1}] max is value ${arr[deque[0]]} at index ${deque[0]}`);
+    renderArray(arr, 0, k-1, deque, deque[0]);
+    await sleep(speedInput.value);
+
+    // Process the rest of the elements
+    for(let i=k; i<n; i++) {
+      // Remove elements out of this window
+      if(deque.length && deque[0] <= i - k) {
+        logStep(`Removing index ${deque[0]} (value ${arr[deque[0]]}) from deque because it is out of window [${i-k+1}..${i}]`);
+        deque.shift();
+        renderArray(arr, i-k+1, i, deque, deque.length ? deque[0] : null);
+        await sleep(speedInput.value);
+      }
+
+      // Remove smaller elements as they can't be max
+      while(deque.length && arr[i] >= arr[deque[deque.length-1]]) {
+        logStep(`Removing index ${deque[deque.length-1]} (value ${arr[deque[deque.length-1]]}) from deque because ${arr[i]} >= ${arr[deque[deque.length-1]]}`);
+        deque.pop();
+        renderArray(arr, i-k+1, i, deque, deque.length ? deque[0] : null);
+        await sleep(speedInput.value);
+      }
+
+      deque.push(i);
+      logStep(`Adding index ${i} (value ${arr[i]}) to deque`);
+
+      // Current window max
+      logStep(`Window [${i-k+1}..${i}] max is value ${arr[deque[0]]} at index ${deque[0]}`);
+
+      renderArray(arr, i-k+1, i, deque, deque[0]);
+      await sleep(speedInput.value);
+    }
+
+    logStep('Sliding window maximum completed.');
+  }
+
+  startBtn.addEventListener('click', async () => {
+    if(currentTimeout) {
+      clearTimeout(currentTimeout);
+      currentTimeout = null;
+    }
+    const arrStr = arrayInput.value.trim();
+    const k = parseInt(windowSizeInput.value, 10);
+
+    if(!arrStr) {
+      alert('Please enter an array.');
+      return;
+    }
+    if(!k || k < 1) {
+      alert('Please enter a valid window size >= 1.');
+      return;
+    }
+
+    // Parse array
+    let arr = arrStr.split(',').map(x => x.trim()).filter(x => x !== '').map(Number);
+    if(arr.some(v => isNaN(v))) {
+      alert('Array contains invalid numbers.');
+      return;
+    }
+    if(k > arr.length) {
+      alert('Window size cannot be larger than the array length.');
+      return;
+    }
+
+    startBtn.disabled = true;
+    arrayInput.disabled = true;
+    windowSizeInput.disabled = true;
+    speedInput.disabled = true;
+
+    try {
+      await visualizeSlidingWindowMax(arr, k);
+    } catch(e) {
+      console.error(e);
+      alert('An error occurred during visualization.');
+    }
+
+    startBtn.disabled = false;
+    arrayInput.disabled = false;
+    windowSizeInput.disabled = false;
+    speedInput.disabled = false;
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kruskal's Algorithm Visualization</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      background: #34495e;
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+    }
+    #container {
+      flex: 1;
+      display: flex;
+    }
+    #graphCanvas {
+      flex: 2;
+      border-right: 1px solid #ccc;
+      background: #f9f9f9;
+    }
+    #controls {
+      flex: 1;
+      padding: 20px;
+      box-sizing: border-box;
+      background: #f0f0f0;
+      overflow-y: auto;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    button {
+      margin-top: 10px;
+      margin-right: 10px;
+      padding: 10px 15px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #edgeList {
+      margin-top: 10px;
+      font-family: monospace;
+      background: white;
+      border: 1px solid #ccc;
+      height: 150px;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .edge-in-mst {
+      color: green;
+      font-weight: bold;
+    }
+    #log {
+      font-family: monospace;
+      background: #222;
+      color: #eee;
+      height: 120px;
+      margin-top: 20px;
+      padding: 10px;
+      overflow-y: scroll;
+      white-space: pre-wrap;
+      border-radius: 3px;
+    }
+    #info {
+      font-size: 14px;
+      margin-top: 15px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Kruskal's Algorithm Visualization</h1>
+  </header>
+  <div id="container">
+    <canvas id="graphCanvas"></canvas>
+    <div id="controls">
+      <h2>Graph & Kruskal's Algorithm</h2>
+      <p>
+        Click on nodes to create edges.<br />
+        After adding edges, click <strong>Run Kruskal</strong> to find the MST.<br />
+        Step through the algorithm with <strong>Next Step</strong>.
+      </p>
+      
+      <button id="addNodeBtn">Add Node</button>
+      <button id="clearGraphBtn">Clear Graph</button>
+      <hr />
+      <div>
+        <strong>Selected edge for creation:</strong>
+        <span id="edgeCreateStatus">None</span>
+      </div>
+      <hr />
+      <button id="runKruskalBtn" disabled>Run Kruskal's Algorithm</button>
+      <button id="nextStepBtn" disabled>Next Step</button>
+      
+      <h3>Edges (weight)</h3>
+      <div id="edgeList"></div>
+      <h3>Algorithm Log</h3>
+      <div id="log"></div>
+
+      <div id="info">
+        <h3>How it works:</h3>
+        <p><strong>Kruskal’s algorithm</strong> finds the Minimum Spanning Tree (MST) of a connected, weighted graph. It works by sorting all edges by weight and then adding edges one-by-one, skipping those which form cycles, until all nodes are connected.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Basic constants and setup
+    const canvas = document.getElementById("graphCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth * 0.65;
+    canvas.height = window.innerHeight - document.querySelector("header").offsetHeight;
+
+    // For responsive resizing:
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth * 0.65;
+      canvas.height = window.innerHeight - document.querySelector("header").offsetHeight;
+      drawGraph();
+    });
+
+    // Graph data structures
+    let nodes = []; // {id: number, x: number, y: number}
+    let edges = []; // {id: number, n1: nodeId, n2: nodeId, weight: number, inMST: boolean}
+
+    // For edge creation
+    let edgeCreateStartNode = null;
+    const edgeCreateStatus = document.getElementById("edgeCreateStatus");
+
+    // For Kruskal algorithm stepping
+    let kruskalEdgesSorted = [];
+    let mstEdges = [];
+    let kruskalStepIndex = 0;
+    let kruskalRunning = false;
+
+    // UI elements
+    const addNodeBtn = document.getElementById("addNodeBtn");
+    const clearGraphBtn = document.getElementById("clearGraphBtn");
+    const runKruskalBtn = document.getElementById("runKruskalBtn");
+    const nextStepBtn = document.getElementById("nextStepBtn");
+    const edgeListDiv = document.getElementById("edgeList");
+    const logDiv = document.getElementById("log");
+
+    // Draw params
+    const NODE_RADIUS = 20;
+    const NODE_COLOR = "#2980b9";
+    const NODE_COLOR_SELECTED = "#e67e22";
+    const EDGE_COLOR = "#7f8c8d";
+    const EDGE_COLOR_MST = "#27ae60";
+    const EDGE_COLOR_HIGHLIGHT = "#c0392b";
+
+    // Disjoint Set Union (Union Find) structure for Kruskal cycle detection
+    class DSU {
+      constructor(n) {
+        this.parent = new Array(n);
+        for(let i = 0; i < n; i++) this.parent[i] = i;
+      }
+      find(x) {
+        if(this.parent[x] !== x){
+          this.parent[x] = this.find(this.parent[x]);
+        }
+        return this.parent[x];
+      }
+      union(a,b) {
+        a = this.find(a);
+        b = this.find(b);
+        if(a !== b) {
+          this.parent[b] = a;
+          return true;
+        }
+        return false;
+      }
+    }
+
+    // Utility functions
+    function dist(x1, y1, x2, y2) {
+      return Math.sqrt((x1-x2)**2 + (y1-y2)**2);
+    }
+
+    function drawNode(node, highlight = false) {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, NODE_RADIUS, 0, 2 * Math.PI);
+      ctx.fillStyle = highlight ? NODE_COLOR_SELECTED : NODE_COLOR;
+      ctx.fill();
+      ctx.strokeStyle = "#34495e";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "white";
+      ctx.font = "16px Arial";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.id, node.x, node.y);
+    }
+
+    function drawEdge(edge, highlight = false, inMST = false) {
+      const n1 = nodes.find(n => n.id === edge.n1);
+      const n2 = nodes.find(n => n.id === edge.n2);
+      ctx.beginPath();
+      ctx.moveTo(n1.x, n1.y);
+      ctx.lineTo(n2.x, n2.y);
+      if(inMST) {
+        ctx.strokeStyle = EDGE_COLOR_MST;
+        ctx.lineWidth = 4;
+      } else if (highlight) {
+        ctx.strokeStyle = EDGE_COLOR_HIGHLIGHT;
+        ctx.lineWidth = 3;
+      } else {
+        ctx.strokeStyle = EDGE_COLOR;
+        ctx.lineWidth = 2;
+      }
+      ctx.stroke();
+
+      // Draw weight near the midpoint
+      const midX = (n1.x + n2.x) / 2;
+      const midY = (n1.y + n2.y) / 2;
+      const offsetX = (n2.y - n1.y) / dist(n1.x,n1.y,n2.x,n2.y) * 15;
+      const offsetY = (n1.x - n2.x) / dist(n1.x,n1.y,n2.x,n2.y) * 15;
+
+      ctx.fillStyle = "#2c3e50";
+      ctx.font = "14px Arial";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(edge.weight, midX + offsetX, midY + offsetY);
+    }
+
+    // Redraw entire graph
+    function drawGraph(highlightEdge = null) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Draw edges first
+      edges.forEach(edge => {
+        drawEdge(edge, edge === highlightEdge, edge.inMST);
+      });
+      // Draw nodes (highlight selected for edge creation)
+      nodes.forEach(node => {
+        drawNode(node, edgeCreateStartNode && node.id === edgeCreateStartNode.id);
+      });
+    }
+
+    // Refresh edges list display
+    function updateEdgeList() {
+      edgeListDiv.innerHTML = "";
+      if(edges.length === 0){
+        edgeListDiv.textContent = "(No edges)";
+        return;
+      }
+      edges.forEach(e => {
+        const div = document.createElement("div");
+        div.textContent = `(${e.n1} – ${e.n2}) : ${e.weight}`;
+        if(e.inMST) div.classList.add("edge-in-mst");
+        edgeListDiv.appendChild(div);
+      });
+    }
+
+    // Log helper
+    function log(text) {
+      logDiv.textContent += text + "\n";
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // Add node at random position (within canvas bounds with margins)
+    function addNode() {
+      const margin = NODE_RADIUS*3;
+      const id = nodes.length;
+      // Random x,y but ensure no overlap with existing nodes (simple check)
+      let x,y;
+      let tries = 0;
+      do {
+        x = margin + Math.random() * (canvas.width - 2*margin);
+        y = margin + Math.random() * (canvas.height - 2*margin);
+        tries++;
+        if(tries > 100) break; // safety break
+      } while(nodes.some(n => dist(n.x,n.y,x,y) < NODE_RADIUS*3));
+      nodes.push({id, x, y});
+      drawGraph();
+      checkEnableRunKruskal();
+    }
+
+    // Clear entire graph and reset
+    function clearGraph() {
+      nodes = [];
+      edges = [];
+      edgeCreateStartNode = null;
+      edgeCreateStatus.textContent = "None";
+      kruskalRunning = false;
+      runKruskalBtn.disabled = true;
+      nextStepBtn.disabled = true;
+      logDiv.textContent = "";
+      updateEdgeList();
+      drawGraph();
+    }
+
+    // On canvas click – select node or create edge
+    canvas.addEventListener("click", (e) => {
+      if(kruskalRunning) return; // disable editing mid-algorithm
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      // Check if clicked on a node
+      let clickedNode = null;
+      for(const node of nodes) {
+        if(dist(mouseX, mouseY, node.x, node.y) < NODE_RADIUS) {
+          clickedNode = node;
+          break;
+        }
+      }
+      if(!clickedNode) return; // not on a node, do nothing
+
+      if(edgeCreateStartNode === null) {
+        edgeCreateStartNode = clickedNode;
+        edgeCreateStatus.textContent = `Selected node ${clickedNode.id}`;
+      } else if(edgeCreateStartNode.id === clickedNode.id) {
+        // Clicking the same node cancels selection
+        edgeCreateStartNode = null;
+        edgeCreateStatus.textContent = "None";
+      } else {
+        // Create edge between edgeCreateStartNode and clickedNode if doesn't exist yet
+        const n1 = edgeCreateStartNode.id;
+        const n2 = clickedNode.id;
+        // Check if edge already exists
+        if(edges.some(e => (e.n1 === n1 && e.n2 === n2) || (e.n1 === n2 && e.n2 === n1))) {
+          alert("Edge already exists between these nodes.");
+          edgeCreateStartNode = null;
+          edgeCreateStatus.textContent = "None";
+          return;
+        }
+        // Ask for weight
+        let weight = prompt(`Enter weight for edge (${n1} – ${n2}), positive integer:`, "1");
+        if(weight === null) {
+          // Cancelled
+          edgeCreateStartNode = null;
+          edgeCreateStatus.textContent = "None";
+          return;
+        }
+        weight = parseInt(weight);
+        if(isNaN(weight) || weight <= 0) {
+          alert("Invalid weight. Please enter a positive integer.");
+          edgeCreateStartNode = null;
+          edgeCreateStatus.textContent = "None";
+          return;
+        }
+        const id = edges.length;
+        edges.push({id, n1, n2, weight, inMST: false});
+        edgeCreateStartNode = null;
+        edgeCreateStatus.textContent = "None";
+        updateEdgeList();
+        drawGraph();
+        checkEnableRunKruskal();
+      }
+      drawGraph();
+    });
+
+    addNodeBtn.addEventListener("click", () => {
+      if(kruskalRunning) return;
+      addNode();
+    });
+
+    clearGraphBtn.addEventListener("click", () => {
+      if(kruskalRunning && !confirm("Clear graph will reset the algorithm. Continue?")) return;
+      clearGraph();
+    });
+
+    function checkEnableRunKruskal(){
+      // Need at least 2 nodes and edges
+      runKruskalBtn.disabled = !(nodes.length >= 2 && edges.length >= 1);
+    }
+
+    // Kruskal's algorithm implementation with step-by-step support
+    runKruskalBtn.addEventListener("click", () => {
+      if(kruskalRunning) return;
+      if(nodes.length < 2 || edges.length < 1) {
+        alert("Need at least 2 nodes and 1 edge to run Kruskal's algorithm.");
+        return;
+      }
+      // Reset MST edges and flags
+      edges.forEach(e => e.inMST = false);
+      mstEdges = [];
+      kruskalStepIndex = 0;
+      kruskalEdgesSorted = [...edges].sort((a,b) => a.weight - b.weight);
+      logDiv.textContent = "Kruskal's Algorithm started...\n";
+      kruskalRunning = true;
+      nextStepBtn.disabled = false;
+      runKruskalBtn.disabled = true;
+      updateEdgeList();
+      drawGraph();
+      log(`Edges sorted by weight: ${kruskalEdgesSorted.map(e => `(${e.n1}–${e.n2}:${e.weight})`).join(", ")}`);
+    });
+
+    nextStepBtn.addEventListener("click", () => {
+      if(!kruskalRunning) return;
+
+      if(kruskalStepIndex >= kruskalEdgesSorted.length) {
+        log("Algorithm finished.");
+        alert("Kruskal's algorithm completed. MST formed.");
+        kruskalRunning = false;
+        nextStepBtn.disabled = true;
+        runKruskalBtn.disabled = false;
+        updateEdgeList();
+        drawGraph();
+        return;
+      }
+
+      const dsu = new DSU(nodes.length);
+      // Union all MST edges picked so far
+      for(const e of mstEdges) {
+        dsu.union(e.n1, e.n2);
+      }
+
+      const currentEdge = kruskalEdgesSorted[kruskalStepIndex];
+      log(`Considering edge (${currentEdge.n1} – ${currentEdge.n2}) with weight ${currentEdge.weight}...`);
+
+      if(dsu.find(currentEdge.n1) !== dsu.find(currentEdge.n2)) {
+        // No cycle created, add edge to MST
+        mstEdges.push(currentEdge);
+        currentEdge.inMST = true;
+        log("No cycle formed. Edge added to MST.");
+      } else {
+        log("Adding this edge would form a cycle. Skipped.");
+      }
+      updateEdgeList();
+      drawGraph(currentEdge);
+      kruskalStepIndex += 1;
+
+      // Check if MST complete (n-1 edges)
+      if(mstEdges.length === nodes.length - 1){
+        log("MST is complete.");
+        alert("Minimum Spanning Tree has been found!");
+        kruskalRunning = false;
+        nextStepBtn.disabled = true;
+        runKruskalBtn.disabled = false;
+      }
+    });
+
+    // On initial load, add a couple of nodes for convenience
+    for(let i = 0; i < 4; i++){
+      addNode();
+    }
+
+    // Draw initial graph empty
+    drawGraph();
+    
+  </script>
+</body>
+</html>

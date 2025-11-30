@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Graph Visualization (Directed / Undirected)</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f0f0f0;
+  }
+  h1 {
+    text-align: center;
+  }
+  #controls {
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  #graphCanvas {
+    border: 1px solid #999;
+    background: #fff;
+    display: block;
+    margin: 0 auto;
+  }
+  label {
+    font-weight: bold;
+    margin-right: 8px;
+  }
+  #info {
+    max-width: 800px;
+    margin: 12px auto;
+    font-size: 14px;
+    color: #333;
+  }
+  button {
+    margin-left:10px;
+    padding: 6px 12px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<h1>Graph Visualization (Directed / Undirected)</h1>
+
+<div id="controls">
+  <label><input type="radio" name="graphType" value="undirected" checked /> Undirected</label>
+  <label><input type="radio" name="graphType" value="directed" /> Directed</label>
+  <button id="randomGraphBtn" title="Generate Random Graph">Generate Random Graph</button>
+</div>
+
+<canvas id="graphCanvas" width="800" height="600" aria-label="Graph visualization"></canvas>
+
+<div id="info" aria-live="polite">
+  Click on nodes to highlight their edges and neighbors.<br/>
+  Use "Generate Random Graph" to create a new example.
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("graphCanvas");
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+
+  let graphType = "undirected"; // or "directed"
+  let nodes = [];
+  let edges = [];
+
+  const NODE_RADIUS = 20;
+
+  // Position nodes in a circle for clear visualization
+  function layoutNodesCircular(n) {
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = Math.min(width,height) / 2 - 60;
+    let nodePositions = [];
+    for (let i = 0; i < n; i++) {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+      nodePositions.push({
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+      });
+    }
+    return nodePositions;
+  }
+
+  function generateRandomGraph(nodeCount=8, edgeProbability=0.25) {
+    nodes = [];
+    edges = [];
+    // create nodes
+    const positions = layoutNodesCircular(nodeCount);
+    for(let i=0; i<nodeCount; i++){
+      nodes.push({ id: i, label: `Node ${i}`, x: positions[i].x, y: positions[i].y });
+    }
+    // create edges
+    for(let i=0; i<nodeCount; i++){
+      for(let j=0; j<nodeCount; j++){
+        if(i === j) continue;
+        if(Math.random() < edgeProbability){
+          if(graphType === "undirected"){
+            // to prevent duplicate edges in undirected, only add if i < j
+            if(i < j){
+              edges.push({ from: i, to: j });
+            }
+          } else {
+            edges.push({ from: i, to: j });
+          }
+        }
+      }
+    }
+    drawGraph();
+  }
+
+  // Clear canvas
+  function clear() {
+    ctx.clearRect(0, 0, width, height);
+  }
+
+  // Draw arrowhead
+  function drawArrowhead(x0, y0, x1, y1, color) {
+    const headlen = 12; // length of head in pixels
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const angle = Math.atan2(dy, dx);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - headlen * Math.cos(angle - Math.PI / 6), y1 - headlen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(x1 - headlen * Math.cos(angle + Math.PI / 6), y1 - headlen * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Draw edge (line between nodes)
+  function drawEdge(fromNode, toNode, options={color:"#888", highlight:false}) {
+    let color = options.highlight ? "#e91e63" : options.color;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = options.highlight ? 3 : 1.5;
+
+    // Calculate line start and end so it doesn't go inside node circles
+    const dx = toNode.x - fromNode.x;
+    const dy = toNode.y - fromNode.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const offsetX = (dx/dist)*NODE_RADIUS;
+    const offsetY = (dy/dist)*NODE_RADIUS;
+
+    const startX = fromNode.x + offsetX;
+    const startY = fromNode.y + offsetY;
+    const endX = toNode.x - offsetX;
+    const endY = toNode.y - offsetY;
+
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    if(graphType === "directed"){
+      drawArrowhead(startX, startY, endX, endY, color);
+    }
+  }
+
+  // Draw node as circle with label
+  function drawNode(node, options={color:"#2196f3", highlight:false}) {
+    let color = options.highlight ? "#e91e63" : options.color;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = options.highlight ? 3 : 1.5;
+
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, NODE_RADIUS, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 14px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(node.label.replace("Node ", ""), node.x, node.y);
+  }
+
+  function drawGraph(highlightNodeId=null) {
+    clear();
+    // Draw edges first
+    edges.forEach(edge => {
+      const fromNode = nodes[edge.from];
+      const toNode = nodes[edge.to];
+      let highlight = false;
+      if(highlightNodeId !== null){
+        // Highlight edges connected to this node
+        if (graphType === "undirected") {
+          if(edge.from === highlightNodeId || edge.to === highlightNodeId){
+            highlight = true;
+          }
+        } else {
+          // Directed: highlight edges from or to node
+          if(edge.from === highlightNodeId || edge.to === highlightNodeId){
+            highlight = true;
+          }
+        }
+      }
+      drawEdge(fromNode, toNode, { highlight: highlight });
+    });
+
+    // Draw nodes over edges
+    nodes.forEach(node => {
+      let highlight = node.id === highlightNodeId;
+      drawNode(node, { highlight: highlight });
+    });
+  }
+
+  // Find node under mouse position
+  function getNodeAtPosition(x, y) {
+    for (let node of nodes){
+      const dx = x - node.x;
+      const dy = y - node.y;
+      if(dx*dx + dy*dy <= NODE_RADIUS*NODE_RADIUS){
+        return node;
+      }
+    }
+    return null;
+  }
+
+  // Event handlers
+  canvas.addEventListener("click", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const clickedNode = getNodeAtPosition(x,y);
+    if(clickedNode){
+      drawGraph(clickedNode.id);
+      showNodeNeighbors(clickedNode.id);
+    } else {
+      drawGraph(null);
+      clearInfoNeighbors();
+    }
+  });
+
+  function showNodeNeighbors(nodeId){
+    let neighbors = [];
+    if(graphType === "undirected"){
+     neighbors = edges.reduce((acc, edge) => {
+       if(edge.from === nodeId) acc.push(edge.to);
+       else if(edge.to === nodeId) acc.push(edge.from);
+       return acc;
+     }, []);
+    } else {
+      // Directed - neighbors are those with edges going from nodeId
+      neighbors = edges.filter(e => e.from === nodeId).map(e => e.to);
+    }
+
+    let infoDiv = document.getElementById("info");
+    if(neighbors.length === 0){
+      infoDiv.textContent = `Node ${nodeId} has no neighbors. Click outside nodes to reset.`;
+    } else {
+      let neighborLabels = neighbors.map(nid => `Node ${nid}`).join(", ");
+      infoDiv.textContent = `Node ${nodeId} neighbors: ${neighborLabels}. Click outside nodes to reset.`;
+    }
+  }
+
+  function clearInfoNeighbors(){
+    let infoDiv = document.getElementById("info");
+    infoDiv.innerHTML = `Click on nodes to highlight their edges and neighbors.<br/>
+  Use "Generate Random Graph" to create a new example.`;
+  }
+
+  // Radio buttons change graph type
+  const radios = document.querySelectorAll('input[name="graphType"]');
+  radios.forEach(radio => {
+    radio.addEventListener("change", e => {
+      graphType = e.target.value;
+      generateRandomGraph();
+      clearInfoNeighbors();
+    });
+  });
+
+  // Generate random graph button
+  document.getElementById("randomGraphBtn").addEventListener("click", () => {
+    generateRandomGraph();
+    clearInfoNeighbors();
+  });
+
+  // Initial graph generation
+  generateRandomGraph();
+
+})();
+</script>
+
+</body>
+</html>

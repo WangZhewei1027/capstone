@@ -1,0 +1,84 @@
+# Page snapshot
+
+```yaml
+- application "Bubble Sort visualization" [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Bubble Sort — Visualizer" [level=1] [ref=e5]
+      - generic [ref=e6]: Compare & swap adjacent elements until array is sorted
+    - generic [ref=e7]:
+      - button "Randomize" [ref=e8] [cursor=pointer]
+      - button "Start" [ref=e9] [cursor=pointer]
+      - button "Step" [ref=e10] [cursor=pointer]
+      - button "Reset" [ref=e11] [cursor=pointer]
+      - generic [ref=e12]:
+        - checkbox "Descending" [ref=e13]
+        - text: Descending
+  - generic [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: Array visualization
+        - generic [ref=e18]:
+          - generic [ref=e19]: Size
+          - slider [ref=e20] [cursor=pointer]: "20"
+      - generic [ref=e21]:
+        - generic [ref=e23]: "96"
+        - generic [ref=e25]: "92"
+        - generic [ref=e27]: "98"
+        - generic [ref=e29]: "44"
+        - generic [ref=e31]: "49"
+        - generic [ref=e33]: "39"
+        - generic [ref=e35]: "93"
+        - generic [ref=e37]: "52"
+        - generic [ref=e39]: "54"
+        - generic [ref=e41]: "31"
+        - generic [ref=e43]: "47"
+        - generic [ref=e45]: "61"
+        - generic [ref=e47]: "101"
+        - generic [ref=e49]: "56"
+        - generic [ref=e51]: "30"
+        - generic [ref=e53]: "24"
+        - generic [ref=e55]: "57"
+        - generic [ref=e57]: "48"
+        - generic [ref=e59]: "31"
+        - generic [ref=e61]: "75"
+      - generic [ref=e62]:
+        - generic [ref=e63]: Speed
+        - slider [ref=e64] [cursor=pointer]: "350"
+        - generic [ref=e65]: 350 ms
+      - generic [ref=e66]:
+        - generic [ref=e67]:
+          - text: "Comparisons:"
+          - strong [ref=e68]: "0"
+        - generic [ref=e69]:
+          - text: "Swaps:"
+          - strong [ref=e70]: "0"
+        - generic [ref=e71]:
+          - text: "Pass:"
+          - strong [ref=e72]: "0"
+        - generic [ref=e73]:
+          - text: "Index:"
+          - strong [ref=e74]: —
+        - generic [ref=e75]:
+          - text: "Status:"
+          - strong [ref=e76]: Ready
+      - generic [ref=e77]: Try clicking Step to move one operation at a time. Press Start to autoplay. Use Descending for reversed order.
+    - complementary "controls and explanation" [ref=e78]:
+      - generic [ref=e79]:
+        - generic [ref=e80]: Pseudocode
+        - generic [ref=e81]:
+          - generic [ref=e82]: 1. for n = length(array) downto 2
+          - generic [ref=e83]: 2. for i = 0 to n - 2
+          - generic [ref=e84]: 3. compare array[i] and array[i+1]
+          - generic [ref=e85]: 4. if out of order then swap array[i], array[i+1]
+          - generic [ref=e86]: 5. mark element at n-1 as sorted
+        - generic [ref=e87]: Controls
+        - generic [ref=e88]: Change array size or randomize. Use step to see each compare/swap.
+        - generic [ref=e89]:
+          - button "Show Code" [ref=e90] [cursor=pointer]
+          - button "Explain" [ref=e91] [cursor=pointer]
+        - generic [ref=e92]:
+          - generic [ref=e93]: Bubble Sort Complexity
+          - generic [ref=e94]: "Time: O(n^2) worst/average, O(n) best (optimized). Space: O(1)."
+        - generic [ref=e96]: Code (JavaScript)
+```

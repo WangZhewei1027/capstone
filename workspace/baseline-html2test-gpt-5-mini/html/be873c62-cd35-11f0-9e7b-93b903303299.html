@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Queue Demonstration</title>
+<style>
+  :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#111}
+  body{margin:0;padding:20px;background:#f6f8fa;box-sizing:border-box}
+  h1{margin:0 0 8px;font-size:20px}
+  .container{max-width:980px;margin:0 auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 24px rgba(20,24,40,0.08)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  label{font-size:13px;color:#333}
+  input[type="text"]{padding:8px 10px;border-radius:8px;border:1px solid #d7dbe0;min-width:140px}
+  button{padding:8px 12px;border-radius:8px;border:1px solid #d7dbe0;background:#fff;cursor:pointer}
+  button.primary{background:#0366d6;color:#fff;border-color:#0366d6}
+  button.danger{background:#ff4d4f;color:#fff;border-color:#ff4d4f}
+  select{padding:8px;border-radius:8px;border:1px solid #d7dbe0}
+  .controls> *{margin-right:8px}
+  .viz{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}
+  .queue-box{display:flex;gap:6px;align-items:flex-end;min-height:86px;padding:12px;border-radius:10px;border:1px dashed #d7dbe0;background:#fbfdff;flex-wrap:wrap}
+  .cell{min-width:56px;height:44px;border-radius:8px;border:1px solid #cfd6dd;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;position:relative}
+  .cell.empty{color:#9aa6b2;font-weight:500;opacity:0.6}
+  .label{position:absolute;top:-14px;font-size:11px;background:#0366d6;color:#fff;padding:2px 6px;border-radius:8px}
+  .label.tail{background:#0aab6a}
+  .info{font-size:13px;color:#333}
+  .log{margin-top:12px;padding:10px;border-radius:8px;background:#0f1720;color:#fff;font-family:monospace;font-size:13px;max-height:160px;overflow:auto}
+  .small{font-size:12px;color:#666}
+  .legend{margin-top:10px;font-size:13px;color:#444}
+  .compact{font-size:12px;color:#666;background:#f3f4f6;padding:8px;border-radius:8px;border:1px solid #e6e9ee}
+  .array-grid{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+  .index{font-size:11px;color:#666;text-align:center}
+  .cell.highlight{box-shadow:0 6px 18px rgba(3,102,214,0.18);transform:translateY(-6px);transition:transform .18s,box-shadow .18s}
+  .fade{opacity:0.25;transition:opacity .3s}
+  footer{margin-top:18px;font-size:12px;color:#666}
+  .about{margin-top:12px;padding:10px;border-radius:8px;background:#fff7e6;border:1px solid #f1d7b0;color:#6b4a00}
+  @media (max-width:640px){ .cell{min-width:48px;height:40px;font-size:14px} }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Queue — FIFO (First In, First Out) Demonstration</h1>
+  <div class="row">
+    <div class="controls">
+      <label for="impl">Implementation:</label>
+      <select id="impl" title="Choose queue implementation">
+        <option value="array">Array (push/shift)</option>
+        <option value="circular">Circular Buffer (fixed capacity)</option>
+      </select>
+      <label for="capacity">Capacity (circular):</label>
+      <input id="capacity" type="text" value="8" style="width:70px" />
+    </div>
+  </div>
+
+  <div class="row">
+    <input id="value" type="text" placeholder="Value to enqueue" />
+    <button id="enqueue" class="primary">Enqueue</button>
+    <button id="dequeue">Dequeue</button>
+    <button id="peek">Peek (front)</button>
+    <button id="clear" class="danger">Clear</button>
+    <button id="random">Random</button>
+  </div>
+
+  <div class="row">
+    <div class="info">Size: <span id="size">0</span> &nbsp;•&nbsp; Empty: <span id="empty">true</span></div>
+    <div class="info">Front index: <span id="frontIndex">-</span> &nbsp;•&nbsp; Rear index: <span id="rearIndex">-</span></div>
+  </div>
+
+  <div class="viz">
+    <div style="flex:1;min-width:300px">
+      <div class="queue-box" id="queueBox" aria-live="polite"></div>
+
+      <div class="array-grid" id="arrayGrid" style="display:none"></div>
+      <div class="legend small">Head/Front is removed first. Tail/Rear is where new elements are added.</div>
+    </div>
+
+    <div style="width:320px">
+      <div class="compact">
+        <div style="font-weight:700">Operations & complexity</div>
+        <ul style="margin:6px 0 0 18px;padding:0">
+          <li>enqueue: O(1) amortized (array), O(1) (circular)</li>
+          <li>dequeue: O(n) (array shift) or O(1) (circular)</li>
+          <li>peek: O(1)</li>
+        </ul>
+      </div>
+
+      <div class="about">
+        Try switching to Circular Buffer to see how head/rear indexes move without shifting elements. Capacity will limit enqueues.
+      </div>
+    </div>
+  </div>
+
+  <div class="log" id="log" aria-live="polite"></div>
+  <footer>Keyboard: Enter to enqueue, Backspace to dequeue, P to peek</footer>
+</div>
+
+<script>
+// Simple Queue implementations and UI glue
+
+// Array-based queue (uses push/shift)
+class QueueArray {
+  constructor(){ this.arr = []; }
+  enqueue(x){ this.arr.push(x); return true; }
+  dequeue(){ return this.arr.length? this.arr.shift(): undefined; }
+  peek(){ return this.arr.length? this.arr[0]: undefined; }
+  clear(){ this.arr = []; }
+  size(){ return this.arr.length; }
+  isEmpty(){ return this.arr.length===0; }
+  // for visualization
+  toArray(){ return this.arr.slice(); }
+}
+
+// Circular buffer queue
+class QueueCircular {
+  constructor(capacity){
+    this.capacity = Math.max(1, Math.floor(capacity) || 8);
+    this.buf = new Array(this.capacity);
+    this.head = 0;
+    this.tail = 0; // points to next insertion index
+    this.count = 0;
+  }
+  enqueue(x){
+    if(this.count === this.capacity) return false; // full
+    this.buf[this.tail] = x;
+    this.tail = (this.tail + 1) % this.capacity;
+    this.count++;
+    return true;
+  }
+  dequeue(){
+    if(this.count === 0) return undefined;
+    const v = this.buf[this.head];
+    this.buf[this.head] = undefined;
+    this.head = (this.head + 1) % this.capacity;
+    this.count--;
+    return v;
+  }
+  peek(){ return this.count? this.buf[this.head] : undefined; }
+  clear(){ this.buf = new Array(this.capacity); this.head = 0; this.tail = 0; this.count = 0; }
+  size(){ return this.count; }
+  isEmpty(){ return this.count === 0; }
+  toArray(){
+    const res = [];
+    for(let i=0;i<this.count;i++){
+      res.push(this.buf[(this.head + i) % this.capacity]);
+    }
+    return res;
+  }
+  // to visualize underlying array with indices
+  getBuffer(){ return this.buf.slice(); }
+}
+
+// UI & interaction
+const implSelect = document.getElementById('impl');
+const capacityInput = document.getElementById('capacity');
+const enqueueBtn = document.getElementById('enqueue');
+const dequeueBtn = document.getElementById('dequeue');
+const peekBtn = document.getElementById('peek');
+const clearBtn = document.getElementById('clear');
+const randomBtn = document.getElementById('random');
+const valueInput = document.getElementById('value');
+const sizeSpan = document.getElementById('size');
+const emptySpan = document.getElementById('empty');
+const frontIndexSpan = document.getElementById('frontIndex');
+const rearIndexSpan = document.getElementById('rearIndex');
+const queueBox = document.getElementById('queueBox');
+const logBox = document.getElementById('log');
+const arrayGrid = document.getElementById('arrayGrid');
+
+let queue = new QueueArray();
+let impl = 'array';
+let animTimeout = null;
+
+function log(msg){
+  const t = new Date().toLocaleTimeString();
+  const div = document.createElement('div');
+  div.textContent = `[${t}] ${msg}`;
+  logBox.prepend(div);
+}
+
+function render(){
+  // update info
+  sizeSpan.textContent = queue.size();
+  emptySpan.textContent = queue.isEmpty();
+  // render queue boxes (logical order)
+  const arr = queue.toArray();
+  queueBox.innerHTML = '';
+  if(arr.length===0){
+    const c = document.createElement('div');
+    c.className = 'cell empty';
+    c.textContent = 'Empty';
+    queueBox.appendChild(c);
+    frontIndexSpan.textContent = '-';
+    rearIndexSpan.textContent = '-';
+  } else {
+    arr.forEach((v, i) => {
+      const c = document.createElement('div');
+      c.className = 'cell';
+      c.textContent = String(v);
+      if(i===0){
+        const lab = document.createElement('div');
+        lab.className = 'label';
+        lab.textContent = 'Front';
+        c.appendChild(lab);
+      }
+      if(i===arr.length-1){
+        const lab2 = document.createElement('div');
+        lab2.className = 'label tail';
+        lab2.textContent = 'Rear';
+        c.appendChild(lab2);
+      }
+      queueBox.appendChild(c);
+    });
+  }
+
+  // show underlying buffer for circular implementation
+  if(impl === 'circular'){
+    arrayGrid.style.display = 'flex';
+    arrayGrid.innerHTML = '';
+    const buf = queue.getBuffer();
+    for(let i=0;i<buf.length;i++){
+      const wrapper = document.createElement('div');
+      wrapper.style.display = 'flex';
+      wrapper.style.flexDirection = 'column';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.gap = '4px';
+      const idx = document.createElement('div');
+      idx.className = 'index';
+      idx.textContent = i;
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.minWidth = '48px';
+      cell.style.height = '40px';
+      cell.textContent = buf[i]===undefined? '' : String(buf[i]);
+      if(i === queue.head){
+        const lab = document.createElement('div');
+        lab.className = 'label';
+        lab.style.fontSize='10px';
+        lab.textContent = 'H';
+        cell.appendChild(lab);
+      }
+      if(i === queue.tail){
+        const lab2 = document.createElement('div');
+        lab2.className = 'label tail';
+        lab2.style.fontSize='10px';
+        lab2.textContent = 'T';
+        cell.appendChild(lab2);
+      }
+      wrapper.appendChild(idx);
+      wrapper.appendChild(cell);
+      arrayGrid.appendChild(wrapper);
+    }
+    frontIndexSpan.textContent = queue.head;
+    rearIndexSpan.textContent = queue.tail;
+  } else {
+    arrayGrid.style.display = 'none';
+    frontIndexSpan.textContent = '-';
+    rearIndexSpan.textContent = '-';
+  }
+}
+
+// Helpers for actions
+function enqueueAction(val){
+  if(val === '') { alert('Enter a value to enqueue'); return; }
+  if(impl === 'array'){
+    queue.enqueue(val);
+    log(`Enqueued "${val}" (array)`);
+    animateEnqueue(val);
+  } else {
+    const ok = queue.enqueue(val);
+    if(!ok){
+      log(`Failed to enqueue "${val}" — buffer full`);
+      shake(queueBox);
+      return;
+    }
+    log(`Enqueued "${val}" (circular)`);
+    animateEnqueue(val);
+  }
+  valueInput.value = '';
+}
+
+function animateEnqueue(val){
+  render();
+  // highlight rear cell
+  const cells = queueBox.querySelectorAll('.cell');
+  if(cells.length){
+    const last = cells[cells.length-1];
+    last.classList.add('highlight');
+    setTimeout(()=> last.classList.remove('highlight'), 420);
+  }
+}
+
+function dequeueAction(){
+  const v = queue.dequeue();
+  if(v === undefined){
+    log('Dequeue attempted on empty queue');
+    shake(queueBox);
+    return;
+  }
+  log(`Dequeued "${v}"`);
+  animateDequeue();
+  return v;
+}
+
+function animateDequeue(){
+  const cells = queueBox.querySelectorAll('.cell');
+  if(cells.length){
+    const first = cells[0];
+    first.classList.add('highlight');
+    first.style.opacity = '0.6';
+    setTimeout(()=> render(), 300);
+  } else {
+    render();
+  }
+}
+
+// small visual shake for errors
+function shake(el){
+  el.animate([{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0)'}],{duration:260});
+}
+
+// Random element generator
+function randomElement(){
+  const types = ['number','word','emoji'];
+  const t = types[Math.floor(Math.random()*types.length)];
+  if(t==='number') return String(Math.floor(Math.random()*100));
+  if(t==='word'){
+    const words = ['apple','task','node','job','user','event','req','item','data'];
+    return words[Math.floor(Math.random()*words.length)];
+  }
+  const emojis = ['🍎','🚀','🔔','📦','✨','🎯','🧩'];
+  return emojis[Math.floor(Math.random()*emojis.length)];
+}
+
+// Event bindings
+enqueueBtn.addEventListener('click', ()=> enqueueAction(valueInput.value.trim()));
+dequeueBtn.addEventListener('click', ()=> dequeueAction());
+peekBtn.addEventListener('click', ()=>{
+  const v = queue.peek();
+  if(v === undefined){ log('Peek: queue is empty'); alert('Queue is empty'); }
+  else { log(`Peek: "${v}"`); alert('Front: ' + v); }
+  render();
+});
+clearBtn.addEventListener('click', ()=>{
+  queue.clear();
+  log('Queue cleared');
+  render();
+});
+randomBtn.addEventListener('click', ()=>{
+  const v = randomElement();
+  enqueueAction(v);
+});
+
+implSelect.addEventListener('change', ()=>{
+  impl = implSelect.value;
+  const cap = Math.max(1, Math.floor(Number(capacityInput.value) || 8));
+  if(impl === 'array'){
+    queue = new QueueArray();
+    log('Switched to Array implementation');
+  } else {
+    queue = new QueueCircular(cap);
+    log(`Switched to Circular Buffer (capacity=${cap})`);
+  }
+  render();
+});
+
+capacityInput.addEventListener('change', ()=>{
+  const cap = Math.max(1, Math.floor(Number(capacityInput.value) || 8));
+  capacityInput.value = cap;
+  if(impl === 'circular'){
+    queue = new QueueCircular(cap);
+    log(`Capacity changed. New circular buffer capacity=${cap} (queue cleared)`);
+    render();
+  }
+});
+
+valueInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){ enqueueAction(valueInput.value.trim()); }
+  if(e.key === 'Backspace' && valueInput.value === ''){ dequeueAction(); }
+  if(e.key.toLowerCase() === 'p'){ const v = queue.peek(); alert('Front: ' + (v===undefined? 'empty': v)); }
+});
+
+// initialize
+render();
+log('Ready — using Array implementation');
+
+// expose small cheats for console
+window._queueDemo = {
+  queueObj: ()=>queue,
+  enqueue: v=>enqueueAction(String(v)),
+  dequeue: ()=>dequeueAction(),
+  render
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kruskal's Algorithm Interactive Demo</title>
+<style>
+  html,body { height:100%; margin:0; font-family: Arial, Helvetica, sans-serif; background: #f7f9fc; color:#1b2b3a; }
+  #app { display:flex; height:100vh; }
+  #canvasPane { flex:1; display:flex; align-items:stretch; padding:12px; }
+  #canvas { background: linear-gradient(180deg,#ffffff,#eef5ff); border:1px solid #d0d7e6; border-radius:8px; box-shadow: 0 6px 20px rgba(20,30,50,0.06); width:100%; height:100%; cursor:default; }
+  #controls { width:360px; border-left:1px solid #e6ecf5; padding:16px; box-sizing:border-box; overflow:auto; background:#fff; }
+  h2 { margin:4px 0 12px 0; font-size:18px; }
+  .btn { display:inline-block; padding:8px 12px; background:#2b7cff; color:white; border-radius:6px; cursor:pointer; margin:4px 4px 8px 0; user-select:none; font-size:13px; }
+  .btn.secondary { background:#5b6b7f; }
+  .btn.warn { background:#ff6b6b; }
+  .row { margin-bottom:10px; }
+  label { font-size:13px; color:#274056; display:block; margin-bottom:6px; }
+  input[type=number], input[type=range], select { width:100%; padding:6px 8px; box-sizing:border-box; border-radius:6px; border:1px solid #d7e0ed; background:#fbfdff; }
+  .small { font-size:12px; color:#5b6b7f; margin-top:6px; }
+  #edgeList { max-height:220px; overflow:auto; border:1px solid #eef3fb; padding:8px; border-radius:6px; background:#fcfeff; }
+  .edgeItem { padding:6px; border-radius:6px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; font-size:13px; }
+  .edgeItem.pending { background:#fff; color:#122334; }
+  .edgeItem.current { background: linear-gradient(90deg,#fff7dd,#fff); border:1px solid #ffecb5; }
+  .edgeItem.selected { background:#e6fff0; color:#0b4f2e; }
+  .edgeItem.rejected { background:#fff3f3; color:#6f1e1e; }
+  .statusDot { width:10px; height:10px; border-radius:50%; margin-right:8px; display:inline-block; vertical-align:middle; }
+  .dot-pending { background:#ccc; }
+  .dot-current { background:#ffb74d; }
+  .dot-selected { background:#22c55e; }
+  .dot-rejected { background:#ff6b6b; }
+  #ufTable { width:100%; border-collapse:collapse; margin-top:6px;}
+  #ufTable td, #ufTable th { border:1px solid #eef3fb; padding:6px; text-align:center; font-size:13px; }
+  .footer { margin-top:12px; font-size:13px; color:#334a61; }
+  .controls-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .hint { font-size:12px; color:#4b5966; margin-top:8px; }
+  .smallBtn { padding:6px 8px; font-size:12px; border-radius:6px; background:#edf4ff; color:#1f59a0; cursor:pointer; border:1px solid #d7eafc; }
+  .weightBadge { background:#fff; border-radius:6px; padding:4px 8px; border:1px solid #e6eefc; font-weight:600; color:#1b2b3a; min-width:36px; text-align:center; }
+  .topRow { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .tight { margin:4px 0; }
+  .muted { color:#557085; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvasPane">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="controls">
+    <div class="topRow">
+      <h2>Kruskal's Algorithm Demo</h2>
+      <div style="text-align:right;" class="muted">Step-by-step MST using Union-Find</div>
+    </div>
+
+    <div class="row controls-row">
+      <div class="btn" id="addNodeBtn">Add Node</div>
+      <div class="btn secondary" id="edgeModeBtn">Edge Mode: OFF</div>
+      <div class="btn warn" id="clearBtn">Clear Graph</div>
+    </div>
+    <div class="row">
+      <label>Random Graph</label>
+      <div style="display:flex; gap:8px;">
+        <input id="randN" type="number" min="2" max="20" value="8" />
+        <input id="randDensity" type="range" min="10" max="100" value="40" />
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <div class="smallBtn" id="genBtn">Generate</div>
+        <div class="smallBtn" id="connectBtn">Ensure Connected</div>
+      </div>
+      <div class="hint">Density: <span id="densityVal">40</span>%</div>
+    </div>
+
+    <div class="row">
+      <label>Algorithm Controls</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <div class="btn" id="resetAlgoBtn">Reset Algorithm</div>
+        <div class="btn" id="stepBtn">Step</div>
+        <div class="btn secondary" id="runBtn">Auto Run</div>
+        <div class="btn secondary" id="pauseBtn" style="display:none;">Pause</div>
+      </div>
+      <div class="small muted tight">Click Step to process one edge (sorted by weight). Auto Run animates steps.</div>
+    </div>
+
+    <div class="row">
+      <label>Edges (sorted)</label>
+      <div id="edgeList"></div>
+    </div>
+
+    <div class="row">
+      <label>MST Total Weight</label>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="weightBadge" id="mstWeight">0</div>
+        <div class="muted">edges selected: <span id="mstCount">0</span> / <span id="neededEdges">0</span></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Union-Find (parents & ranks)</label>
+      <table id="ufTable"><thead><tr><th>Node</th><th>Parent</th><th>Rank</th></tr></thead><tbody id="ufBody"></tbody></table>
+    </div>
+
+    <div class="row">
+      <label>Tips</label>
+      <div class="small">- Click "Add Node" and then click canvas to add at mouse. Drag nodes to reposition. <br>- Toggle "Edge Mode" then click two nodes to create an edge (you'll be prompted for a weight). <br>- You can also generate random graphs. <br>- Run Kruskal step-by-step to see selection or rejection of edges.</div>
+    </div>
+
+    <div class="footer">
+      Implementation notes: edges colored green=selected (MST), red=rejected (would form cycle), yellow=current; gray=pending.
+    </div>
+  </div>
+</div>
+
+<script>
+// Kruskal's Algorithm Interactive Demo
+// Single-file implementation with canvas visualization
+
+// --- Canvas setup ---
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.floor(rect.width);
+  canvas.height = Math.floor(rect.height);
+}
+function fitCanvas() {
+  // Make canvas fill its container
+  const pane = document.getElementById('canvasPane');
+  const style = getComputedStyle(pane);
+  const pad = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  resizeCanvas();
+}
+window.addEventListener('resize', () => { fitCanvas(); draw(); });
+fitCanvas();
+
+// --- Data structures ---
+let nodes = []; // {id,x,y}
+let edges = []; // {id,u,v,weight,status} status: pending,current,selected,rejected
+let nextNodeId = 0;
+let nextEdgeId = 0;
+
+// Union-Find
+class UnionFind {
+  constructor(n=0) {
+    this.parent = [];
+    this.rank = [];
+    for (let i=0;i<n;i++){
+      this.parent[i]=i;
+      this.rank[i]=0;
+    }
+  }
+  ensure(n) {
+    while (this.parent.length < n) {
+      const i = this.parent.length;
+      this.parent.push(i);
+      this.rank.push(0);
+    }
+  }
+  find(a) {
+    if (this.parent[a] !== a) {
+      this.parent[a] = this.find(this.parent[a]);
+    }
+    return this.parent[a];
+  }
+  union(a,b) {
+    let ra = this.find(a), rb = this.find(b);
+    if (ra === rb) return false;
+    // union by rank
+    if (this.rank[ra] < this.rank[rb]) {
+      this.parent[ra] = rb;
+    } else if (this.rank[ra] > this.rank[rb]) {
+      this.parent[rb] = ra;
+    } else {
+      this.parent[rb] = ra;
+      this.rank[ra]++;
+    }
+    return true;
+  }
+}
+
+// Kruskal state
+let uf = new UnionFind();
+let sortedEdges = []; // array of edges (references) in sorted order
+let currentIndex = 0;
+let autoRunTimer = null;
+let edgeMode = false;
+let connectingNode = null;
+let drag = { nodeId:null, offsetX:0, offsetY:0 };
+let canvasMousePos = {x:0,y:0};
+let lastClickAddPosition = {x:80,y:80};
+
+// --- DOM refs ---
+const addNodeBtn = document.getElementById('addNodeBtn');
+const edgeModeBtn = document.getElementById('edgeModeBtn');
+const clearBtn = document.getElementById('clearBtn');
+const genBtn = document.getElementById('genBtn');
+const randN = document.getElementById('randN');
+const randDensity = document.getElementById('randDensity');
+const densityVal = document.getElementById('densityVal');
+const connectBtn = document.getElementById('connectBtn');
+const resetAlgoBtn = document.getElementById('resetAlgoBtn');
+const stepBtn = document.getElementById('stepBtn');
+const runBtn = document.getElementById('runBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const edgeListDiv = document.getElementById('edgeList');
+const mstWeightBadge = document.getElementById('mstWeight');
+const mstCountSpan = document.getElementById('mstCount');
+const neededEdgesSpan = document.getElementById('neededEdges');
+const ufBody = document.getElementById('ufBody');
+
+// --- Utilities ---
+function dist(a,b) { return Math.hypot(a.x-b.x,a.y-b.y); }
+function findNodeAt(x,y) {
+  for (let i=nodes.length-1;i>=0;i--){
+    const n = nodes[i];
+    if (Math.hypot(n.x-x,n.y-y) <= 18) return n;
+  }
+  return null;
+}
+function findEdgeAt(x,y) {
+  for (let e of edges) {
+    const a = nodes[e.u], b = nodes[e.v];
+    if (!a || !b) continue;
+    const midX = (a.x+b.x)/2, midY = (a.y+b.y)/2;
+    if (Math.hypot(midX-x,midY-y) < 14) return e;
+  }
+  return null;
+}
+
+// --- Drawing ---
+function draw() {
+  resizeCanvas();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // draw edges
+  for (let e of edges) {
+    const a = nodes[e.u], b = nodes[e.v];
+    if (!a || !b) continue;
+    ctx.lineWidth = (e.status==='selected'?4:2);
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    ctx.lineTo(b.x,b.y);
+    // color by status
+    let color = '#9aa9bf';
+    if (e.status==='pending') color = '#9aa9bf';
+    if (e.status==='current') color = '#ffb74d';
+    if (e.status==='selected') color = '#22c55e';
+    if (e.status==='rejected') color = '#ff6b6b';
+    ctx.strokeStyle = color;
+    ctx.stroke();
+
+    // weight label
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.fillRect(mx-18,my-12,36,20);
+    ctx.fillStyle = '#223544';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(e.weight), mx, my-2);
+    // small outline
+    ctx.strokeStyle = '#e6eefc';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mx-18,my-12,36,20);
+  }
+
+  // draw nodes
+  for (let n of nodes) {
+    // circle
+    ctx.beginPath();
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#2b7cff';
+    ctx.lineWidth = 2;
+    ctx.arc(n.x,n.y,18,0,Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    // label
+    ctx.fillStyle = '#122334';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(n.id), n.x, n.y);
+  }
+
+  // if connecting node, highlight it
+  if (edgeMode && connectingNode) {
+    ctx.beginPath();
+    ctx.strokeStyle = '#ffb74d';
+    ctx.lineWidth = 2;
+    ctx.arc(connectingNode.x, connectingNode.y, 22, 0, Math.PI*2);
+    ctx.stroke();
+    // draw rubber line to mouse
+    ctx.beginPath();
+    ctx.moveTo(connectingNode.x, connectingNode.y);
+    ctx.lineTo(canvasMousePos.x, canvasMousePos.y);
+    ctx.setLineDash([6,6]);
+    ctx.strokeStyle = '#ffb74d';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+// --- Graph modification functions ---
+function addNodeAt(x,y) {
+  const id = nextNodeId++;
+  nodes.push({id:id,x:x,y:y});
+  uf.ensure(nextNodeId);
+  redrawAll();
+  return id;
+}
+function addEdge(u,v,weight) {
+  if (u===v) return null;
+  // check duplicates
+  if (edges.some(e => (e.u===u && e.v===v) || (e.u===v && e.v===u))) return null;
+  const id = nextEdgeId++;
+  const edge = {id:id,u:u,v:v,weight:weight, status:'pending'};
+  edges.push(edge);
+  rebuildSortedEdges();
+  redrawAll();
+  return edge;
+}
+function clearGraph() {
+  nodes = []; edges = []; nextNodeId = 0; nextEdgeId = 0;
+  uf = new UnionFind();
+  sortedEdges = []; currentIndex = 0;
+  stopAutoRun();
+  redrawAll();
+  updateUI();
+}
+function rebuildSortedEdges() {
+  // sort edges by weight ascending, break ties by id for deterministic order
+  sortedEdges = edges.slice().sort((a,b)=> (a.weight - b.weight) || (a.id - b.id));
+  currentIndex = 0;
+  // reset statuses if starting fresh
+  for (let e of edges) if (e.status!=='selected' && e.status!=='rejected') e.status='pending';
+  uf = new UnionFind(nextNodeId);
+  updateUI();
+}
+
+// --- Kruskal steps ---
+function resetAlgorithmState() {
+  stopAutoRun();
+  uf = new UnionFind(nextNodeId);
+  currentIndex = 0;
+  for (let e of edges) e.status = 'pending';
+  rebuildSortedEdges();
+  updateUI();
+  redrawAll();
+}
+function stepKruskal() {
+  if (currentIndex >= sortedEdges.length) return false;
+  // mark previous current as pending if it was current
+  for (let e of edges) if (e.status==='current') e.status='pending';
+  const edge = sortedEdges[currentIndex];
+  edge.status = 'current';
+  updateUI();
+  redrawAll();
+
+  // process it
+  const u = edge.u, v = edge.v;
+  const ru = uf.find(u), rv = uf.find(v);
+  if (ru !== rv) {
+    uf.union(ru, rv);
+    edge.status = 'selected';
+  } else {
+    edge.status = 'rejected';
+  }
+  currentIndex++;
+  updateUI();
+  redrawAll();
+  return currentIndex <= sortedEdges.length;
+}
+function autoRunKruskal(stepDelay=600) {
+  if (autoRunTimer) return;
+  runBtn.style.display = 'none';
+  pauseBtn.style.display = 'inline-block';
+  autoRunTimer = setInterval(()=>{
+    const cont = stepKruskal();
+    if (!cont || currentIndex >= sortedEdges.length) {
+      stopAutoRun();
+    }
+  }, stepDelay);
+}
+function stopAutoRun() {
+  if (autoRunTimer) {
+    clearInterval(autoRunTimer);
+    autoRunTimer = null;
+  }
+  runBtn.style.display = 'inline-block';
+  pauseBtn.style.display = 'none';
+  updateUI();
+}
+
+// --- UI updates ---
+function updateEdgeListUI() {
+  // show sorted list
+  edgeListDiv.innerHTML = '';
+  for (let i=0;i<sortedEdges.length;i++){
+    const e = sortedEdges[i];
+    const div = document.createElement('div');
+    div.className = 'edgeItem ' + (e.status||'pending');
+    if (e.status==='current') div.classList.add('current');
+    div.title = `Edge ${e.u} - ${e.v}`;
+    const left = document.createElement('div');
+    left.style.display='flex';
+    left.style.alignItems='center';
+    const dot = document.createElement('span');
+    dot.className = 'statusDot ' + (e.status==='selected'?'dot-selected': e.status==='rejected'?'dot-rejected': e.status==='current'?'dot-current':'dot-pending');
+    left.appendChild(dot);
+    const txt = document.createElement('span');
+    txt.textContent = `${e.u} — ${e.v}`;
+    left.appendChild(txt);
+    div.appendChild(left);
+
+    const right = document.createElement('div');
+    right.style.display='flex';
+    right.style.alignItems='center';
+    right.style.gap='8px';
+    const weight = document.createElement('div');
+    weight.className = 'weightBadge';
+    weight.textContent = e.weight;
+    right.appendChild(weight);
+    const btn = document.createElement('div');
+    btn.className='smallBtn';
+    btn.textContent='Edit';
+    btn.onclick = (ev)=>{
+      ev.stopPropagation();
+      const w = prompt('Edge weight (integer):', String(e.weight));
+      if (w !== null) {
+        const val = parseInt(w);
+        if (!isNaN(val)) {
+          e.weight = val;
+          rebuildSortedEdges();
+          updateUI();
+          draw();
+        } else alert('Enter a number.');
+      }
+    };
+    right.appendChild(btn);
+    div.appendChild(right);
+
+    div.onclick = ()=>{
+      // highlight edge on canvas
+      for (let other of edges) if (other.status==='current') other.status='pending';
+      e.status = (e.status==='current' ? 'pending' : 'current');
+      redrawAll();
+      updateUI();
+    };
+
+    edgeListDiv.appendChild(div);
+  }
+}
+function updateUFUI() {
+  ufBody.innerHTML = '';
+  uf.ensure(nextNodeId);
+  for (let i=0;i<nextNodeId;i++){
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td'); td1.textContent = i;
+    const td2 = document.createElement('td'); td2.textContent = uf.parent[i];
+    const td3 = document.createElement('td'); td3.textContent = uf.rank[i];
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+    ufBody.appendChild(tr);
+  }
+}
+function updateMSTStats() {
+  const sel = edges.filter(e=>e.status==='selected');
+  const weight = sel.reduce((s,e)=>s+e.weight,0);
+  mstWeightBadge.textContent = String(weight);
+  mstCountSpan.textContent = String(sel.length);
+  neededEdgesSpan.textContent = Math.max(0,nextNodeId-1);
+}
+function updateUI() {
+  updateEdgeListUI();
+  updateUFUI();
+  updateMSTStats();
+}
+
+// --- Interaction handlers ---
+canvas.addEventListener('mousemove', (ev)=>{
+  const r = canvas.getBoundingClientRect();
+  const x = ev.clientX - r.left;
+  const y = ev.clientY - r.top;
+  canvasMousePos.x = x; canvasMousePos.y = y;
+  if (drag.nodeId !== null) {
+    const n = nodes.find(n=>n.id===drag.nodeId);
+    if (n) {
+      n.x = x + drag.offsetX;
+      n.y = y + drag.offsetY;
+      redrawAll();
+      updateUI();
+    }
+  } else {
+    // just update rubberband if connecting
+    if (edgeMode && connectingNode) draw();
+  }
+});
+canvas.addEventListener('mousedown', (ev)=>{
+  const r = canvas.getBoundingClientRect();
+  const x = ev.clientX - r.left;
+  const y = ev.clientY - r.top;
+  const n = findNodeAt(x,y);
+  if (n) {
+    // start dragging
+    drag.nodeId = n.id;
+    drag.offsetX = n.x - x;
+    drag.offsetY = n.y - y;
+  } else {
+    drag.nodeId = null;
+  }
+});
+canvas.addEventListener('mouseup', (ev)=>{
+  const r = canvas.getBoundingClientRect();
+  const x = ev.clientX - r.left;
+  const y = ev.clientY - r.top;
+  const n = findNodeAt(x,y);
+
+  if (edgeMode) {
+    if (!connectingNode && n) {
+      connectingNode = n;
+      draw();
+    } else if (connectingNode && n && connectingNode.id !== n.id) {
+      // create edge between connectingNode and n
+      const w = prompt('Enter weight for edge (integer):', String(Math.floor(Math.random()*99)+1));
+      if (w !== null) {
+        const val = parseInt(w);
+        if (!isNaN(val)) {
+          addEdge(connectingNode.id, n.id, val);
+        } else {
+          alert('Invalid weight.');
+        }
+      }
+      connectingNode = null;
+      draw();
+    } else {
+      // clicked elsewhere - cancel
+      connectingNode = null;
+      draw();
+    }
+  } else {
+    // if not edge mode and click empty space and Add Node mode was triggered by last "Add Node" press, we place node
+    // For simplicity, Add Node button toggles a 'one-time add' state: next click adds node.
+    if (awaitAddNodeFlag) {
+      addNodeAt(x,y);
+      awaitAddNodeFlag = false;
+      addNodeBtn.textContent = 'Add Node';
+      addNodeBtn.style.background = '';
+    }
+  }
+  drag.nodeId = null;
+  updateUI();
+});
+canvas.addEventListener('dblclick', (ev)=>{
+  // double click to add node quickly
+  const r = canvas.getBoundingClientRect();
+  const x = ev.clientX - r.left;
+  const y = ev.clientY - r.top;
+  addNodeAt(x,y);
+  updateUI();
+});
+canvas.addEventListener('click', (ev)=>{
+  // clicking an edge shows edit prompt
+  const r = canvas.getBoundingClientRect();
+  const x = ev.clientX - r.left;
+  const y = ev.clientY - r.top;
+  const e = findEdgeAt(x,y);
+  if (e) {
+    const w = prompt('Modify edge weight (integer):', String(e.weight));
+    if (w !== null) {
+      const val = parseInt(w);
+      if (!isNaN(val)) {
+        e.weight = val;
+        rebuildSortedEdges();
+        updateUI();
+        draw();
+      }
+    }
+  }
+});
+
+// buttons
+let awaitAddNodeFlag = false;
+addNodeBtn.addEventListener('click', ()=>{
+  // toggles a one-time add: next click on canvas adds node
+  awaitAddNodeFlag = !awaitAddNodeFlag;
+  if (awaitAddNodeFlag) {
+    addNodeBtn.textContent = 'Click on canvas';
+    addNodeBtn.style.background = '#22c55e';
+  } else {
+    addNodeBtn.textContent = 'Add Node';
+    addNodeBtn.style.background = '';
+  }
+});
+
+edgeModeBtn.addEventListener('click', ()=>{
+  edgeMode = !edgeMode;
+  edgeModeBtn.textContent = 'Edge Mode: ' + (edgeMode ? 'ON' : 'OFF');
+  edgeModeBtn.style.background = edgeMode ? '#ffb74d' : '';
+  connectingNode = null;
+  draw();
+});
+
+clearBtn.addEventListener('click', ()=>{
+  if (confirm('Clear entire graph?')) clearGraph();
+});
+
+randDensity.addEventListener('input', ()=>{
+  densityVal.textContent = randDensity.value;
+});
+
+genBtn.addEventListener('click', ()=>{
+  const n = parseInt(randN.value) || 6;
+  const density = parseInt(randDensity.value)/100;
+  generateRandomGraph(n, density);
+});
+
+connectBtn.addEventListener('click', ()=>{
+  ensureConnected();
+});
+
+resetAlgoBtn.addEventListener('click', ()=>{
+  resetAlgorithmState();
+});
+
+stepBtn.addEventListener('click', ()=>{
+  stepKruskal();
+});
+
+runBtn.addEventListener('click', ()=>{
+  autoRunKruskal(450);
+});
+pauseBtn.addEventListener('click', ()=>{
+  stopAutoRun();
+});
+
+// --- Graph generation helpers ---
+function generateRandomGraph(n, density) {
+  clearGraph();
+  nextNodeId = 0;
+  // place nodes in circle
+  const cx = canvas.width/2, cy = canvas.height/2;
+  const r = Math.min(canvas.width, canvas.height)/2 - 60;
+  for (let i=0;i<n;i++){
+    const ang = (i/n) * Math.PI*2;
+    const x = cx + Math.cos(ang)* (r*0.7) + (Math.random()*40-20);
+    const y = cy + Math.sin(ang)* (r*0.7) + (Math.random()*40-20);
+    addNodeAt(x,y);
+  }
+  // edges between pairs with probability density
+  for (let i=0;i<n;i++){
+    for (let j=i+1;j<n;j++){
+      if (Math.random() < density) {
+        const w = Math.floor(Math.random()*90)+1;
+        addEdge(nodes[i].id, nodes[j].id, w);
+      }
+    }
+  }
+  rebuildSortedEdges();
+  updateUI();
+  draw();
+}
+
+function ensureConnected() {
+  if (nodes.length <= 1) return;
+  // build MST-like connecting edges: connect nodes sequentially to ensure connectivity
+  // Use a simple randomized chain: shuffle nodes and connect successive if not already connected
+  const order = nodes.map(n=>n.id).slice();
+  for (let i=order.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [order[i],order[j]] = [order[j],order[i]];
+  }
+  for (let i=1;i<order.length;i++){
+    const a = order[i-1], b = order[i];
+    if (!edges.some(e => (e.u===a && e.v===b) || (e.u===b && e.v===a))) {
+      addEdge(a,b, Math.floor(Math.random()*40)+1);
+    }
+  }
+  rebuildSortedEdges();
+  updateUI();
+  draw();
+}
+
+// initial sample
+generateRandomGraph(6, 0.4);
+
+// --- redraw wrapper ---
+function redrawAll() {
+  draw();
+  updateUI();
+}
+
+// initial UI update
+updateUI();
+
+</script>
+</body>
+</html>

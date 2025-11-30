@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Heap Visualizer (Min / Max)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1720;
+      --panel:#0b1220;
+      --accent:#60a5fa;
+      --accent2:#7c3aed;
+      --muted:#94a3b8;
+      --node:#111827;
+      --node-border:#374151;
+      --good:#10b981;
+      --danger:#ef4444;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+    body{background:linear-gradient(180deg,var(--bg),#071022);color:#e6eef8;padding:18px;}
+    .app{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:360px 1fr;gap:18px;}
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);
+      padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6);
+    }
+    h1{font-size:18px;margin:0 0 8px 0;color:#eaf2ff;display:flex;align-items:center;gap:8px}
+    p.muted{color:var(--muted);margin:6px 0 12px;font-size:13px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+    input[type="text"]{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit;min-width:120px}
+    button{background:linear-gradient(180deg,var(--accent),#3b82f6);color:white;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    .small{padding:6px 8px;font-size:13px}
+    .row{display:flex;gap:8px;align-items:center}
+    .array-view{display:flex;flex-wrap:wrap;gap:8px;padding:8px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);margin-top:12px}
+    .cell{min-width:44px;height:44px;border-radius:8px;background:var(--node);border:1px solid var(--node-border);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700}
+    .idx{font-size:11px;color:var(--muted);margin-top:4px;font-weight:600}
+    .log{height:130px;overflow:auto;padding:8px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);margin-top:12px;font-size:13px}
+    .toggle{display:inline-flex;align-items:center;padding:6px 8px;background:rgba(255,255,255,0.02);border-radius:999px;border:1px solid rgba(255,255,255,0.03);gap:8px}
+    .mode{font-weight:800;color:var(--accent2)}
+    /* canvas area */
+    .canvas-wrap{position:relative;height:620px;overflow:hidden}
+    svg{position:absolute;inset:0;width:100%;height:100%}
+    .node-el{position:absolute;width:56px;height:56px;border-radius:28px;background:linear-gradient(180deg,#071331,#08263e);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;border:2px solid rgba(255,255,255,0.06);box-shadow:0 6px 18px rgba(2,6,23,0.6);transition:transform 300ms ease,inset 300ms ease,left 600ms cubic-bezier(.2,.9,.2,1),top 600ms cubic-bezier(.2,.9,.2,1)}
+    .node-el.small{width:44px;height:44px;border-radius:22px;font-size:14px}
+    .node-idx{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:12px;color:var(--muted)}
+    .node-highlight{box-shadow:0 10px 30px rgba(96,165,250,0.18);border-color:var(--accent)}
+    .node-swap{border-color:var(--good);box-shadow:0 14px 40px rgba(16,185,129,0.12)}
+    .node-danger{border-color:var(--danger)}
+    .legend{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+    .legend .item{display:inline-flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,0.02);border-radius:8px;color:var(--muted);font-weight:600}
+    .footer{margin-top:12px;color:var(--muted);font-size:13px}
+    .hint{font-size:13px;color:var(--muted);margin-top:8px}
+    .codebox{background:#061023;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.02);font-family:monospace;font-size:12px;color:#bfe3ff;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <h1>Heap Visualizer <span style="font-size:12px;color:var(--muted);font-weight:600;margin-left:auto">Min / Max Heap</span></h1>
+      <p class="muted">Interactive demo showing array & tree representation. Toggle min/max, insert values, extract root, and build from an array. Swaps animate to show heapify up/down.</p>
+
+      <div class="controls">
+        <div class="row">
+          <input id="valueInput" type="text" placeholder="value (number or label)" />
+          <button id="insertBtn" class="small">Insert</button>
+          <button id="extractBtn" class="small ghost">Extract Root</button>
+        </div>
+        <div class="row">
+          <input id="arrayInput" type="text" placeholder="e.g. 5,3,8,1,2" />
+          <button id="buildBtn" class="small">Build Heap</button>
+          <button id="randomBtn" class="small ghost">Random</button>
+        </div>
+        <div class="row">
+          <button id="peekBtn" class="small ghost">Peek Root</button>
+          <button id="clearBtn" class="small ghost">Clear</button>
+          <div style="margin-left:auto" class="toggle">
+            Mode:
+            <button id="toggleMode" class="small" style="background:transparent;border:0;color:var(--accent2);font-weight:900">MIN</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:6px;align-items:flex-start">
+        <div style="flex:1">
+          <div class="array-view" id="arrayView" aria-live="polite"></div>
+          <div class="hint">Array (level order). Index shown below each value.</div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="item"><span style="display:inline-block;width:12px;height:12px;background:var(--accent);border-radius:3px"></span> active</div>
+        <div class="item"><span style="display:inline-block;width:12px;height:12px;background:var(--good);border-radius:3px"></span> swapping</div>
+        <div class="item"><span style="display:inline-block;width:12px;height:12px;background:var(--danger);border-radius:3px"></span> removed/error</div>
+      </div>
+
+      <div class="log" id="log"></div>
+
+      <div class="footer">
+        Complexity: Insert O(log n), Extract/Pop O(log n), Build from array O(n). Toggle between min-heap and max-heap; the comparator flips and the heap is rebuilt to match the new ordering.
+      </div>
+
+      <div class="codebox" id="pseudocode">
+        // Basic heap operations (concept)
+        // insert(x): push to array, siftUp(lastIndex)
+        // extractRoot(): swap root with last, pop last, siftDown(0)
+        // siftUp(i): while parent violates order, swap
+        // siftDown(i): swap with best child until correct
+      </div>
+    </div>
+
+    <div class="card">
+      <h1>Tree View</h1>
+      <p class="muted">Visual binary heap as a binary tree (same array order). Lines connect parents to children. Nodes animate into positions during swaps.</p>
+      <div class="canvas-wrap" id="canvasWrap">
+        <svg id="svgLines" pointer-events="none"></svg>
+        <!-- nodes are positioned absolutely -->
+      </div>
+      <div style="margin-top:10px;color:var(--muted);font-size:13px">Tip: Insert several numbers and step through operations — swaps are animated to show heapify direction.</div>
+    </div>
+  </div>
+
+<script>
+/*
+ Interactive Heap Visualizer
+ - Single-file demo of min/max binary heap
+ - Supports insert, extract, peek, build, random, clear, toggle mode
+ - Visual: array view + tree view with animated swaps
+*/
+
+// Utilities
+const el = id => document.getElementById(id);
+const logBox = el('log');
+function log(...args){
+  const line = document.createElement('div');
+  line.textContent = args.join(' ');
+  logBox.prepend(line);
+}
+
+// Heap implementation with comparator (min if comparator(a,b) < 0)
+class BinaryHeap {
+  constructor(isMin = true){
+    this.data = [];
+    this.isMin = !!isMin;
+    this.cmp = (a,b) => {
+      // numeric when possible, otherwise string compare
+      const na = Number(a), nb = Number(b);
+      const aVal = (isFinite(na) ? na : String(a));
+      const bVal = (isFinite(nb) ? nb : String(b));
+      if (aVal < bVal) return -1;
+      if (aVal > bVal) return 1;
+      return 0;
+    };
+    this.compare = (a,b) => this.isMin ? this.cmp(a,b) : -this.cmp(a,b);
+  }
+
+  size(){ return this.data.length; }
+  isEmpty(){ return this.size() === 0; }
+  peek(){ return this.data[0]; }
+
+  swap(i,j){
+    const tmp = this.data[i]; this.data[i] = this.data[j]; this.data[j] = tmp;
+  }
+
+  insert(value, hooks){
+    this.data.push(value);
+    if (hooks && hooks.onPush) hooks.onPush(this.size()-1);
+    this.siftUp(this.size()-1, hooks);
+  }
+
+  extractRoot(hooks){
+    if (this.isEmpty()) return undefined;
+    const root = this.data[0];
+    const last = this.data.pop();
+    if (this.size() === 0){
+      if (hooks && hooks.onRemove) hooks.onRemove(0);
+      return root;
+    }
+    this.data[0] = last;
+    if (hooks && hooks.onReplace) hooks.onReplace(0);
+    this.siftDown(0, hooks);
+    return root;
+  }
+
+  parent(i){ return Math.floor((i-1)/2); }
+  left(i){ return 2*i + 1; }
+  right(i){ return 2*i + 2; }
+
+  siftUp(i, hooks){
+    let idx = i;
+    while (idx > 0){
+      const p = this.parent(idx);
+      if (this.compare(this.data[idx], this.data[p]) < 0){
+        if (hooks && hooks.onCompare) hooks.onCompare(idx, p);
+        this.swap(idx, p);
+        if (hooks && hooks.onSwap) hooks.onSwap(idx, p);
+        idx = p;
+      } else break;
+    }
+    if (hooks && hooks.onDone) hooks.onDone();
+  }
+
+  siftDown(i, hooks){
+    let idx = i;
+    while (true){
+      const l = this.left(idx), r = this.right(idx);
+      let best = idx;
+      if (l < this.size() && this.compare(this.data[l], this.data[best]) < 0) best = l;
+      if (r < this.size() && this.compare(this.data[r], this.data[best]) < 0) best = r;
+      if (best !== idx){
+        if (hooks && hooks.onCompare) hooks.onCompare(idx, best);
+        this.swap(idx, best);
+        if (hooks && hooks.onSwap) hooks.onSwap(idx, best);
+        idx = best;
+      } else break;
+    }
+    if (hooks && hooks.onDone) hooks.onDone();
+  }
+
+  buildFromArray(arr, hooks){
+    this.data = arr.slice();
+    // heapify bottom-up
+    for (let i = Math.floor(this.size()/2)-1; i >= 0; i--){
+      this.siftDown(i, hooks);
+    }
+  }
+
+  setMode(isMin, hooks){
+    this.isMin = !!isMin;
+    this.compare = (a,b) => this.isMin ? this.cmp(a,b) : -this.cmp(a,b);
+    // rebuild to respect new comparator
+    const copy = this.data.slice();
+    this.data = [];
+    // naive re-insert to animate; use buildFromArray if immediate rebuild desired
+    for (let v of copy) this.insert(v, hooks);
+  }
+}
+
+// Visualizer
+const svg = el('svgLines');
+const canvas = el('canvasWrap');
+const arrayView = el('arrayView');
+
+const heap = new BinaryHeap(true);
+let isAnimating = false;
+let modeMin = true;
+
+// Keep mapping from index to DOM node element for animation
+const nodeElems = [];
+
+function clearNodes(){
+  nodeElems.forEach(n => n.el && n.el.remove());
+  nodeElems.length = 0;
+  svg.innerHTML = '';
+}
+
+function createNodeElement(value, index){
+  const div = document.createElement('div');
+  div.className = 'node-el';
+  div.style.position = 'absolute';
+  div.style.left = '0px';
+  div.style.top = '0px';
+  div.style.zIndex = 1000;
+  div.tabIndex = 0;
+  div.textContent = value;
+  const idxLabel = document.createElement('div');
+  idxLabel.className = 'node-idx';
+  idxLabel.textContent = index;
+  div.appendChild(idxLabel);
+  canvas.appendChild(div);
+  return div;
+}
+
+function updateArrayView(highlight = {}, swapPair = null){
+  arrayView.innerHTML = '';
+  const data = heap.data;
+  data.forEach((v,i) => {
+    const c = document.createElement('div');
+    c.className = 'cell';
+    if (i === highlight.idx) c.style.boxShadow = '0 8px 20px rgba(96,165,250,0.15)';
+    if (swapPair && (swapPair[0]===i || swapPair[1]===i)) c.style.borderColor = 'var(--good)';
+    const t = document.createElement('div');
+    t.textContent = v;
+    const id = document.createElement('div');
+    id.className = 'idx';
+    id.textContent = i;
+    c.appendChild(t); c.appendChild(id);
+    arrayView.appendChild(c);
+  });
+}
+
+// layout calculation for tree nodes
+function calcPositions(){
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  const data = heap.data;
+  const positions = [];
+  for (let i = 0; i < data.length; i++){
+    const level = Math.floor(Math.log2(i+1));
+    const firstIndexThisLevel = Math.pow(2, level) - 1;
+    const posInLevel = i - firstIndexThisLevel;
+    const nodesThisLevel = Math.pow(2, level);
+    const margin = 60;
+    const usableW = w - margin*2;
+    const x = margin + ((posInLevel + 1) / (nodesThisLevel + 1)) * usableW;
+    const levelGap = Math.min(100, (h - 60) / (Math.max(1, Math.floor(Math.log2(Math.max(1, data.length))) + 2)));
+    const y = 30 + level * levelGap;
+    positions.push({x,y,level});
+  }
+  return positions;
+}
+
+function drawLines(positions){
+  const data = heap.data;
+  const lines = [];
+  for (let i = 0; i < data.length; i++){
+    const l = heap.left(i), r = heap.right(i);
+    if (l < data.length){
+      lines.push({x1: positions[i].x, y1: positions[i].y, x2: positions[l].x, y2: positions[l].y});
+    }
+    if (r < data.length){
+      lines.push({x1: positions[i].x, y1: positions[i].y, x2: positions[r].x, y2: positions[r].y});
+    }
+  }
+  // render into svg
+  svg.innerHTML = '';
+  for (let ln of lines){
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', ln.x1);
+    line.setAttribute('y1', ln.y1);
+    line.setAttribute('x2', ln.x2);
+    line.setAttribute('y2', ln.y2);
+    line.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+    line.setAttribute('stroke-width', '2');
+    svg.appendChild(line);
+  }
+}
+
+// create/update node elements and animate transitions
+function renderTree(highlight = {}, swapPair = null){
+  const data = heap.data;
+  const positions = calcPositions();
+
+  // ensure nodeElems length
+  while (nodeElems.length < data.length){
+    const i = nodeElems.length;
+    const elNode = createNodeElement(data[i], i);
+    nodeElems.push({el: elNode, idx: i});
+  }
+  // remove extra
+  while (nodeElems.length > data.length){
+    const n = nodeElems.pop();
+    if (n && n.el) n.el.remove();
+  }
+
+  // update text and positions
+  for (let i = 0; i < data.length; i++){
+    const n = nodeElems[i];
+    n.el.childNodes[0].nodeValue = data[i]; // text node change
+    n.el.querySelector('.node-idx').textContent = i;
+    const {x,y} = positions[i];
+    // center the element
+    const left = x - n.el.offsetWidth/2;
+    const top = y - n.el.offsetHeight/2;
+    n.el.style.left = left + 'px';
+    n.el.style.top = top + 'px';
+    // styling
+    n.el.classList.remove('node-highlight','node-swap','node-danger');
+    if (highlight.idx === i) n.el.classList.add('node-highlight');
+    if (swapPair && (swapPair[0]===i || swapPair[1]===i)) n.el.classList.add('node-swap');
+  }
+  drawLines(positions);
+  updateArrayView(highlight, swapPair);
+}
+
+// animation helpers: animate the sequence of swaps (pairs) for a single heap operation
+function animateSwaps(swapsSeq, finalCallback){
+  if (!swapsSeq || swapsSeq.length === 0){ renderTree(); if (finalCallback) finalCallback(); return; }
+  isAnimating = true;
+  let step = 0;
+  function next(){
+    if (step >= swapsSeq.length){
+      isAnimating = false;
+      renderTree();
+      if (finalCallback) finalCallback();
+      return;
+    }
+    const [i,j] = swapsSeq[step];
+    // mark swap pair
+    renderTree({}, [i,j]);
+    // perform swap in model immediately so next layout uses new positions
+    heap.swap(i,j);
+    // re-render with animation (CSS transitions handle movement)
+    setTimeout(() => {
+      renderTree({}, [i,j]);
+      step++;
+      setTimeout(next, 450);
+    }, 150);
+  }
+  next();
+}
+
+// To capture swaps during internal heap operations we provide hooks that record swaps
+function trackAndExecute(actionFn, callback){
+  const swaps = [];
+  const hooks = {
+    onPush: (idx) => {},
+    onCompare: (i,j) => { /* optional highlight */ },
+    onSwap: (i,j) => { swaps.push([i,j]); },
+    onReplace: (i) => {},
+    onRemove: (i)=>{},
+    onDone: ()=>{}
+  };
+  actionFn(hooks);
+  // animate swaps
+  animateSwaps(swaps, callback);
+}
+
+// UI bindings
+const insertBtn = el('insertBtn');
+const extractBtn = el('extractBtn');
+const peekBtn = el('peekBtn');
+const buildBtn = el('buildBtn');
+const randomBtn = el('randomBtn');
+const clearBtn = el('clearBtn');
+const toggleModeBtn = el('toggleMode');
+const valueInput = el('valueInput');
+const arrayInput = el('arrayInput');
+
+insertBtn.addEventListener('click', () => {
+  if (isAnimating) return;
+  const v = valueInput.value.trim();
+  if (v === '') { alert('Enter a value to insert'); return; }
+  // Insert and animate
+  trackAndExecute((hooks)=> heap.insert(v, hooks), () => {
+    log('inserted', v);
+  });
+  valueInput.value = '';
+});
+
+extractBtn.addEventListener('click', () => {
+  if (isAnimating) return;
+  if (heap.isEmpty()){ log('heap empty'); return; }
+  trackAndExecute((hooks)=>{
+    const root = heap.peek();
+    const removed = heap.extractRoot(hooks);
+    // removed returned after operations; but we log later in callback
+  }, ()=> {
+    log('extracted root');
+  });
+});
+
+peekBtn.addEventListener('click', () => {
+  if (heap.isEmpty()){ log('peek: heap empty'); return; }
+  log('peek:', heap.peek());
+});
+
+buildBtn.addEventListener('click', () => {
+  if (isAnimating) return;
+  const txt = arrayInput.value.trim();
+  if (txt === '') { alert('Enter comma-separated values'); return; }
+  const arr = txt.split(',').map(s => s.trim()).filter(s => s.length>0);
+  // rebuild with hooks capturing swaps during heapify; but buildFromArray uses siftDown which records swaps
+  trackAndExecute((hooks)=> heap.buildFromArray(arr, hooks), ()=> {
+    log('built heap from array');
+  });
+});
+
+randomBtn.addEventListener('click', () => {
+  if (isAnimating) return;
+  const n = 8 + Math.floor(Math.random()*5);
+  const arr = [];
+  for (let i=0;i<n;i++) arr.push(Math.floor(Math.random()*99));
+  arrayInput.value = arr.join(',');
+  buildBtn.click();
+});
+
+clearBtn.addEventListener('click', () => {
+  if (isAnimating) return;
+  heap.data = [];
+  clearNodes();
+  updateArrayView();
+  log('cleared heap');
+});
+
+toggleModeBtn.addEventListener('click', () => {
+  if (isAnimating) return;
+  modeMin = !modeMin;
+  toggleModeBtn.textContent = modeMin ? 'MIN' : 'MAX';
+  // rebuild to reflect comparator; use hooks to animate reinsertions
+  const old = heap.data.slice();
+  heap.data = [];
+  // animate re-insertions one by one to show new order
+  let i = 0;
+  function step(){
+    if (i >= old.length){ log('switched to', modeMin ? 'MIN' : 'MAX'); return; }
+    heap.isMin = modeMin;
+    trackAndExecute((hooks)=> heap.insert(old[i], hooks), ()=>{
+      i++; step();
+    });
+  }
+  step();
+});
+
+// responsive: re-render on resize
+window.addEventListener('resize', () => {
+  renderTree();
+});
+
+// initial demo data
+(function initDemo(){
+  const demo = [15, 10, 8, 4, 5, 2, 1];
+  heap.buildFromArray(demo);
+  // create nodes and render
+  renderTree();
+  log('demo heap created');
+})();
+
+// expose some helpers to console for debugging
+window._heap = heap;
+window._render = renderTree;
+
+</script>
+</body>
+</html>

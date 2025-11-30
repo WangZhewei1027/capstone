@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Graph Visualization (Directed / Undirected)</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display:flex;
+    height: 100vh;
+    flex-direction: column;
+    background: #f0f0f0;
+  }
+  header {
+    padding: 1rem;
+    background: #333;
+    color: white;
+    text-align: center;
+    font-weight: bold;
+  }
+  #controls {
+    background: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  label {
+    font-weight: 600;
+  }
+  select, button {
+    padding: 0.3rem 0.6rem;
+    font-size: 1rem;
+  }
+  #canvas-container {
+    flex-grow: 1;
+    background: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  canvas {
+    background: #fff;
+    border: 1px solid #ccc;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  #legend {
+    padding: 0.5rem 1rem;
+    background: #fafafa;
+    border-top: 1px solid #ccc;
+    font-size: 0.9rem;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+<header>Graph Visualization (Directed / Undirected)</header>
+<div id="controls">
+  <label for="graphType">Graph Type:</label>
+  <select id="graphType">
+    <option value="directed">Directed</option>
+    <option value="undirected" selected>Undirected</option>
+  </select>
+  <button id="randomGraphBtn">Generate Random Graph</button>
+  <button id="clearBtn">Clear Graph</button>
+</div>
+<div id="canvas-container">
+  <canvas id="graphCanvas" width="800" height="600"></canvas>
+</div>
+<div id="legend">
+  <strong>Instructions:</strong> Drag nodes to reposition. Click on empty space to add a node. Click a node then another node to add an edge. Edges appear with arrows if directed graph.
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let nodes = [];
+  let edges = [];
+  let graphType = 'undirected';
+
+  const NODE_RADIUS = 20;
+
+  // State for interaction
+  let dragNode = null;
+  let dragOffset = { x: 0, y: 0 };
+
+  let addingEdge = null; // node id where edge starts
+
+  function distance(x1, y1, x2, y2) {
+    return Math.hypot(x2 - x1, y2 - y1);
+  }
+
+  function findNodeAtPosition(x, y) {
+    return nodes.find(n => distance(n.x, n.y, x, y) <= NODE_RADIUS);
+  }
+
+  function drawNode(node) {
+    ctx.beginPath();
+    ctx.fillStyle = '#00aaff';
+    ctx.strokeStyle = '#005577';
+    ctx.lineWidth = 2;
+    ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.id, node.x, node.y);
+  }
+
+  // Arrow drawing utility
+  function drawArrow(fromX, fromY, toX, toY, color='#000', arrowSize=10) {
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+
+    // Line from from -> to but shortened so arrow head fits inside node radius
+    const offsetFromX = fromX + Math.cos(angle) * NODE_RADIUS;
+    const offsetFromY = fromY + Math.sin(angle) * NODE_RADIUS;
+    const offsetToX = toX - Math.cos(angle) * NODE_RADIUS;
+    const offsetToY = toY - Math.sin(angle) * NODE_RADIUS;
+
+    ctx.beginPath();
+    ctx.moveTo(offsetFromX, offsetFromY);
+    ctx.lineTo(offsetToX, offsetToY);
+    ctx.stroke();
+
+    // Draw arrow head at end
+    ctx.beginPath();
+    ctx.moveTo(offsetToX, offsetToY);
+    ctx.lineTo(
+      offsetToX - arrowSize * Math.cos(angle - Math.PI / 6),
+      offsetToY - arrowSize * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.lineTo(
+      offsetToX - arrowSize * Math.cos(angle + Math.PI / 6),
+      offsetToY - arrowSize * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // For undirected edges, draw simple line connecting circles edges
+  // but we offset line endpoints so that line doesn't cross nodes.
+  function drawUndirectedEdge(fromNode, toNode) {
+    const angle = Math.atan2(toNode.y - fromNode.y, toNode.x - fromNode.x);
+    const startX = fromNode.x + Math.cos(angle) * NODE_RADIUS;
+    const startY = fromNode.y + Math.sin(angle) * NODE_RADIUS;
+    const endX = toNode.x - Math.cos(angle) * NODE_RADIUS;
+    const endY = toNode.y - Math.sin(angle) * NODE_RADIUS;
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+  }
+
+  // Draw loop edge (same node to itself)
+  function drawLoop(node, directed) {
+    const x = node.x;
+    const y = node.y;
+    const radius = NODE_RADIUS;
+    const loopRadius = 15;
+
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y - radius - loopRadius, loopRadius, 0, Math.PI * 1.5);
+    ctx.stroke();
+
+    if (directed) {
+      // Draw arrowhead pointing down-left
+      const arrowX = x - loopRadius;
+      const arrowY = y - radius - loopRadius / 2;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(arrowX, arrowY);
+      ctx.lineTo(arrowX - 8, arrowY - 5);
+      ctx.lineTo(arrowX - 8, arrowY + 5);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // For undirected edges between same two nodes, we draw one line.
+  // For directed edges in opposite directions, draw two arrows with slight curve for clarity.
+
+  // To handle multiple edges between same nodes and self loops visually is complex, but we do a basic version.
+
+  function drawEdges() {
+    // We'll draw undirected edges first
+    edges.forEach(edge => {
+      const fromNode = nodes.find(n => n.id === edge.from);
+      const toNode = nodes.find(n => n.id === edge.to);
+      if (!fromNode || !toNode) return;
+
+      if (edge.from === edge.to) {
+        drawLoop(fromNode, graphType === 'directed');
+        return;
+      }
+
+      if (graphType === 'undirected') {
+        drawUndirectedEdge(fromNode, toNode);
+      } else {
+        // Directed: draw arrow from fromNode to toNode
+        drawArrow(fromNode.x, fromNode.y, toNode.x, toNode.y);
+      }
+    });
+  }
+
+  function drawGraph() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    drawEdges();
+    nodes.forEach(drawNode);
+
+    // If adding edge: draw a line from selected node to current mouse (if mouse pos known)
+    if (addingEdge && mousePos) {
+      const fromNode = nodes.find(n => n.id === addingEdge);
+      if (fromNode) {
+        ctx.strokeStyle = 'orange';
+        ctx.fillStyle = 'orange';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(fromNode.x, fromNode.y);
+        ctx.lineTo(mousePos.x, mousePos.y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Generate a new node ID (number)
+  function getNextNodeId() {
+    let id = 1;
+    while (nodes.find(n => n.id === id.toString())) {
+      id++;
+    }
+    return id.toString();
+  }
+
+  function addNode(x, y) {
+    const id = getNextNodeId();
+    nodes.push({ id, x, y });
+  }
+
+  function addEdge(from, to) {
+    // For undirected, prevent duplicate edges (from->to or to->from)
+    if (graphType === 'undirected') {
+      if (edges.find(e => (e.from === from && e.to === to) || (e.from === to && e.to === from))) {
+        return; // already exists
+      }
+      edges.push({ from, to });
+    } else {
+      // directed - allow multiple edges carefully but no duplicates
+      if (edges.find(e => e.from === from && e.to === to)) return;
+      edges.push({ from, to });
+    }
+  }
+
+  // Event handling
+  let mousePos = null;
+
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    mousePos = { x, y };
+
+    const node = findNodeAtPosition(x, y);
+
+    if (node) {
+      if (addingEdge) {
+        // Finish adding edge here
+        if (addingEdge !== node.id) {
+          addEdge(addingEdge, node.id);
+        }
+        addingEdge = null;
+        drawGraph();
+        return;
+      }
+
+      // Start dragging the node
+      dragNode = node;
+      dragOffset.x = node.x - x;
+      dragOffset.y = node.y - y;
+    } else {
+      if (addingEdge) {
+        // Clicked empty space while adding edge, cancel adding edge
+        addingEdge = null;
+        drawGraph();
+        return;
+      }
+      // Click empty space to add node
+      addNode(x, y);
+      drawGraph();
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    mousePos = { x, y };
+
+    if (dragNode) {
+      dragNode.x = x + dragOffset.x;
+      dragNode.y = y + dragOffset.y;
+      drawGraph();
+    } else if (addingEdge) {
+      drawGraph();
+    }
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    dragNode = null;
+  });
+
+  canvas.addEventListener('dblclick', (e) => {
+    // Double click on node removes it & connected edges
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const node = findNodeAtPosition(x, y);
+    if (node) {
+      nodes = nodes.filter(n => n.id !== node.id);
+      edges = edges.filter(e => e.from !== node.id && e.to !== node.id);
+      addingEdge = null;
+      drawGraph();
+    }
+  });
+
+  canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    // Right click on node to start edge adding
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const node = findNodeAtPosition(x, y);
+    if (node) {
+      if (addingEdge === node.id) {
+        addingEdge = null; // cancel if clicking same node again
+      } else {
+        addingEdge = node.id;
+      }
+      drawGraph();
+    }
+  });
+
+  // Buttons & controls
+
+  document.getElementById('graphType').addEventListener('change', (e) => {
+    graphType = e.target.value;
+    drawGraph();
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    nodes = [];
+    edges = [];
+    addingEdge = null;
+    drawGraph();
+  });
+
+  document.getElementById('randomGraphBtn').addEventListener('click', () => {
+    generateRandomGraph();
+    drawGraph();
+  });
+
+  function generateRandomGraph() {
+    nodes = [];
+    edges = [];
+    addingEdge = null;
+
+    const nodeCount = 7;
+    const padding = 50;
+    for (let i = 0; i < nodeCount; i++) {
+      const x = padding + Math.random() * (canvas.width - 2 * padding);
+      const y = padding + Math.random() * (canvas.height - 2 * padding);
+      nodes.push({ id: (i + 1).toString(), x, y });
+    }
+
+    // Random edges
+    const maxEdges = nodeCount * 1.5; // somewhat sparse
+    let edgeCount = 0;
+    while (edgeCount < maxEdges) {
+      const fromIdx = Math.floor(Math.random() * nodeCount);
+      const toIdx = Math.floor(Math.random() * nodeCount);
+
+      // Either self loop or different node allowed 
+      // but avoid duplicate edges
+      let from = nodes[fromIdx].id;
+      let to = nodes[toIdx].id;
+
+      if (graphType === 'undirected') {
+        if (from === to) continue; // no self loops in undirected for simplicity
+        if (edges.find(e => (e.from === from && e.to === to) || (e.from === to && e.to === from))) continue;
+        edges.push({ from, to });
+        edgeCount++;
+      } else {
+        if (edges.find(e => e.from === from && e.to === to)) continue;
+        edges.push({ from, to });
+        edgeCount++;
+      }
+    }
+  }
+
+  // Initial draw
+  drawGraph();
+
+  // Show brief usage instructions on console
+  console.log(`
+Graph Visualization Instructions:
+- Left click empty space: Add node
+- Left click and drag node: Move node
+- Right click on node: Select node to add an edge; right click another node to create edge
+- Double click on node: Remove node & connected edges
+- Choose "Directed" or "Undirected" graph type above
+- "Generate Random Graph" button to create sample graph
+- "Clear Graph" button to remove all nodes and edges
+`);
+
+})();
+</script>
+</body>
+</html>

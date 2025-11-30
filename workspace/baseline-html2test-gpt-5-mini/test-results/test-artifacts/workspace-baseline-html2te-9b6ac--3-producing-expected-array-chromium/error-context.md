@@ -1,0 +1,60 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Stack (LIFO) — Interactive demo" [level=1] [ref=e4]
+    - paragraph [ref=e5]: A stack is a Last-In-First-Out (LIFO) data structure. This demo shows push, pop, peek, clear, and a visual animation and code view of the underlying array.
+    - generic [ref=e6]:
+      - textbox "Value to push (string or number)" [ref=e7]
+      - button "Push" [ref=e8] [cursor=pointer]
+      - button "Pop" [ref=e9] [cursor=pointer]
+      - button "Peek" [ref=e10] [cursor=pointer]
+      - button "Clear" [ref=e11] [cursor=pointer]
+      - button "Push Random" [ref=e12] [cursor=pointer]
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]: Demo speed
+        - slider "Demo speed" [ref=e16]: "400"
+      - generic [ref=e17]:
+        - button "Demo Sequence" [ref=e18]
+        - button "Auto Pop All" [ref=e19]
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - strong [ref=e23]: Stack
+          - generic [ref=e24]: "size: 0"
+        - generic [ref=e26]: Stack is empty
+        - generic [ref=e27]:
+          - generic [ref=e28]: "peek: —"
+          - generic [ref=e30]: "[11:24:21 PM] Stack initialized (empty). Try pushing values."
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - strong [ref=e33]: Underlying implementation (array-based)
+          - generic [ref=e34]: "// stack uses an internal array class Stack { constructor(){ this._items = []; } push(v){ this._items.push(v); } pop(){ return this._items.pop(); } peek(){ return this._items[this._items.length-1]; } size(){ return this._items.length; } }"
+          - generic [ref=e35]:
+            - generic [ref=e36]: "Push: O(1) amortized"
+            - generic [ref=e37]: "Pop: O(1)"
+            - generic [ref=e38]: "Peek: O(1)"
+            - generic [ref=e39]: Uses contiguous memory (array)
+        - generic [ref=e40]:
+          - strong [ref=e41]: Array visualization
+          - paragraph [ref=e42]: Shows the internal array from index 0 (bottom) to index size-1 (top). The top of the stack is highlighted.
+          - generic [ref=e43]: "[]"
+  - generic [ref=e44]:
+    - heading "How it works" [level=1] [ref=e45]
+    - paragraph [ref=e46]: Use the controls to push and pop values. The visual area animates stack changes and shows the internal array and logs operations.
+    - heading "Tips" [level=2] [ref=e47]
+    - list [ref=e48]:
+      - listitem [ref=e49]: Push adds an item to the top; Pop removes and returns the top item.
+      - listitem [ref=e50]: Peek returns the top without removing it.
+      - listitem [ref=e51]: Stacks are used for expression evaluation, call/return management, undo systems, and DFS traversal.
+    - heading "Examples" [level=2] [ref=e52]
+    - list [ref=e54]:
+      - listitem [ref=e55]: "Browser back button: last visited page is popped from history stack."
+      - listitem [ref=e56]: "Function call stack: active functions are pushed on call and popped on return."
+      - listitem [ref=e57]: "Undo feature: recent actions are pushed and undone by popping."
+    - generic [ref=e58]:
+      - 'button "Example: Push 1..5" [ref=e59]'
+      - 'button "Example: Pop 3" [ref=e60]'
+```

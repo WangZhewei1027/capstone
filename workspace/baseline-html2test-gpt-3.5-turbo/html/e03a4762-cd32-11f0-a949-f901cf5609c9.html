@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Breadth-First Search (BFS) Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f0f0f0;
+  }
+  h1 {
+    text-align: center;
+  }
+  #graph-container {
+    margin: 20px auto;
+    max-width: 600px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .node {
+    width: 50px;
+    height: 50px;
+    background: #ddd;
+    border: 2px solid #888;
+    border-radius: 50%;
+    margin: 10px;
+    line-height: 50px;
+    text-align: center;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.3s, border-color 0.3s;
+    position: relative;
+  }
+  .node.visited {
+    background-color: #4CAF50;
+    border-color: #2e7d32;
+    color: white;
+  }
+  .node.current {
+    background-color: #ff9800;
+    border-color: #ef6c00;
+    color: white;
+  }
+  .node.start {
+    border-color: #2196f3;
+    box-shadow: 0 0 10px #2196f3;
+  }
+  #controls {
+    max-width: 600px;
+    margin: 0 auto 20px auto;
+    text-align: center;
+  }
+  #adjacency-list {
+    max-width: 600px;
+    margin: 0 auto 20px auto;
+    background: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    font-family: monospace;
+    overflow-x: auto;
+  }
+  button {
+    cursor: pointer;
+    font-size: 16px;
+    padding: 8px 16px;
+    margin-top: 10px;
+  }
+  #bfs-order {
+    max-width: 600px;
+    margin: 10px auto;
+    background: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    min-height: 30px;
+    font-weight: bold;
+  }
+  #help {
+    max-width: 600px;
+    margin: 20px auto;
+    font-size: 0.9em;
+    color: #555;
+    line-height: 1.4em;
+  }
+  /* Lines between nodes */
+  svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<h1>Breadth-First Search (BFS) Visualization</h1>
+<div id="controls">
+  <label for="start-node">Select Start Node: </label>
+  <select id="start-node"></select>
+  <button id="start-bfs">Start BFS</button>
+</div>
+
+<div id="graph-container"></div>
+<svg id="edges-svg"></svg>
+
+<div id="bfs-order">BFS Visit Order: <span id="visit-sequence"></span></div>
+
+<div id="help">
+  <strong>How to use:</strong> Click "Start BFS" to see the BFS traversal starting from the selected node.
+  Nodes currently being visited are colored orange, visited nodes are green. The BFS order updates as the algorithm progresses.
+</div>
+
+<script>
+(() => {
+  // Graph definition - adjacency list
+  // Example graph with 8 nodes labeled A-H
+  const graph = {
+    A: ["B", "C"],
+    B: ["A", "D", "E"],
+    C: ["A", "F"],
+    D: ["B"],
+    E: ["B", "F"],
+    F: ["C", "E", "G", "H"],
+    G: ["F"],
+    H: ["F"],
+  };
+
+  const nodes = Object.keys(graph);
+  let visitOrder = [];
+  let visitedSet = new Set();
+  let queue = [];
+
+  const graphContainer = document.getElementById("graph-container");
+  const startSelect = document.getElementById("start-node");
+  const startBtn = document.getElementById("start-bfs");
+  const visitSequence = document.getElementById("visit-sequence");
+  const edgesSvg = document.getElementById("edges-svg");
+
+  // Create node elements
+  // We'll position nodes in a simple circular layout for visualization
+  const nodeElements = {};
+  const centerX = 300;
+  const centerY = 300;
+  const radius = 200;
+  const nodePositions = {}; // To store x,y for edges lines
+
+  function createNodes() {
+    graphContainer.innerHTML = "";
+    nodeElements = {};
+    const n = nodes.length;
+    nodes.forEach((label, i) => {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2; // start at top
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      nodePositions[label] = { x, y };
+
+      const div = document.createElement("div");
+      div.classList.add("node");
+      div.textContent = label;
+      div.style.position = "absolute";
+      div.style.left = (x - 25) + "px";
+      div.style.top = (y - 25) + "px";
+      graphContainer.appendChild(div);
+      nodeElements[label] = div;
+
+      // mark start node style on selection change
+      div.dataset.label = label;
+    });
+    graphContainer.style.position = "relative";
+    graphContainer.style.minHeight = "600px";
+  }
+
+  // Draw edges lines between node centers
+  function drawEdges() {
+    // Clear previous
+    edgesSvg.innerHTML = "";
+    edgesSvg.setAttribute("width", centerX * 2);
+    edgesSvg.setAttribute("height", centerY * 2);
+
+    const drawnEdges = new Set();
+
+    for (const [node, neighbors] of Object.entries(graph)) {
+      neighbors.forEach((nbr) => {
+        // Undirected edge - avoid double drawing by ordering nodes lex
+        const edgeId = [node, nbr].sort().join("-");
+        if (drawnEdges.has(edgeId)) return;
+        drawnEdges.add(edgeId);
+
+        const pos1 = nodePositions[node];
+        const pos2 = nodePositions[nbr];
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", pos1.x);
+        line.setAttribute("y1", pos1.y);
+        line.setAttribute("x2", pos2.x);
+        line.setAttribute("y2", pos2.y);
+        line.setAttribute("stroke", "#aaa");
+        line.setAttribute("stroke-width", "2");
+        edgesSvg.appendChild(line);
+      });
+    }
+  }
+
+  // Populate start node dropdown
+  function populateStartNodeSelector() {
+    startSelect.innerHTML = "";
+    nodes.forEach((n) => {
+      const option = document.createElement("option");
+      option.value = n;
+      option.textContent = n;
+      startSelect.appendChild(option);
+    });
+  }
+
+  // Reset all nodes colors/styles
+  function resetNodes() {
+    Object.values(nodeElements).forEach((nodeEl) => {
+      nodeEl.classList.remove("visited", "current", "start");
+    });
+  }
+
+  // Mark start node visually
+  function markStartNode(nodeLabel) {
+    resetNodes();
+    nodeElements[nodeLabel]?.classList.add("start");
+  }
+
+  // BFS algorithm with visualization and delay
+  async function bfs(startNode) {
+    resetNodes();
+    visitOrder = [];
+    visitedSet = new Set();
+    queue = [];
+
+    markStartNode(startNode);
+
+    queue.push(startNode);
+    visitedSet.add(startNode);
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+
+      nodeElements[current].classList.add("current");
+
+      // Wait a bit to visualize
+      await sleep(700);
+
+      nodeElements[current].classList.remove("current");
+      nodeElements[current].classList.add("visited");
+      visitOrder.push(current);
+      updateVisitSequence();
+
+      // Enqueue neighbors if not visited
+      for (const neighbor of graph[current]) {
+        if (!visitedSet.has(neighbor)) {
+          queue.push(neighbor);
+          visitedSet.add(neighbor);
+        }
+      }
+    }
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function updateVisitSequence() {
+    visitSequence.textContent = visitOrder.join(" → ");
+  }
+
+  // Initialize
+  createNodes();
+  drawEdges();
+  populateStartNodeSelector();
+  markStartNode(startSelect.value);
+
+  // On start-node change, update start styling
+  startSelect.addEventListener("change", () => {
+    markStartNode(startSelect.value);
+    visitSequence.textContent = "";
+  });
+
+  startBtn.addEventListener("click", async () => {
+    startBtn.disabled = true;
+    startSelect.disabled = true;
+    visitSequence.textContent = "";
+    await bfs(startSelect.value);
+    startBtn.disabled = false;
+    startSelect.disabled = false;
+  });
+})();
+</script>
+</body>
+</html>

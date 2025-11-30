@@ -1,0 +1,81 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Insertion Sort — Visualizer & Stepper" [level=1] [ref=e4]
+    - generic [ref=e5]: Learn how insertion sort shifts elements to insert the key value.
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - generic [ref=e10]: "Array size: 20"
+          - slider [ref=e11]: "20"
+        - generic [ref=e12]:
+          - generic [ref=e13]: "Max value: 100"
+          - slider [ref=e14]: "100"
+      - generic [ref=e15]:
+        - button "Randomize" [ref=e16] [cursor=pointer]
+        - button "Nearly Sorted" [ref=e17] [cursor=pointer]
+        - button "Reverse" [ref=e18] [cursor=pointer]
+    - generic [ref=e19]:
+      - text: Manual input (comma/space separated)
+      - textbox "e.g. 5,3,8,1,9" [ref=e20]: 86, 12, 48, 18, 45, 91, 87, 2, 89, 65, 86, 19, 12, 23, 56, 21, 76, 98, 84, 91
+      - generic [ref=e21]:
+        - button "Apply" [ref=e22] [cursor=pointer]
+        - button "Reset View" [ref=e23] [cursor=pointer]
+    - generic [ref=e24]:
+      - generic [ref=e25]: "Animation speed: 1x"
+      - slider [ref=e26]: "1"
+      - generic [ref=e27]:
+        - button "Play" [ref=e28] [cursor=pointer]
+        - button "Step" [ref=e29] [cursor=pointer]
+        - button "Back" [ref=e30] [cursor=pointer]
+        - button "To Start" [ref=e31] [cursor=pointer]
+  - generic [ref=e32]:
+    - generic [ref=e33]:
+      - generic [ref=e35]: "86"
+      - generic [ref=e37]: "12"
+      - generic [ref=e39]: "48"
+      - generic [ref=e41]: "18"
+      - generic [ref=e43]: "45"
+      - generic [ref=e45]: "91"
+      - generic [ref=e47]: "87"
+      - generic [ref=e49]: "2"
+      - generic [ref=e51]: "89"
+      - generic [ref=e53]: "65"
+      - generic [ref=e55]: "86"
+      - generic [ref=e57]: "19"
+      - generic [ref=e59]: "12"
+      - generic [ref=e61]: "23"
+      - generic [ref=e63]: "56"
+      - generic [ref=e65]: "21"
+      - generic [ref=e67]: "76"
+      - generic [ref=e69]: "98"
+      - generic [ref=e71]: "84"
+      - generic [ref=e73]: "91"
+    - generic [ref=e74]:
+      - generic [ref=e75]:
+        - strong [ref=e76]: Algorithm (Insertion Sort)
+        - generic [ref=e77]:
+          - generic [ref=e78]: Sorted
+          - generic [ref=e80]: Key
+          - generic [ref=e82]: Comparing
+          - generic [ref=e84]: Shifted
+      - generic [ref=e86]:
+        - generic [ref=e87]: "1: for i = 1 to n - 1"
+        - generic [ref=e88]: "2: key = arr[i]"
+        - generic [ref=e89]: "3: j = i - 1"
+        - generic [ref=e90]: "4: while j >= 0 and arr[j] > key"
+        - generic [ref=e91]: "5: arr[j + 1] = arr[j]"
+        - generic [ref=e92]: "6: j = j - 1"
+        - generic [ref=e93]: "7: arr[j + 1] = key"
+      - generic [ref=e94]:
+        - generic [ref=e95]: "Step: 0 / 244"
+        - generic [ref=e96]: "Comparisons: 0"
+        - generic [ref=e97]: "Shifts: 0"
+      - generic [ref=e99]:
+        - text: Current frame action
+        - generic [ref=e100]: Start
+  - contentinfo [ref=e101]: "Tip: Press Play to animate, Step to advance frame-by-frame, Back to step backwards."
+```

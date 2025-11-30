@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>K-Nearest Neighbors (KNN) Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+  }
+  #canvasContainer {
+    position: relative;
+    border: 1px solid #ccc;
+    margin-bottom: 15px;
+    user-select: none;
+  }
+  canvas {
+    background: #fafafa;
+    cursor: crosshair;
+  }
+  .point {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    position: absolute;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+  }
+  #controls {
+    margin-bottom: 10px;
+  }
+  label {
+    margin-right: 10px;
+  }
+  #legend {
+    margin-top: 10px;
+  }
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 15px;
+  }
+  .legend-color {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  #info {
+    margin-top: 10px;
+  }
+  button {
+    padding: 5px 10px;
+    margin-right: 10px;
+    cursor: pointer;
+  }
+  h1 {
+    margin-bottom: 10px;
+  }
+  p {
+    max-width: 600px;
+  }
+</style>
+</head>
+<body>
+<h1>K-Nearest Neighbors (KNN) Interactive Demo</h1>
+<p>
+  This demo lets you add points in two classes (red and blue) by clicking on the canvas.
+  Then, click anywhere on the canvas to classify that new point using the K-Nearest Neighbors algorithm.
+  Adjust the value of <strong>K</strong> to see how classification changes.
+</p>
+
+<div id="controls">
+  <label>
+    Select Class to Add:
+    <select id="classSelector">
+      <option value="red">Red</option>
+      <option value="blue">Blue</option>
+    </select>
+  </label>
+
+  <label>
+    K (neighbors):
+    <input type="number" id="kInput" value="3" min="1" max="15" step="1" style="width: 50px" />
+  </label>
+
+  <button id="clearBtn">Clear All Points</button>
+  <button id="resetClassifyBtn" disabled>Clear Classified Point</button>
+</div>
+
+<div id="canvasContainer" style="width:600px; height:400px;">
+  <canvas id="knnCanvas" width="600" height="400"></canvas>
+</div>
+
+<div id="legend">
+  <div class="legend-item"><span class="legend-color" style="background: red;"></span>Class Red</div>
+  <div class="legend-item"><span class="legend-color" style="background: blue;"></span>Class Blue</div>
+  <div class="legend-item"><span class="legend-color" id="unknownPoint" style="background: orange;"></span>Classified Point</div>
+  <div class="legend-item">
+    <svg width="16" height="16" style="vertical-align: middle;">
+      <circle cx="8" cy="8" r="7" stroke="green" stroke-width="2" fill="none" />
+    </svg> K-Nearest Neighbors
+  </div>
+</div>
+
+<div id="info"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('knnCanvas');
+  const ctx = canvas.getContext('2d');
+  const classSelector = document.getElementById('classSelector');
+  const kInput = document.getElementById('kInput');
+  const clearBtn = document.getElementById('clearBtn');
+  const resetClassifyBtn = document.getElementById('resetClassifyBtn');
+  const infoDiv = document.getElementById('info');
+
+  const WIDTH = canvas.width;
+  const HEIGHT = canvas.height;
+
+  // Data points: [{x, y, label}]
+  let points = [];
+
+  // Classified point & neighbors
+  let classifiedPoint = null; // {x, y, predictedLabel, neighbors: [...]}
+
+  // Color scheme
+  const classColors = {
+    red: 'red',
+    blue: 'blue',
+  };
+  const unknownColor = 'orange';
+
+  // Draw a single point (circle)
+  function drawPoint(x, y, color, radius = 6, highlight=false) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = color;
+    ctx.fill();
+    if(highlight){
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'green';
+      ctx.stroke();
+    }
+  }
+
+  // Distance between two points
+  function distance(p1, p2) {
+    return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+  }
+
+  // KNN Classifier
+  // Returns {label: string, neighbors: array of points}
+  function knnClassify(testPoint, k) {
+    // Compute distances to all points in dataset
+    const distances = points.map(p => ({...p, dist: distance(p, testPoint)}));
+    // Sort ascending by distance
+    distances.sort((a, b) => a.dist - b.dist);
+    // Take k nearest neighbors
+    const neighbors = distances.slice(0, k);
+
+    // Count votes
+    const votes = {};
+    neighbors.forEach(n => {
+      votes[n.label] = (votes[n.label] || 0) + 1;
+    });
+
+    // Find label with max votes (simple majority, tie-break by nearest)
+    let maxVotes = 0;
+    let chosenLabel = null;
+    for (const label in votes) {
+      if (votes[label] > maxVotes) {
+        maxVotes = votes[label];
+        chosenLabel = label;
+      } else if (votes[label] === maxVotes) {
+        // Tie-break: check the nearest neighbor in the tie labels
+        // Find closest neighbor label distance
+        const distA = neighbors.find(n => n.label === chosenLabel).dist;
+        const distB = neighbors.find(n => n.label === label).dist;
+        if (distB < distA) chosenLabel = label;
+      }
+    }
+
+    return {label: chosenLabel, neighbors};
+  }
+
+  // Clear canvas and re-draw all points & optionally classified point
+  function redraw() {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    // Draw existing points
+    points.forEach(pt => {
+      drawPoint(pt.x, pt.y, classColors[pt.label]);
+    });
+
+    if (classifiedPoint) {
+      // Draw neighbors with green circles around
+      classifiedPoint.neighbors.forEach(n => {
+        drawPoint(n.x, n.y, classColors[n.label], 8, true);
+      });
+
+      // Draw classified test point
+      drawPoint(classifiedPoint.x, classifiedPoint.y, unknownColor, 8);
+
+      // Draw lines from test point to neighbors
+      ctx.strokeStyle = 'green';
+      ctx.lineWidth = 1.5;
+      classifiedPoint.neighbors.forEach(n => {
+        ctx.beginPath();
+        ctx.moveTo(classifiedPoint.x, classifiedPoint.y);
+        ctx.lineTo(n.x, n.y);
+        ctx.stroke();
+      });
+    }
+  }
+
+  // Info display update
+  function updateInfo() {
+    if (classifiedPoint) {
+      const k = kInput.value;
+      let html = `<strong>Classified Point:</strong> (${classifiedPoint.x.toFixed(1)}, ${classifiedPoint.y.toFixed(1)})<br />`;
+      html += `<strong>Predicted Class:</strong> <span style="color:${classColors[classifiedPoint.label]}">${classifiedPoint.label}</span><br/>`;
+      html += `<strong>Nearest Neighbors (K=${k}):</strong><ul style="padding-left:20px;">`;
+      classifiedPoint.neighbors.forEach((n,i) => {
+        html += `<li>(${n.x.toFixed(1)}, ${n.y.toFixed(1)}) - Class <span style="color:${classColors[n.label]}">${n.label}</span>, Distance: ${n.dist.toFixed(1)}</li>`;
+      });
+      html += '</ul>';
+      infoDiv.innerHTML = html;
+      resetClassifyBtn.disabled = false;
+    } else {
+      infoDiv.innerHTML = 'Click on the canvas to add points (red or blue class selected). Then click to classify a new point.';
+      resetClassifyBtn.disabled = true;
+    }
+  }
+
+  // Event handlers
+  canvas.addEventListener('click', e => {
+    // Get mouse position relative to canvas
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (!classifiedPoint) {
+      // If classification point not set, add training point
+      const selectedClass = classSelector.value;
+      points.push({x, y, label: selectedClass});
+      redraw();
+      updateInfo();
+    } else {
+      // If classified point exists, and user clicks again, interpret as re-classify new point
+
+      // Note: To simplify user experience, clear old classified point and classify at new point
+      classifiedPoint = null;
+      redraw();
+      updateInfo();
+    }
+  });
+
+  canvas.addEventListener('contextmenu', e => {
+    // Right-click to classify a new point
+    e.preventDefault();
+    if (points.length === 0) {
+      alert('Please add some training points before classification.');
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    let k = parseInt(kInput.value);
+    if (isNaN(k) || k < 1) {
+      alert('Please enter a valid K (>=1).');
+      return;
+    }
+    if (k > points.length) {
+      k = points.length;
+      kInput.value = k;
+    }
+
+    const testPoint = {x, y};
+    const result = knnClassify(testPoint, k);
+    classifiedPoint = {
+      x, y,
+      label: result.label,
+      neighbors: result.neighbors
+    };
+    redraw();
+    updateInfo();
+  });
+
+  kInput.addEventListener('change', () => {
+    if (classifiedPoint) {
+      // Reclassify with new k if possible
+      let k = parseInt(kInput.value);
+      if (isNaN(k) || k < 1) {
+        k = 1;
+        kInput.value = k;
+      }
+      if (k > points.length) {
+        k = points.length;
+        kInput.value = k;
+      }
+      const testPoint = { x: classifiedPoint.x, y: classifiedPoint.y };
+      const result = knnClassify(testPoint, k);
+      classifiedPoint.label = result.label;
+      classifiedPoint.neighbors = result.neighbors;
+      redraw();
+      updateInfo();
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    points = [];
+    classifiedPoint = null;
+    redraw();
+    updateInfo();
+  });
+
+  resetClassifyBtn.addEventListener('click', () => {
+    classifiedPoint = null;
+    redraw();
+    updateInfo();
+  });
+
+  // Initial info
+  updateInfo();
+
+  // Instructions:
+  // Left-click on canvas: add training point with selected class
+  // Right-click on canvas: classify new point at that location
+  // Adjust K and see changes
+
+  // Show a small instruction above canvas (could be enhanced)
+  const hint = document.createElement('p');
+  hint.style.marginTop = '0px';
+  hint.style.marginBottom = '15px';
+  hint.style.fontStyle = 'italic';
+  hint.style.color = '#555';
+  hint.innerHTML = 'Left-Click: Add training point | Right-Click: Classify point';
+  document.body.insertBefore(hint, document.getElementById('canvasContainer'));
+})();
+</script>
+</body>
+</html>

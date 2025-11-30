@@ -1,0 +1,242 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Longest Common Subsequence (LCS) Visualizer" [level=1] [ref=e3]
+  - paragraph [ref=e4]: Enter two strings to compute their longest common subsequence using dynamic programming. Visualize the DP table, reconstruct one or all LCSs (within limits), and step through the backtracking path.
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: String A
+        - textbox "String A" [ref=e10]:
+          - /placeholder: Type first string (max 120 characters)
+          - text: AGGTAB
+      - generic [ref=e11]:
+        - generic [ref=e12]: String B
+        - textbox "String B" [ref=e13]:
+          - /placeholder: Type second string (max 120 characters)
+          - text: GXTXAYB
+      - generic [ref=e14]:
+        - button "Compute LCS" [ref=e15] [cursor=pointer]
+        - button "Random example" [ref=e16] [cursor=pointer]
+        - generic [ref=e17]:
+          - generic "Show all distinct LCS (may be many)" [ref=e18]: Show all
+          - checkbox [ref=e19]
+        - generic [ref=e20]:
+          - generic "Max number of sequences to list" [ref=e21]: Limit
+          - spinbutton [ref=e22]: "50"
+      - generic [ref=e23]:
+        - text: LCS length =
+        - generic [ref=e24]: "4"
+        - text: "Greedy example:"
+        - generic [ref=e25]: GTAB
+      - generic [ref=e26]:
+        - text: "Notes:"
+        - list [ref=e27]:
+          - listitem [ref=e28]: DP computes dp[i][j] = length of LCS of A[0..i-1] and B[0..j-1].
+          - listitem [ref=e29]: "Backtracking follows choices: if A[i-1]==B[j-1] take diagonal; else follow larger neighbor (up or left)."
+          - listitem [ref=e30]: Number of distinct LCS can grow exponentially — use the Limit to avoid huge output.
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e34]: DP Matrix & Reconstruction
+        - generic [ref=e35]:
+          - button "Step backtracking" [ref=e36] [cursor=pointer]
+          - button "Reset" [ref=e37] [cursor=pointer]
+          - button "Highlight greedy LCS path" [ref=e38] [cursor=pointer]
+      - table [ref=e40]:
+        - rowgroup [ref=e41]:
+          - row "∅ G X T X A Y B" [ref=e42]:
+            - cell [ref=e43]
+            - cell "∅" [ref=e44]
+            - cell "G" [ref=e45]
+            - cell "X" [ref=e46]
+            - cell "T" [ref=e47]
+            - cell "X" [ref=e48]
+            - cell "A" [ref=e49]
+            - cell "Y" [ref=e50]
+            - cell "B" [ref=e51]
+        - rowgroup [ref=e52]:
+          - row "∅ 0 0 ← 0 ← 0 ← 0 ← 0 ← 0 ← 0 ←" [ref=e53]:
+            - cell "∅" [ref=e54]
+            - cell "0" [ref=e55]
+            - cell "0 ←" [ref=e56]:
+              - text: "0"
+              - generic "←" [ref=e57]
+            - cell "0 ←" [ref=e58]:
+              - text: "0"
+              - generic "←" [ref=e59]
+            - cell "0 ←" [ref=e60]:
+              - text: "0"
+              - generic "←" [ref=e61]
+            - cell "0 ←" [ref=e62]:
+              - text: "0"
+              - generic "←" [ref=e63]
+            - cell "0 ←" [ref=e64]:
+              - text: "0"
+              - generic "←" [ref=e65]
+            - cell "0 ←" [ref=e66]:
+              - text: "0"
+              - generic "←" [ref=e67]
+            - cell "0 ←" [ref=e68]:
+              - text: "0"
+              - generic "←" [ref=e69]
+          - row "A 0 ↑ 0 ↑← 0 ↑← 0 ↑← 0 ↑← 1 ↖ 1 ← 1 ←" [ref=e70]:
+            - cell "A" [ref=e71]
+            - cell "0 ↑" [ref=e72]:
+              - text: "0"
+              - generic "↑" [ref=e73]
+            - cell "0 ↑←" [ref=e74]:
+              - text: "0"
+              - generic "↑ ←" [ref=e75]: ↑←
+            - cell "0 ↑←" [ref=e76]:
+              - text: "0"
+              - generic "↑ ←" [ref=e77]: ↑←
+            - cell "0 ↑←" [ref=e78]:
+              - text: "0"
+              - generic "↑ ←" [ref=e79]: ↑←
+            - cell "0 ↑←" [ref=e80]:
+              - text: "0"
+              - generic "↑ ←" [ref=e81]: ↑←
+            - cell "1 ↖" [ref=e82]:
+              - text: "1"
+              - generic "↖" [ref=e83]
+            - cell "1 ←" [ref=e84]:
+              - text: "1"
+              - generic "←" [ref=e85]
+            - cell "1 ←" [ref=e86]:
+              - text: "1"
+              - generic "←" [ref=e87]
+          - row "G 0 ↑ 1 ↖ 1 ← 1 ← 1 ← 1 ↑← 1 ↑← 1 ↑←" [ref=e88]:
+            - cell "G" [ref=e89]
+            - cell "0 ↑" [ref=e90]:
+              - text: "0"
+              - generic "↑" [ref=e91]
+            - cell "1 ↖" [ref=e92]:
+              - text: "1"
+              - generic "↖" [ref=e93]
+            - cell "1 ←" [ref=e94]:
+              - text: "1"
+              - generic "←" [ref=e95]
+            - cell "1 ←" [ref=e96]:
+              - text: "1"
+              - generic "←" [ref=e97]
+            - cell "1 ←" [ref=e98]:
+              - text: "1"
+              - generic "←" [ref=e99]
+            - cell "1 ↑←" [ref=e100]:
+              - text: "1"
+              - generic "↑ ←" [ref=e101]: ↑←
+            - cell "1 ↑←" [ref=e102]:
+              - text: "1"
+              - generic "↑ ←" [ref=e103]: ↑←
+            - cell "1 ↑←" [ref=e104]:
+              - text: "1"
+              - generic "↑ ←" [ref=e105]: ↑←
+          - row "G 0 ↑ 1 ↖↑ 1 ↑← 1 ↑← 1 ↑← 1 ↑← 1 ↑← 1 ↑←" [ref=e106]:
+            - cell "G" [ref=e107]
+            - cell "0 ↑" [ref=e108]:
+              - text: "0"
+              - generic "↑" [ref=e109]
+            - cell "1 ↖↑" [ref=e110]:
+              - text: "1"
+              - generic "↖ ↑" [ref=e111]: ↖↑
+            - cell "1 ↑←" [ref=e112]:
+              - text: "1"
+              - generic "↑ ←" [ref=e113]: ↑←
+            - cell "1 ↑←" [ref=e114]:
+              - text: "1"
+              - generic "↑ ←" [ref=e115]: ↑←
+            - cell "1 ↑←" [ref=e116]:
+              - text: "1"
+              - generic "↑ ←" [ref=e117]: ↑←
+            - cell "1 ↑←" [ref=e118]:
+              - text: "1"
+              - generic "↑ ←" [ref=e119]: ↑←
+            - cell "1 ↑←" [ref=e120]:
+              - text: "1"
+              - generic "↑ ←" [ref=e121]: ↑←
+            - cell "1 ↑←" [ref=e122]:
+              - text: "1"
+              - generic "↑ ←" [ref=e123]: ↑←
+          - row "T 0 ↑ 1 ↑ 1 ↑← 2 ↖ 2 ← 2 ← 2 ← 2 ←" [ref=e124]:
+            - cell "T" [ref=e125]
+            - cell "0 ↑" [ref=e126]:
+              - text: "0"
+              - generic "↑" [ref=e127]
+            - cell "1 ↑" [ref=e128]:
+              - text: "1"
+              - generic "↑" [ref=e129]
+            - cell "1 ↑←" [ref=e130]:
+              - text: "1"
+              - generic "↑ ←" [ref=e131]: ↑←
+            - cell "2 ↖" [ref=e132]:
+              - text: "2"
+              - generic "↖" [ref=e133]
+            - cell "2 ←" [ref=e134]:
+              - text: "2"
+              - generic "←" [ref=e135]
+            - cell "2 ←" [ref=e136]:
+              - text: "2"
+              - generic "←" [ref=e137]
+            - cell "2 ←" [ref=e138]:
+              - text: "2"
+              - generic "←" [ref=e139]
+            - cell "2 ←" [ref=e140]:
+              - text: "2"
+              - generic "←" [ref=e141]
+          - row "A 0 ↑ 1 ↑ 1 ↑← 2 ↑ 2 ↑← 3 ↖ 3 ← 3 ←" [ref=e142]:
+            - cell "A" [ref=e143]
+            - cell "0 ↑" [ref=e144]:
+              - text: "0"
+              - generic "↑" [ref=e145]
+            - cell "1 ↑" [ref=e146]:
+              - text: "1"
+              - generic "↑" [ref=e147]
+            - cell "1 ↑←" [ref=e148]:
+              - text: "1"
+              - generic "↑ ←" [ref=e149]: ↑←
+            - cell "2 ↑" [ref=e150]:
+              - text: "2"
+              - generic "↑" [ref=e151]
+            - cell "2 ↑←" [ref=e152]:
+              - text: "2"
+              - generic "↑ ←" [ref=e153]: ↑←
+            - cell "3 ↖" [ref=e154]:
+              - text: "3"
+              - generic "↖" [ref=e155]
+            - cell "3 ←" [ref=e156]:
+              - text: "3"
+              - generic "←" [ref=e157]
+            - cell "3 ←" [ref=e158]:
+              - text: "3"
+              - generic "←" [ref=e159]
+          - row "B 0 ↑ 1 ↑ 1 ↑← 2 ↑ 2 ↑← 3 ↑ 3 ↑← 4 ↖" [ref=e160]:
+            - cell "B" [ref=e161]
+            - cell "0 ↑" [ref=e162]:
+              - text: "0"
+              - generic "↑" [ref=e163]
+            - cell "1 ↑" [ref=e164]:
+              - text: "1"
+              - generic "↑" [ref=e165]
+            - cell "1 ↑←" [ref=e166]:
+              - text: "1"
+              - generic "↑ ←" [ref=e167]: ↑←
+            - cell "2 ↑" [ref=e168]:
+              - text: "2"
+              - generic "↑" [ref=e169]
+            - cell "2 ↑←" [ref=e170]:
+              - text: "2"
+              - generic "↑ ←" [ref=e171]: ↑←
+            - cell "3 ↑" [ref=e172]:
+              - text: "3"
+              - generic "↑" [ref=e173]
+            - cell "3 ↑←" [ref=e174]:
+              - text: "3"
+              - generic "↑ ←" [ref=e175]: ↑←
+            - cell "4 ↖" [ref=e176]:
+              - text: "4"
+              - generic "↖" [ref=e177]
+      - generic [ref=e178]: "Strings: A length=6, B length=7. DP table size 7x8."
+      - generic "Greedy LCS example" [ref=e180] [cursor=pointer]: GTAB
+      - generic [ref=e181]: Showing a single greedy example (not necessarily the lexicographically smallest). Toggle "Show all" to list distinct LCS strings (may be many).
+```

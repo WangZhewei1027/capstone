@@ -1,0 +1,104 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Hash Table Interactive Demo" [level=1] [ref=e5]
+      - generic [ref=e6]: Explore hashing, collisions, probing & chaining, rehashing and load factor visually.
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - textbox "Key (string)" [ref=e9]
+        - textbox "Value" [ref=e10]
+        - button "Insert / Update" [ref=e11] [cursor=pointer]
+        - button "Get" [ref=e12] [cursor=pointer]
+        - button "Delete" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - generic [ref=e15]: "Mode:"
+        - combobox [ref=e16]:
+          - option "Separate Chaining" [selected]
+          - option "Open Addressing (Linear Probing)"
+        - generic [ref=e17]: "Capacity:"
+        - spinbutton [ref=e18]: "12"
+        - button "Apply" [ref=e19] [cursor=pointer]
+      - generic [ref=e20]:
+        - button "Insert 6 Random" [ref=e21] [cursor=pointer]
+        - button "Clear" [ref=e22] [cursor=pointer]
+        - button "Step Insert" [ref=e23] [cursor=pointer]
+  - generic [ref=e24]:
+    - generic [ref=e25]:
+      - generic [ref=e26]:
+        - generic [ref=e27]: Buckets (indices 0 .. capacity-1)
+        - generic [ref=e28]: Click a node to highlight its bucket and key details.
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e31]: Index 0
+          - generic [ref=e33]: (empty)
+        - generic [ref=e34]:
+          - generic [ref=e35]: Index 1
+          - 'generic "key: apple value: fruit" [ref=e38]':
+            - generic [ref=e39]: apple
+            - generic [ref=e40]: fruit
+        - generic [ref=e41]:
+          - generic [ref=e42]: Index 2
+          - generic [ref=e44]:
+            - 'generic "key: ab value: 1" [ref=e45]':
+              - generic [ref=e46]: ab
+              - generic [ref=e47]: "1"
+            - 'generic "key: applf value: fruit2" [ref=e48]':
+              - generic [ref=e49]: applf
+              - generic [ref=e50]: fruit2
+        - generic [ref=e51]:
+          - generic [ref=e52]: Index 3
+          - generic [ref=e54]:
+            - 'generic "key: car value: vehicle" [ref=e55]':
+              - generic [ref=e56]: car
+              - generic [ref=e57]: vehicle
+            - 'generic "key: arc value: arch" [ref=e58]':
+              - generic [ref=e59]: arc
+              - generic [ref=e60]: arch
+        - generic [ref=e61]:
+          - generic [ref=e62]: Index 4
+          - 'generic "key: ba value: 2" [ref=e65]':
+            - generic [ref=e66]: ba
+            - generic [ref=e67]: "2"
+        - generic [ref=e68]:
+          - generic [ref=e69]: Index 5
+          - generic [ref=e71]: (empty)
+      - generic [ref=e72]: "Tip: Try collisions by inserting keys that hash to the same bucket (e.g., \"ab\" and \"ba\" with simple hash)."
+    - complementary [ref=e73]:
+      - generic [ref=e74]:
+        - generic [ref=e76]: "Mode: Separate Chaining"
+        - generic [ref=e78]: "Hash function: djb2 (string → integer)"
+      - generic [ref=e79]:
+        - generic [ref=e80]:
+          - text: "Capacity:"
+          - strong [ref=e81]: "6"
+        - generic [ref=e82]:
+          - text: "Size:"
+          - strong [ref=e83]: "6"
+        - generic [ref=e84]:
+          - text: "Load Factor:"
+          - strong [ref=e85]: "1.00"
+        - generic [ref=e86]:
+          - text: "Collisions:"
+          - strong [ref=e87]: "2"
+      - generic [ref=e88]:
+        - button "Rehash (resize & reinsert)" [ref=e89] [cursor=pointer]
+        - generic [ref=e90]: Auto-resize
+        - checkbox [checked] [ref=e91]
+      - generic [ref=e92]: Operation Log
+      - generic [ref=e93]:
+        - generic [ref=e95]: "[11:21:02 PM] Insert key=\"arc\" value=\"arch\" → bucket 3 (hash 193486491)"
+        - generic [ref=e97]: "[11:21:02 PM] Insert key=\"car\" value=\"vehicle\" → bucket 3 (hash 193488123)"
+        - generic [ref=e99]: "[11:21:02 PM] Insert key=\"applf\" value=\"fruit2\" → bucket 2 (hash 253337144)"
+        - generic [ref=e101]: "[11:21:02 PM] Insert key=\"apple\" value=\"fruit\" → bucket 1 (hash 253337143)"
+        - generic [ref=e103]: "[11:21:02 PM] Insert key=\"ba\" value=\"2\" → bucket 4 (hash 5863240)"
+        - generic [ref=e105]: "[11:21:02 PM] Insert key=\"ab\" value=\"1\" → bucket 8 (hash 5863208)"
+        - generic [ref=e107]: "[11:21:02 PM] Rehash performed. New capacity: 6"
+        - generic [ref=e109]: "[11:21:02 PM] Insert key=\"ab\" value=\"1\" → bucket 2 (hash 5863208)"
+        - generic [ref=e111]: "[11:21:02 PM] Demo ready. Mode: Separate Chaining"
+  - contentinfo [ref=e112]:
+    - generic [ref=e113]: Demonstration of hashing concepts. Separate chaining uses arrays of key/value pairs. Open addressing uses linear probing with tombstones.
+    - generic [ref=e114]: "Built-in hash: djb2 (case-sensitive strings)."
+```

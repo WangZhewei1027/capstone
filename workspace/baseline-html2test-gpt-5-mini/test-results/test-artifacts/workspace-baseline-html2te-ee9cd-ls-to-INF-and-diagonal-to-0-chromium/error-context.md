@@ -1,0 +1,120 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Floyd–Warshall Algorithm Visualizer" [level=1] [ref=e3]
+    - generic [ref=e4]: All in-browser demo • Supports negative weights • Detects negative cycles
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - generic [ref=e9]: Number of nodes
+          - generic [ref=e10]:
+            - spinbutton [ref=e11]: "4"
+            - button "Make matrix" [active] [ref=e12] [cursor=pointer]
+            - button "Random graph" [ref=e13] [cursor=pointer]
+            - button "Clear (INF)" [ref=e14] [cursor=pointer]
+        - generic [ref=e15]:
+          - generic [ref=e16]: Play speed
+          - generic [ref=e17]:
+            - slider [ref=e18]: "700"
+            - generic [ref=e19]: 700 ms/step
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e23]: Adjacency matrix (enter numbers or INF)
+          - generic [ref=e25]: "Interpretation: cell [i][j] = weight from i→j. INF = no direct edge."
+        - generic [ref=e26]:
+          - generic [ref=e27]:
+            - generic [ref=e28]: "0"
+            - generic [ref=e29]: "1"
+            - generic [ref=e30]: "2"
+            - generic [ref=e31]: "3"
+          - generic [ref=e32]:
+            - generic [ref=e33]: "0"
+            - textbox [ref=e34]: "0"
+            - textbox [ref=e35]: INF
+            - textbox [ref=e36]: INF
+            - textbox [ref=e37]: INF
+          - generic [ref=e38]:
+            - generic [ref=e39]: "1"
+            - textbox [ref=e40]: INF
+            - textbox [ref=e41]: "0"
+            - textbox [ref=e42]: INF
+            - textbox [ref=e43]: INF
+          - generic [ref=e44]:
+            - generic [ref=e45]: "2"
+            - textbox [ref=e46]: INF
+            - textbox [ref=e47]: INF
+            - textbox [ref=e48]: "0"
+            - textbox [ref=e49]: INF
+          - generic [ref=e50]:
+            - generic [ref=e51]: "3"
+            - textbox [ref=e52]: INF
+            - textbox [ref=e53]: INF
+            - textbox [ref=e54]: INF
+            - textbox [ref=e55]: "0"
+        - generic [ref=e56]:
+          - button "Initialize (create dist & next)" [ref=e57] [cursor=pointer]
+          - button "Step" [ref=e58] [cursor=pointer]
+          - button "Play" [ref=e59] [cursor=pointer]
+          - button "Run to End" [ref=e60] [cursor=pointer]
+          - button "Reset" [ref=e61] [cursor=pointer]
+          - button "Export matrix" [ref=e62] [cursor=pointer]
+        - generic [ref=e63]:
+          - generic [ref=e64]:
+            - generic [ref=e65]: Current k (intermediate node)
+            - generic [ref=e66]: k = -
+          - generic [ref=e67]:
+            - generic [ref=e68]: Log
+            - generic [ref=e69]: "[11:26:24 PM] Created 4×4 adjacency editor. [11:26:23 PM] Welcome! Edit adjacency matrix, then click Initialize. Use Step / Play to run the algorithm. [11:26:23 PM] Created 5×5 adjacency editor."
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - generic [ref=e72]: Distance matrix (dist)
+            - generic [ref=e74]: Distance matrix not initialized.
+          - generic [ref=e75]:
+            - generic [ref=e76]: Next matrix (for path reconstruction)
+            - generic [ref=e78]: Next matrix not initialized.
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - generic [ref=e81]: From
+            - spinbutton [ref=e82]: "0"
+          - generic [ref=e83]:
+            - generic [ref=e84]: To
+            - spinbutton [ref=e85]: "1"
+          - button "Reconstruct path" [ref=e87] [cursor=pointer]
+          - generic [ref=e88]: After initialization and at least partial run.
+        - generic [ref=e89]:
+          - generic [ref=e90]: INF = no path
+          - generic [ref=e91]: Updated cells highlighted
+          - generic [ref=e92]: dist[i][i] < 0 → negative cycle
+        - generic [ref=e93]: Floyd–Warshall finds all-pairs shortest paths in a weighted directed graph (works with negative edge weights; negative cycles make distances undefined).
+    - generic [ref=e94]:
+      - generic [ref=e95]:
+        - generic [ref=e96]:
+          - generic [ref=e97]: Summary & explanation
+          - generic [ref=e98]: Floyd–Warshall
+        - generic [ref=e99]:
+          - generic [ref=e100]: Complexity
+          - generic [ref=e101]: "Time: O(n^3) • Space: O(n^2)"
+      - generic [ref=e102]:
+        - paragraph [ref=e103]:
+          - strong [ref=e104]: What it does
+          - text: ": For every pair of nodes (i,j), the algorithm computes the shortest path distance using any intermediate vertices from a set {0..k}. It iteratively expands this set from k=0 to n-1. The key recurrence: dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])"
+        - paragraph [ref=e105]:
+          - strong [ref=e106]: Path reconstruction
+          - text: ": We maintain a helper matrix Next[i][j] which points to the next vertex after i on a shortest path to j. After updates, Next[i][j] ← Next[i][k] when using k improves dist[i][j]. Reconstruct path by repeatedly following Next[u][v]."
+        - paragraph [ref=e107]:
+          - strong [ref=e108]: Negative cycles
+          - text: ": If after the algorithm any dist[i][i] < 0, node i is part of or reachable through a negative cycle; shortest paths are then undefined in general."
+        - separator [ref=e109]
+        - generic [ref=e110]:
+          - button "Load sample with negative edge" [ref=e111] [cursor=pointer]
+          - button "Load sample (no negatives)" [ref=e112] [cursor=pointer]
+        - generic [ref=e113]:
+          - generic [ref=e114]: Tips
+          - list [ref=e115]:
+            - listitem [ref=e116]: Use INF to indicate no direct edge.
+            - listitem [ref=e117]: Try random graphs to see how intermediate k introduces new shorter routes.
+            - listitem [ref=e118]: Reconstruct paths after running to inspect concrete routes.
+```

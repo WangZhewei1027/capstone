@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Interactive Graph (Directed / Undirected)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 0; height: 100vh; display: flex; }
+  #left { width: 72%; position: relative; background: #f6f8fa; border-right: 1px solid #ddd; }
+  #right { width: 28%; padding: 12px; box-sizing: border-box; overflow: auto; }
+  canvas { display: block; width: 100%; height: 100%; background: #fff; cursor: crosshair; }
+  header { padding: 10px 12px; border-bottom: 1px solid #e3e6ea; background: #fff; display:flex; align-items:center; gap:12px; }
+  .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  button, select, input[type="button"], input[type="checkbox"] { padding:6px 8px; border-radius:6px; border:1px solid #c8ccd1; background:#fff; cursor:pointer; }
+  .panel { padding: 10px 0; }
+  label { font-size: 13px; }
+  .small { font-size: 12px; color: #444; }
+  pre { background:#f3f4f6; padding:8px; border-radius:6px; max-height:260px; overflow:auto; border:1px solid #e6e7ea; }
+  .muted { color:#666; font-size:13px; }
+  .row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .flex { display:flex; gap:8px; flex-wrap:wrap; }
+  .kbd { background:#eef1f6; padding:4px 6px; border-radius:4px; font-size:12px; border:1px solid #e1e4e8; }
+  footer { font-size:12px; color:#666; margin-top:8px; }
+  .selected { outline: 3px solid rgba(21,156,228,0.18); }
+</style>
+</head>
+<body>
+  <div id="left">
+    <header>
+      <div style="flex:1;">
+        <strong>Interactive Graph</strong>
+        <div class="small muted">Create nodes & edges, drag nodes, toggle Directed/Undirected, show adjacency matrix/list, compute shortest path.</div>
+      </div>
+      <div class="controls">
+        <label><input id="directedToggle" type="checkbox" checked> Directed</label>
+        <select id="mode">
+          <option value="addNode">Add Node (double-click)</option>
+          <option value="addEdge">Add Edge (click source → target)</option>
+          <option value="move">Move / Select</option>
+        </select>
+        <button id="btnClear">Clear</button>
+        <button id="btnRandom">Random</button>
+        <button id="btnExport">Export</button>
+      </div>
+    </header>
+    <canvas id="c"></canvas>
+    <div style="position:absolute; right:12px; bottom:12px; background:rgba(255,255,255,0.95); border:1px solid #ddd; padding:8px; border-radius:8px;">
+      <div class="muted" style="font-size:13px;">Mode: <span id="modeLabel">Add Node</span></div>
+      <div class="small muted">Nodes: <span id="countNodes">0</span> &nbsp; Edges: <span id="countEdges">0</span></div>
+    </div>
+  </div>
+
+  <div id="right">
+    <div class="panel">
+      <div class="row">
+        <label>Edge weight <input id="edgeWeight" type="number" value="1" style="width:70px"></label>
+        <button id="btnDelete">Delete Selected</button>
+      </div>
+      <div class="row">
+        <button id="btnPath">Compute Shortest Path</button>
+        <select id="fromNode"></select>
+        <select id="toNode"></select>
+      </div>
+      <div class="row">
+        <button id="btnAdjList">Show Adjacency List</button>
+        <button id="btnAdjMatrix">Show Adjacency Matrix</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="font-weight:600; margin-bottom:6px;">Graph JSON</div>
+      <textarea id="jsonOut" style="width:100%; height:110px; box-sizing:border-box; padding:8px; border-radius:6px; border:1px solid #e5e7ea;"></textarea>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="btnLoad">Load JSON</button>
+        <button id="btnCopy">Copy</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="font-weight:600; margin-bottom:6px;">Adjacency Output</div>
+      <pre id="adjOutput">(Press "Show Adjacency List" or "Matrix")</pre>
+    </div>
+
+    <div class="panel">
+      <div style="font-weight:600; margin-bottom:6px;">Instructions</div>
+      <ul class="small">
+        <li>Double-click canvas to add nodes (in Add Node mode).</li>
+        <li>In Add Edge mode: click a source node then a target node to create an edge. Self-loops allowed.</li>
+        <li>Move mode: drag nodes to reposition. Click a node to select. Use Delete Selected to remove it.</li>
+        <li>Toggle Directed to switch how edges are interpreted and drawn.</li>
+        <li>Use Shortest Path to compute path (Dijkstra if weights ≠ 1, else BFS).</li>
+      </ul>
+    </div>
+
+    <footer>Tip: Click "Random" to generate a sample graph. Export to JSON to save.</footer>
+  </div>
+
+<script>
+(() => {
+  // Canvas setup
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let DPR = window.devicePixelRatio || 1;
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width * DPR);
+    canvas.height = Math.floor((window.innerHeight - document.querySelector('header').offsetHeight) * DPR);
+    canvas.style.height = (window.innerHeight - document.querySelector('header').offsetHeight) + 'px';
+    draw();
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', resize);
+
+  // Graph data
+  let nodes = []; // {id, x, y}
+  let edges = []; // {id, from, to, w}
+  let nextNodeId = 1, nextEdgeId = 1;
+  let directed = true;
+
+  // Interaction state
+  let modeEl = document.getElementById('mode');
+  let modeLabel = document.getElementById('modeLabel');
+  let mode = modeEl.value;
+  let directedToggle = document.getElementById('directedToggle');
+  let edgeWeightEl = document.getElementById('edgeWeight');
+  let selectedNode = null;
+  let selectedEdge = null;
+  let dragOffset = {x:0,y:0};
+  let creatingEdgeFrom = null;
+  let highlightPath = [];
+  let hover = {node:null, edge:null};
+
+  // UI elements
+  const countNodesEl = document.getElementById('countNodes');
+  const countEdgesEl = document.getElementById('countEdges');
+  const fromSel = document.getElementById('fromNode');
+  const toSel = document.getElementById('toNode');
+  const jsonOut = document.getElementById('jsonOut');
+  const adjOutput = document.getElementById('adjOutput');
+
+  function updateCounts() {
+    countNodesEl.textContent = nodes.length;
+    countEdgesEl.textContent = edges.length;
+    updateNodeSelects();
+  }
+
+  function updateNodeSelects() {
+    [fromSel, toSel].forEach(sel => {
+      const val = sel.value;
+      sel.innerHTML = '';
+      nodes.forEach(n => {
+        const o = document.createElement('option');
+        o.value = n.id;
+        o.textContent = n.id;
+        sel.appendChild(o);
+      });
+      if (nodes.some(n=>n.id==val)) sel.value = val;
+    });
+  }
+
+  function toCanvasCoords(ev) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (ev.clientY - rect.top) * (canvas.height / rect.height);
+    return {x, y};
+  }
+
+  function findNodeAt(x, y) {
+    // nodes drawn with radius r
+    for (let i=nodes.length-1;i>=0;i--) {
+      const n = nodes[i];
+      const dx = x - n.x, dy = y - n.y, r = NODE_RADIUS;
+      if (dx*dx + dy*dy <= r*r) return n;
+    }
+    return null;
+  }
+
+  function findEdgeAt(x, y) {
+    // simple hit-testing: distance to segment small
+    for (let i=edges.length-1;i>=0;i--) {
+      const e = edges[i];
+      const a = getNodeById(e.from);
+      const b = getNodeById(e.to);
+      if (!a || !b) continue;
+      if (e.from===e.to) {
+        // self-loop: circle near node
+        const loopCenter = {x: a.x + 40*DPR, y: a.y - 40*DPR};
+        const dx = x - loopCenter.x, dy = y - loopCenter.y;
+        if (Math.hypot(dx,dy) <= 20*DPR) return e;
+        continue;
+      }
+      const dist = pointSegmentDistance({x,y}, a, b);
+      if (dist <= 8*DPR) return e;
+    }
+    return null;
+  }
+
+  function pointSegmentDistance(p, a, b) {
+    const vx = b.x - a.x, vy = b.y - a.y;
+    const wx = p.x - a.x, wy = p.y - a.y;
+    const c1 = vx*wx + vy*wy;
+    if (c1 <= 0) return Math.hypot(p.x-a.x, p.y-a.y);
+    const c2 = vx*vx + vy*vy;
+    if (c2 <= c1) return Math.hypot(p.x-b.x, p.y-b.y);
+    const t = c1 / c2;
+    const projx = a.x + t*vx, projy = a.y + t*vy;
+    return Math.hypot(p.x-projx, p.y-projy);
+  }
+
+  function getNodeById(id) { return nodes.find(n=>n.id===id); }
+  function getEdgeById(id) { return edges.find(e=>e.id===id); }
+
+  // Drawing constants
+  const NODE_RADIUS = 18 * DPR;
+  const FONT_SIZE = 12 * DPR;
+
+  function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // background grid
+    drawGrid();
+
+    // edges
+    for (const e of edges) {
+      drawEdge(e, highlightPath.includes(e.id) ? '#f39c12' : '#888', (selectedEdge && selectedEdge.id===e.id) ? 3 : 1.5);
+    }
+    // nodes
+    for (const n of nodes) drawNode(n, (selectedNode && selectedNode.id===n.id) ? '#159ce4' : (hover.node && hover.node.id===n.id ? '#2b90ff' : '#222'));
+    // action hints
+    if (creatingEdgeFrom) {
+      // draw line from source to cursor
+      ctx.save();
+      ctx.strokeStyle = '#2b90ff';
+      ctx.lineWidth = 2*DPR;
+      ctx.setLineDash([6*DPR,6*DPR]);
+      ctx.beginPath();
+      ctx.moveTo(creatingEdgeFrom.x, creatingEdgeFrom.y);
+      ctx.lineTo(mousePos.x, mousePos.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawGrid() {
+    const step = 30 * DPR;
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle = '#f0f2f4';
+    ctx.lineWidth = 1;
+    for (let x=0.5; x<canvas.width; x+=step) {
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+    }
+    for (let y=0.5; y<canvas.height; y+=step) {
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawNode(n, color='#222') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2*DPR;
+    ctx.shadowColor = 'rgba(0,0,0,0.08)';
+    ctx.shadowBlur = 6*DPR;
+    ctx.arc(n.x, n.y, NODE_RADIUS, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // label
+    ctx.fillStyle = '#111';
+    ctx.font = `${FONT_SIZE}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(n.id), n.x, n.y);
+    ctx.restore();
+  }
+
+  function drawEdge(e, color='#888', width=1.5) {
+    const a = getNodeById(e.from);
+    const b = getNodeById(e.to);
+    if (!a || !b) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width*DPR;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (e.from === e.to) {
+      // self-loop: draw circle on top-right
+      const cx = a.x + 40*DPR, cy = a.y - 40*DPR, r = 20*DPR;
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.stroke();
+      // weight label
+      if (e.w != null) {
+        ctx.fillStyle = '#222';
+        ctx.font = `${FONT_SIZE}px sans-serif`;
+        ctx.fillText(String(e.w), cx + r + 8*DPR, cy - r - 4*DPR);
+      }
+      // arrowhead if directed
+      if (directed) {
+        drawArrowheadAt({x: cx + r, y: cy}, a, color);
+      }
+    } else {
+      // line from edge of circle to edge of circle
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.hypot(dx,dy);
+      const ux = dx / dist, uy = dy / dist;
+      const startX = a.x + ux * NODE_RADIUS;
+      const startY = a.y + uy * NODE_RADIUS;
+      const endX = b.x - ux * NODE_RADIUS;
+      const endY = b.y - uy * NODE_RADIUS;
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+
+      // weight label near midpoint
+      if (e.w != null) {
+        const mx = (startX + endX)/2, my = (startY + endY)/2;
+        ctx.save();
+        ctx.fillStyle = '#222';
+        ctx.font = `${FONT_SIZE}px sans-serif`;
+        ctx.translate(mx, my);
+        ctx.rotate(Math.atan2(dy,dx));
+        ctx.fillText(String(e.w), 0, -6*DPR);
+        ctx.restore();
+      }
+
+      // arrowhead if directed
+      if (directed) {
+        // draw arrow at end
+        drawArrowhead({x:startX,y:startY},{x:endX,y:endY}, color);
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawArrowhead(from, to, color) {
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    const size = 10 * DPR;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.translate(to.x, to.y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.lineTo(-size, size*0.6);
+    ctx.lineTo(-size, -size*0.6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawArrowheadAt(point, towardNode, color) {
+    // small arrow pointing from point toward node (for self-loop)
+    const angle = Math.atan2(towardNode.y - point.y, towardNode.x - point.x);
+    const size = 8 * DPR;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.translate(point.x, point.y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.lineTo(-size, size*0.6);
+    ctx.lineTo(-size, -size*0.6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Mouse events
+  let mousePos = {x:0,y:0};
+  let isDown = false;
+  let dragNode = null;
+
+  canvas.addEventListener('mousemove', ev => {
+    mousePos = toCanvasCoords(ev);
+    hover.node = findNodeAt(mousePos.x, mousePos.y);
+    hover.edge = hover.node ? null : findEdgeAt(mousePos.x, mousePos.y);
+    if (isDown && dragNode && mode === 'move') {
+      dragNode.x = mousePos.x;
+      dragNode.y = mousePos.y;
+      draw();
+    }
+    draw();
+  });
+
+  canvas.addEventListener('mousedown', ev => {
+    isDown = true;
+    const pos = toCanvasCoords(ev);
+    const n = findNodeAt(pos.x, pos.y);
+    if (mode === 'move') {
+      if (n) {
+        dragNode = n;
+        selectedNode = n;
+        selectedEdge = null;
+        dragOffset.x = n.x - pos.x;
+        dragOffset.y = n.y - pos.y;
+      } else {
+        // clicked on empty space: clear selection
+        selectedNode = null;
+        selectedEdge = null;
+      }
+    } else if (mode === 'addEdge') {
+      if (n) {
+        // start or complete edge
+        if (!creatingEdgeFrom) {
+          creatingEdgeFrom = n;
+        } else {
+          // create edge from creatingEdgeFrom to n
+          addEdge(creatingEdgeFrom.id, n.id, Number(edgeWeightEl.value) || 1);
+          creatingEdgeFrom = null;
+        }
+      } else {
+        // clicked empty -> cancel edge creation
+        creatingEdgeFrom = null;
+      }
+    } else if (mode === 'addNode') {
+      // nothing on mousedown; double-click adds node (see dblclick)
+    }
+    draw();
+  });
+
+  canvas.addEventListener('mouseup', ev => {
+    isDown = false;
+    dragNode = null;
+  });
+
+  canvas.addEventListener('click', ev => {
+    const pos = toCanvasCoords(ev);
+    const n = findNodeAt(pos.x, pos.y);
+    const e = findEdgeAt(pos.x, pos.y);
+    if (mode === 'move') {
+      if (n) {
+        selectedNode = n;
+        selectedEdge = null;
+      } else if (e) {
+        selectedEdge = e;
+        selectedNode = null;
+      } else {
+        selectedNode = null;
+        selectedEdge = null;
+      }
+      draw();
+    } else if (mode === 'addEdge') {
+      // clicks handled in mousedown
+    }
+  });
+
+  canvas.addEventListener('dblclick', ev => {
+    if (mode !== 'addNode') return;
+    const pos = toCanvasCoords(ev);
+    addNode(pos.x, pos.y);
+  });
+
+  // Data operations
+  function addNode(x,y,id=null) {
+    const nid = id || nextNodeId++;
+    nodes.push({id: nid, x, y});
+    updateCounts();
+    draw();
+  }
+
+  function addEdge(a,b,w=1,id=null) {
+    // prevent duplicate identical directed edges? allow duplicates but show separately.
+    edges.push({id: id || nextEdgeId++, from: a, to: b, w: w});
+    updateCounts();
+    draw();
+  }
+
+  function deleteSelected() {
+    if (selectedNode) {
+      // remove node and edges incident
+      edges = edges.filter(e => e.from !== selectedNode.id && e.to !== selectedNode.id);
+      nodes = nodes.filter(n => n.id !== selectedNode.id);
+      selectedNode = null;
+      updateCounts();
+      draw();
+    } else if (selectedEdge) {
+      edges = edges.filter(e => e.id !== selectedEdge.id);
+      selectedEdge = null;
+      updateCounts();
+      draw();
+    }
+  }
+
+  function clearGraph() {
+    nodes = []; edges = []; nextNodeId = 1; nextEdgeId = 1;
+    selectedNode = selectedEdge = creatingEdgeFrom = null;
+    updateCounts(); draw();
+  }
+
+  function randomGraph(n=6, p=0.25) {
+    clearGraph();
+    // place nodes in circle
+    const w = canvas.width, h = canvas.height;
+    const cx = w/2, cy = h/2, r = Math.min(w,h)/3;
+    for (let i=0;i<n;i++) {
+      const ang = i/n * Math.PI*2;
+      addNode(cx + Math.cos(ang)*r, cy + Math.sin(ang)*r);
+    }
+    for (let i=0;i<n;i++) for (let j=0;j<n;j++) {
+      if (i === j) continue;
+      if (Math.random() < p) addEdge(nodes[i].id, nodes[j].id, 1);
+    }
+    updateCounts(); draw();
+  }
+
+  // Adjacency list and matrix
+  function buildAdj() {
+    const adj = {};
+    nodes.forEach(n => adj[n.id] = []);
+    for (const e of edges) {
+      adj[e.from].push({to: e.to, w: e.w});
+      if (!directed) adj[e.to].push({to: e.from, w: e.w});
+    }
+    return adj;
+  }
+
+  function showAdjList() {
+    const adj = buildAdj();
+    let out = '';
+    for (const nid of Object.keys(adj)) {
+      const arr = adj[nid].map(x => `${x.to}${x.w!=null ? '('+x.w+')' : ''}`).join(', ');
+      out += `${nid} → ${arr}\n`;
+    }
+    adjOutput.textContent = out || '(empty)';
+  }
+
+  function showAdjMatrix() {
+    const ids = nodes.map(n=>n.id).sort((a,b)=>a-b);
+    const idIndex = {}; ids.forEach((id,i)=>idIndex[id]=i);
+    const n = ids.length;
+    const mat = Array.from({length:n},()=>Array.from({length:n},()=>0));
+    for (const e of edges) {
+      const i = idIndex[e.from], j = idIndex[e.to];
+      if (i==null||j==null) continue;
+      mat[i][j] = e.w != null ? Number(e.w) : 1;
+      if (!directed) mat[j][i] = mat[i][j];
+    }
+    let out = '\t' + ids.join('\t') + '\n';
+    for (let i=0;i<n;i++){
+      out += ids[i] + '\t' + mat[i].join('\t') + '\n';
+    }
+    adjOutput.textContent = out || '(empty)';
+  }
+
+  // Shortest path (BFS if all weights 1, else Dijkstra)
+  function computeShortestPath(aId, bId) {
+    if (aId === bId) return [aId];
+    const adj = buildAdj();
+    // detect if weights are all 1
+    let allOnes = true;
+    for (const e of edges) if ((e.w || 1) !== 1) { allOnes = false; break; }
+    if (allOnes) {
+      // BFS
+      const q = [aId];
+      const prev = {};
+      prev[aId] = null;
+      while (q.length) {
+        const u = q.shift();
+        for (const nb of (adj[u]||[])) {
+          if (prev[nb.to] !== undefined) continue;
+          prev[nb.to] = u;
+          if (nb.to === bId) {
+            // reconstruct
+            const path = [];
+            let cur = bId;
+            while (cur!=null) { path.push(cur); cur = prev[cur]; }
+            return path.reverse();
+          }
+          q.push(nb.to);
+        }
+      }
+      return null;
+    } else {
+      // Dijkstra
+      const dist = {}, prev = {};
+      const Q = new Set(nodes.map(n=>n.id));
+      nodes.forEach(n=>{ dist[n.id] = Infinity; prev[n.id] = null; });
+      dist[aId] = 0;
+      while (Q.size) {
+        // pick min
+        let u = null, best = Infinity;
+        for (const id of Q) if (dist[id] < best) { best = dist[id]; u = id; }
+        if (u === null) break;
+        Q.delete(u);
+        if (u === bId) break;
+        for (const nb of (adj[u]||[])) {
+          const alt = dist[u] + (Number(nb.w) || 1);
+          if (alt < dist[nb.to]) { dist[nb.to] = alt; prev[nb.to] = u; }
+        }
+      }
+      if (dist[bId] === Infinity) return null;
+      const path = []; let cur = bId;
+      while (cur != null) { path.push(cur); cur = prev[cur]; }
+      return path.reverse();
+    }
+  }
+
+  // Export / Import
+  function exportJSON() {
+    const obj = {directed, nodes: nodes.map(n=>({id:n.id,x:n.x,y:n.y})), edges: edges.map(e=>({id:e.id,from:e.from,to:e.to,w:e.w}))};
+    jsonOut.value = JSON.stringify(obj, null, 2);
+  }
+
+  function loadJSON() {
+    try {
+      const obj = JSON.parse(jsonOut.value);
+      if (!obj.nodes || !obj.edges) throw new Error('Invalid format');
+      directed = !!obj.directed;
+      directedToggle.checked = directed;
+      nodes = obj.nodes.map(n=>({id:n.id,x:n.x,y:n.y}));
+      edges = obj.edges.map(e=>({id:e.id,from:e.from,to:e.to,w:e.w}));
+      nextNodeId = (nodes.reduce((max,n)=>Math.max(max,n.id),0) || 0) + 1;
+      nextEdgeId = (edges.reduce((max,e)=>Math.max(max,e.id),0) || 0) + 1;
+      selectedNode = selectedEdge = creatingEdgeFrom = null;
+      updateCounts();
+      draw();
+    } catch (err) {
+      alert('Failed to load JSON: ' + err.message);
+    }
+  }
+
+  // Helpers
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+  // UI wiring
+  document.getElementById('mode').addEventListener('change', e => {
+    mode = e.target.value;
+    modeLabel.textContent = e.target.options[e.target.selectedIndex].text;
+    creatingEdgeFrom = null;
+    selectedNode = selectedEdge = null;
+    draw();
+  });
+
+  directedToggle.addEventListener('change', e => {
+    directed = e.target.checked;
+    draw();
+    updateCounts();
+  });
+
+  document.getElementById('btnClear').addEventListener('click', clearGraph);
+  document.getElementById('btnRandom').addEventListener('click', ()=>randomGraph(6, 0.35));
+  document.getElementById('btnDelete').addEventListener('click', deleteSelected);
+  document.getElementById('btnAdjList').addEventListener('click', showAdjList);
+  document.getElementById('btnAdjMatrix').addEventListener('click', showAdjMatrix);
+  document.getElementById('btnExport').addEventListener('click', exportJSON);
+  document.getElementById('btnLoad').addEventListener('click', loadJSON);
+  document.getElementById('btnCopy').addEventListener('click', ()=>{ jsonOut.select(); document.execCommand('copy'); });
+
+  document.getElementById('btnPath').addEventListener('click', ()=> {
+    const a = Number(fromSel.value), b = Number(toSel.value);
+    if (!a || !b) { alert('Select nodes'); return; }
+    const path = computeShortestPath(a,b);
+    if (!path) { alert('No path found'); highlightPath = []; draw(); return; }
+    // highlight edges along path
+    highlightPath = [];
+    for (let i=0;i<path.length-1;i++) {
+      // find an edge connecting path[i] -> path[i+1] (respecting directed flag)
+      const e = edges.find(ed => ed.from === path[i] && ed.to === path[i+1]);
+      if (e) highlightPath.push(e.id);
+      else {
+        // maybe undirected stored reverse
+        const e2 = edges.find(ed => ed.from === path[i+1] && ed.to === path[i]);
+        if (e2) highlightPath.push(e2.id);
+      }
+    }
+    draw();
+    adjOutput.textContent = 'Path: ' + path.join(' → ');
+  });
+
+  // initial
+  resize();
+  randomGraph(5, 0.3);
+  exportJSON();
+
+  // keep JSON updated
+  setInterval(()=> {
+    exportJSON();
+  }, 3000);
+
+  // keyboard shortcuts
+  window.addEventListener('keydown', e=>{
+    if (e.key === 'Delete') deleteSelected();
+    if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); exportJSON(); }
+  });
+
+})();
+</script>
+</body>
+</html>

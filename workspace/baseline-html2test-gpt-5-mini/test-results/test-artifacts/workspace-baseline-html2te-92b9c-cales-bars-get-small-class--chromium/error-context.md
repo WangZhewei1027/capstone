@@ -1,0 +1,99 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Radix Sort Visualizer (LSD - Least Significant Digit)" [level=1] [ref=e5]
+      - generic [ref=e6]: Stable, non-comparative integer sorting by processing digits from least significant to most significant.
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: Array size
+      - slider [ref=e10]: "20"
+      - generic [ref=e11]: "20"
+    - generic [ref=e12]:
+      - generic [ref=e13]: Max value
+      - slider [ref=e14]: "120"
+      - generic [ref=e15]: "120"
+    - generic [ref=e16]:
+      - generic [ref=e17]: Base (radix)
+      - combobox [ref=e18]:
+        - option "2 (binary)"
+        - option "4"
+        - option "8 (octal)"
+        - option "10 (decimal)" [selected]
+        - option "16 (hex)"
+    - generic [ref=e19]:
+      - generic [ref=e20]: Speed (ms)
+      - slider [ref=e21]: "350"
+      - generic [ref=e22]: "350"
+    - generic [ref=e23]:
+      - button "Generate" [ref=e24] [cursor=pointer]
+      - button "Start" [ref=e25] [cursor=pointer]
+      - button "Step" [ref=e26] [cursor=pointer]
+      - button "Reset" [ref=e27] [cursor=pointer]
+  - generic [ref=e28]:
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]: Array
+          - generic [ref=e33]:
+            - generic [ref=e35]: "75"
+            - generic [ref=e37]: "81"
+            - generic [ref=e39]: "98"
+            - generic [ref=e41]: "65"
+            - generic [ref=e43]: "119"
+            - generic [ref=e45]: "33"
+            - generic [ref=e47]: "114"
+            - generic [ref=e49]: "111"
+            - generic [ref=e51]: "31"
+            - generic [ref=e53]: "34"
+            - generic [ref=e55]: "118"
+            - generic [ref=e57]: "105"
+            - generic [ref=e59]: "49"
+            - generic [ref=e61]: "19"
+            - generic [ref=e63]: "119"
+            - generic [ref=e65]: "113"
+            - generic [ref=e67]: "117"
+            - generic [ref=e69]: "119"
+            - generic [ref=e71]: "6"
+            - generic [ref=e73]: "56"
+        - generic [ref=e74]:
+          - generic [ref=e75]: Status
+          - generic [ref=e76]:
+            - generic [ref=e77]: "Pass: -"
+            - generic [ref=e78]: "Digit place (base^p): -"
+            - generic [ref=e79]: "Buckets: 10"
+            - generic [ref=e80]: "Steps: 0 / 64"
+          - generic [ref=e81]: Click "Start" to animate radial passes. Each pass groups numbers into buckets by the current digit, collecting them in stable order.
+      - generic [ref=e82]:
+        - generic [ref=e83]: Buckets (0 .. base-1)
+        - generic [ref=e84]:
+          - generic [ref=e86]: "0"
+          - generic [ref=e88]: "1"
+          - generic [ref=e90]: "2"
+          - generic [ref=e92]: "3"
+          - generic [ref=e94]: "4"
+          - generic [ref=e96]: "5"
+          - generic [ref=e98]: "6"
+          - generic [ref=e100]: "7"
+          - generic [ref=e102]: "8"
+          - generic [ref=e104]: "9"
+    - generic [ref=e105]:
+      - generic [ref=e106]: Legend
+      - generic [ref=e107]:
+        - generic [ref=e108]: Blue bars = values in array. During a pass, items are moved to buckets (right). After all items are placed, buckets are concatenated in bucket index order to form the array for the next pass.
+        - list [ref=e109]:
+          - listitem [ref=e110]:
+            - strong [ref=e111]: "Stable:"
+            - text: numbers with equal digit keep their relative order in each pass.
+          - listitem [ref=e112]:
+            - strong [ref=e113]: "Complexity:"
+            - text: O(d * (n + b)) where d is digits and b is base. For fixed base, near linear.
+      - generic [ref=e114]:
+        - generic [ref=e115]: Controls
+        - generic [ref=e116]: You can change array size, max value, base (radix), and animation speed. Generate a new array before starting.
+  - generic [ref=e117]:
+    - generic [ref=e118]: This demo implements LSD (least significant digit) Radix Sort for non-negative integers.
+    - generic [ref=e119]: "Tip: try base 2 or 16 to see more/fewer passes."
+```

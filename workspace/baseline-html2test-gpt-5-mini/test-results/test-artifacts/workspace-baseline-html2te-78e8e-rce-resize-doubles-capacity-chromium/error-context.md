@@ -1,0 +1,76 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Hash Map — Interactive Demonstration" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Visualize how a hash map stores key-value pairs, handles collisions (separate chaining), and resizes as load increases.
+    - generic [ref=e8]: "Implementation: separate chaining, string/number keys"
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e12]:
+        - generic [ref=e13]: Key (string/number)
+        - textbox [ref=e14]: apple
+        - generic [ref=e15]: Value
+        - textbox [ref=e16]: red
+        - generic [ref=e17]:
+          - button "Put / Insert" [ref=e18] [cursor=pointer]
+          - button "Get" [ref=e19] [cursor=pointer]
+          - button "Delete" [ref=e20] [cursor=pointer]
+          - button "Clear" [ref=e21] [cursor=pointer]
+        - generic [ref=e22]: "Tip: Insert keys that collide (e.g., \"a\", \"p\", \"q\" when capacity small) to see chaining."
+      - generic [ref=e23]:
+        - generic [ref=e24]: Animation Speed
+        - slider [ref=e25]: "300"
+        - generic [ref=e26]:
+          - generic [ref=e27]: Slow
+          - generic [ref=e28]:
+            - checkbox [ref=e29]
+            - text: Step mode (pause after highlights)
+      - generic [ref=e30]:
+        - generic [ref=e31]: "Capacity: 8 | Size: 0 | Load factor: 0.00"
+        - generic [ref=e32]: "Resize threshold: 0.75"
+      - generic [ref=e33]:
+        - button "Fill with sample entries" [ref=e34] [cursor=pointer]
+        - button "Insert random 20" [ref=e35] [cursor=pointer]
+        - button "Force resize (double)" [ref=e36] [cursor=pointer]
+        - generic [ref=e37]: "Collision handling: separate chaining"
+      - generic [ref=e39]:
+        - generic [ref=e40]: Highlight = bucket visited
+        - generic [ref=e41]: Found = matching key
+        - generic [ref=e42]: Resize rehashes everything
+      - generic [ref=e43]:
+        - generic [ref=e44]: Source (implementation)
+        - generic [ref=e45]: "class HashMap { constructor(initialCapacity = 8, loadFactor = 0.75) { this._capacity = Math.max(4, initialCapacity); this._buckets = Array.from({length: this._capacity}, () => []); this._size = 0; this._loadFactor = loadFactor; } _hash(key) { // Basic djb2 for strings, simple for numbers; fall back to string conversion if (typeof key === 'number') { // mix bits of the number let h = key | 0; h = ((h >>> 16) ^ h) * 0x45d9f3b; h = ((h >>> 16) ^ h) * 0x45d9f3b; h = (h >>> 16) ^ h; return h >>> 0; } const str = String(key); let hash = 5381; for (let i = 0; i < str.length; i++) { hash = ((hash << 5) + hash) + str.charCodeAt(i); /* hash * 33 + c */ hash = hash | 0; } return hash >>> 0; // unsigned } _index(hash) { return hash % this._capacity; } size() { return this._size; } capacity() { return this._capacity; } loadFactor() { return this._size / this._capacity; } threshold() { return this._loadFactor; } get(key, walker=null) { const hash = this._hash(key); const idx = this._index(hash); const bucket = this._buckets[idx]; if (walker) walker.visitBucket(idx); for (let i = 0; i < bucket.length; i++) { if (bucket[i].key === key) { if (walker) walker.visitNode(idx,i,true); return bucket[i].value; } if (walker) walker.visitNode(idx,i,false); } return undefined; } put(key, value, walker=null) { const hash = this._hash(key); const idx = this._index(hash); const bucket = this._buckets[idx]; if (walker) walker.visitBucket(idx); for (let i = 0; i < bucket.length; i++) { if (bucket[i].key === key) { bucket[i].value = value; if (walker) walker.visitNode(idx,i,true); return 'updated'; } if (walker) walker.visitNode(idx,i,false); } bucket.push({key, value}); this._size++; if (this.loadFactor() > this._loadFactor) { this._resize(this._capacity * 2, walker); } return 'inserted'; } delete(key, walker=null) { const hash = this._hash(key); const idx = this._index(hash); const bucket = this._buckets[idx]; if (walker) walker.visitBucket(idx); for (let i = 0; i < bucket.length; i++) { if (bucket[i].key === key) { bucket.splice(i,1); this._size--; if (walker) walker.visitNode(idx,i,true); // optional shrink omitted for simplicity return true; } if (walker) walker.visitNode(idx,i,false); } return false; } _resize(newCapacity, walker=null) { // Rehash all entries const oldBuckets = this._buckets; this._capacity = Math.max(4, newCapacity); this._buckets = Array.from({length: this._capacity}, () => []); this._size = 0; if (walker) walker.log('Resizing to ' + this._capacity + ' and rehashing all entries...'); for (let i = 0; i < oldBuckets.length; i++) { const bucket = oldBuckets[i]; for (let j = 0; j < bucket.length; j++) { const entry = bucket[j]; // Use put but without triggering further resize const hash = this._hash(entry.key); const idx = this._index(hash); this._buckets[idx].push({key: entry.key, value: entry.value}); this._size++; if (walker) walker.rehashStep(entry.key, idx); } } } entries() { // returns array of {bucketIndex, key, value} const out = []; for (let i = 0; i < this._buckets.length; i++) { for (let j = 0; j < this._buckets[i].length; j++) { out.push({bucket:i, key:this._buckets[i][j].key, value:this._buckets[i][j].value}); } } return out; } }"
+    - generic [ref=e47]:
+      - generic [ref=e48]:
+        - generic [ref=e49]: Buckets (array of chains). Click a bucket to inspect its entries.
+        - generic [ref=e50]: Click a node to copy its key/value
+      - generic [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]: "0"
+          - generic [ref=e54]: (empty)
+        - generic [ref=e55]:
+          - generic [ref=e56]: "1"
+          - generic [ref=e57]: (empty)
+        - generic [ref=e58]:
+          - generic [ref=e59]: "2"
+          - generic [ref=e60]: (empty)
+        - generic [ref=e61]:
+          - generic [ref=e62]: "3"
+          - generic [ref=e63]: (empty)
+        - generic [ref=e64]:
+          - generic [ref=e65]: "4"
+          - generic [ref=e66]: (empty)
+        - generic [ref=e67]:
+          - generic [ref=e68]: "5"
+          - generic [ref=e69]: (empty)
+        - generic [ref=e70]:
+          - generic [ref=e71]: "6"
+          - generic [ref=e72]: (empty)
+        - generic [ref=e73]:
+          - generic [ref=e74]: "7"
+          - generic [ref=e75]: (empty)
+  - contentinfo [ref=e77]: "This demo uses a simple hash function (djb2) for strings and numeric hashing for numbers. Designed for learning: real production hash maps use more sophisticated hashing and memory management."
+```

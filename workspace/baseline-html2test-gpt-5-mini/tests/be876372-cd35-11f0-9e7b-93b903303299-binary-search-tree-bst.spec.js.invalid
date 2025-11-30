@@ -1,0 +1,358 @@
+import { test, expect } from '@playwright/test';
+
+// Test file: be876372-cd35-11f0-9e7b-93b903303299-binary-search-tree-bst.spec.js
+// URL under test:
+const APP_URL = 'http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/be876372-cd35-11f0-9e7b-93b903303299.html';
+
+// Page object model for the BST app
+class BSTPage {
+  /**
+   * @param {import('@playwright/test').Page} page
+   */
+  constructor(page) {
+    this.page = page;
+    this.valueInput = page.locator('#valueInput');
+    this.insertBtn = page.locator('#insertBtn');
+    this.deleteBtn = page.locator('#deleteBtn');
+    this.clearBtn = page.locator('#clearBtn');
+    this.randomBtn = page.locator('#randomBtn');
+    this.balancedBtn = page.locator('#balancedBtn');
+    this.searchInput = page.locator('#searchInput');
+    this.searchBtn = page.locator('#searchBtn');
+    this.inorderBtn = page.locator('#inorderBtn');
+    this.preorderBtn = page.locator('#preorderBtn');
+    this.postorderBtn = page.locator('#postorderBtn');
+    this.levelBtn = page.locator('#levelBtn');
+
+    this.info = page.locator('#info');
+    this.log = page.locator('#log');
+    this.traversal = page.locator('#traversal');
+    this.svg = page.locator('#svgStage');
+  }
+
+  // Insert a numeric value via UI
+  async insertValue(value) {
+    await this.valueInput.fill(String(value));
+    await this.insertBtn.click();
+    // allow UI to update / log entries to be recorded
+    await this.page.waitForTimeout(120);
+  }
+
+  // Delete a numeric value via UI (using delete button)
+  async deleteValueUsingButton(value) {
+    await this.valueInput.fill(String(value));
+    await this.deleteBtn.click();
+    await this.page.waitForTimeout(120);
+  }
+
+  // Click a visible node with the provided numeric value in the SVG.
+  // Will click the group <g> that contains a <text> node with that value.
+  async clickNodeByValue(value) {
+    // Build an XPath targeting a <g> under svg#svgStage that has a <text> child with exact text
+    const xpath = `//svg[@id='svgStage']//g[.//text[text() = '${value}']]`;
+    const node = this.page.locator(`xpath=${xpath}`);
+    await node.waitFor({ state: 'visible', timeout: 2000 });
+    await node.click();
+    // allow potential confirm handling and redraw
+    await this.page.waitForTimeout(200);
+  }
+
+  // Perform a search using the search input/button
+  async searchValue(value) {
+    await this.searchInput.fill(String(value));
+    await this.searchBtn.click();
+    // animations and logs use timeouts; give some time
+    await this.page.waitForTimeout(700);
+  }
+
+  // Click a traversal button by locator
+  async clickTraversal(btnLocator) {
+    await btnLocator.click();
+    // traversal text and logs are updated synchronously in handlers
+    await this.page.waitForTimeout(120);
+  }
+
+  // Get current info panel text
+  async getInfoText() {
+    return (await this.info.textContent())?.trim() ?? '';
+  }
+
+  // Get latest log content (entire log element)
+  async getLogText() {
+    return (await this.log.textContent()) ?? '';
+  }
+
+  // Get traversal output text
+  async getTraversalText() {
+    return (await this.traversal.textContent())?.trim() ?? '';
+  }
+
+  // Count number of node text elements in the SVG (number of nodes rendered)
+  async getSvgNodeCount() {
+    // select <g> groups (each node creates a <g>) under svg
+    const count = await this.page.locator('xpath=//svg[@id="svgStage"]//g').count();
+    return count;
+  }
+
+  // Helper: wait until info contains a substring
+  async waitForInfoContains(sub, timeout = 2000) {
+    await this.page.waitForFunction(
+      (sel, sub) => {
+        const el = document.querySelector(sel);
+        return el && el.textContent && el.textContent.includes(sub);
+      },
+      '#info',
+      { timeout }
+    );
+  }
+}
+
+test.describe('Binary Search Tree (BST) Visualizer - end-to-end', () => {
+  // Capture pageerrors for each test
+  test.beforeEach(async ({ page }) => {
+    // Collect page errors to fail tests on unexpected runtime errors
+    page.on('pageerror', (err) => {
+      // Re-throw so Playwright reports the page error as a test failure if desired
+      // But we only capture; concrete tests will assert on the absence/presence of errors explicitly.
+      // console.error('PAGE ERROR:', err);
+    });
+    await page.goto(APP_URL);
+  });
+
+  test('Initial load: sample tree is seeded and UI shows expected default state', async ({ page }) => {
+    const bst = new BSTPage(page);
+
+    // The seeded sample should set document title to include root=50
+    await expect(page).toHaveTitle(/BST: root=50/);
+
+    // Info box should report Nodes: 7 (seeded sample)
+    const infoText = await bst.getInfoText();
+    expect(infoText).toContain('Nodes: 7');
+
+    // The svg should contain 7 <g> node groups initially
+    const nodeCount = await bst.getSvgNodeCount();
+    expect(nodeCount).toBeGreaterThanOrEqual(7);
+
+    // The in-page log element should contain the sample load message
+    const log = await bst.getLogText();
+    expect(log).toContain('Sample tree loaded');
+
+    // Traversal output initially is set to '—'
+    const trav = await bst.getTraversalText();
+    expect(trav).toBe('—');
+  });
+
+  test('Insert: inserting a new value updates SVG, info and logs; rejects duplicates', async ({ page }) => {
+    const bst1 = new BSTPage(page);
+
+    // Insert a value that is not in the seeded tree, e.g., 25
+    await bst.insertValue(25);
+
+    // The log should include an insertion message
+    const log1 = await bst.getLogText();
+    expect(log).toMatch(/Inserted .*25/);
+
+    // SVG should include a node with text '25' (node group count increases)
+    const foundText = await page.locator('xpath=//svg[@id="svgStage"]//text[text() = "25"]').count();
+    expect(foundText).toBeGreaterThanOrEqual(1);
+
+    // Info should show the nodes count increased from 7 to 8
+    const infoText1 = await bst.getInfoText();
+    expect(infoText).toContain('Nodes: 8');
+
+    // Try inserting duplicate 25 -> should be ignored and log message indicates duplicates ignored
+    await bst.insertValue(25);
+    const logAfterDup = await bst.getLogText();
+    expect(logAfterDup).toMatch(/duplicates ignored|Value exists/);
+  });
+
+  test('Delete (button and click-on-node): invalid prompts alert; valid deletions update UI', async ({ page }) => {
+    const bst2 = new BSTPage(page);
+
+    // 1) click delete button with empty input -> should show alert dialog
+    const dialogs: string[] = [];
+    page.once('dialog', async (dialog) => {
+      dialogs.push(dialog.message());
+      await dialog.accept();
+    });
+    await bst.deleteBtn.click();
+    // wait briefly for dialog handling
+    await page.waitForTimeout(120);
+    expect(dialogs.length).toBe(1);
+    expect(dialogs[0]).toMatch(/Enter a number to delete/);
+
+    // 2) Insert a known node (e.g., 25 if not present) then delete it via delete button
+    await bst.insertValue(99); // unique large value to avoid collisions
+    await page.waitForTimeout(120);
+
+    // confirm deletion via delete button
+    page.once('dialog', async (dialog) => {
+      // deleteBtn uses no confirm when deleting by number; deletion is direct
+      // But the code does not call confirm when using deleteBtn, only alerts if invalid.
+      await dialog.accept().catch(() => {});
+    });
+    await bst.deleteValueUsingButton(99);
+    await page.waitForTimeout(120);
+
+    // log should indicate deleted or value not found depending on tree shape; prefer to assert that entry is not present in SVG
+    const foundAfter = await page.locator('xpath=//svg[@id="svgStage"]//text[text() = "99"]').count();
+    expect(foundAfter).toBe(0);
+
+    // 3) Click on an existing node to delete by click; pick value '20' which exists in seed
+    // Prepare to accept the confirm dialog triggered by clicking a node
+    let dialogMessage = '';
+    page.once('dialog', async (dialog) => {
+      dialogMessage = dialog.message();
+      await dialog.accept();
+    });
+    // Wait for node '20' to be present then click it
+    await bst.clickNodeByValue(20);
+    await page.waitForTimeout(250);
+
+    // Dialog should have been a confirm for deleting node 20
+    expect(dialogMessage).toMatch(/Delete node 20\?/);
+
+    // Log should include 'Deleted 20' (or at least deletion action)
+    const log2 = await bst.getLogText();
+    expect(log).toMatch(/Deleted .*20|Value not found: 20/);
+  });
+
+  test('Search: searching existing and non-existing values updates log and triggers animation path', async ({ page }) => {
+    const bst3 = new BSTPage(page);
+
+    // Search for a known existing value 60
+    await bst.searchValue(60);
+    const log1 = await bst.getLogText();
+    expect(log1).toMatch(/Found: 60/);
+
+    // Search for a non-existing value 999
+    await bst.searchValue(999);
+    const log2 = await bst.getLogText();
+    expect(log2).toMatch(/Not found: 999/);
+    expect(log2).toMatch(/Search visited/);
+  });
+
+  test('Traversals: inorder, preorder, postorder and level-order buttons produce expected outputs', async ({ page }) => {
+    const bst4 = new BSTPage(page);
+
+    // To make deterministic tests, clear the tree first (accept confirm), then insert a known set
+    // Clear tree
+    let clearDialogMsg = '';
+    page.once('dialog', async (dialog) => {
+      clearDialogMsg = dialog.message();
+      await dialog.accept();
+    });
+    await bst.clearBtn.click();
+    await page.waitForTimeout(150);
+    expect(clearDialogMsg).toBe('Clear the entire tree?');
+
+    // Info should reflect empty
+    await expect(bst.info).toHaveText('Tree is empty.');
+
+    // Insert a known deterministic tree: 50,30,70,20,40,60,80
+    const vals = [50, 30, 70, 20, 40, 60, 80];
+    for (const v of vals) {
+      await bst.insertValue(v);
+    }
+    await page.waitForTimeout(200);
+
+    // In-order should be sorted
+    await bst.clickTraversal(bst.inorderBtn);
+    const inorderOut = await bst.getTraversalText();
+    expect(inorderOut).toBe('20, 30, 40, 50, 60, 70, 80');
+
+    // Pre-order should match known sequence
+    await bst.clickTraversal(bst.preorderBtn);
+    const preorderOut = await bst.getTraversalText();
+    expect(preorderOut).toBe('50, 30, 20, 40, 70, 60, 80');
+
+    // Post-order
+    await bst.clickTraversal(bst.postorderBtn);
+    const postorderOut = await bst.getTraversalText();
+    expect(postorderOut).toBe('20, 40, 30, 60, 80, 70, 50');
+
+    // Level-order (breadth-first)
+    await bst.clickTraversal(bst.levelBtn);
+    const levelOut = await bst.getTraversalText();
+    expect(levelOut).toBe('50, 30, 70, 20, 40, 60, 80');
+  });
+
+  test('Utilities: randomize creates 10 nodes; make balanced uses current nodes; alerts when tree empty', async ({ page }) => {
+    const bst5 = new BSTPage(page);
+
+    // Click Randomize and assert nodes count is 10
+    await bst.randomBtn.click();
+    await page.waitForTimeout(250);
+    const infoAfterRandom = await bst.getInfoText();
+    expect(infoAfterRandom).toMatch(/Nodes: 10/);
+
+    // Click Make Balanced - should log a message about creating balanced tree
+    await bst.balancedBtn.click();
+    await page.waitForTimeout(250);
+    const log3 = await bst.getLogText();
+    expect(log).toMatch(/Balanced tree created from sorted values/);
+
+    // Now clear the tree and try balanced on empty -> should alert "Tree is empty."
+    let clearDialogMsg1 = '';
+    page.once('dialog', async (dialog) => {
+      clearDialogMsg = dialog.message();
+      await dialog.accept();
+    });
+    await bst.clearBtn.click();
+    await page.waitForTimeout(150);
+    expect(clearDialogMsg).toBe('Clear the entire tree?');
+
+    // Attempt balanced on empty should trigger an alert telling tree is empty
+    let balancedAlertMsg = '';
+    page.once('dialog', async (dialog) => {
+      balancedAlertMsg = dialog.message();
+      await dialog.accept();
+    });
+    await bst.balancedBtn.click();
+    await page.waitForTimeout(150);
+    expect(balancedAlertMsg).toBe('Tree is empty.');
+  });
+
+  test('Input validation: insert/search require numbers and show alerts on invalid input', async ({ page }) => {
+    const bst6 = new BSTPage(page);
+
+    // Insert with empty input -> alert "Enter a number"
+    let alertMsg = '';
+    page.once('dialog', async (dialog) => {
+      alertMsg = dialog.message();
+      await dialog.accept();
+    });
+    await bst.insertBtn.click();
+    await page.waitForTimeout(120);
+    expect(alertMsg).toBe('Enter a number');
+
+    // Search with empty input -> alert "Enter a number to search"
+    let searchAlert = '';
+    page.once('dialog', async (dialog) => {
+      searchAlert = dialog.message();
+      await dialog.accept();
+    });
+    await bst.searchBtn.click();
+    await page.waitForTimeout(120);
+    expect(searchAlert).toBe('Enter a number to search');
+  });
+
+  test('No unexpected page errors in console while interacting with the app', async ({ page }) => {
+    const bst7 = new BSTPage(page);
+    const pageErrors = [];
+    page.on('pageerror', (err) => {
+      pageErrors.push(String(err));
+    });
+
+    // Perform a series of interactions
+    await bst.searchValue(50);
+    await bst.insertValue(55);
+    await bst.searchValue(55);
+
+    // small wait for any possible async errors
+    await page.waitForTimeout(400);
+
+    // Assert that there were no page errors captured
+    expect(pageErrors.length).toBe(0);
+  });
+});

@@ -1,0 +1,343 @@
+import { test, expect } from '@playwright/test';
+
+// Test file: 2bde438b-cd36-11f0-b98e-a1744d282049-linear-search.spec.js
+// Page under test:
+// http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/2bde438b-cd36-11f0-b98e-a1744d282049.html
+
+test.describe('Linear Search Visualizer - interactive behavior', () => {
+  // URL to the served HTML
+  const URL = 'http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/2bde438b-cd36-11f0-b98e-a1744d282049.html';
+
+  // Helper locators (by id/class) used across tests
+  const selectors = {
+    size: '#size',
+    sizeVal: '#sizeVal',
+    genRandom: '#genRandom',
+    shuffle: '#shuffle',
+    minVal: '#minVal',
+    maxVal: '#maxVal',
+    custom: '#custom',
+    applyCustom: '#applyCustom',
+    target: '#target',
+    start: '#start',
+    prev: '#prev',
+    play: '#play',
+    next: '#next',
+    reset: '#reset',
+    speed: '#speed',
+    speedVal: '#speedVal',
+    comparisons: '#comparisons',
+    currentIdx: '#currentIdx',
+    result: '#result',
+    status: '#status',
+    arrayArea: '#arrayArea',
+    pseudocodeLines: '.pseudocode .line'
+  };
+
+  // We'll capture console errors and page errors for each test to ensure no runtime errors occurred
+  test.beforeEach(async ({ page }) => {
+    // Listen for console error messages and unhandled page errors
+    page.context().consoleMessages = [];
+    page.context().pageErrors = [];
+
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        page.context().consoleMessages.push({
+          text: msg.text(),
+          location: msg.location()
+        });
+      }
+    });
+
+    page.on('pageerror', err => {
+      page.context().pageErrors.push(err.message);
+    });
+
+    // Navigate to the page under test
+    await page.goto(URL);
+    // Wait for the main application element to be present to ensure initialization completed
+    await page.waitForSelector('[role="application"][aria-label="Linear search visualizer"]');
+  });
+
+  test.afterEach(async ({ page }) => {
+    // Assert that no console error-level messages or unhandled page errors were emitted during the test run.
+    // This verifies the runtime did not produce uncaught exceptions or error logs.
+    const consoleErrors = page.context().consoleMessages || [];
+    const pageErrors = page.context().pageErrors || [];
+
+    // If errors exist, include them in assertion messages to aid debugging in CI logs.
+    expect(consoleErrors.length, `Console error messages: ${JSON.stringify(consoleErrors)}`).toBe(0);
+    expect(pageErrors.length, `Page errors: ${JSON.stringify(pageErrors)}`).toBe(0);
+  });
+
+  test.describe('Initial load and default UI', () => {
+    test('should load with default array and UI elements visible', async ({ page }) => {
+      // Verify main interactive elements are visible on initial load
+      await expect(page.locator(selectors.size)).toBeVisible();
+      await expect(page.locator(selectors.genRandom)).toBeVisible();
+      await expect(page.locator(selectors.applyCustom)).toBeVisible();
+      await expect(page.locator(selectors.start)).toBeVisible();
+      await expect(page.locator(selectors.play)).toBeVisible();
+      await expect(page.locator(selectors.next)).toBeVisible();
+      await expect(page.locator(selectors.prev)).toBeVisible();
+      await expect(page.locator(selectors.reset)).toBeVisible();
+
+      // The array area should contain cells equal to the default size (sizeVal shows initial value)
+      const sizeValText = await page.locator(selectors.sizeVal).textContent();
+      const expectedSize = Number(sizeValText?.trim() ?? 0);
+      await page.waitForSelector(`${selectors.arrayArea} .cell`);
+      const cells = page.locator(`${selectors.arrayArea} .cell`);
+      expect(await cells.count()).toBe(expectedSize);
+
+      // Default stats should be present and in "not started" state
+      await expect(page.locator(selectors.comparisons)).toHaveText('0');
+      await expect(page.locator(selectors.currentIdx)).toHaveText('-');
+      await expect(page.locator(selectors.result)).toHaveText('Not started');
+
+      // Pseudocode first line should be active on initial render
+      await expect(page.locator(`${selectors.pseudocodeLines}[data-line="0"], ${selectors.pseudocodeLines}:nth-child(1)`)).toBeVisible();
+      // It's safer to check that at least one pseudocode line has class active
+      const activeLines = page.locator('.pseudocode .line.active');
+      expect(await activeLines.count()).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  test.describe('Array generation, custom input and validation', () => {
+    test('generates a random array with valid min/max', async ({ page }) => {
+      // Set valid min/max and generate random array
+      await page.fill(selectors.minVal, '1');
+      await page.fill(selectors.maxVal, '5');
+      await page.click(selectors.genRandom);
+
+      // Status should indicate generation
+      await expect(page.locator(selectors.status)).toHaveText(/Generated random array\./);
+
+      // Ensure the array has the length indicated by size and that values are within the given bounds
+      const n = Number(await page.locator(selectors.sizeVal).textContent());
+      const cells1 = page.locator(`${selectors.arrayArea} .cell`);
+      expect(await cells.count()).toBe(n);
+
+      // Verify each cell's numeric content is between 1 and 5 (or can be parsed)
+      for (let i = 0; i < await cells.count(); i++) {
+        const txt = (await cells.nth(i).textContent())?.trim() ?? '';
+        // If content is numeric, assert range.
+        const num = Number(txt);
+        if (!Number.isNaN(num)) {
+          expect(num).toBeGreaterThanOrEqual(1);
+          expect(num).toBeLessThanOrEqual(5);
+        }
+      }
+    });
+
+    test('shows error status when min > max for random generation', async ({ page }) => {
+      // Set min greater than max and click generate
+      await page.fill(selectors.minVal, '10');
+      await page.fill(selectors.maxVal, '2');
+      await page.click(selectors.genRandom);
+
+      // Expect status to indicate the invalid range
+      await expect(page.locator(selectors.status)).toHaveText('Minimum cannot be greater than maximum.');
+    });
+
+    test('apply custom array and updates UI accordingly', async ({ page }) => {
+      // Apply a custom array via text input
+      const customArr = '5,3,8,1';
+      await page.fill(selectors.custom, customArr);
+      await page.click(selectors.applyCustom);
+
+      // Status should indicate success
+      await expect(page.locator(selectors.status)).toHaveText('Applied custom array.');
+
+      // Array area should now reflect the custom values and size slider updated
+      const cells2 = page.locator(`${selectors.arrayArea} .cell`);
+      expect(await cells.count()).toBe(4);
+
+      // Check the text content of each cell corresponds to the custom array entries
+      const expected = ['5','3','8','1'];
+      for (let i = 0; i < expected.length; i++) {
+        await expect(cells.nth(i)).toHaveText(expected[i]);
+        // Each cell should show its index via data-index attribute
+        await expect(cells.nth(i)).toHaveAttribute('data-index', String(i));
+      }
+      // Size slider and display should match length 4
+      await expect(page.locator(selectors.sizeVal)).toHaveText('4');
+      await expect(page.locator(selectors.size)).toHaveValue('4');
+    });
+
+    test('invalid custom array input shows helpful status message', async ({ page }) => {
+      // Clear custom input (empty) and apply -> should be invalid
+      await page.fill(selectors.custom, '');
+      await page.click(selectors.applyCustom);
+
+      await expect(page.locator(selectors.status)).toHaveText('Invalid custom array. Use comma-separated values.');
+    });
+  });
+
+  test.describe('Search stepping, found and not-found flows', () => {
+    test('can find a target present in the custom array via stepping next', async ({ page }) => {
+      // Apply a known custom array
+      await page.fill(selectors.custom, '5,3,8,1');
+      await page.click(selectors.applyCustom);
+      // Set a target that exists at index 2 ("8")
+      await page.fill(selectors.target, '8');
+      // Start search
+      await page.click(selectors.start);
+
+      // After starting, we're at the initial snapshot; result should indicate searching.
+      await expect(page.locator(selectors.result)).toHaveText(/Searching\.\.\./);
+
+      // Step through until found: for this array, it should take 3 comparisons (indices 0,1,2)
+      await page.click(selectors.next); // checks index 0
+      await page.click(selectors.next); // checks index 1
+      await page.click(selectors.next); // checks index 2 -> found here
+
+      // Validate comparisons count updated to 3
+      await expect(page.locator(selectors.comparisons)).toHaveText('3');
+
+      // Result should indicate found at index 2
+      await expect(page.locator(selectors.result)).toHaveText('Found at index 2');
+
+      // The cell at index 2 should have the 'found' class
+      const foundCell = page.locator(`${selectors.arrayArea} .cell.index[data-index="2"]`);
+      await expect(foundCell).toHaveClass(/found/);
+
+      // Pseudocode should highlight the return line (data-line 3)
+      const foundPseudocode = page.locator('.pseudocode .line[data-line="3"]');
+      await expect(foundPseudocode).toHaveClass(/active/);
+
+      // Use Prev to step back to the checking snapshot before the final result
+      await page.click(selectors.prev);
+      // In that checking snapshot, current index should be shown as 2 (since prev moves to the checking state)
+      await expect(page.locator(selectors.currentIdx)).toHaveText('2');
+      // Pseudocode should show the 'for' or 'if' line when checking
+      const checkingLine = page.locator('.pseudocode .line[data-line="1"]');
+      await expect(checkingLine).toHaveClass(/active/);
+    });
+
+    test('search not-found completes and updates status/result', async ({ page }) => {
+      // Apply custom array and search for a missing value
+      await page.fill(selectors.custom, '7,9,11');
+      await page.click(selectors.applyCustom);
+      await page.fill(selectors.target, '100'); // not present
+      await page.click(selectors.start);
+
+      // Press Next repeatedly to traverse all elements until not found
+      await page.click(selectors.next); // 1
+      await page.click(selectors.next); // 2
+      await page.click(selectors.next); // 3 -> should finish not found
+
+      // After finishing, result should be 'Not found'
+      await expect(page.locator(selectors.result)).toHaveText('Not found');
+
+      // All cells should now have been marked as 'miss' (they get 'miss' class when checked and not found)
+      const cells3 = page.locator(`${selectors.arrayArea} .cell`);
+      const count = await cells.count();
+      for (let i = 0; i < count; i++) {
+        // If cell has class 'miss' or (when final) current null, ensure it's not 'found'
+        const cls = await cells.nth(i).getAttribute('class');
+        // It should include 'miss' since all were checked and not found
+        expect(cls).toMatch(/miss/);
+      }
+
+      // Pseudocode should highlight the 'return -1' line (data-line 4)
+      await expect(page.locator('.pseudocode .line[data-line="4"]')).toHaveClass(/active/);
+    });
+  });
+
+  test.describe('Playback controls, keyboard shortcuts and reset', () => {
+    test('play/pause toggles aria-pressed and respects start state', async ({ page }) => {
+      // Apply small array and set target so we can start
+      await page.fill(selectors.custom, '1,2,3');
+      await page.click(selectors.applyCustom);
+      await page.fill(selectors.target, '2');
+
+      // Start the search to initialize snapshots
+      await page.click(selectors.start);
+
+      // Toggle play: should change button text and aria-pressed attribute
+      await page.click(selectors.play);
+      await expect(page.locator(selectors.play)).toHaveAttribute('aria-pressed', 'true');
+      // Pause
+      await page.click(selectors.play);
+      await expect(page.locator(selectors.play)).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    test('keyboard shortcuts (ArrowRight, ArrowLeft, Space, r) trigger appropriate actions', async ({ page }) => {
+      // Apply a custom array and start search
+      await page.fill(selectors.custom, '4,6,8');
+      await page.click(selectors.applyCustom);
+      await page.fill(selectors.target, '8');
+      await page.click(selectors.start);
+
+      // Use ArrowRight to advance one step (should check index 0)
+      await page.keyboard.press('ArrowRight');
+      // After pressing, a snapshot has been made; comparisons should be at least 1
+      await expect(page.locator(selectors.comparisons)).toHaveText(/1|2|3/);
+
+      // Use ArrowLeft to step back (should be able to step back to previous snapshot)
+      await page.keyboard.press('ArrowLeft');
+      // Status should indicate starting state or checking; ensure no crash and UI updates
+      await expect(page.locator(selectors.status)).toBeVisible();
+
+      // Use Space to toggle auto-play (play/pause) but only when not focused on input
+      // Ensure we are not focused on an INPUT
+      await page.evaluate(() => { if (document.activeElement && document.activeElement.tagName === 'INPUT') (document.activeElement as HTMLInputElement).blur(); });
+      await page.keyboard.press(' ');
+      // Play button's aria-pressed should toggle to true
+      await expect(page.locator(selectors.play)).toHaveAttribute('aria-pressed', 'true');
+      // Turn it off via Space again
+      await page.keyboard.press(' ');
+      await expect(page.locator(selectors.play)).toHaveAttribute('aria-pressed', 'false');
+
+      // Press 'r' to trigger reset shortcut
+      await page.keyboard.press('r');
+      // After reset, comparisons should be 0 and result back to 'Not started'
+      await expect(page.locator(selectors.comparisons)).toHaveText('0');
+      await expect(page.locator(selectors.result)).toHaveText('Not started');
+    });
+
+    test('reset button restores initial UI state', async ({ page }) => {
+      // Make changes to the UI: apply custom array and start then advance
+      await page.fill(selectors.custom, '2,5,7');
+      await page.click(selectors.applyCustom);
+      await page.fill(selectors.target, '5');
+      await page.click(selectors.start);
+      await page.click(selectors.next);
+
+      // Now reset
+      await page.click(selectors.reset);
+
+      // Confirm reset semantics: snapshots cleared, comparisons 0, currentIdx reset, result 'Not started'
+      await expect(page.locator(selectors.comparisons)).toHaveText('0');
+      await expect(page.locator(selectors.currentIdx)).toHaveText('-');
+      await expect(page.locator(selectors.result)).toHaveText('Not started');
+      // Pseudocode should be back to first line active
+      await expect(page.locator('.pseudocode .line[data-line="0"]')).toHaveClass(/active/);
+    });
+
+    test('changing speed during play updates internal state and toggles play safely', async ({ page }) => {
+      // Apply array and start search
+      await page.fill(selectors.custom, '1,2,3,4');
+      await page.click(selectors.applyCustom);
+      await page.fill(selectors.target, '9'); // not present to ensure full traversal if played
+      await page.click(selectors.start);
+
+      // Start playing
+      await page.click(selectors.play);
+      await expect(page.locator(selectors.play)).toHaveAttribute('aria-pressed', 'true');
+
+      // Change speed slider while playing (this should internally toggle autoplay twice per implementation)
+      await page.fill(selectors.speed, '300');
+      // Wait a small time for the internal toggles to settle
+      await page.waitForTimeout(200);
+      // Ensure play button remains functional (either playing or paused) and no errors emitted
+      await expect(page.locator(selectors.play)).toBeVisible();
+
+      // Stop play if still playing
+      const aria = await page.locator(selectors.play).getAttribute('aria-pressed');
+      if (aria === 'true') {
+        await page.click(selectors.play);
+      }
+    });
+  });
+});

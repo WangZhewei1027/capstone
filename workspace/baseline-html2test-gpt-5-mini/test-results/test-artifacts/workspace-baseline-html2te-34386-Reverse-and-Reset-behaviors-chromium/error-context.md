@@ -1,0 +1,53 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Two Pointers — Interactive Visualizer" [level=1] [ref=e4]
+    - generic [ref=e5]: "Explore common two-pointers patterns: scan from both ends, sliding pointers, in-place writes. Choose a demo, give an array, and step through the algorithm."
+    - generic [ref=e6]: Demo
+    - combobox [ref=e7]:
+      - option "Two-sum in a sorted array (find pair equals target)" [selected]
+      - option "Container With Most Water (maximize area)"
+      - option "Remove Duplicates (in-place, sorted)"
+    - generic [ref=e8]: Array (comma separated numbers)
+    - textbox "e.g. 1,2,3,4,5" [ref=e9]: 9,6,9,7,3,1,4
+    - generic [ref=e10]:
+      - button "Random" [active] [ref=e11] [cursor=pointer]
+      - button "Sort Ascending" [ref=e12] [cursor=pointer]
+      - button "Reverse" [ref=e13] [cursor=pointer]
+    - generic [ref=e14]: Additional
+    - generic [ref=e15]:
+      - spinbutton [ref=e16]
+      - generic [ref=e17]: Target applies to Two-sum demo
+    - generic [ref=e18]:
+      - button "Start" [ref=e19] [cursor=pointer]
+      - button "Pause" [ref=e20] [cursor=pointer]
+      - button "Step" [ref=e21] [cursor=pointer]
+      - button "Reset" [ref=e22] [cursor=pointer]
+      - generic "Animation speed" [ref=e23]:
+        - generic [ref=e24]: Speed
+        - slider [ref=e25]: "700"
+        - generic [ref=e26]: 700ms
+    - generic [ref=e27]:
+      - generic [ref=e28]: Visualization
+      - generic [ref=e30]:
+        - generic [ref=e31]: "1"
+        - generic [ref=e32]: "2"
+        - generic [ref=e33]: "3"
+        - generic [ref=e34]: "4"
+        - generic [ref=e35]: "5"
+        - generic [ref=e36]: "6"
+      - generic [ref=e38]:
+        - generic [ref=e39]: "State: idle"
+        - generic [ref=e40]: "i/j pointers: -"
+        - generic [ref=e41]: "Operations: 0"
+        - generic [ref=e42]: "Result: -"
+    - generic [ref=e44]: Code (highlights current step)
+    - contentinfo [ref=e46]: "Tip: For Two-sum and Remove Duplicates, the array should be sorted. Use \"Sort Ascending\" or provide a sorted input."
+  - generic [ref=e47]:
+    - heading "Two-sum in a sorted array" [level=1] [ref=e48]
+    - generic [ref=e49]: Use two pointers, one at left and one at right, moving inward. If sum < target move left pointer right; if sum > target move right pointer left; if equal — found.
+    - separator [ref=e50]
+    - generic [ref=e52]: "Example: arr = [1,2,3,4,6], target = 7 → pair (1,4) or values 1-based: (2,5)"
+```

@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Floyd–Warshall Algorithm Visualizer</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Roboto, "Segoe UI", Arial; margin: 18px; color:#111 }
+    h1 { margin: 0 0 8px 0; font-size: 22px; }
+    p { margin: 6px 0; color:#333; }
+    .controls { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:12px 0 18px 0; }
+    .controls > * { display:inline-flex; gap:8px; align-items:center; }
+    button { padding:6px 10px; border-radius:6px; border:1px solid #bbb; background:#f8f8f8; cursor:pointer; }
+    button:active { transform:translateY(1px); }
+    input[type="number"] { width:70px; padding:6px; border:1px solid #ccc; border-radius:6px; }
+    label { font-size:13px; color:#333 }
+    .section { margin-top:16px; }
+    .matrices { display:flex; gap:18px; flex-wrap:wrap; }
+    .matrix { border:1px solid #ddd; padding:10px; border-radius:8px; background:#fff; box-shadow: 0 1px 0 rgba(0,0,0,0.02); }
+    table { border-collapse:collapse; }
+    th, td { padding:6px 8px; border:1px solid #eee; text-align:center; min-width:44px; }
+    th { background:#fafafa; color:#222; font-weight:600; }
+    .cell-infty { color:#999; font-style:italic }
+    .cell-zero { color:#2b8cff; font-weight:700 }
+    .compare { background: #fff3bf; }
+    .update { background: #d1f7d7; font-weight:700; }
+    .k-highlight { border:2px solid #ffcc66; padding:4px; border-radius:6px; }
+    .log { max-height:200px; overflow:auto; background:#f9fbff; border:1px solid #eef2ff; padding:8px; border-radius:6px; font-size:13px; color:#222 }
+    .small { font-size:13px; color:#444 }
+    .muted { color:#666; font-size:13px }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    select { padding:6px; border-radius:6px; border:1px solid #ccc; }
+    input[type="range"] { width:120px; }
+    footer { margin-top:18px; color:#555; font-size:13px }
+    .matrix-title { font-weight:700; margin-bottom:8px }
+    .path-output { margin-top:8px; font-weight:600; color:#0b6; }
+    .danger { color:#c44; font-weight:700; }
+  </style>
+</head>
+<body>
+  <h1>Floyd–Warshall Algorithm Visualizer</h1>
+  <p>Interactive demo of the Floyd–Warshall algorithm (all-pairs shortest paths). Edit edges by clicking adjacency cells. Use "Run" or step through comparisons to see how distances update. Reconstruct paths after the algorithm completes.</p>
+
+  <div class="controls">
+    <div>
+      <button id="addNodeBtn">Add Node</button>
+      <button id="removeNodeBtn">Remove Node</button>
+      <label><input type="checkbox" id="directedToggle" /> Directed</label>
+    </div>
+
+    <div>
+      <label>Nodes: <span id="nodeCount">4</span></label>
+    </div>
+
+    <div>
+      <label>Random: 
+        <input type="number" id="randN" value="5" min="2" max="12" style="width:56px" />
+        density %
+        <input type="number" id="randD" value="40" min="0" max="100" style="width:56px" />
+      </label>
+      <button id="randBtn">Generate</button>
+    </div>
+
+    <div>
+      <button id="resetBtn">Reset Graph</button>
+      <button id="runBtn">Run</button>
+      <button id="stepModeBtn">Step Mode</button>
+      <button id="clearStepsBtn">Clear Steps</button>
+    </div>
+
+    <div>
+      <button id="playPauseBtn">Play</button>
+      <button id="stepBackBtn">◀ Step</button>
+      <button id="stepForwardBtn">Step ▶</button>
+      <label>Speed <input type="range" id="speedRange" min="100" max="2000" value="700" /></label>
+    </div>
+  </div>
+
+  <div class="section matrices">
+    <div class="matrix" style="min-width: 320px;">
+      <div class="matrix-title">Adjacency (click to edit weight)</div>
+      <div id="adjacencyContainer"></div>
+      <div class="muted small" style="margin-top:8px;">Enter a number or 'INF' for no edge. Self-edges allowed (weight on diagonal).</div>
+    </div>
+
+    <div class="matrix" id="distMatrixBox" style="min-width:300px;">
+      <div class="matrix-title">Distance matrix</div>
+      <div id="distContainer"></div>
+    </div>
+
+    <div class="matrix" id="nextMatrixBox" style="min-width:300px;">
+      <div class="matrix-title">Next (for path reconstruction)</div>
+      <div id="nextContainer"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="row">
+      <div>
+        <label>From: <select id="fromSelect"></select></label>
+        <label>To: <select id="toSelect"></select></label>
+        <button id="showPathBtn">Show Path</button>
+      </div>
+      <div id="pathResult" class="path-output"></div>
+      <div id="negCycleNotice" class="danger"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="matrix" style="flex:1;">
+      <div class="matrix-title">Step log</div>
+      <div id="log" class="log small"></div>
+    </div>
+  </div>
+
+  <footer>
+    Tip: Start with a small graph (4-6 nodes). Negative edge weights are allowed, but negative cycles break shortest-path assumptions — the demo will highlight if one is detected.
+  </footer>
+
+<script>
+/*
+  Floyd–Warshall Visualizer
+  - Adjacency editable by clicking cells
+  - Run algorithm and record each comparison (k,i,j)
+  - Step through comparisons; visualize compares and updates
+  - Reconstruct paths with 'next' matrix
+*/
+
+(function(){
+  // Helpers
+  const INF = 1e12;
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+  // State
+  let n = 4;
+  let directed = false;
+  let adj = []; // adj matrix with null meaning no edge, otherwise numeric weight
+  let dist = []; // working distance
+  let next = []; // next pointers for reconstruction
+  let steps = []; // recorded steps (each comparison)
+  let stepIndex = -1; // current step applied index ( -1=initial state )
+  let playing = false;
+  let playTimer = null;
+
+  // DOM
+  const adjacencyContainer = document.getElementById('adjacencyContainer');
+  const distContainer = document.getElementById('distContainer');
+  const nextContainer = document.getElementById('nextContainer');
+  const nodeCountLabel = document.getElementById('nodeCount');
+  const fromSelect = document.getElementById('fromSelect');
+  const toSelect = document.getElementById('toSelect');
+  const logEl = document.getElementById('log');
+  const negCycleNotice = document.getElementById('negCycleNotice');
+
+  // Controls
+  document.getElementById('addNodeBtn').onclick = ()=>{ addNode(); renderAll(); };
+  document.getElementById('removeNodeBtn').onclick = ()=>{ removeNode(); renderAll(); };
+  document.getElementById('directedToggle').onchange = (e)=>{ directed = e.target.checked; renderAll(); };
+  document.getElementById('randBtn').onclick = ()=>{ generateRandom(); renderAll(); };
+  document.getElementById('resetBtn').onclick = ()=>{ resetGraph(); renderAll(); };
+  document.getElementById('runBtn').onclick = ()=>{ runFull(); };
+  document.getElementById('stepModeBtn').onclick = ()=>{ prepareSteps(); };
+  document.getElementById('playPauseBtn').onclick = ()=>{ togglePlay(); };
+  document.getElementById('stepForwardBtn').onclick = ()=>{ stepForward(); };
+  document.getElementById('stepBackBtn').onclick = ()=>{ stepBack(); };
+  document.getElementById('clearStepsBtn').onclick = ()=>{ clearSteps(); };
+  document.getElementById('showPathBtn').onclick = ()=>{ showPath(); };
+
+  document.getElementById('randN').addEventListener('keypress', (e)=>{ if(e.key==='Enter') generateRandom(); });
+
+  // Initialization
+  function init(){
+    // default small example
+    directed = false;
+    n = 4;
+    adj = Array.from({length:n}, ()=>Array.from({length:n}, ()=>null));
+    // sample edges
+    setEdge(0,1,5);
+    setEdge(0,3,10);
+    setEdge(1,2,3);
+    setEdge(2,3,1);
+    updateUIState();
+    renderAll();
+  }
+
+  function updateUIState(){
+    nodeCountLabel.textContent = n;
+    document.getElementById('directedToggle').checked = directed;
+    // update selects
+    populateNodeSelectors();
+  }
+
+  function populateNodeSelectors(){
+    fromSelect.innerHTML = ''; toSelect.innerHTML = '';
+    for(let i=0;i<n;i++){
+      const opt = document.createElement('option'); opt.value = i; opt.textContent = getLabel(i);
+      fromSelect.appendChild(opt);
+      const opt2 = document.createElement('option'); opt2.value = i; opt2.textContent = getLabel(i);
+      toSelect.appendChild(opt2);
+    }
+  }
+
+  function getLabel(i){ return letters[i] || ('N'+i); }
+
+  function setEdge(i,j,w){
+    if(w===null) adj[i][j]=null;
+    else adj[i][j]=Number(w);
+  }
+
+  function addNode(){
+    if(n>=12){ alert('Max nodes: 12'); return; }
+    adj.forEach(row=>row.push(null));
+    n++;
+    adj.push(Array.from({length:n}, ()=>null));
+    // keep symmetric edges if undirected: add new node with no edges
+    updateUIState();
+    clearSteps();
+  }
+
+  function removeNode(){
+    if(n<=2){ alert('Minimum 2 nodes'); return; }
+    adj.splice(n-1,1);
+    adj.forEach(row=>row.splice(n-1,1));
+    n--;
+    updateUIState();
+    clearSteps();
+  }
+
+  function resetGraph(){
+    adj = Array.from({length:n}, ()=>Array.from({length:n}, ()=>null));
+    clearSteps();
+  }
+
+  function generateRandom(){
+    const nn = Math.max(2, Math.min(12, parseInt(document.getElementById('randN').value)||n));
+    const density = Math.max(0, Math.min(100, parseInt(document.getElementById('randD').value)||40));
+    n = nn;
+    adj = Array.from({length:n}, ()=>Array.from({length:n}, ()=>null));
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        if(i===j) continue;
+        if(Math.random()*100 < density){
+          // weight between -5 and 15 with bias positive
+          const w = Math.floor(Math.random()*21)-5;
+          adj[i][j] = w;
+          if(!directed) adj[j][i] = w;
+        }
+      }
+    }
+    updateUIState();
+    clearSteps();
+  }
+
+  // Rendering functions
+  function renderAll(){
+    renderAdjacency();
+    // initial dist/next derived from adj
+    initDistNext();
+    renderDist();
+    renderNext();
+    logEl.innerHTML = '';
+    negCycleNotice.textContent = '';
+  }
+
+  function renderAdjacency(){
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headRow.appendChild(document.createElement('th')); // corner
+    for(let j=0;j<n;j++){
+      const th = document.createElement('th'); th.textContent = getLabel(j); headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for(let i=0;i<n;i++){
+      const tr = document.createElement('tr');
+      const th = document.createElement('th'); th.textContent = getLabel(i); tr.appendChild(th);
+      for(let j=0;j<n;j++){
+        const td = document.createElement('td');
+        td.style.cursor = 'pointer';
+        td.addEventListener('click', ()=>{ editEdge(i,j); });
+        const w = adj[i][j];
+        td.innerHTML = (w===null ? '<span class="cell-infty">∞</span>' : (w===0 ? '<span class="cell-zero">0</span>' : String(w)));
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    adjacencyContainer.innerHTML = '';
+    adjacencyContainer.appendChild(table);
+  }
+
+  function editEdge(i,j){
+    const cur = adj[i][j];
+    let val = prompt(`Set weight for edge ${getLabel(i)} → ${getLabel(j)}\nEnter number or leave empty / 'INF' to remove edge.`, cur===null ? 'INF' : String(cur));
+    if(val===null) return;
+    val = val.trim();
+    if(val.toUpperCase()==='INF' || val==='') {
+      adj[i][j] = null;
+      if(!directed) adj[j][i] = null;
+    } else {
+      const num = Number(val);
+      if(Number.isNaN(num)){ alert('Invalid number'); return; }
+      adj[i][j] = num;
+      if(!directed) adj[j][i] = num;
+    }
+    clearSteps();
+    renderAll();
+  }
+
+  function initDistNext(){
+    dist = Array.from({length:n}, (_,i)=>Array.from({length:n}, (_,j)=>{
+      if(i===j) return 0;
+      if(adj[i][j]===null) return INF;
+      return Number(adj[i][j]);
+    }));
+    next = Array.from({length:n}, (_,i)=>Array.from({length:n}, (_,j)=>{
+      if(i===j) return j; // convention: path from i to i exists via i
+      return (adj[i][j]===null ? null : j);
+    }));
+  }
+
+  function renderDist(highlight={i:-1,j:-1,k:-1,updated:false}){
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr'); headRow.appendChild(document.createElement('th'));
+    for(let j=0;j<n;j++){ const th = document.createElement('th'); th.textContent = getLabel(j); headRow.appendChild(th); }
+    thead.appendChild(headRow); table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for(let i=0;i<n;i++){
+      const tr = document.createElement('tr');
+      const th = document.createElement('th'); th.textContent = getLabel(i); tr.appendChild(th);
+      for(let j=0;j<n;j++){
+        const td = document.createElement('td');
+        const val = dist[i][j];
+        if(i===j && val===0) td.innerHTML = '<span class="cell-zero">0</span>';
+        else if(val >= INF/2) td.innerHTML = '<span class="cell-infty">∞</span>';
+        else td.textContent = val.toString();
+        if(i===highlight.i && j===highlight.j){
+          td.classList.add(highlight.updated ? 'update' : 'compare');
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    distContainer.innerHTML = '';
+    distContainer.appendChild(table);
+    // show current k highlight
+    if(highlight.k>=0){
+      const title = document.createElement('div'); title.className='muted small';
+      title.innerHTML = `Current k = ${getLabel(highlight.k)} (${highlight.k})`;
+      distContainer.insertBefore(title, distContainer.firstChild);
+    }
+  }
+
+  function renderNext(highlight={i:-1,j:-1,k:-1,updated:false}){
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr'); headRow.appendChild(document.createElement('th'));
+    for(let j=0;j<n;j++){ const th = document.createElement('th'); th.textContent = getLabel(j); headRow.appendChild(th); }
+    thead.appendChild(headRow); table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for(let i=0;i<n;i++){
+      const tr = document.createElement('tr');
+      const th = document.createElement('th'); th.textContent = getLabel(i); tr.appendChild(th);
+      for(let j=0;j<n;j++){
+        const td = document.createElement('td');
+        const nx = next[i][j];
+        td.textContent = (nx===null ? '—' : getLabel(nx));
+        if(i===highlight.i && j===highlight.j) td.classList.add(highlight.updated ? 'update' : 'compare');
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    nextContainer.innerHTML = '';
+    nextContainer.appendChild(table);
+  }
+
+  // Floyd–Warshall with step recording
+  function prepareSteps(){
+    initDistNext();
+    steps = [];
+    // Save initial snapshot as step -1? We'll use stepIndex -1 as initial state
+    // Loop
+    for(let k=0;k<n;k++){
+      for(let i=0;i<n;i++){
+        for(let j=0;j<n;j++){
+          const a = dist[i][k];
+          const b = dist[k][j];
+          const old = dist[i][j];
+          const alt = (a >= INF/2 || b >= INF/2) ? INF : a + b;
+          const updated = alt < old - 1e-9;
+          const step = {
+            k, i, j,
+            old, alt,
+            updated,
+            nextBefore: next[i][j],
+            nextFromIK: next[i][k] // if update, next[i][j] becomes next[i][k]
+          };
+          steps.push(step);
+          if(updated){
+            // apply immediately to our base dist/next so subsequent comparisons use new values
+            dist[i][j] = alt;
+            next[i][j] = next[i][k];
+          }
+        }
+      }
+    }
+    // After finishing, detect negative cycles and record as final step
+    const negCycles = [];
+    for(let v=0;v<n;v++){
+      if(dist[v][v] < 0) negCycles.push(v);
+    }
+    steps.push({type:'complete', neg: negCycles});
+    // Reset dist/next to initial for playback
+    initDistNext();
+    stepIndex = -1;
+    renderDist(); renderNext();
+    logEl.innerHTML = '';
+    negCycleNotice.textContent = '';
+    appendLog(`Prepared ${steps.length} steps. Use Step or Play to advance through comparisons.`);
+  }
+
+  function runFull(){
+    initDistNext();
+    // run entire algorithm (no recording)
+    for(let k=0;k<n;k++){
+      for(let i=0;i<n;i++){
+        for(let j=0;j<n;j++){
+          if(dist[i][k] >= INF/2 || dist[k][j] >= INF/2) continue;
+          const alt = dist[i][k] + dist[k][j];
+          if(alt < dist[i][j]){
+            dist[i][j] = alt;
+            next[i][j] = next[i][k];
+          }
+        }
+      }
+    }
+    renderDist(); renderNext();
+    // detect negative cycles
+    const negCycles = [];
+    for(let v=0;v<n;v++) if(dist[v][v] < 0) negCycles.push(v);
+    if(negCycles.length) {
+      negCycleNotice.textContent = 'Negative cycle detected at nodes: ' + negCycles.map(getLabel).join(', ');
+      appendLog('Run complete — negative cycle detected.');
+    } else {
+      negCycleNotice.textContent = '';
+      appendLog('Run complete. No negative cycles detected.');
+    }
+    // set steps to none (we ran full)
+    steps = [];
+    stepIndex = -1;
+  }
+
+  // Step playback
+  function clearSteps(){
+    steps = [];
+    stepIndex = -1;
+    playing = false;
+    if(playTimer) clearInterval(playTimer);
+    playTimer = null;
+    appendLog('Cleared recorded steps.');
+    initDistNext();
+    renderDist(); renderNext();
+    negCycleNotice.textContent = '';
+  }
+
+  function applyStep(idx){
+    // apply step at index idx (0-based) to current dist/next; stepIndex points to last applied
+    if(idx < -1) return;
+    initDistNext();
+    // apply all steps up to idx
+    for(let s=0;s<=idx && s<steps.length; s++){
+      const step = steps[s];
+      if(step.type === 'complete') break;
+      if(step.updated){
+        dist[step.i][step.j] = step.alt;
+        next[step.i][step.j] = step.nextFromIK;
+      }
+    }
+    // Render highlighting for the next compared cell (current step)
+    const highlight = (idx+1 < steps.length && idx+1>=0 && steps[idx+1].type!=='complete') ? {
+      i: steps[idx+1].i,
+      j: steps[idx+1].j,
+      k: steps[idx+1].k,
+      updated: (idx>=0 && idx<steps.length && steps[idx].updated) // show last applied update style
+    } : {i:-1,j:-1,k:-1,updated:false};
+    renderDist(highlight);
+    renderNext(highlight);
+  }
+
+  function stepForward(){
+    if(steps.length===0){ appendLog('No recorded steps. Click "Step Mode" to prepare steps.'); return; }
+    if(stepIndex >= steps.length-1) { appendLog('Already at the end.'); playing=false; return; }
+    stepIndex++;
+    const step = steps[stepIndex];
+    if(step.type === 'complete'){
+      // apply final complete snapshot (dist already computed in our prepareSteps app; but for playback we've re-applied above)
+      // detect negative cycles now
+      const neg = step.neg || [];
+      if(neg.length) {
+        negCycleNotice.textContent = 'Negative cycle detected at nodes: ' + neg.map(getLabel).join(', ');
+        appendLog('Complete: Negative cycle detected at ' + neg.map(getLabel).join(', '));
+      } else {
+        appendLog('Complete: No negative cycles detected.');
+      }
+      applyStep(stepIndex-1);
+      return;
+    }
+    // apply up to stepIndex
+    applyStep(stepIndex);
+    // log this comparison
+    const msg = `k=${getLabel(step.k)} (${step.k}) compare i=${getLabel(step.i)} → j=${getLabel(step.j)}: old=${(step.old>=INF/2?'∞':step.old)} alt=${(step.alt>=INF/2?'∞':step.alt)} ${step.updated? ' → UPDATED' : ''}`;
+    appendLog(msg);
+  }
+
+  function stepBack(){
+    if(steps.length===0){ appendLog('No recorded steps.'); return; }
+    if(stepIndex <= -1){ appendLog('Already at the start.'); return; }
+    stepIndex--;
+    applyStep(stepIndex);
+    appendLog('Stepped back. (stepIndex=' + stepIndex + ')');
+  }
+
+  function togglePlay(){
+    if(playing){ stopPlay(); return; }
+    if(steps.length===0){ appendLog('No recorded steps. Prepare steps first.'); return; }
+    playing = true;
+    document.getElementById('playPauseBtn').textContent = 'Pause';
+    const speed = Number(document.getElementById('speedRange').value);
+    playTimer = setInterval(()=>{
+      if(stepIndex >= steps.length-1){ stopPlay(); return; }
+      stepForward();
+    }, speed);
+  }
+
+  function stopPlay(){
+    playing = false;
+    document.getElementById('playPauseBtn').textContent = 'Play';
+    if(playTimer) clearInterval(playTimer);
+    playTimer = null;
+  }
+
+  function togglePlayPauseUI(){
+    if(playing) document.getElementById('playPauseBtn').textContent = 'Pause';
+    else document.getElementById('playPauseBtn').textContent = 'Play';
+  }
+
+  function appendLog(msg){
+    const time = new Date().toLocaleTimeString();
+    const p = document.createElement('div'); p.textContent = `[${time}] ${msg}`;
+    logEl.appendChild(p);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Path reconstruction using 'next' matrix (note: only valid after running the algorithm to completion)
+  function reconstructPath(u,v){
+    if(next[u][v] === null) return null;
+    const path = [u];
+    let cur = u;
+    const seen = new Set([u]);
+    while(cur !== v){
+      cur = next[cur][v];
+      if(cur === null) return null;
+      if(seen.has(cur)){ // cycle prevention
+        return null;
+      }
+      path.push(cur);
+      seen.add(cur);
+      if(path.length > n+5) return null;
+    }
+    return path;
+  }
+
+  function showPath(){
+    // Ensure we have final dist/next: if steps exist and not completed, we should either run full or apply final
+    if(steps.length>0 && (stepIndex === -1 || stepIndex < steps.length-1)){
+      if(!confirm('Path reconstruction requires the final completed matrices. Do you want to run the full algorithm now (this will overwrite step playback)?')) return;
+      runFull();
+    }
+    const u = Number(fromSelect.value);
+    const v = Number(toSelect.value);
+    if(u===v){ document.getElementById('pathResult').textContent = `Trivial path: ${getLabel(u)} (distance 0)`; return; }
+    if(next[u][v] === null){ document.getElementById('pathResult').textContent = `No path from ${getLabel(u)} to ${getLabel(v)}`; return; }
+    const path = reconstructPath(u,v);
+    if(!path){ document.getElementById('pathResult').textContent = `Could not reconstruct path (possible negative cycle or corrupted 'next' matrix).`; return; }
+    const distVal = dist[u][v] >= INF/2 ? '∞' : dist[u][v];
+    document.getElementById('pathResult').textContent = `${path.map(getLabel).join(' → ')} (distance ${distVal})`;
+  }
+
+  // Initialize UI events for speed range and others
+  document.getElementById('speedRange').addEventListener('input', ()=>{
+    if(playing){
+      stopPlay();
+      togglePlay(); // restart with new speed
+    }
+  });
+
+  // Kick off
+  init();
+
+  // Expose some functions to console for debugging (optional)
+  window.FW = {
+    getAdj: ()=>adj,
+    runFull, prepareSteps, stepForward, stepBack, steps
+  };
+})();
+</script>
+</body>
+</html>

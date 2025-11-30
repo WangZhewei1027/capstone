@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Breadth-First Search (BFS) Interactive Demo</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 0; display: flex; height: 100vh; }
+  #left { width: 72%; border-right: 1px solid #ddd; position: relative; background: #fafafa; }
+  #controls { padding: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #fff; border-bottom: 1px solid #eee; }
+  button, select, input[type=range] { padding: 6px 10px; border-radius: 6px; border: 1px solid #ccc; background: white; cursor: pointer; }
+  button:active { transform: translateY(1px); }
+  #canvas { width: 100%; height: calc(100% - 56px); }
+  svg { width: 100%; height: 100%; display: block; }
+  .node { cursor: grab; }
+  .node:active { cursor: grabbing; }
+  .label { font-weight: 600; font-size: 13px; pointer-events: none; }
+  .info { width: 28%; padding: 12px; overflow: auto; }
+  .panel { background: #fff; border: 1px solid #eee; padding: 10px; border-radius: 8px; margin-bottom: 12px; }
+  .small { font-size: 13px; color: #555; }
+  .queues { display: flex; gap: 8px; flex-wrap: wrap; }
+  .box { padding: 8px; border-radius: 6px; background: #f5f7fa; min-width: 120px; }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .legend .item { display:flex; gap:6px; align-items:center; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; display:inline-block; border: 1px solid rgba(0,0,0,0.08); }
+  .controls-right { margin-left: auto; display:flex; gap:8px; align-items:center; }
+  .hint { color:#666; font-size:13px; margin-top:6px; }
+  a { color: #0077cc; text-decoration:none; }
+</style>
+</head>
+<body>
+  <div id="left">
+    <div id="controls">
+      <button id="addNodeBtn">Add Node</button>
+      <button id="addEdgeBtn">Add Edge</button>
+      <button id="deleteBtn">Delete</button>
+      <label class="small">Start:</label>
+      <select id="startSelect"></select>
+      <button id="stepBtn">Step</button>
+      <button id="playBtn">Play</button>
+      <button id="resetBtn">Reset</button>
+      <div class="controls-right">
+        <label class="small">Speed</label>
+        <input id="speed" type="range" min="200" max="2000" value="800">
+        <select id="exampleSel">
+          <option value="example1">Example: Simple</option>
+          <option value="example2">Example: Tree</option>
+          <option value="example3">Example: Grid</option>
+          <option value="random">Random graph</option>
+        </select>
+      </div>
+    </div>
+    <div id="canvas">
+      <svg id="svgCanvas"></svg>
+    </div>
+  </div>
+  <div class="info">
+    <div class="panel">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <strong>Breadth-First Search (BFS)</strong>
+        <div style="margin-left:auto;font-size:13px;color:#666">Undirected graph demo</div>
+      </div>
+      <p class="small">Click "Add Node" then click on canvas to create nodes. Click "Add Edge" then click two nodes to connect them. Drag nodes to rearrange. Select a start node and press "Step" to advance one BFS step or "Play" to animate. "Reset" clears the BFS state so you can re-run.</p>
+      <div class="legend">
+        <div class="item"><span class="dot" style="background:#ffffff;border:1px solid #bbb"></span> Unvisited</div>
+        <div class="item"><span class="dot" style="background: #ffdf7d"></span> In Queue</div>
+        <div class="item"><span class="dot" style="background: #7bc96f"></span> Visited</div>
+        <div class="item"><span class="dot" style="background: #66b2ff"></span> Current</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <strong>Queue</strong>
+      <div id="queueView" class="box small" style="margin-top:8px; min-height:28px"></div>
+      <div style="margin-top:8px"><strong>Visited order</strong></div>
+      <div id="visitedView" class="box small" style="margin-top:8px; min-height:28px"></div>
+    </div>
+
+    <div class="panel">
+      <strong>Actions</strong>
+      <p class="small">Modes:</p>
+      <ul class="small">
+        <li><b>Add Node</b>: click on empty canvas to place node.</li>
+        <li><b>Add Edge</b>: click first node then second to connect (undirected).</li>
+        <li><b>Delete</b>: click a node to remove it and its edges; click an edge to remove that edge.</li>
+      </ul>
+      <p class="hint">This visualization highlights how BFS explores neighbors by processing nodes level-by-level using a queue. Try different graphs and starting nodes.</p>
+    </div>
+
+    <div class="panel small">
+      <strong>Implementation notes</strong>
+      <p>BFS uses a queue. When a node is discovered it's enqueued and marked "in queue". When dequeued it's processed and marked "visited". Neighbors not yet seen are discovered and enqueued.</p>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // Simple interactive BFS demo
+  const svg = document.getElementById('svgCanvas');
+  const addNodeBtn = document.getElementById('addNodeBtn');
+  const addEdgeBtn = document.getElementById('addEdgeBtn');
+  const deleteBtn = document.getElementById('deleteBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const playBtn = document.getElementById('playBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const startSelect = document.getElementById('startSelect');
+  const queueView = document.getElementById('queueView');
+  const visitedView = document.getElementById('visitedView');
+  const speedInput = document.getElementById('speed');
+  const exampleSel = document.getElementById('exampleSel');
+
+  let mode = null; // 'addNode', 'addEdge', 'delete', null means drag/none
+  let nodes = []; // {id,x,y,group}
+  let edges = []; // {id,a,b}
+  let nodeIdCounter = 0;
+  let edgeIdCounter = 0;
+
+  // BFS state
+  let bfsQueue = [];
+  let visitedSet = new Set();
+  let discoveredSet = new Set();
+  let current = null;
+  let playing = false;
+  let playTimer = null;
+
+  // UI helpers
+  function setMode(m){
+    mode = m;
+    addNodeBtn.style.background = m === 'addNode' ? '#e8f4ff' : 'white';
+    addEdgeBtn.style.background = m === 'addEdge' ? '#e8f4ff' : 'white';
+    deleteBtn.style.background = m === 'delete' ? '#ffecec' : 'white';
+  }
+
+  addNodeBtn.onclick = ()=> setMode(mode === 'addNode' ? null : 'addNode');
+  addEdgeBtn.onclick = ()=> setMode(mode === 'addEdge' ? null : 'addEdge');
+  deleteBtn.onclick = ()=> setMode(mode === 'delete' ? null : 'delete');
+
+  // Canvas interactions
+  let selectedForEdge = null;
+  function createNode(x,y,label){
+    const id = 'n' + (++nodeIdCounter);
+    const node = { id, x, y, r:22, label: label || id, elGroup: null };
+    nodes.push(node);
+    draw();
+    populateStartSelect();
+    return node;
+  }
+  function removeNode(node){
+    edges = edges.filter(e => e.a !== node.id && e.b !== node.id);
+    nodes = nodes.filter(n => n.id !== node.id);
+    draw();
+    populateStartSelect();
+  }
+  function createEdge(aId,bId){
+    // avoid duplicates and self-loops
+    if(aId === bId) return null;
+    if(edges.some(e => (e.a===aId && e.b===bId) || (e.a===bId && e.b===aId))) return null;
+    const id = 'e' + (++edgeIdCounter);
+    const e = { id, a: aId, b: bId };
+    edges.push(e);
+    draw();
+    return e;
+  }
+  function removeEdge(edge){
+    edges = edges.filter(e => e.id !== edge.id);
+    draw();
+  }
+
+  function clearBFSState(){
+    bfsQueue = [];
+    visitedSet.clear();
+    discoveredSet.clear();
+    current = null;
+    playing = false;
+    if(playTimer) {
+      clearInterval(playTimer);
+      playTimer = null;
+    }
+    playBtn.textContent = 'Play';
+    updateViews();
+    draw(); // to reset colors
+  }
+
+  // BFS logic: one step performs processing of one node from queue and enqueues undiscovered neighbors
+  function bfsStep(startId){
+    // If BFS not started: initialize
+    if(!bfsQueue.length && !visitedSet.size && !discoveredSet.size){
+      // begin BFS
+      bfsQueue.push(startId);
+      discoveredSet.add(startId);
+      updateViews();
+      draw();
+      return;
+    }
+    if(bfsQueue.length === 0){
+      current = null;
+      updateViews();
+      draw();
+      return;
+    }
+    const nodeId = bfsQueue.shift();
+    current = nodeId;
+    visitedSet.add(nodeId);
+    updateViews();
+    draw();
+    // discover neighbors
+    const neighbors = getNeighbors(nodeId);
+    neighbors.forEach(nei => {
+      if(!discoveredSet.has(nei)){
+        discoveredSet.add(nei);
+        bfsQueue.push(nei);
+      }
+    });
+    updateViews();
+    drawEdgeHighlights(nodeId, neighbors);
+  }
+
+  function getNeighbors(nodeId){
+    const ns = [];
+    edges.forEach(e => {
+      if(e.a === nodeId) ns.push(e.b);
+      else if(e.b === nodeId) ns.push(e.a);
+    });
+    // sort to stable deterministic order (by id)
+    ns.sort();
+    return ns;
+  }
+
+  // Visual rendering
+  function draw(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    // draw edges
+    edges.forEach(e => {
+      const a = nodes.find(n=>n.id===e.a);
+      const b = nodes.find(n=>n.id===e.b);
+      if(!a || !b) return;
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', a.x);
+      line.setAttribute('y1', a.y);
+      line.setAttribute('x2', b.x);
+      line.setAttribute('y2', b.y);
+      line.setAttribute('stroke', '#bbb');
+      line.setAttribute('stroke-width', 3);
+      line.setAttribute('stroke-linecap','round');
+      line.dataset.edgeId = e.id;
+      line.style.cursor = mode === 'delete' ? 'pointer' : 'default';
+      line.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if(mode === 'delete') removeEdge(e);
+      });
+      svg.appendChild(line);
+    });
+    // draw nodes
+    nodes.forEach(n => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('transform', `translate(${n.x},${n.y})`);
+      g.classList.add('node');
+      // circle
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('r', n.r);
+      circle.setAttribute('cx', 0);
+      circle.setAttribute('cy', 0);
+      circle.setAttribute('stroke', '#888');
+      circle.setAttribute('stroke-width', 1);
+      circle.dataset.nodeId = n.id;
+
+      // determine color based on BFS state
+      if(current === n.id){
+        circle.setAttribute('fill', '#66b2ff'); // current
+        circle.setAttribute('stroke', '#2470d9');
+        circle.setAttribute('stroke-width', 2.5);
+      } else if(visitedSet.has(n.id)){
+        circle.setAttribute('fill', '#7bc96f'); // visited
+        circle.setAttribute('stroke', '#4f9d4a');
+      } else if(discoveredSet.has(n.id)){
+        circle.setAttribute('fill', '#ffdf7d'); // in queue
+        circle.setAttribute('stroke', '#e6c85c');
+      } else {
+        circle.setAttribute('fill', '#ffffff'); // unvisited
+      }
+
+      // shadow
+      circle.setAttribute('filter','');
+      g.appendChild(circle);
+
+      // label
+      const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+      text.setAttribute('text-anchor','middle');
+      text.setAttribute('dy','6');
+      text.setAttribute('class','label');
+      text.setAttribute('pointer-events','none');
+      text.textContent = n.label;
+      g.appendChild(text);
+
+      // events
+      g.addEventListener('mousedown', ev => {
+        ev.stopPropagation();
+        if(mode === 'addEdge'){
+          if(!selectedForEdge){
+            selectedForEdge = n;
+            circle.setAttribute('stroke', '#d95bff');
+            circle.setAttribute('stroke-width', 3);
+          } else {
+            createEdge(selectedForEdge.id, n.id);
+            selectedForEdge = null;
+            draw();
+          }
+          return;
+        }
+        if(mode === 'delete'){
+          removeNode(n);
+          return;
+        }
+        // start drag
+        startDrag(n, g);
+      });
+
+      svg.appendChild(g);
+      n.elGroup = g;
+    });
+    // bring node groups to front so they overlay edges
+    // (we appended edges first then nodes, so OK)
+  }
+
+  // temporary highlight when exploring neighbors
+  function drawEdgeHighlights(nodeId, neighbors){
+    // briefly highlight edges between current node and its neighbors
+    edges.forEach(e => {
+      if(e.a === nodeId && neighbors.includes(e.b) || e.b === nodeId && neighbors.includes(e.a)){
+        // draw overlay line
+        const a = nodes.find(n=>n.id===e.a);
+        const b = nodes.find(n=>n.id===e.b);
+        if(!a||!b) return;
+        const path = document.createElementNS('http://www.w3.org/2000/svg','line');
+        path.setAttribute('x1', a.x);
+        path.setAttribute('y1', a.y);
+        path.setAttribute('x2', b.x);
+        path.setAttribute('y2', b.y);
+        path.setAttribute('stroke', '#ff7a7a');
+        path.setAttribute('stroke-width', 5);
+        path.setAttribute('stroke-linecap','round');
+        path.style.opacity = 0.95;
+        svg.appendChild(path);
+        setTimeout(()=> {
+          if(path.parentNode) path.parentNode.removeChild(path);
+        }, Math.max(400, parseInt(speedInput.value)/2));
+      }
+    });
+  }
+
+  // drag handling
+  let dragging = null;
+  let dragOffset = {x:0,y:0};
+  function startDrag(node, group){
+    if(mode) return;
+    dragging = node;
+    const pt = getMouseSVGPoint(lastMouseEvent);
+    dragOffset.x = node.x - pt.x;
+    dragOffset.y = node.y - pt.y;
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', endDrag);
+  }
+  function onDrag(ev){
+    if(!dragging) return;
+    const pt = getMouseSVGPoint(ev);
+    dragging.x = pt.x + dragOffset.x;
+    dragging.y = pt.y + dragOffset.y;
+    draw();
+  }
+  function endDrag(ev){
+    dragging = null;
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', endDrag);
+  }
+
+  function getMouseSVGPoint(evt){
+    const rect = svg.getBoundingClientRect();
+    const x = (evt.clientX - rect.left);
+    const y = (evt.clientY - rect.top);
+    return {x,y};
+  }
+
+  let lastMouseEvent = null;
+  svg.addEventListener('mousemove', ev => lastMouseEvent = ev);
+
+  // click canvas to add node or clear selection
+  svg.addEventListener('click', ev => {
+    const pt = getMouseSVGPoint(ev);
+    if(mode === 'addNode'){
+      const lab = String.fromCharCode(65 + (nodes.length % 26));
+      createNode(pt.x, pt.y, lab + nodes.length);
+    } else {
+      // clicking blank clears selectedForEdge
+      if(selectedForEdge){
+        selectedForEdge = null;
+        draw();
+      }
+    }
+  });
+
+  // delete edges by clicking line when in delete mode is handled earlier
+
+  // populate startSelect
+  function populateStartSelect(){
+    const prev = startSelect.value;
+    while(startSelect.firstChild) startSelect.removeChild(startSelect.firstChild);
+    nodes.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n.id;
+      opt.textContent = n.label;
+      startSelect.appendChild(opt);
+    });
+    if(nodes.length){
+      startSelect.value = prev && nodes.some(n=>n.id===prev) ? prev : nodes[0].id;
+    }
+  }
+
+  // Views update
+  function updateViews(){
+    queueView.innerHTML = '';
+    visitedView.innerHTML = '';
+    // queue items show labels
+    const qlabels = bfsQueue.map(id => (nodes.find(n=>n.id===id)||{label:id}).label);
+    queueView.textContent = qlabels.join(' ← ');
+    const vlabels = Array.from(visitedSet).map(id => (nodes.find(n=>n.id===id)||{label:id}).label);
+    visitedView.textContent = vlabels.join(', ');
+    // update play button text
+    playBtn.textContent = playing ? 'Pause' : 'Play';
+  }
+
+  // Step and play controls
+  stepBtn.onclick = ()=> {
+    if(!nodes.length) return;
+    const start = startSelect.value || nodes[0].id;
+    bfsStep(start);
+  };
+
+  playBtn.onclick = ()=> {
+    if(playing){
+      playing = false;
+      if(playTimer) { clearInterval(playTimer); playTimer = null; }
+      playBtn.textContent = 'Play';
+    } else {
+      if(!nodes.length) return;
+      playing = true;
+      playBtn.textContent = 'Pause';
+      const start = startSelect.value || nodes[0].id;
+      // initialize if first step not yet done
+      if(!bfsQueue.length && !visitedSet.size && !discoveredSet.size){
+        bfsQueue.push(start);
+        discoveredSet.add(start);
+        updateViews();
+        draw();
+      }
+      playTimer = setInterval(()=> {
+        if(bfsQueue.length === 0){
+          playing = false;
+          clearInterval(playTimer);
+          playTimer = null;
+          playBtn.textContent = 'Play';
+          current = null;
+          draw();
+          updateViews();
+          return;
+        }
+        bfsStep(start);
+      }, Math.max(80, parseInt(speedInput.value)));
+    }
+  };
+
+  resetBtn.onclick = ()=> {
+    clearBFSState();
+  };
+
+  // Example graphs
+  exampleSel.onchange = ()=> loadExample(exampleSel.value);
+  function clearGraph(){
+    nodes = [];
+    edges = [];
+    nodeIdCounter = 0;
+    edgeIdCounter = 0;
+    selectedForEdge = null;
+    clearBFSState();
+    draw();
+    populateStartSelect();
+  }
+  function loadExample(name){
+    clearGraph();
+    if(name === 'example1'){
+      // simple
+      const a = createNode(140,120,'A'); const b = createNode(300,100,'B');
+      const c = createNode(420,160,'C'); const d = createNode(240,240,'D');
+      const e = createNode(420,260,'E');
+      createEdge(a.id,b.id); createEdge(a.id,d.id); createEdge(b.id,c.id); createEdge(d.id,e.id); createEdge(c.id,e.id);
+    } else if(name === 'example2'){
+      // tree
+      const root = createNode(300,80,'1');
+      const n2 = createNode(200,160,'2'); const n3 = createNode(400,160,'3');
+      const n4 = createNode(150,240,'4'); const n5 = createNode(250,240,'5');
+      const n6 = createNode(350,240,'6'); const n7 = createNode(450,240,'7');
+      createEdge(root.id,n2.id); createEdge(root.id,n3.id);
+      createEdge(n2.id,n4.id); createEdge(n2.id,n5.id);
+      createEdge(n3.id,n6.id); createEdge(n3.id,n7.id);
+    } else if(name === 'example3'){
+      // grid 3x3
+      const grid = [];
+      for(let r=0;r<3;r++){
+        for(let c=0;c<3;c++){
+          grid.push(createNode(120 + c*140, 80 + r*120, `${r},${c}`));
+        }
+      }
+      function idx(r,c){ return r*3 + c; }
+      for(let r=0;r<3;r++){
+        for(let c=0;c<3;c++){
+          if(c<2) createEdge(grid[idx(r,c)].id, grid[idx(r,c+1)].id);
+          if(r<2) createEdge(grid[idx(r,c)].id, grid[idx(r+1,c)].id);
+        }
+      }
+    } else if(name === 'random'){
+      // random graph
+      const count = 8;
+      for(let i=0;i<count;i++){
+        createNode(80 + Math.random() * 640, 60 + Math.random() * 420, String.fromCharCode(65+i));
+      }
+      // random edges
+      for(let i=0;i<count;i++){
+        for(let j=i+1;j<count;j++){
+          if(Math.random() < 0.25) createEdge(nodes[i].id, nodes[j].id);
+        }
+      }
+      // ensure connectivity by at least chaining
+      for(let i=0;i<count-1;i++){
+        if(!edges.some(e => (e.a===nodes[i].id && e.b===nodes[i+1].id) || (e.a===nodes[i+1].id && e.b===nodes[i].id))){
+          createEdge(nodes[i].id, nodes[i+1].id);
+        }
+      }
+    }
+    clearBFSState();
+    draw();
+    populateStartSelect();
+  }
+
+  // deletion of edges by clicking lines handled in draw() addEventListener
+
+  // initialize with example1
+  loadExample('example1');
+
+  // small helper: clicking outside stops edge selection
+  document.addEventListener('keydown', ev => {
+    if(ev.key === 'Escape'){
+      selectedForEdge = null;
+      setMode(null);
+      draw();
+    }
+  });
+
+  // ensure UI responsiveness
+  speedInput.addEventListener('input', ()=> {
+    if(playing){
+      if(playTimer) { clearInterval(playTimer); playTimer = null; }
+      playTimer = setInterval(()=> {
+        const start = startSelect.value || (nodes[0] && nodes[0].id);
+        if(!start) return;
+        if(bfsQueue.length === 0){
+          playing = false;
+          clearInterval(playTimer);
+          playTimer = null;
+          playBtn.textContent = 'Play';
+          current = null;
+          draw();
+          updateViews();
+          return;
+        }
+        bfsStep(start);
+      }, Math.max(80, parseInt(speedInput.value)));
+    }
+  });
+
+  // expose for debugging (not necessary)
+  window._graphDemo = { createNode, createEdge, nodes, edges, draw };
+
+  // small safety: clicking on UI should not add node
+  document.getElementById('left').addEventListener('click', ev => {
+    // keep default
+  });
+})();
+</script>
+</body>
+</html>

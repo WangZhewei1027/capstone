@@ -1,0 +1,49 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Selection Sort Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - text: "Array size:"
+    - spinbutton "Array size:" [ref=e4]: "15"
+    - button "Generate New Array" [ref=e5]
+    - button "Start Selection Sort" [ref=e6]
+    - text: "Speed:"
+    - slider "Speed:" [ref=e7]: "500"
+    - text: 500 ms
+  - generic [ref=e8]:
+    - generic [ref=e9]: "59"
+    - generic [ref=e10]: "54"
+    - generic [ref=e11]: "58"
+    - generic [ref=e12]: "15"
+    - generic [ref=e13]: "79"
+    - generic [ref=e14]: "5"
+    - generic [ref=e15]: "62"
+    - generic [ref=e16]: "34"
+    - generic [ref=e17]: "86"
+    - generic [ref=e18]: "30"
+    - generic [ref=e19]: "61"
+    - generic [ref=e20]: "39"
+    - generic [ref=e21]: "31"
+    - generic [ref=e22]: "67"
+    - generic [ref=e23]: "61"
+  - generic [ref=e24]:
+    - heading "What is Selection Sort?" [level=2] [ref=e25]
+    - paragraph [ref=e26]: Selection sort is a simple comparison-based sorting algorithm. It works by repeatedly selecting the minimum element from the unsorted portion of the array and swapping it with the first unsorted element.
+    - list [ref=e27]:
+      - listitem [ref=e28]: Start from the first element, consider it as the minimum.
+      - listitem [ref=e29]: Check the rest of the array to find a smaller element.
+      - listitem [ref=e30]: If found, update the minimum index.
+      - listitem [ref=e31]: After checking the entire unsorted portion, swap the minimum element with the current element.
+      - listitem [ref=e32]: Move to the next element and repeat until the array is sorted.
+    - paragraph [ref=e33]: "This visualization highlights:"
+    - list [ref=e34]:
+      - listitem [ref=e35]: "Orange bar: current element being considered."
+      - listitem [ref=e36]: "Red bar: current minimum in the unsorted portion."
+      - listitem [ref=e37]: "Green bars: already correctly placed sorted elements."
+    - paragraph [ref=e38]:
+      - text: Learn more on
+      - link "Wikipedia" [ref=e39] [cursor=pointer]:
+        - /url: https://en.wikipedia.org/wiki/Selection_sort
+      - text: .
+```

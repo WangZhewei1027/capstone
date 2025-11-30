@@ -1,0 +1,46 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Queue (FIFO) Interactive Demo" [level=1] [ref=e4]
+    - paragraph [ref=e5]: A queue is a First-In-First-Out (FIFO) data structure. This demo lets you enqueue and dequeue items, see the internal state, and inspect common operations.
+    - generic [ref=e6]: Value to enqueue
+    - generic [ref=e7]:
+      - textbox "Value to enqueue" [ref=e8]:
+        - /placeholder: e.g., Task A
+      - button "Enqueue" [ref=e9] [cursor=pointer]
+    - generic [ref=e10]:
+      - button "Dequeue" [ref=e11] [cursor=pointer]
+      - button "Peek (front)" [ref=e12] [cursor=pointer]
+      - button "Clear" [ref=e13] [cursor=pointer]
+    - generic [ref=e14]: Optional capacity (0 = unbounded)
+    - generic [ref=e15]:
+      - spinbutton "Optional capacity (0 = unbounded)" [ref=e16]: "0"
+      - button "Apply" [ref=e17] [cursor=pointer]
+    - generic [ref=e18]:
+      - generic [ref=e19]: "Size: 1"
+      - generic [ref=e20]: "Front: C"
+      - generic [ref=e21]: "Rear: C"
+      - generic [ref=e22]: "Capacity: ∞"
+    - generic [ref=e23]: "Complexity: Enqueue O(1), Dequeue O(1) — this implementation uses a circular buffer under the hood."
+  - generic [ref=e25]:
+    - generic [ref=e26]: Queue visualization
+    - generic [ref=e28]:
+      - text: C
+      - generic [ref=e29]: front
+      - generic [ref=e30]: rear
+    - generic [ref=e31]:
+      - generic [ref=e33]: Front ⟵
+      - generic [ref=e35]: ⟶ Rear
+    - generic [ref=e36]:
+      - generic [ref=e37]: Operation log
+      - log [ref=e38]:
+        - generic [ref=e39]: "11:21:13 PM: Demo complete — queue preserves FIFO: A then B were removed first"
+        - generic [ref=e40]: "11:21:13 PM: Dequeued \"B\""
+        - generic [ref=e41]: "11:21:12 PM: Dequeued \"A\""
+        - generic [ref=e42]: "11:21:11 PM: Enqueued \"C\""
+        - generic [ref=e43]: "11:21:11 PM: Enqueued \"B\""
+        - generic [ref=e44]: "11:21:10 PM: Enqueued \"A\""
+        - generic [ref=e45]: "11:21:09 PM: Demo: enqueue A, B, C, then dequeue twice to show FIFO"
+```

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Weighted Graph Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    overflow: hidden;
+    background: #f0f0f0;
+  }
+  #graph-container {
+    width: 100vw;
+    height: 100vh;
+  }
+  .node circle {
+    fill: #2196f3;
+    stroke: #0d47a1;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: fill 0.3s ease;
+  }
+  .node text {
+    fill: #fff;
+    font-weight: bold;
+    pointer-events: none;
+    user-select: none;
+  }
+  .edge path {
+    stroke: #666;
+    stroke-width: 2px;
+    fill: none;
+  }
+  .edge text {
+    fill: #000;
+    font-size: 14px;
+    user-select: none;
+    pointer-events: none;
+    background: #fff;
+  }
+  #info {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(255 255 255 / 0.9);
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 10px 15px;
+    max-width: 320px;
+    font-size: 14px;
+    box-shadow: 2px 3px 10px rgba(0,0,0,0.1);
+  }
+  #info h2 {
+    margin-top: 0;
+  }
+  #info button {
+    margin-top: 8px;
+    background: #2196f3;
+    border: none;
+    color: #fff;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  #info button:hover {
+    background: #1769aa;
+  }
+</style>
+</head>
+<body>
+<div id="graph-container"></div>
+<div id="info">
+  <h2>Weighted Graph Demo</h2>
+  <p>This is a demonstration of a weighted undirected graph. Nodes are draggable. Edges have weights displayed on them.</p>
+  <p><b>Drag nodes</b> to rearrange the graph.</p>
+  <p><b>Click an edge</b> to highlight its weight.</p>
+  <button id="resetBtn">Reset Layout</button>
+</div>
+
+<script>
+// Weighted Graph Data: Undirected with weights
+const graphData = {
+  nodes: [
+    { id: "A" },
+    { id: "B" },
+    { id: "C" },
+    { id: "D" },
+    { id: "E" },
+    { id: "F" }
+  ],
+  edges: [
+    { source: "A", target: "B", weight: 4 },
+    { source: "A", target: "C", weight: 2 },
+    { source: "B", target: "C", weight: 5 },
+    { source: "B", target: "D", weight: 10 },
+    { source: "C", target: "E", weight: 3 },
+    { source: "E", target: "D", weight: 4 },
+    { source: "D", target: "F", weight: 11 }
+  ]
+};
+
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+// Create SVG container
+const svgNS = "http://www.w3.org/2000/svg";
+const svg = document.createElementNS(svgNS, "svg");
+svg.setAttribute("width", width);
+svg.setAttribute("height", height);
+svg.style.background = "#ffffff";
+document.getElementById('graph-container').appendChild(svg);
+
+// Create SVG elements groups
+const edgesGroup = document.createElementNS(svgNS, "g");
+const nodesGroup = document.createElementNS(svgNS, "g");
+svg.appendChild(edgesGroup);
+svg.appendChild(nodesGroup);
+
+// Helper function: create SVG element
+function createSVGElement(type, attrs = {}) {
+  const elem = document.createElementNS(svgNS, type);
+  for (const attr in attrs) {
+    elem.setAttribute(attr, attrs[attr]);
+  }
+  return elem;
+}
+
+// Store node objects with positions
+const nodes = graphData.nodes.map((n, i) => {
+  // Random initial positions around center
+  return {
+    id: n.id,
+    x: width/2 + 150*Math.cos((2*Math.PI*i)/graphData.nodes.length),
+    y: height/2 + 150*Math.sin((2*Math.PI*i)/graphData.nodes.length),
+    elem: null,
+    textElem: null,
+    edges: []
+  };
+});
+
+// Map for quick lookup
+const nodeById = {};
+nodes.forEach(n => nodeById[n.id] = n);
+
+// Create edges
+const edges = graphData.edges.map(e => {
+  const sourceNode = nodeById[e.source];
+  const targetNode = nodeById[e.target];
+  const edge = {
+    source: sourceNode,
+    target: targetNode,
+    weight: e.weight,
+    pathElem: null,
+    weightTextElem: null
+  };
+  sourceNode.edges.push(edge);
+  targetNode.edges.push(edge);
+  return edge;
+});
+
+// Draw edges
+edges.forEach(edge => {
+  // Path line for edge - we draw straight lines
+  const path = createSVGElement("path", {
+    stroke: "#666",
+    "stroke-width": 2,
+    fill: "none",
+    cursor: "pointer"
+  });
+  edgesGroup.appendChild(path);
+
+  // Weight text - positioned midpoint of the line plus offset
+  const weightText = createSVGElement("text", {
+    fill: "#000",
+    "font-size": 14,
+    "text-anchor": "middle",
+    "alignment-baseline": "middle",
+    "pointer-events": "none",
+    style: "user-select:none; font-family: sans-serif;"
+  });
+  weightText.textContent = edge.weight;
+  edgesGroup.appendChild(weightText);
+
+  edge.pathElem = path;
+  edge.weightTextElem = weightText;
+
+  // Add click to highlight weight text & edge line
+  path.addEventListener("click", () => {
+    clearEdgeHighlights();
+    path.setAttribute("stroke", "#e91e63");
+    path.setAttribute("stroke-width", 4);
+    weightText.setAttribute("fill", "#e91e63");
+  });
+});
+
+function clearEdgeHighlights() {
+  edges.forEach(e => {
+    e.pathElem.setAttribute("stroke", "#666");
+    e.pathElem.setAttribute("stroke-width", 2);
+    e.weightTextElem.setAttribute("fill", "#000");
+  });
+}
+
+// Draw nodes
+nodes.forEach(node => {
+  const g = createSVGElement("g", { class: "node", cursor: "move" });
+
+  const circle = createSVGElement("circle", {
+    r: 20,
+    fill: "#2196f3",
+    stroke: "#0d47a1",
+    "stroke-width": 2,
+    cx: 0,
+    cy: 0,
+    cursor: "pointer"
+  });
+
+  const text = createSVGElement("text", {
+    "text-anchor": "middle",
+    "alignment-baseline": "middle",
+    fill: "#fff",
+    "font-weight": "bold",
+    "pointer-events": "none",
+    "user-select": "none",
+    style: "font-family:sans-serif; font-size: 16px;"
+  });
+  text.textContent = node.id;
+
+  g.appendChild(circle);
+  g.appendChild(text);
+  nodesGroup.appendChild(g);
+
+  node.elem = g;
+  node.circle = circle;
+  node.textElem = text;
+
+  // Position the group initially
+  g.setAttribute("transform", `translate(${node.x},${node.y})`);
+});
+
+// Force-directed layout parameters
+const alphaDecay = 0.03; // simulation cooling
+let alpha = 1; // current simulation alpha
+const repulsionStrength = 8000;
+const linkDistance = 150;
+const linkStrength = 0.1;
+
+// Simulation step: apply forces & update positions
+function simulationStep() {
+  if (alpha < 0.005) return false; // stop simulation
+
+  // Apply repulsive forces between all nodes
+  for(let i=0; i<nodes.length; i++) {
+    let n1 = nodes[i];
+    for(let j=i+1; j<nodes.length; j++) {
+      let n2 = nodes[j];
+      let dx = n1.x - n2.x;
+      let dy = n1.y - n2.y;
+      let dist = Math.sqrt(dx*dx + dy*dy) + 0.1;
+      if(dist < 1) dist = 1;
+      let force = repulsionStrength / (dist*dist);
+      // Apply displacement
+      let fx = (dx / dist) * force * alpha;
+      let fy = (dy / dist) * force * alpha;
+      n1.x += fx;
+      n1.y += fy;
+      n2.x -= fx;
+      n2.y -= fy;
+    }
+  }
+
+  // Apply attractive forces from edges (links)
+  edges.forEach(edge => {
+    const source = edge.source;
+    const target = edge.target;
+    let dx = target.x - source.x;
+    let dy = target.y - source.y;
+    let dist = Math.sqrt(dx*dx + dy*dy) + 0.1;
+    // Desired distance influenced slightly by edge weight
+    let desiredDist = linkDistance + edge.weight * 10;
+
+    let force = (dist - desiredDist) * linkStrength * alpha;
+    let fx = (dx / dist) * force;
+    let fy = (dy / dist) * force;
+
+    source.x += fx;
+    source.y += fy;
+    target.x -= fx;
+    target.y -= fy;
+  });
+
+  // Dampen alpha (cooling)
+  alpha *= (1 - alphaDecay);
+
+  return true;
+}
+
+function updatePositions() {
+  // Update SVG positions of nodes
+  nodes.forEach(node => {
+    node.elem.setAttribute("transform", `translate(${node.x.toFixed(1)},${node.y.toFixed(1)})`);
+  });
+
+  // Update edges positions
+  edges.forEach(edge => {
+    const sx = edge.source.x;
+    const sy = edge.source.y;
+    const tx = edge.target.x;
+    const ty = edge.target.y;
+    // Line's path string
+    const d = `M${sx.toFixed(1)} ${sy.toFixed(1)} L${tx.toFixed(1)} ${ty.toFixed(1)}`;
+    edge.pathElem.setAttribute("d", d);
+
+    // Place weight text at midpoint with slight offset perpendicular to edge
+    let mx = (sx + tx)/2;
+    let my = (sy + ty)/2;
+
+    // Compute perpendicular offset vector normalized
+    let dx = tx - sx;
+    let dy = ty - sy;
+    let length = Math.sqrt(dx*dx + dy*dy) + 0.1;
+    let offset = 12; // pixels offset from line
+    let offsetX = -(dy / length) * offset;
+    let offsetY = (dx / length) * offset;
+
+    edge.weightTextElem.setAttribute("x", (mx + offsetX).toFixed(1));
+    edge.weightTextElem.setAttribute("y", (my + offsetY).toFixed(1));
+  });
+}
+
+// Initial simulation before enabling drag for better layout
+function runInitialSimulation() {
+  let steps = 300;
+  function runStep(i=0) {
+    if(i < steps) {
+      simulationStep();
+      updatePositions();
+      requestAnimationFrame(() => runStep(i+1));
+    } else {
+      alpha = 0; // stop further simulation
+    }
+  }
+  runStep();
+}
+
+runInitialSimulation();
+
+// Drag behavior for nodes
+let dragTarget = null;
+let dragOffset = {x:0, y:0};
+
+svg.addEventListener("mousedown", e => {
+  // Check if clicked on node circle or text by hit testing
+  if(e.target.tagName === "circle" || e.target.tagName === "text") {
+    dragTarget = e.target.parentNode;
+    const transform = dragTarget.getAttribute("transform");
+    const match = transform.match(/translate\(([-0-9.]+),\s*([-0-9.]+)\)/);
+    if(match) {
+      dragOffset.x = parseFloat(match[1]) - e.clientX;
+      dragOffset.y = parseFloat(match[2]) - e.clientY;
+    }
+    // Stop simulation alpha while dragging
+    alpha = 0;
+    clearEdgeHighlights();
+  }
+});
+
+window.addEventListener("mouseup", e => {
+  dragTarget = null;
+});
+
+window.addEventListener("mousemove", e => {
+  if(dragTarget) {
+    // Update node position
+    let newX = e.clientX + dragOffset.x;
+    let newY = e.clientY + dragOffset.y;
+
+    // Clamp inside viewport
+    newX = Math.min(width-20, Math.max(20, newX));
+    newY = Math.min(height-20, Math.max(20, newY));
+
+    dragTarget.setAttribute("transform", `translate(${newX},${newY})`);
+
+    // Update node data x,y for simulation
+    let node = nodes.find(n => n.elem === dragTarget);
+    if(node) {
+      node.x = newX;
+      node.y = newY;
+    }
+
+    updatePositions();
+  }
+});
+
+// Reset button - reset node positions and rerun simulation
+document.getElementById("resetBtn").addEventListener("click", () => {
+  // Reset node positions to circle
+  nodes.forEach((n,i) => {
+    n.x = width/2 + 150*Math.cos((2*Math.PI*i)/nodes.length);
+    n.y = height/2 + 150*Math.sin((2*Math.PI*i)/nodes.length);
+  });
+  alpha = 1;
+  runInitialSimulation();
+  clearEdgeHighlights();
+});
+
+// When clicking outside edges or nodes clear highlights
+svg.addEventListener("click", e => {
+  if(e.target === svg) {
+    clearEdgeHighlights();
+  }
+});
+
+</script>
+</body>
+</html>

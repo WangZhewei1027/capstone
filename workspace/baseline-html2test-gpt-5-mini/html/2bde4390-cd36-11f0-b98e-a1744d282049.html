@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Bellman-Ford Algorithm Visualizer</title>
+<style>
+  html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;}
+  #app{display:flex;height:100vh;}
+  #canvasWrap{flex:1;position:relative;background:#f6f8fa;border-right:1px solid #ddd;}
+  canvas{width:100%;height:100%;display:block;}
+  #controls{width:420px;padding:14px;box-sizing:border-box;overflow:auto;background:#fff;}
+  h2{margin:6px 0 10px;font-size:18px;}
+  .row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+  button,input,select{padding:6px 8px;font-size:14px;border:1px solid #bbb;border-radius:6px;background:#fff;}
+  button{cursor:pointer}
+  .small{font-size:12px;padding:6px}
+  #log{height:160px;overflow:auto;background:#111;color:#0f0;padding:8px;border-radius:6px;font-family:monospace;font-size:12px;}
+  .table{margin-top:8px;border:1px solid #ddd;padding:8px;border-radius:6px;background:#fafafa;}
+  .table-item{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
+  label{font-size:13px;}
+  .nodeHint{position:absolute;left:8px;top:8px;background:rgba(255,255,255,0.9);padding:6px;border-radius:6px;border:1px solid #ddd;font-size:13px;}
+  .badge{display:inline-block;padding:3px 6px;border-radius:6px;background:#eee;font-size:12px;margin-left:6px;}
+  .edge-inputs{display:flex;gap:6px;align-items:center}
+  .dist-cell{min-width:140px;padding:6px;border-radius:6px;background:#fff;border:1px solid #e6e6e6;margin-bottom:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvasWrap">
+    <div class="nodeHint">
+      Click canvas to add node. Drag nodes to move. Click a node, then another to create an edge (you'll be prompted for weight).<br>
+      Click "Sample Graph" to load an example. Select a source node by clicking it (it will be highlighted).
+    </div>
+    <canvas id="c"></canvas>
+  </div>
+  <div id="controls">
+    <h2>Bellman-Ford Visualizer</h2>
+    <div class="row">
+      <button id="sampleBtn">Sample Graph</button>
+      <button id="randomBtn">Random Graph</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+
+    <div class="row">
+      <button id="selectBtn" class="small">Select Source</button>
+      <button id="resetBtn" class="small">Reset Algorithm</button>
+      <select id="mode">
+        <option value="step">Step-by-step</option>
+        <option value="auto">Animate</option>
+      </select>
+      <button id="runBtn" class="small">Run</button>
+      <button id="pauseBtn" class="small">Pause</button>
+    </div>
+
+    <div class="row">
+      <button id="stepBtn">Step</button>
+      <button id="detectBtn">Detect Negative Cycle</button>
+    </div>
+
+    <div style="margin-top:10px;">
+      <label>Iterations: <span id="iter">0</span></label>
+      <label class="badge">V = <span id="vcount">0</span></label>
+      <label class="badge">E = <span id="ecount">0</span></label>
+    </div>
+
+    <div class="table" id="distTable">
+      <strong>Distances / Predecessors</strong>
+      <div id="distList"></div>
+    </div>
+
+    <div class="table">
+      <strong>Controls & Tips</strong>
+      <div style="font-size:13px;margin-top:6px">- To create an edge: click one node (it will flash), then click target node and enter weight (can be negative).<br>
+      - Click a node to set it as source (orange).<br>
+      - "Run" with auto mode animates relaxations. "Step" executes one relaxation.</div>
+    </div>
+
+    <div style="margin-top:10px;">
+      <strong>Log / Events</strong>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('c');
+  const wrap = document.getElementById('canvasWrap');
+  const ctx = canvas.getContext('2d');
+  let w = canvas.width = wrap.clientWidth;
+  let h = canvas.height = wrap.clientHeight;
+  function resize(){
+    w = canvas.width = wrap.clientWidth;
+    h = canvas.height = wrap.clientHeight;
+    draw();
+  }
+  window.addEventListener('resize',resize);
+
+  // Data structures
+  let nodes = []; // {id,label,x,y}
+  let edges = []; // {u,v,w}
+  let nextId = 0;
+
+  // Algorithm state
+  let source = null;
+  let dist = [];
+  let pred = [];
+  let inNegCycle = []; // boolean markers
+  let iter = 0; // current iteration (0..V-1)
+  let edgeIdx = 0; // current edge index in this iteration
+  let running = false;
+  let animationTimer = null;
+  let stepDelay = 450; // ms for auto mode
+
+  // UI references
+  const sampleBtn = document.getElementById('sampleBtn');
+  const randomBtn = document.getElementById('randomBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const runBtn = document.getElementById('runBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const detectBtn = document.getElementById('detectBtn');
+  const modeSelect = document.getElementById('mode');
+  const selectBtn = document.getElementById('selectBtn');
+  const iterLabel = document.getElementById('iter');
+  const vcount = document.getElementById('vcount');
+  const ecount = document.getElementById('ecount');
+  const distList = document.getElementById('distList');
+  const logEl = document.getElementById('log');
+
+  function log(msg){
+    const t = new Date().toLocaleTimeString();
+    logEl.innerHTML = '['+t+'] ' + msg + '<br>' + logEl.innerHTML;
+  }
+
+  // Drawing functions
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    // draw edges
+    edges.forEach((e,idx)=>{
+      drawEdge(e, idx);
+    });
+    // draw nodes
+    nodes.forEach(n=> drawNode(n));
+  }
+
+  function drawNode(n){
+    const r = 20;
+    // fill
+    ctx.beginPath();
+    ctx.fillStyle = (n.id === source) ? '#ffecb3' : '#fff';
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    ctx.arc(n.x,n.y,r,0,Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    // label
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.label, n.x, n.y);
+    // distance small text
+    const di = dist[n.id];
+    ctx.font = '12px monospace';
+    ctx.textBaseline = 'top';
+    const dx = n.x;
+    const dy = n.y + r + 4;
+    let s = (di === Infinity) ? '∞' : (di === -Infinity ? '-∞' : di.toString());
+    if(inNegCycle[n.id]) s += ' *';
+    ctx.fillStyle = (inNegCycle[n.id] ? '#d32' : '#555');
+    ctx.fillText(s, dx, dy);
+  }
+
+  function drawEdge(e, idx){
+    const u = nodes.find(n=>n.id===e.u);
+    const v = nodes.find(n=>n.id===e.v);
+    if(!u || !v) return;
+    // compute line endpoints (so they touch node circles)
+    const dx = v.x - u.x;
+    const dy = v.y - u.y;
+    const distUV = Math.hypot(dx,dy) || 1;
+    const r = 20;
+    const ux = u.x + dx*(r/distUV);
+    const uy = u.y + dy*(r/distUV);
+    const vx = v.x - dx*(r/distUV);
+    const vy = v.y - dy*(r/distUV);
+
+    // draw line
+    ctx.beginPath();
+    ctx.strokeStyle = e._highlight ? '#ff6f00' : '#444';
+    ctx.lineWidth = e._highlight ? 3 : 1.5;
+    ctx.moveTo(ux,uy);
+    ctx.lineTo(vx,vy);
+    ctx.stroke();
+
+    // arrow head
+    const arrowSize = 8 + (e._highlight ? 3 : 0);
+    const angle = Math.atan2(vy-uy, vx-ux);
+    ctx.beginPath();
+    ctx.fillStyle = e._highlight ? '#ff6f00' : '#444';
+    ctx.moveTo(vx,vy);
+    ctx.lineTo(vx - arrowSize*Math.cos(angle - Math.PI/6), vy - arrowSize*Math.sin(angle - Math.PI/6));
+    ctx.lineTo(vx - arrowSize*Math.cos(angle + Math.PI/6), vy - arrowSize*Math.sin(angle + Math.PI/6));
+    ctx.closePath();
+    ctx.fill();
+
+    // weight label at mid point offset a bit
+    const mx = (ux+vx)/2;
+    const my = (uy+vy)/2;
+    const ox = -dy/distUV * 12; // perpendicular offset
+    const oy = dx/distUV * 12;
+    ctx.fillStyle = '#000';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(e.w, mx+ox, my+oy);
+    // edge index debug (optional)
+    //ctx.fillStyle='#666'; ctx.fillText(idx, mx-ox, my-oy);
+  }
+
+  // Interaction
+  let dragging = null;
+  let creatingFrom = null;
+  let selectingSourceMode = false;
+
+  canvas.addEventListener('mousedown', (evt)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = (evt.clientX - rect.left);
+    const y = (evt.clientY - rect.top);
+    const node = hitNode(x,y);
+    if(node){
+      // click on node
+      if(selectingSourceMode){
+        source = node.id;
+        selectingSourceMode = false;
+        selectBtn.textContent = 'Select Source';
+        log('Source set to ' + node.label);
+        resetAlgorithmState();
+        draw();
+        return;
+      }
+      // begin drag or start creating edge
+      if(evt.shiftKey){
+        // shift-click to start creating edge intentionally
+        creatingFrom = node;
+        node._flash = Date.now();
+      } else {
+        // start dragging
+        dragging = {node, offsetX: x-node.x, offsetY: y-node.y};
+      }
+    } else {
+      // click empty space -> add node
+      const label = 'N' + nextId;
+      const id = nextId++;
+      nodes.push({id, label, x, y});
+      log('Added node ' + label);
+      resetAlgorithmState();
+      draw();
+    }
+  });
+
+  canvas.addEventListener('mousemove', (evt)=>{
+    if(dragging){
+      const rect = canvas.getBoundingClientRect();
+      const x = (evt.clientX - rect.left);
+      const y = (evt.clientY - rect.top);
+      dragging.node.x = x - dragging.offsetX;
+      dragging.node.y = y - dragging.offsetY;
+      draw();
+    }
+  });
+
+  canvas.addEventListener('mouseup', (evt)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = (evt.clientX - rect.left);
+    const y = (evt.clientY - rect.top);
+    const node = hitNode(x,y);
+    if(creatingFrom){
+      if(node && node.id !== creatingFrom.id){
+        const weight = prompt('Enter weight for edge ' + creatingFrom.label + ' -> ' + node.label + ' (can be negative)', '1');
+        if(weight !== null){
+          const wv = Number(weight);
+          if(!Number.isFinite(wv) || weight.trim()===''){
+            alert('Invalid weight');
+          } else {
+            edges.push({u:creatingFrom.id, v:node.id, w:wv, _highlight:false});
+            log('Added edge ' + creatingFrom.label + ' -> ' + node.label + ' weight=' + wv);
+            resetAlgorithmState();
+          }
+        }
+      }
+    } else if(!dragging){
+      // simple click (not drag) on node to set source
+      if(node){
+        source = node.id;
+        log('Source set to ' + node.label);
+        resetAlgorithmState();
+      }
+    }
+    creatingFrom = null;
+    dragging = null;
+    draw();
+  });
+
+  // double click to remove node or edge?
+  canvas.addEventListener('dblclick',(evt)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = (evt.clientX - rect.left);
+    const y = (evt.clientY - rect.top);
+    const node = hitNode(x,y);
+    if(node){
+      // remove node and connected edges
+      nodes = nodes.filter(n=>n.id!==node.id);
+      edges = edges.filter(e=>e.u!==node.id && e.v!==node.id);
+      log('Removed node ' + node.label);
+      resetAlgorithmState();
+      draw();
+    } else {
+      // double click on empty area -> nothing
+    }
+  });
+
+  function hitNode(x,y){
+    for(let i=nodes.length-1;i>=0;i--){
+      const n = nodes[i];
+      const dx = x - n.x;
+      const dy = y - n.y;
+      if(Math.hypot(dx,dy) <= 20) return n;
+    }
+    return null;
+  }
+
+  // Buttons
+  sampleBtn.addEventListener('click', loadSample);
+  randomBtn.addEventListener('click', createRandom);
+  clearBtn.addEventListener('click', ()=>{
+    nodes=[]; edges=[]; nextId=0; source=null;
+    log('Cleared graph.');
+    resetAlgorithmState();
+    draw();
+  });
+  resetBtn.addEventListener('click', ()=>{
+    resetAlgorithmState();
+    draw();
+    log('Algorithm reset.');
+  });
+  runBtn.addEventListener('click', ()=>{
+    if(!source){ alert('Select a source node first (click a node)'); return; }
+    running = true;
+    if(modeSelect.value === 'auto'){
+      startAuto();
+    }
+  });
+  pauseBtn.addEventListener('click', ()=>{
+    running = false;
+    stopAuto();
+  });
+  stepBtn.addEventListener('click', ()=>{
+    if(!source){ alert('Select a source node first (click a node)'); return; }
+    stepOnce();
+  });
+  detectBtn.addEventListener('click', ()=>{
+    if(!source){ alert('Select a source first'); return; }
+    detectNegativeCycle();
+  });
+  selectBtn.addEventListener('click', ()=>{
+    selectingSourceMode = !selectingSourceMode;
+    selectBtn.textContent = selectingSourceMode ? 'Click a node...' : 'Select Source';
+  });
+
+  // Algorithm functions
+  function resetAlgorithmState(){
+    const V = nodes.length;
+    dist = new Array(nextId).fill(Infinity);
+    pred = new Array(nextId).fill(null);
+    inNegCycle = new Array(nextId).fill(false);
+    iter = 0;
+    edgeIdx = 0;
+    running = false;
+    stopAuto();
+    iterLabel.textContent = '0';
+    vcount.textContent = V;
+    ecount.textContent = edges.length;
+    if(source !== null && nodes.find(n=>n.id===source) ){
+      dist[source] = 0;
+    } else {
+      source = null;
+    }
+    edges.forEach(e=> e._highlight = false);
+    refreshDistTable();
+  }
+
+  function refreshDistTable(){
+    distList.innerHTML = '';
+    nodes.forEach(n=>{
+      const d = dist[n.id];
+      const p = pred[n.id];
+      const div = document.createElement('div');
+      div.className = 'dist-cell';
+      div.innerHTML = '<strong>'+n.label+'</strong> &nbsp; dist: <em>' + (d===Infinity ? '∞' : (d===-Infinity ? '-∞' : d)) + '</em>' +
+        ' &nbsp; pred: ' + (p===null ? '-' : nodes.find(m=>m.id===p)?.label || '?') +
+        (inNegCycle[n.id] ? ' <span style="color:#b00">[neg-cycle]</span>' : '');
+      distList.appendChild(div);
+    });
+  }
+
+  function stepOnce(){
+    // If finished iterations (V-1), do nothing or run negative cycle detection
+    const V = nodes.length;
+    if(V===0) return;
+    if(source===null){ alert('Pick a source node first (click a node)'); return; }
+    if(iter >= Math.max(V-1,0)){
+      log('All iterations done. You can run negative cycle detection.');
+      return;
+    }
+    if(edges.length === 0){
+      iter = V-1;
+      iterLabel.textContent = iter;
+      refreshDistTable();
+      draw();
+      return;
+    }
+    // Relax current edge
+    const e = edges[edgeIdx];
+    edges.forEach(ed=>ed._highlight=false);
+    e._highlight = true;
+    const uDist = dist[e.u];
+    const vDist = dist[e.v];
+    const via = (uDist === Infinity) ? Infinity : (uDist + e.w);
+
+    if(uDist !== Infinity && via < vDist){
+      dist[e.v] = via;
+      pred[e.v] = e.u;
+      log(`Relaxed edge ${nodeLabel(e.u)} -> ${nodeLabel(e.v)} (w=${e.w}): updated ${nodeLabel(e.v)} dist=${via}`);
+    } else {
+      log(`Tried edge ${nodeLabel(e.u)} -> ${nodeLabel(e.v)} (w=${e.w}): no change`);
+    }
+    edgeIdx++;
+    if(edgeIdx >= edges.length){
+      // finished an iteration
+      iter++;
+      edgeIdx = 0;
+      iterLabel.textContent = iter;
+      log('Completed iteration ' + iter + ' of ' + Math.max(V-1,0));
+    }
+    refreshDistTable();
+    draw();
+  }
+
+  function startAuto(){
+    stopAuto();
+    animationTimer = setInterval(()=>{
+      if(!running) { stopAuto(); return; }
+      const V = nodes.length;
+      if(iter >= Math.max(V-1,0)){
+        running = false;
+        stopAuto();
+        log('Finished V-1 iterations.');
+        return;
+      }
+      stepOnce();
+    }, stepDelay);
+  }
+
+  function stopAuto(){
+    if(animationTimer){ clearInterval(animationTimer); animationTimer = null; }
+  }
+
+  function nodeLabel(id){
+    const n = nodes.find(x=>x.id===id);
+    return n ? n.label : id;
+  }
+
+  function detectNegativeCycle(){
+    // After V-1 iterations, perform one more pass to find relaxable edges
+    const V = nodes.length;
+    if(V===0) return;
+    // ensure we've run V-1 iterations; run remaining iterations automatically if not
+    while(iter < Math.max(V-1,0)){
+      // run through all edges in each missing iteration
+      for(let i=0;i<edges.length;i++){
+        const e = edges[i];
+        if(dist[e.u] !== Infinity && dist[e.u] + e.w < dist[e.v]){
+          dist[e.v] = dist[e.u] + e.w;
+          pred[e.v] = e.u;
+        }
+      }
+      iter++;
+    }
+    // one more pass to detect nodes that can still be relaxed
+    const affected = [];
+    edges.forEach(e=>{
+      if(dist[e.u] !== Infinity && dist[e.u] + e.w < dist[e.v]){
+        affected.push(e.v);
+        log('Edge ' + nodeLabel(e.u) + ' -> ' + nodeLabel(e.v) + ' can still relax, negative cycle reachable.');
+      }
+    });
+    // propagate affected to mark all reachable nodes from them
+    const mark = new Set();
+    const adj = buildAdjacency();
+    const stack = [...affected];
+    while(stack.length){
+      const v = stack.pop();
+      if(mark.has(v)) continue;
+      mark.add(v);
+      const out = adj[v] || [];
+      out.forEach(w=>{ if(!mark.has(w)) stack.push(w); });
+    }
+    inNegCycle = inNegCycle.map((_,i)=> mark.has(i));
+    if(mark.size === 0) {
+      log('No negative cycle reachable from the source detected.');
+      alert('No negative cycle reachable from the source.');
+    } else {
+      log('Marked nodes involved/reachable from negative cycle: ' + Array.from(mark).map(nodeLabel).join(', '));
+      alert('Negative cycle detected! Some nodes are marked with *.');
+    }
+    refreshDistTable();
+    draw();
+  }
+
+  function buildAdjacency(){
+    const adj = {};
+    edges.forEach(e=>{
+      if(!adj[e.u]) adj[e.u]=[];
+      adj[e.u].push(e.v);
+    });
+    return adj;
+  }
+
+  // Sample graph
+  function loadSample(){
+    nodes = [
+      {id:0,label:'A',x:120,y:120},
+      {id:1,label:'B',x:300,y:80},
+      {id:2,label:'C',x:500,y:120},
+      {id:3,label:'D',x:220,y:260},
+      {id:4,label:'E',x:420,y:260}
+    ];
+    nextId = 5;
+    edges = [
+      {u:0,v:1,w:6,_highlight:false},
+      {u:0,v:3,w:7,_highlight:false},
+      {u:1,v:2,w:5,_highlight:false},
+      {u:1,v:3,w:8,_highlight:false},
+      {u:1,v:4,w:-4,_highlight:false},
+      {u:2,v:1,w:-2,_highlight:false},
+      {u:3,v:2,w:-3,_highlight:false},
+      {u:3,v:4,w:9,_highlight:false},
+      {u:4,v:0,w:2,_highlight:false},
+    ];
+    source = 0;
+    log('Loaded sample graph (classic Bellman-Ford example). Source = A');
+    resetAlgorithmState();
+    // set source again to preserve
+    source = 0;
+    dist[source] = 0;
+    draw();
+  }
+
+  function createRandom(){
+    const count = Math.max(4, Math.min(10, Math.floor(Math.random()*6)+4));
+    nodes = [];
+    edges = [];
+    nextId=0;
+    for(let i=0;i<count;i++){
+      const x = 80 + Math.random()*(w-160);
+      const y = 60 + Math.random()*(h-160);
+      nodes.push({id:nextId,label:'N'+nextId,x,y});
+      nextId++;
+    }
+    // create edges
+    const m = Math.floor(count*1.6) + Math.floor(Math.random()*count);
+    for(let i=0;i<m;i++){
+      const u = nodes[Math.floor(Math.random()*nodes.length)].id;
+      let v = nodes[Math.floor(Math.random()*nodes.length)].id;
+      if(u===v) continue;
+      const wgt = Math.floor(Math.random()*21)-10; // -10..10
+      edges.push({u,v,w:wgt,_highlight:false});
+    }
+    source = nodes[0].id;
+    log('Created random graph with ' + nodes.length + ' nodes.');
+    resetAlgorithmState();
+    source = nodes[0].id;
+    dist[source]=0;
+    draw();
+  }
+
+  // initialize
+  resize();
+  loadSample();
+
+  // keyboard shortcuts
+  window.addEventListener('keydown',(e)=>{
+    if(e.key === ' '){
+      e.preventDefault();
+      if(modeSelect.value === 'step') stepOnce(); else {
+        running = !running;
+        if(running) startAuto(); else stopAuto();
+      }
+    }
+  });
+
+  // ensure canvas is crisp on high-DPI
+  function fixHiDPI(){
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = wrap.clientWidth * ratio;
+    canvas.height = wrap.clientHeight * ratio;
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+    ctx.setTransform(ratio,0,0,ratio,0,0);
+  }
+  fixHiDPI();
+  window.addEventListener('resize', fixHiDPI);
+})();
+</script>
+</body>
+</html>

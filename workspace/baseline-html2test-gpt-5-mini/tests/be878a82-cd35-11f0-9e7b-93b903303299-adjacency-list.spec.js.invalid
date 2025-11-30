@@ -1,0 +1,357 @@
+import { test, expect } from '@playwright/test';
+
+// Tests for Adjacency List interactive demo
+// Application URL:
+// http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/be878a82-cd35-11f0-9e7b-93b903303299.html
+
+// Page object model for interacting with the demo
+class GraphPage {
+  constructor(page) {
+    this.page = page;
+    // interactive selectors
+    this.selectors = {
+      directedSelect: '#directedSelect',
+      maxNodes: '#maxNodes',
+      addNodeBtn: '#addNodeBtn',
+      randBtn: '#randBtn',
+      clearBtn: '#clearBtn',
+      exportBtn: '#exportBtn',
+      importBtn: '#importBtn',
+      addEdgeBtn: '#addEdgeBtn',
+      fromNode: '#fromNode',
+      toNode: '#toNode',
+      removeNodeBtn: '#removeNodeBtn',
+      removeNodeInput: '#removeNodeInput',
+      adjView: '#adjView',
+      jsonArea: '#jsonArea',
+      loadJsonBtn: '#loadJsonBtn',
+      copyJsonBtn: '#copyJsonBtn',
+      startNode: '#startNode',
+      traversalType: '#traversalType',
+      runTraversal: '#runTraversal',
+      speed: '#speed',
+      targetNode: '#targetNode',
+      canvas: '#canvas'
+    };
+  }
+
+  async goto(url) {
+    await this.page.goto(url);
+  }
+
+  async getAdjText() {
+    return (await this.page.locator(this.selectors.adjView).innerText()).trim();
+  }
+
+  async getJsonAreaValue() {
+    return await this.page.locator(this.selectors.jsonArea).inputValue();
+  }
+
+  async clickAddNode() {
+    await this.page.click(this.selectors.addNodeBtn);
+  }
+
+  async clickRand() {
+    await this.page.click(this.selectors.randBtn);
+  }
+
+  async clickClear() {
+    await this.page.click(this.selectors.clearBtn);
+  }
+
+  async clickExport() {
+    await this.page.click(this.selectors.exportBtn);
+  }
+
+  async clickLoadJson() {
+    await this.page.click(this.selectors.loadJsonBtn);
+  }
+
+  async clickCopyJson() {
+    await this.page.click(this.selectors.copyJsonBtn);
+  }
+
+  async fillFromTo(a, b) {
+    await this.page.fill(this.selectors.fromNode, a);
+    await this.page.fill(this.selectors.toNode, b);
+  }
+
+  async clickAddEdge() {
+    await this.page.click(this.selectors.addEdgeBtn);
+  }
+
+  async removeNode(id) {
+    await this.page.fill(this.selectors.removeNodeInput, id);
+    await this.page.click(this.selectors.removeNodeBtn);
+  }
+
+  async setDirected(value) {
+    await this.page.selectOption(this.selectors.directedSelect, value ? 'true' : 'false');
+  }
+
+  async setSpeed(ms) {
+    await this.page.fill(this.selectors.speed, String(ms));
+  }
+
+  async setTraversalType(type) {
+    // type should be 'bfs' or 'dfs'
+    await this.page.selectOption(this.selectors.traversalType, type);
+  }
+
+  async setStartNode(id) {
+    await this.page.fill(this.selectors.startNode, id);
+  }
+
+  async runTraversal() {
+    await this.page.click(this.selectors.runTraversal);
+  }
+
+  // Click the canvas at coordinates (x,y) relative to the canvas top-left
+  async clickCanvasAt(x, y) {
+    const canvas = this.page.locator(this.selectors.canvas);
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('Canvas not visible');
+    await this.page.mouse.click(box.x + x, box.y + y);
+  }
+}
+
+test.describe('Adjacency List — Interactive Demo (be878a82-cd35-11f0-9e7b-93b903303299)', () => {
+  const APP = 'http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/be878a82-cd35-11f0-9e7b-93b903303299.html';
+  let pageErrors;
+  let consoleErrors;
+  let page;
+
+  test.beforeEach(async ({ browser }) => {
+    pageErrors = [];
+    consoleErrors = [];
+
+    page = await browser.newPage();
+
+    // Capture uncaught page errors
+    page.on('pageerror', (err) => {
+      pageErrors.push(err);
+    });
+
+    // Capture console messages and record errors
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        consoleErrors.push({text: msg.text(), location: msg.location()});
+      }
+    });
+
+    // Navigate to the demo
+    await page.goto(APP);
+  });
+
+  test.afterEach(async () => {
+    // Assert there are no unexpected runtime errors logged to the console or as page errors.
+    // Many tests rely on DOM and script execution; ensure no fatal JS errors occurred.
+    expect(pageErrors, `Unexpected page errors: ${pageErrors.map(e=>e.message).join('; ')}`).toHaveLength(0);
+    expect(consoleErrors, `Console errors present: ${consoleErrors.map(e=>e.text).join('; ')}`).toHaveLength(0);
+
+    await page.close();
+  });
+
+  test('Initial load shows default nodes and adjacency view', async () => {
+    // Verify initial UI elements and default graph are present
+    const gp = new GraphPage(page);
+
+    // adjacency view should contain nodes added by the initial demo A,B,C,D,E
+    const adjText = await gp.getAdjText();
+    // It should not be empty and should list at least node A and its neighbors
+    expect(adjText.length).toBeGreaterThan(0);
+    expect(adjText).toContain('A:');
+    // JSON area should contain directed:false and list nodes
+    const jsonVal = await gp.getJsonAreaValue();
+    expect(jsonVal).toContain('"directed": false');
+    expect(jsonVal).toContain('"nodes"');
+    // Directed select should default to 'false'
+    const directedValue = await page.locator('#directedSelect').inputValue();
+    expect(directedValue).toBe('false');
+  });
+
+  test('Add node button increases node count and updates JSON/adjacency view', async () => {
+    // Ensure clicking "Add Node" creates a new node entry in the adjacency and json area
+    const gp1 = new GraphPage(page);
+
+    const before = await gp.getJsonAreaValue();
+    // click Add Node and allow rendering
+    await gp.clickAddNode();
+    // give a short pause for render to complete
+    await page.waitForTimeout(200);
+
+    const after = await gp.getJsonAreaValue();
+    expect(after.length).toBeGreaterThan(before.length);
+    // JSON array of nodes should have at least one more id; count brackets by occurrences of quotes around letters
+    const beforeCount = (before.match(/"nodes"/) ? JSON.parse(before).nodes.length : 0);
+    const afterCount = JSON.parse(after).nodes.length;
+    expect(afterCount).toBeGreaterThanOrEqual(beforeCount + 1);
+  });
+
+  test('Add edge with missing nodes prompts confirmation and creates nodes then creates edge', async () => {
+    // Try to create an edge between two non-existent nodes and accept the confirm to create them.
+    const gp2 = new GraphPage(page);
+
+    // Prepare to accept the confirm dialog that asks to create missing nodes
+    page.once('dialog', async dialog => {
+      // confirm prompt: create missing nodes?
+      expect(dialog.message()).toMatch(/Create missing nodes\?/i);
+      await dialog.accept();
+    });
+
+    // Fill inputs with new nodes X and Y and add edge
+    await gp.fillFromTo('X', 'Y');
+    await gp.clickAddEdge();
+
+    // wait a bit for render
+    await page.waitForTimeout(300);
+
+    // Adjacency view must now contain X and Y and show X: [Y] (or Y: [X] depending on directed)
+    const adjText1 = await gp.getAdjText();
+    expect(adjText).toContain('X:');
+    expect(adjText).toContain('Y:');
+    // There should be at least one adjacency mention linking X and Y in either direction
+    const hasEdge = /X:\s*\[\s*Y\s*\]/.test(adjText) || /Y:\s*\[\s*X\s*\]/.test(adjText);
+    expect(hasEdge).toBeTruthy();
+
+    // Cleanup: remove node X (silently if exists)
+    page.once('dialog', async d => {
+      // removeNode uses alert when missing; if present nothing will alert; if it alerts due to missing, accept to proceed
+      await d.accept();
+    }); /* ignore if no dialog */ });
+
+    // remove node X if exists
+    await gp.removeNode('X');
+    // small pause
+    await page.waitForTimeout(200);
+  });
+
+  test('Export JSON places content in Raw JSON area when clipboard unavailable', async () => {
+    const gp3 = new GraphPage(page);
+
+    // Intercept alert triggered by fallback behavior and assert its message
+    let alertMessage = '';
+    page.once('dialog', async dialog => {
+      alertMessage = dialog.message();
+      await dialog.accept();
+    });
+
+    await gp.clickExport();
+
+    // Wait a small moment for the code path to put JSON into the textarea
+    await page.waitForTimeout(200);
+    const jsonVal1 = await gp.getJsonAreaValue();
+    expect(jsonVal).toContain('"nodes"');
+    expect(alertMessage.length).toBeGreaterThan(0);
+    // alert should either say it copied to clipboard or placed in text area
+    expect(alertMessage).toMatch(/Copied JSON to clipboard|JSON placed in text area|Copied/);
+  });
+
+  test('Load JSON replaces graph and updates directed flag', async () => {
+    const gp4 = new GraphPage(page);
+
+    // Construct a simple directed graph JSON and place it in the textarea
+    const sample = {
+      directed: true,
+      nodes: ['P','Q','R'],
+      adj: { P: ['Q'], Q: ['R'], R: [] }
+    };
+    await page.fill('#jsonArea', JSON.stringify(sample, null, 2));
+
+    // Click Load JSON; there is no confirmation on success
+    await gp.clickLoadJson();
+
+    // small pause for loadFromObject and render
+    await page.waitForTimeout(200);
+
+    // directedSelect should be updated to true
+    const directedValue1 = await page.locator('#directedSelect').inputValue();
+    expect(directedValue).toBe('true');
+
+    // adjacency view should contain P,Q,R and adjacency relationships
+    const adjText2 = await gp.getAdjText();
+    expect(adjText).toContain('P:');
+    expect(adjText).toContain('Q:');
+    expect(adjText).toContain('R:');
+    expect(adjText).toContain('P: [Q]');
+    expect(adjText).toContain('Q: [R]');
+  });
+
+  test('Canvas click highlights a node and its neighbors (visual overlay exists)', async () => {
+    const gp5 = new GraphPage(page);
+
+    // Click near the coordinates of node A (initial demo positions: A ~ (160,140))
+    // Click the canvas at an approximate position to trigger flashNeighbors
+    await gp.clickCanvasAt(160, 140);
+
+    // After click, the demo uses a timed flash then re-renders. Wait for overlay to start and finish.
+    await page.waitForTimeout(300);
+    // The adjacency view should be unaffected, but we ensure no exceptions happened and canvas exists
+    const canvasVisible = await page.isVisible('#canvas');
+    expect(canvasVisible).toBeTruthy();
+  });
+
+  test('Traversal (BFS) runs and shows an alert with traversal order', async () => {
+    const gp6 = new GraphPage(page);
+
+    // Speed down to make traversal finish quickly
+    await gp.setSpeed(50);
+    // ensure traversal type is BFS
+    await gp.setTraversalType('bfs');
+    // start from node A (initial graph)
+    await gp.setStartNode('A');
+
+    // Handle the final alert that shows traversal order and assert its contents
+    let traversalAlert = '';
+    page.once('dialog', async dialog => {
+      traversalAlert = dialog.message();
+      // expected format: "BFS traversal order:\nA → B → C"
+      expect(traversalAlert.toUpperCase()).toContain('BFS TRAVERSAL ORDER');
+      await dialog.accept();
+    });
+
+    // Run traversal
+    await gp.runTraversal();
+
+    // Wait enough time for async traversal to complete (speed * number of steps). Use generous wait.
+    await page.waitForTimeout(1500);
+
+    expect(traversalAlert.length).toBeGreaterThan(0);
+  });
+
+  test('Random graph and clear controls update adjacency view appropriately', async () => {
+    const gp7 = new GraphPage(page);
+
+    // Click random graph
+    await gp.clickRand();
+    await page.waitForTimeout(300);
+    const afterRand = await gp.getAdjText();
+    expect(afterRand.length).toBeGreaterThan(0);
+    // Now hit Clear and expect the adjacency view to show empty graph text
+    await gp.clickClear();
+    await page.waitForTimeout(200);
+    const afterClear = await gp.getAdjText();
+    expect(afterClear.toLowerCase()).toContain('(empty graph)');
+  });
+
+  test('Attempting to remove a non-existent node shows an alert', async () => {
+    const gp8 = new GraphPage(page);
+
+    // Provide a node id that likely doesn't exist
+    const missingId = 'ZZZ_TEST_NODE';
+    // Listen for the alert triggered by removeNode when node doesn't exist
+    let alertText = '';
+    page.once('dialog', async dialog => {
+      alertText = dialog.message();
+      await dialog.accept();
+    });
+
+    // Fill and click remove; removeNode handler will call alert('Provide node id') if blank or alert('No such node: ' + id)
+    await gp.removeNode(missingId);
+
+    // allow dialog to be processed
+    await page.waitForTimeout(200);
+    expect(alertText.length).toBeGreaterThan(0);
+    expect(alertText).toMatch(/No such node|Provide node id/i);
+  });
+});

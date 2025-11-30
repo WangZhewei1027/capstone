@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>K-Nearest Neighbors (KNN) Interactive Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root{
+      --bg:#0f1724; --panel:#0b1220; --accent:#6ee7b7; --muted:#94a3b8;
+      --red:#fb7185; --blue:#60a5fa; --yellow:#fef08a;
+      color-scheme: dark;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+    body{background:linear-gradient(180deg,#021428 0%, #081428 45%, #071223 100%); color:#dbeafe; padding:18px; box-sizing:border-box;}
+    h1{margin:0 0 10px 0;font-size:20px;}
+    .wrap{display:flex;gap:18px;align-items:flex-start;max-width:1200px;margin:0 auto;}
+    .left{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.04); padding:12px; border-radius:8px;}
+    .canvas-wrap{position:relative;}
+    canvas{background:#041426;border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,0.6);}
+    .controls{width:360px;padding:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:8px;border:1px solid rgba(255,255,255,0.04);}
+    label{display:block;margin:8px 0 4px 0;color:var(--muted);font-size:13px;}
+    .row{display:flex;gap:8px;align-items:center;margin:8px 0;}
+    .btn{cursor:pointer;padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:inherit;}
+    .btn.primary{background:linear-gradient(90deg,var(--accent),#43c6f2);color:#021018;border:0;}
+    .small{font-size:13px;padding:6px 8px;}
+    input[type=range]{width:100%;}
+    .legend{display:flex;gap:8px;align-items:center;margin-top:6px;}
+    .swatch{width:14px;height:14px;border-radius:999px;display:inline-block;margin-right:8px;vertical-align:middle;}
+    .info{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.35;}
+    .stats{background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;margin-top:8px;font-size:13px;}
+    .neighbor-list{margin-top:8px;font-size:13px;max-height:160px;overflow:auto;padding-right:6px;}
+    .muted{color:var(--muted);}
+    .footer{font-size:12px;color:var(--muted);margin-top:12px;}
+    .top-row{display:flex;gap:12px;align-items:center;margin-bottom:6px;}
+    .control-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .toggle{display:flex;gap:6px;align-items:center}
+    .badge{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:6px;font-size:13px;}
+    .link{color:var(--accent);cursor:pointer;text-decoration:underline}
+    footer small{color:var(--muted)}
+    @media (max-width:980px){ .wrap{flex-direction:column;align-items:center} .controls{width:100%}}
+  </style>
+</head>
+<body>
+  <h1>K-Nearest Neighbors (KNN) — Interactive Visual Demo</h1>
+  <div class="wrap">
+    <div class="left canvas-wrap">
+      <div class="top-row">
+        <div class="badge">Click canvas to add point of selected class. Drag the yellow query point to classify.</div>
+        <div style="flex:1"></div>
+        <div class="badge">Right-click a point to delete it.</div>
+      </div>
+      <canvas id="knnCanvas" width="720" height="520"></canvas>
+      <div class="info">
+        Explanation: KNN classifies new items by finding the K closest training points and using majority voting (optionally weighted). Try different K and distance metrics and watch how the decision boundary changes.
+      </div>
+    </div>
+
+    <div class="controls">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label style="margin:0;font-weight:600">Active class for adding:</label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button id="class0" class="btn" style="background:rgba(255,255,255,0.015)"><span class="swatch" style="background:var(--red)"></span>Class A</button>
+        <button id="class1" class="btn" style="background:rgba(255,255,255,0.015)"><span class="swatch" style="background:var(--blue)"></span>Class B</button>
+        <button id="eraser" class="btn" title="Switch to erase mode">Eraser</button>
+      </div>
+
+      <label for="kRange">K (neighbors): <span id="kValue">3</span></label>
+      <input id="kRange" type="range" min="1" max="25" value="3">
+
+      <label for="metric">Distance metric</label>
+      <select id="metric" style="width:100%;padding:8px;border-radius:6px;background:rgba(255,255,255,0.02);color:inherit;border:1px solid rgba(255,255,255,0.03)">
+        <option value="euclidean">Euclidean (L2)</option>
+        <option value="manhattan">Manhattan (L1)</option>
+        <option value="chebyshev">Chebyshev (L∞)</option>
+      </select>
+
+      <label>Decision boundary</label>
+      <div style="display:flex;gap:8px;">
+        <button id="toggleBoundary" class="btn small">Toggle Boundary</button>
+        <button id="toggleWeighted" class="btn small">Weighted Voting: Off</button>
+        <button id="randomData" class="btn small">Random data</button>
+      </div>
+
+      <div class="row">
+        <label style="margin:0;">Query point</label>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div class="swatch" style="background:var(--yellow);width:18px;height:18px;border-radius:4px"></div>
+        <div>
+          <div id="queryInfo" class="muted">Drag the yellow point on the canvas; classification updates live.</div>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div><strong>Prediction:</strong> <span id="prediction">—</span></div>
+          <div><strong>Prob:</strong> <span id="prob">—</span></div>
+        </div>
+        <div style="margin-top:6px;"><strong>Neighbors (closest first):</strong></div>
+        <div class="neighbor-list" id="neighbors"></div>
+        <div style="margin-top:8px;" id="looContainer"></div>
+      </div>
+
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button id="clearBtn" class="btn">Clear all</button>
+        <button id="seedBtn" class="btn">Load Stylish Example</button>
+        <button id="explainBtn" class="btn">How it works</button>
+      </div>
+
+      <div class="footer">
+        <div style="margin-top:10px;">
+          Tip: Increase K to smooth the boundary; use weighted voting to give nearer neighbors more influence.
+        </div>
+        <footer style="margin-top:10px"><small>Interactive demo — K-Nearest Neighbors</small></footer>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('knnCanvas');
+  const ctx = canvas.getContext('2d');
+  const rect = () => canvas.getBoundingClientRect();
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // State
+  let points = []; // {x,y,label}
+  let activeClass = 0; // 0 red, 1 blue, 2 eraser
+  let k = 3;
+  let metric = 'euclidean';
+  let showBoundary = true;
+  let weighted = false;
+  let query = {x: width*0.75, y: height*0.25};
+  let draggingQuery = false;
+  let neighborsCache = [];
+  const colorA = getComputedStyle(document.documentElement).getPropertyValue('--red').trim() || '#fb7185';
+  const colorB = getComputedStyle(document.documentElement).getPropertyValue('--blue').trim() || '#60a5fa';
+  const colorQuery = getComputedStyle(document.documentElement).getPropertyValue('--yellow').trim() || '#fef08a';
+  const bg = '#041426';
+
+  // DOM elements
+  const class0Btn = document.getElementById('class0');
+  const class1Btn = document.getElementById('class1');
+  const eraserBtn = document.getElementById('eraser');
+  const kRange = document.getElementById('kRange');
+  const kValue = document.getElementById('kValue');
+  const metricSelect = document.getElementById('metric');
+  const neighborsDiv = document.getElementById('neighbors');
+  const predictionSpan = document.getElementById('prediction');
+  const probSpan = document.getElementById('prob');
+  const toggleBoundaryBtn = document.getElementById('toggleBoundary');
+  const toggleWeightedBtn = document.getElementById('toggleWeighted');
+  const randomDataBtn = document.getElementById('randomData');
+  const clearBtn = document.getElementById('clearBtn');
+  const seedBtn = document.getElementById('seedBtn');
+  const explainBtn = document.getElementById('explainBtn');
+  const looContainer = document.getElementById('looContainer');
+
+  // Utility distances
+  function dist(a,b,metric){
+    const dx = Math.abs(a.x-b.x);
+    const dy = Math.abs(a.y-b.y);
+    if(metric === 'euclidean') return Math.hypot(dx,dy);
+    if(metric === 'manhattan') return dx+dy;
+    if(metric === 'chebyshev') return Math.max(dx,dy);
+    return Math.hypot(dx,dy);
+  }
+
+  // KNN classify a point (x,y) given dataset and options
+  function knnClassify(x,y, options = {}) {
+    const m = options.metric || metric;
+    let K = options.k || k;
+    const weightedOpt = options.weighted !== undefined ? options.weighted : weighted;
+
+    if(points.length === 0) return {label:null, probs:[0,0], neighbors:[]};
+
+    // clamp K
+    K = Math.max(1, Math.min(K, points.length));
+
+    const distances = points.map((p,i) => ({index:i, p, d: dist({x,y}, p, m)}));
+    distances.sort((a,b)=> a.d - b.d);
+
+    const neighbors = distances.slice(0,K);
+    // Voting
+    const votes = new Map(); // label -> weighted count
+    for(const nb of neighbors){
+      const lab = nb.p.label;
+      let weight = 1;
+      if(weightedOpt){
+        // avoid divide by zero
+        weight = nb.d === 0 ? 1e6 : 1 / nb.d;
+      }
+      votes.set(lab, (votes.get(lab) || 0) + weight);
+    }
+    // determine winner and probabilities
+    const total = Array.from(votes.values()).reduce((a,b)=>a+b,0) || 1;
+    const probs = [ (votes.get(0) || 0)/total, (votes.get(1) || 0)/total ];
+    // handle ties: choose class with smallest sum distances among tied classes
+    let bestLabel = null; let bestScore = -Infinity;
+    // If tie in vote, break by sum of distances (smaller sum wins)
+    // We'll compute vote values and tie-break if needed.
+    const voteArr = [{label:0, v:votes.get(0)||0},{label:1, v:votes.get(1)||0}];
+    voteArr.sort((a,b) => b.v - a.v);
+    if(voteArr[0].v > voteArr[1].v){
+      bestLabel = voteArr[0].label;
+    } else {
+      // tie or equal -> compute sum distances per label and pick smaller
+      const sumDist = [0,0];
+      for(const nb of neighbors){
+        sumDist[nb.p.label] += nb.d;
+      }
+      if(sumDist[0] < sumDist[1]) bestLabel = 0;
+      else if(sumDist[1] < sumDist[0]) bestLabel = 1;
+      else {
+        // still tie -> random
+        bestLabel = Math.random() < 0.5 ? 0 : 1;
+      }
+    }
+    return {label:bestLabel, probs, neighbors};
+  }
+
+  // Draw functions
+  function draw(){
+    // background
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,width,height);
+
+    // decision boundary grid
+    if(showBoundary && points.length>0){
+      const step = 8; // pixel step for sampling grid
+      const imgData = ctx.getImageData(0,0,width,height);
+      // We'll compute and paint small squares (step x step)
+      for(let y=0; y<height; y+=step){
+        for(let x=0; x<width; x+=step){
+          const res = knnClassify(x+0.5*step,y+0.5*step,{k,metric,weighted});
+          const a = 0.12 + Math.max(res.probs[0],res.probs[1]) * 0.5; // alpha by confidence
+          const col = res.label === 0 ? hexToRgba(colorA,a) : hexToRgba(colorB,a);
+          ctx.fillStyle = col;
+          ctx.fillRect(x,y,step,step);
+        }
+      }
+    }
+
+    // draw grid lines subtle
+    drawGrid();
+
+    // draw points
+    for(let i=0;i<points.length;i++){
+      const p = points[i];
+      drawPoint(p.x,p.y,p.label===0?colorA:colorB,8, true);
+    }
+
+    // highlight neighbors
+    if(neighborsCache && neighborsCache.length){
+      ctx.lineWidth = 2;
+      for(const nb of neighborsCache){
+        drawPoint(nb.p.x, nb.p.y, nb.p.label===0?colorA:colorB, 12, false, true);
+        // draw line to query
+        ctx.beginPath();
+        ctx.moveTo(query.x, query.y);
+        ctx.lineTo(nb.p.x, nb.p.y);
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.stroke();
+      }
+    }
+
+    // draw query
+    drawQuery();
+
+    // overlay axes or labels if needed
+  }
+
+  function drawGrid(){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+    ctx.lineWidth = 1;
+    const spacing = 40;
+    for(let x=0;x<=width;x+=spacing){
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke();
+    }
+    for(let y=0;y<=height;y+=spacing){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawPoint(x,y,color,size=8, fill=true, outline=false){
+    ctx.beginPath();
+    ctx.arc(x,y,size/2,0,Math.PI*2);
+    if(fill){
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+    if(outline){
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.stroke();
+    }
+  }
+
+  function drawQuery(){
+    // outer ring
+    ctx.beginPath();
+    ctx.arc(query.x, query.y, 12, 0, Math.PI*2);
+    ctx.fillStyle = hexToRgba(colorQuery, 0.18);
+    ctx.fill();
+    // inner square or circle
+    ctx.beginPath();
+    ctx.rect(query.x-6, query.y-6, 12, 12);
+    ctx.fillStyle = colorQuery;
+    ctx.fill();
+    // label predicted class
+    const res = knnClassify(query.x, query.y, {k,metric,weighted});
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(query.x+12, query.y-18, 72, 22);
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px system-ui,Arial';
+    ctx.fillText('P: ' + (res.label===0 ? 'A' : res.label===1 ? 'B' : '—'), query.x+16, query.y-3);
+  }
+
+  // Helpers
+  function hexToRgba(hex, a){
+    // accept #rrggbb or rgb...
+    let c = hex.trim();
+    if(c.startsWith('#')){
+      c = c.slice(1);
+      const r = parseInt(c.substr(0,2),16);
+      const g = parseInt(c.substr(2,2),16);
+      const b = parseInt(c.substr(4,2),16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+    // fallback
+    return hex;
+  }
+
+  // UI updates
+  function updateUI(){
+    kValue.textContent = k;
+    toggleWeightedBtn.textContent = 'Weighted Voting: ' + (weighted ? 'On' : 'Off');
+    // compute prediction
+    const res = knnClassify(query.x, query.y, {k,metric,weighted});
+    predictionSpan.textContent = res.label===0 ? 'Class A' : res.label===1 ? 'Class B' : '—';
+    probSpan.textContent = (res.probs[res.label]!==undefined ? (res.probs[res.label]*100).toFixed(1) + '%' : '—');
+    // neighbors list
+    neighborsDiv.innerHTML = '';
+    neighborsCache = res.neighbors;
+    for(const nb of neighborsCache){
+      const li = document.createElement('div');
+      li.style.display = 'flex'; li.style.justifyContent = 'space-between'; li.style.padding = '4px 0';
+      const left = document.createElement('div');
+      left.innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:999px;background:${nb.p.label===0?colorA:colorB};margin-right:8px;vertical-align:middle"></span> ${nb.p.label===0?'A':'B'}`
+      const right = document.createElement('div');
+      right.className = 'muted';
+      right.textContent = nb.d.toFixed(1) + ' px';
+      li.appendChild(left); li.appendChild(right);
+      neighborsDiv.appendChild(li);
+    }
+
+    // leave-one-out accuracy
+    if(points.length >= 2){
+      let correct = 0;
+      for(let i=0;i<points.length;i++){
+        const test = points[i];
+        const others = points.filter((_,idx)=>idx!==i);
+        // temporarily swap
+        const saved = points;
+        points = others;
+        const pred = knnClassify(test.x,test.y,{k: Math.max(1, Math.min(k, others.length)), metric, weighted});
+        if(pred.label === test.label) correct++;
+        points = saved;
+      }
+      const acc = correct / points.length;
+      looContainer.innerHTML = `<div><strong>Leave-one-out accuracy:</strong> ${(acc*100).toFixed(1)}% (${correct}/${points.length})</div>`;
+    } else {
+      looContainer.innerHTML = '<div class="muted">Need at least 2 points to compute leave-one-out accuracy.</div>';
+    }
+  }
+
+  // Event handlers for canvas interactions
+  function getMousePos(evt){
+    const r = rect();
+    let clientX = evt.clientX, clientY = evt.clientY;
+    if(evt.touches && evt.touches[0]){
+      clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY;
+    }
+    return {
+      x: Math.max(0, Math.min(width, clientX - r.left)),
+      y: Math.max(0, Math.min(height, clientY - r.top))
+    };
+  }
+
+  canvas.addEventListener('mousedown', (e)=>{
+    e.preventDefault();
+    const pos = getMousePos(e);
+    // right click -> try delete nearest point if close
+    if(e.button === 2){
+      // find nearest point
+      let nearest = null; let nd = Infinity;
+      for(let i=0;i<points.length;i++){
+        const d = dist(pos, points[i], 'euclidean');
+        if(d < nd){ nd = d; nearest = i; }
+      }
+      if(nearest !== null && nd < 12){
+        points.splice(nearest,1);
+        updateUI();
+        draw();
+      }
+      return;
+    }
+    // if clicking on query point -> start dragging
+    const dQ = dist(pos, query, 'euclidean');
+    if(dQ < 16){
+      draggingQuery = true;
+      return;
+    }
+    // otherwise add point of activeClass or erase
+    if(activeClass === 2){
+      // eraser mode: delete nearest
+      let nearest = null; let nd = Infinity;
+      for(let i=0;i<points.length;i++){
+        const d = dist(pos, points[i], 'euclidean');
+        if(d < nd){ nd = d; nearest = i; }
+      }
+      if(nearest !== null && nd < 12){
+        points.splice(nearest,1);
+      }
+    } else {
+      points.push({x: pos.x, y: pos.y, label: activeClass});
+    }
+    updateUI();
+    draw();
+  });
+
+  window.addEventListener('mousemove', (e)=>{
+    if(draggingQuery){
+      const pos = getMousePos(e);
+      query.x = pos.x; query.y = pos.y;
+      updateUI();
+      draw();
+    }
+  });
+
+  window.addEventListener('mouseup', (e)=>{
+    draggingQuery = false;
+  });
+
+  // touch support for dragging query
+  canvas.addEventListener('touchstart', (e)=>{
+    const pos = getMousePos(e);
+    const dQ = dist(pos, query, 'euclidean');
+    if(dQ < 16){
+      draggingQuery = true;
+    } else {
+      // add point
+      if(activeClass !== 2) points.push({x: pos.x, y: pos.y, label: activeClass});
+    }
+    updateUI();
+    draw();
+    e.preventDefault();
+  }, {passive:false});
+
+  canvas.addEventListener('touchmove', (e)=>{
+    if(draggingQuery){
+      const pos = getMousePos(e);
+      query.x = pos.x; query.y = pos.y;
+      updateUI();
+      draw();
+    }
+    e.preventDefault();
+  }, {passive:false});
+
+  canvas.addEventListener('dblclick', (e)=>{
+    // double click to place query
+    const pos = getMousePos(e);
+    query.x = pos.x; query.y = pos.y;
+    updateUI(); draw();
+  });
+
+  // prevent context menu on canvas to allow right-click delete
+  canvas.addEventListener('contextmenu', (e)=> e.preventDefault());
+
+  // UI control events
+  class0Btn.addEventListener('click', ()=>{
+    activeClass = 0;
+    class0Btn.classList.add('primary'); class1Btn.classList.remove('primary'); eraserBtn.classList.remove('primary');
+  });
+
+  class1Btn.addEventListener('click', ()=>{
+    activeClass = 1;
+    class1Btn.classList.add('primary'); class0Btn.classList.remove('primary'); eraserBtn.classList.remove('primary');
+  });
+
+  eraserBtn.addEventListener('click', ()=>{
+    activeClass = 2;
+    eraserBtn.classList.add('primary'); class0Btn.classList.remove('primary'); class1Btn.classList.remove('primary');
+  });
+
+  kRange.addEventListener('input', (e)=>{
+    k = parseInt(e.target.value,10);
+    updateUI(); draw();
+  });
+
+  metricSelect.addEventListener('change', (e)=>{
+    metric = e.target.value;
+    updateUI(); draw();
+  });
+
+  toggleBoundaryBtn.addEventListener('click', ()=>{
+    showBoundary = !showBoundary;
+    toggleBoundaryBtn.textContent = showBoundary ? 'Toggle Boundary' : 'Toggle Boundary';
+    draw();
+  });
+
+  toggleWeightedBtn.addEventListener('click', ()=>{
+    weighted = !weighted;
+    toggleWeightedBtn.textContent = 'Weighted Voting: ' + (weighted ? 'On' : 'Off');
+    updateUI(); draw();
+  });
+
+  randomDataBtn.addEventListener('click', ()=>{
+    // generate random clusters
+    points = [];
+    // create two Gaussian clusters
+    function randn_bm() {
+      let u = 0, v = 0;
+      while(u === 0) u = Math.random();
+      while(v === 0) v = Math.random();
+      return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+    const cx1 = width*0.3, cy1 = height*0.6;
+    const cx2 = width*0.7, cy2 = height*0.3;
+    for(let i=0;i<40;i++){
+      points.push({x: cx1 + randn_bm()*60, y: cy1 + randn_bm()*40, label:0});
+      points.push({x: cx2 + randn_bm()*60, y: cy2 + randn_bm()*40, label:1});
+    }
+    updateUI(); draw();
+  });
+
+  clearBtn.addEventListener('click', ()=>{
+    points = [];
+    updateUI(); draw();
+  });
+
+  seedBtn.addEventListener('click', ()=>{
+    // stylish example with two spirals or moon shapes
+    points = [];
+    // half-moon dataset
+    for(let i=0;i<60;i++){
+      const t = Math.PI * (Math.random()*1.0 + 0.0);
+      const r = 80 + Math.random()*20;
+      points.push({x: width*0.35 + Math.cos(t)*r + Math.random()*12, y: height*0.6 + Math.sin(t)*r + Math.random()*12, label:0});
+    }
+    for(let i=0;i<60;i++){
+      const t = Math.PI * (Math.random()*1.0 + 0.6);
+      const r = 80 + Math.random()*20;
+      points.push({x: width*0.65 + Math.cos(t)*r + Math.random()*12, y: height*0.4 + Math.sin(t)*r + Math.random()*12, label:1});
+    }
+    updateUI(); draw();
+  });
+
+  explainBtn.addEventListener('click', ()=>{
+    alert(`How KNN works (short):
+1) Choose K (number of nearest neighbors).
+2) Pick a distance metric (e.g. Euclidean).
+3) For a new query point, find the K closest training points.
+4) Majority vote among those neighbors determines the predicted class.
+Weighted voting gives nearer neighbors more influence (weight = 1/distance).`);
+  });
+
+  // Initial state
+  class0Btn.classList.add('primary');
+
+  // initial random sample
+  (function init(){
+    // Add a few default points to show behavior
+    points = [
+      {x:120,y:380,label:0},{x:150,y:420,label:0},{x:200,y:360,label:0},{x:220,y:400,label:0},
+      {x:520,y:120,label:1},{x:560,y:160,label:1},{x:600,y:100,label:1},{x:480,y:80,label:1}
+    ];
+    updateUI();
+    draw();
+  })();
+
+  // Resize handling (optional)
+  window.addEventListener('resize', ()=>{
+    // keep canvas fixed size for demo; can add responsive scaling if needed
+    draw();
+  });
+
+  // Expose knnClassify to console for experimentation
+  window.knnClassify = knnClassify;
+  window.points = points;
+
+  // Initial draw loop
+  draw();
+
+})();
+</script>
+</body>
+</html>

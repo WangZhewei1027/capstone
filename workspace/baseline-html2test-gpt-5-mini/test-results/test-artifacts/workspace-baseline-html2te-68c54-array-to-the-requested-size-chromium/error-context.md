@@ -1,0 +1,84 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Counting Sort — Interactive Visualizer" [level=1] [ref=e4]
+    - generic [ref=e5]: Non-negative integers only • Stable variant shown
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - generic [ref=e8]: Array (comma or space separated integers)
+      - textbox "e.g. 4,3,2,6,1,3,2" [ref=e9]: 4,3,2,6,1,3,2
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - generic [ref=e12]: "Random: size"
+          - spinbutton [ref=e13]: "10"
+        - generic [ref=e14]:
+          - generic [ref=e15]: Max value (k)
+          - spinbutton [ref=e16]: "9"
+        - button "Generate" [ref=e18] [cursor=pointer]
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: Mode
+          - combobox [ref=e22]:
+            - option "Stable (ascending) — classic counting sort" [selected]
+            - option "Descending (non-stable) — fill by value"
+        - generic [ref=e23]:
+          - generic [ref=e24]: Delay (ms) autoplay
+          - slider [ref=e25]: "300"
+          - generic [ref=e26]: 300 ms
+      - generic [ref=e27]:
+        - button "Start" [ref=e28] [cursor=pointer]
+        - button "Step" [ref=e29] [cursor=pointer]
+        - button "Pause" [ref=e30] [cursor=pointer]
+        - button "Reset" [ref=e31] [cursor=pointer]
+        - generic [ref=e32]: "Status: Idle"
+    - generic [ref=e34]:
+      - generic [ref=e35]:
+        - generic [ref=e36]: Input array (original)
+        - generic [ref=e37]:
+          - generic "4" [ref=e38]
+          - generic "3" [ref=e39]
+          - generic "2" [ref=e40]
+          - generic "6" [ref=e41]
+          - generic "1" [ref=e42]
+          - generic "3" [ref=e43]
+          - generic "2" [ref=e44]
+        - generic [ref=e45]: Counts array (index = value)
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - generic "0"
+            - generic [ref=e48]: "0"
+          - generic [ref=e49]:
+            - generic "0"
+            - generic [ref=e50]: "1"
+          - generic [ref=e51]:
+            - generic "0"
+            - generic [ref=e52]: "2"
+          - generic [ref=e53]:
+            - generic "0"
+            - generic [ref=e54]: "3"
+          - generic [ref=e55]:
+            - generic "0"
+            - generic [ref=e56]: "4"
+          - generic [ref=e57]:
+            - generic "0"
+            - generic [ref=e58]: "5"
+          - generic [ref=e59]:
+            - generic "0"
+            - generic [ref=e60]: "6"
+        - generic [ref=e61]: Output array (building)
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e65]: 1. k = max(A) // or provided maximum key
+          - generic [ref=e66]: 2. initialize counts[0..k] = 0
+          - generic [ref=e67]: "3. for j = 0 .. n-1: counts[A[j]]++ // count occurrences"
+          - generic [ref=e68]: "4. for i = 1 .. k: counts[i] += counts[i-1] // prefix sums (starting indices)"
+          - generic [ref=e69]: "5. // stable placement (ascending):"
+          - generic [ref=e70]: "6. for j = n-1 .. 0: output[counts[A[j]] - 1] = A[j]; counts[A[j]]--"
+          - generic [ref=e71]: "7. // non-stable descending (alternate):"
+          - generic [ref=e72]: 8. p = 0
+          - generic [ref=e73]: "9. for v = k .. 0: while counts[v]-- > 0: output[p++] = v"
+        - generic [ref=e75]: Ready. Click Start to run counting sort or Step to step through.
+  - contentinfo [ref=e76]: "How it works: Counting sort counts how many items have each key (value), computes starting positions using prefix sums, and places items into the output according to those positions. The stable variant processes input from right to left when placing so equal keys keep their relative order."
+```

@@ -1,0 +1,132 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - button "Add Node" [ref=e5]
+      - button "Remove Node" [ref=e6]
+      - button "Random Graph" [ref=e7]
+      - button "Clear Edges" [ref=e8]
+      - generic [ref=e9]:
+        - checkbox "Directed" [ref=e10]
+        - text: Directed
+      - generic [ref=e11]:
+        - checkbox "Weighted" [ref=e12]
+        - text: Weighted
+      - generic [ref=e13]:
+        - text: "Max nodes:"
+        - generic [ref=e14]: "20"
+      - generic [ref=e15]: Click nodes to select & connect. Or edit the matrix on the right.
+    - img [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e21] [cursor=pointer]: n0
+        - generic [ref=e24] [cursor=pointer]: n1
+        - generic [ref=e27] [cursor=pointer]: n2
+        - generic [ref=e30] [cursor=pointer]: n3
+        - generic [ref=e33] [cursor=pointer]: n4
+    - generic [ref=e34]:
+      - generic [ref=e35]: "Selected node: None"
+      - button "Deselect" [ref=e36]
+      - button "Center Nodes" [ref=e37]
+      - button "Circle Layout" [ref=e38]
+      - generic [ref=e39]: Click an adjacency matrix cell to toggle/edit edges.
+    - generic [ref=e40]:
+      - strong [ref=e42]: Degrees / Totals
+      - generic [ref=e43]: "n0: degree=0 | n1: degree=1 | n2: degree=0 | n3: degree=0 | n4: degree=1"
+  - generic [ref=e44]:
+    - generic [ref=e45]:
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - strong [ref=e48]: Adjacency Matrix
+          - text: unweighted
+        - generic [ref=e49]: Rows = source, Columns = target
+      - table [ref=e51]:
+        - rowgroup [ref=e52]:
+          - row "n0 n1 n2 n3 n4" [ref=e53]:
+            - cell [ref=e54]
+            - cell "n0" [ref=e55]
+            - cell "n1" [ref=e56]
+            - cell "n2" [ref=e57]
+            - cell "n3" [ref=e58]
+            - cell "n4" [ref=e59]
+        - rowgroup [ref=e60]:
+          - row "n0" [ref=e61]:
+            - cell "n0" [ref=e62]
+            - cell [ref=e63]:
+              - checkbox [ref=e64]
+            - cell [ref=e65]:
+              - checkbox [ref=e66]
+            - cell [ref=e67]:
+              - checkbox [ref=e68]
+            - cell [ref=e69]:
+              - checkbox [ref=e70]
+            - cell [ref=e71]:
+              - checkbox [ref=e72]
+          - row "n1" [ref=e73]:
+            - cell "n1" [ref=e74]
+            - cell [ref=e75]:
+              - checkbox [ref=e76]
+            - cell [ref=e77]:
+              - checkbox [ref=e78]
+            - cell [ref=e79]:
+              - checkbox [ref=e80]
+            - cell [ref=e81]:
+              - checkbox [ref=e82]
+            - cell [ref=e83]:
+              - checkbox [checked] [ref=e84]
+          - row "n2" [ref=e85]:
+            - cell "n2" [ref=e86]
+            - cell [ref=e87]:
+              - checkbox [ref=e88]
+            - cell [ref=e89]:
+              - checkbox [ref=e90]
+            - cell [ref=e91]:
+              - checkbox [ref=e92]
+            - cell [ref=e93]:
+              - checkbox [ref=e94]
+            - cell [ref=e95]:
+              - checkbox [ref=e96]
+          - row "n3" [ref=e97]:
+            - cell "n3" [ref=e98]
+            - cell [ref=e99]:
+              - checkbox [ref=e100]
+            - cell [ref=e101]:
+              - checkbox [ref=e102]
+            - cell [ref=e103]:
+              - checkbox [ref=e104]
+            - cell [ref=e105]:
+              - checkbox [ref=e106]
+            - cell [ref=e107]:
+              - checkbox [ref=e108]
+          - row "n4" [ref=e109]:
+            - cell "n4" [ref=e110]
+            - cell [ref=e111]:
+              - checkbox [ref=e112]
+            - cell [ref=e113]:
+              - checkbox [checked] [ref=e114]
+            - cell [ref=e115]:
+              - checkbox [ref=e116]
+            - cell [ref=e117]:
+              - checkbox [ref=e118]
+            - cell [ref=e119]:
+              - checkbox [ref=e120]
+      - generic [ref=e121]: "Click a cell: toggles edge (unweighted) or edit weight (weighted). For undirected graphs updates are symmetric."
+    - generic [ref=e122]:
+      - strong [ref=e124]: Adjacency List
+      - generic [ref=e125]: "n0: n1: n4 n2: n3: n4: n1"
+      - generic [ref=e126]: "Format: node: (target, weight)"
+    - generic [ref=e127]:
+      - strong [ref=e130]: Export / Import
+      - generic [ref=e131]:
+        - button "Export JSON" [ref=e132]
+        - button "Import JSON" [ref=e133]
+        - textbox "Paste JSON here" [ref=e134]
+      - generic [ref=e135]: Export includes nodes positions and adjacency matrix.
+    - generic [ref=e136]:
+      - strong [ref=e138]: Tips
+      - list [ref=e139]:
+        - listitem [ref=e140]: "Undirected: adjacency matrix is symmetric. Toggle \"Directed\" for arrows."
+        - listitem [ref=e141]: "Weighted: matrix cells are numeric; zero means no edge."
+        - listitem [ref=e142]: Click a node to select it, then click another node to create/remove an edge between them.
+```

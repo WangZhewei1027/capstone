@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dijkstra's Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    overflow: hidden;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  h1 {
+    text-align: center;
+    margin: 10px 0 5px 0;
+    color: #222;
+  }
+  #container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #canvasContainer {
+    flex: 1;
+    position: relative;
+    background: #fff;
+    border-right: 1px solid #ccc;
+  }
+  canvas {
+    display: block;
+    background: #fff;
+    cursor: pointer;
+    user-select: none;
+  }
+  #controls {
+    width: 350px;
+    background: #f9f9f9;
+    border-left: 1px solid #ccc;
+    padding: 15px;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+  label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+  }
+  select, button, input {
+    width: 100%;
+    padding: 7px 8px;
+    margin-bottom: 12px;
+    box-sizing: border-box;
+    font-size: 14px;
+  }
+  button {
+    cursor: pointer;
+    background-color: #2d89ef;
+    border: none;
+    color: white;
+    font-weight: bold;
+    border-radius: 3px;
+  }
+  button:disabled {
+    background-color: #aaa;
+    cursor: default;
+  }
+  #log {
+    height: 180px;
+    background: #222;
+    color: #eee;
+    font-family: monospace;
+    font-size: 13px;
+    overflow-y: auto;
+    padding: 6px;
+    border-radius: 3px;
+  }
+  #instructions {
+    margin-bottom: 15px;
+    color: #444;
+    font-size: 14px;
+  }
+  .node {
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<h1>Dijkstra's Algorithm Visualization</h1>
+<div id="container">
+  <div id="canvasContainer">
+    <canvas id="graphCanvas" width="700" height="600"></canvas>
+  </div>
+  <div id="controls">
+    <div id="instructions">
+      <p><b>Instructions:</b></p>
+      <ul>
+        <li>Click on the canvas to create nodes.</li>
+        <li>Click and drag from one node to another to add a directed edge (weight prompted).</li>
+        <li>Select start and end nodes below.</li>
+        <li>Click <b>Run Dijkstra</b> to find shortest path.</li>
+        <li>Clear or reset as needed.</li>
+      </ul>
+    </div>
+    <label for="startNode">Start Node:</label>
+    <select id="startNode" disabled></select>
+
+    <label for="endNode">End Node:</label>
+    <select id="endNode" disabled></select>
+
+    <button id="runBtn" disabled>Run Dijkstra</button>
+    <button id="stepBtn" disabled>Step</button>
+    <button id="resetBtn" disabled>Reset</button>
+    <button id="clearBtn">Clear Graph</button>
+
+    <label>Log/Steps:</label>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Data Structures
+  class Node {
+    constructor(id, x, y) {
+      this.id = id;
+      this.x = x;
+      this.y = y;
+      this.radius = 20;
+      this.adj = []; // array of { to: Node, weight: number }
+    }
+  }
+
+  class Edge {
+    constructor(from, to, weight) {
+      this.from = from;
+      this.to = to;
+      this.weight = weight;
+    }
+  }
+
+  // Priority Queue (min-heap) for Dijkstra
+  class MinHeap {
+    constructor() {
+      this.heap = [];
+    }
+    push(item) {
+      this.heap.push(item);
+      this._bubbleUp();
+    }
+    pop() {
+      if(this.heap.length === 0) return null;
+      const top = this.heap[0];
+      let end = this.heap.pop();
+      if(this.heap.length){
+        this.heap[0] = end;
+        this._sinkDown();
+      }
+      return top;
+    }
+    _bubbleUp(){
+      let idx = this.heap.length-1;
+      const element = this.heap[idx];
+      while(idx > 0){
+        let parentIdx = Math.floor((idx-1)/2);
+        let parent = this.heap[parentIdx];
+        if(element.priority >= parent.priority) break;
+        this.heap[parentIdx] = element;
+        this.heap[idx] = parent;
+        idx = parentIdx;
+      }
+    }
+    _sinkDown(){
+      let idx = 0;
+      const length = this.heap.length;
+      const element = this.heap[0];
+      while(true){
+        let leftChildIdx = 2*idx+1;
+        let rightChildIdx = 2*idx+2;
+        let swap = null;
+        let leftChild, rightChild;
+        if(leftChildIdx < length){
+          leftChild = this.heap[leftChildIdx];
+          if(leftChild.priority < element.priority){
+            swap = leftChildIdx;
+          }
+        }
+        if(rightChildIdx < length){
+          rightChild = this.heap[rightChildIdx];
+          if((swap === null && rightChild.priority < element.priority) || (swap !== null && rightChild.priority < leftChild.priority)){
+            swap = rightChildIdx;
+          }
+        }
+        if(swap === null) break;
+        this.heap[idx] = this.heap[swap];
+        this.heap[swap] = element;
+        idx = swap;
+      }
+    }
+    size(){
+      return this.heap.length;
+    }
+  }
+
+  // DOM Elements
+  const canvas = document.getElementById("graphCanvas");
+  const ctx = canvas.getContext("2d");
+  const startNodeSelect = document.getElementById("startNode");
+  const endNodeSelect = document.getElementById("endNode");
+  const runBtn = document.getElementById("runBtn");
+  const stepBtn = document.getElementById("stepBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const logDiv = document.getElementById("log");
+
+  // Variables
+  let nodes = [];
+  let edges = [];
+  let nodeIdCounter = 0;
+  let draggingEdge = null; // { fromNode, fromX, fromY }
+  let hoverNode = null;
+  let draggingNode = null;
+  let dragOffset = {x:0, y:0};
+
+  // Dijkstra Variables
+  let dijkstraState = null;
+
+  // Helper Functions
+  function distance(x1,y1,x2,y2){
+    return Math.sqrt((x1-x2)**2 + (y1-y2)**2);
+  }
+  function clearLog(){
+    logDiv.textContent = "";
+  }
+  function appendLog(line){
+    logDiv.textContent += line + "\n";
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+  function resetDijkstraState(){
+    dijkstraState = null;
+    stepBtn.disabled = true;
+    resetBtn.disabled = true;
+    runBtn.disabled = nodes.length < 2;
+  }
+  function enableControls(){
+    const hasNodes = nodes.length > 0;
+    startNodeSelect.disabled = !hasNodes;
+    endNodeSelect.disabled = !hasNodes;
+    runBtn.disabled = !hasNodes || !startNodeSelect.value || !endNodeSelect.value || startNodeSelect.value === endNodeSelect.value;
+  }
+  function updateNodeSelects(){
+    const oldStart = startNodeSelect.value;
+    const oldEnd = endNodeSelect.value;
+    [startNodeSelect,endNodeSelect].forEach(sel => {
+      while(sel.options.length > 0) sel.remove(0);
+    });
+    nodes.forEach(n => {
+      let opt1 = document.createElement("option");
+      opt1.value = n.id;
+      opt1.textContent = `Node ${n.id}`;
+      startNodeSelect.appendChild(opt1);
+      let opt2 = document.createElement("option");
+      opt2.value = n.id;
+      opt2.textContent = `Node ${n.id}`;
+      endNodeSelect.appendChild(opt2);
+    });
+    startNodeSelect.value = oldStart && [...startNodeSelect.options].some(o=>o.value===oldStart) ? oldStart : "";
+    endNodeSelect.value = oldEnd && [...endNodeSelect.options].some(o=>o.value===oldEnd) ? oldEnd : "";
+  }
+
+  // Drawing functions
+  function drawArrow(fromX, fromY, toX, toY, color="#888", width=2, label=null, highlight=false){
+    const headlen = 10;
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    ctx.strokeStyle = highlight ? "#d43f3a" : color;
+    ctx.fillStyle = highlight ? "#d43f3a" : color;
+    ctx.lineWidth = width;
+
+    ctx.beginPath();
+    // shorten line to not overlap node circle
+    const shortenFromX = fromX + 20 * Math.cos(angle);
+    const shortenFromY = fromY + 20 * Math.sin(angle);
+    const shortenToX = toX - 20 * Math.cos(angle);
+    const shortenToY = toY - 20 * Math.sin(angle);
+    ctx.moveTo(shortenFromX, shortenFromY);
+    ctx.lineTo(shortenToX, shortenToY);
+    ctx.stroke();
+
+    // draw arrowhead
+    ctx.beginPath();
+    ctx.moveTo(shortenToX, shortenToY);
+    ctx.lineTo(shortenToX - headlen * Math.cos(angle - Math.PI / 6), shortenToY - headlen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(shortenToX - headlen * Math.cos(angle + Math.PI / 6), shortenToY - headlen * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+
+    // draw label near middle of edge
+    if(label !== null){
+      const midX = (shortenFromX + shortenToX) / 2;
+      const midY = (shortenFromY + shortenToY) / 2;
+      ctx.fillStyle = "#225";
+      ctx.font = "bold 14px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(label, midX, midY);
+    }
+  }
+
+  function drawNode(node, highlight=false, distance=null, predecessor=null, isCurrent=false){
+    ctx.beginPath();
+    ctx.fillStyle = highlight ? "#f49494" : (isCurrent ? "#f29f05" : "#4a90e2");
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = isCurrent ? 4 : 2;
+    ctx.shadowColor = highlight||isCurrent ? "rgba(255,0,0,0.3)" : "transparent";
+    ctx.shadowBlur = highlight||isCurrent ? 8 : 0;
+    ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(node.id, node.x, node.y);
+
+    if(distance !== null){
+      ctx.fillStyle = highlight ? "#730000" : "#222";
+      ctx.font = "bold 12px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      const distStr = distance === Infinity ? "∞" : distance;
+      ctx.fillText("Dist: " + distStr, node.x, node.y + node.radius + 4);
+    }
+    if(predecessor !== null){
+      ctx.fillStyle = "#555";
+      ctx.font = "10px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText("Prev: " + predecessor, node.x, node.y + node.radius + 18);
+    }
+  }
+
+  function render(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // Draw edges
+    edges.forEach(e=>{
+      const highlight = dijkstraState && dijkstraState.pathEdges.has(e);
+      drawArrow(e.from.x,e.from.y,e.to.x,e.to.y,'#888',2, e.weight, highlight);
+    });
+
+    // Draw dragging edge
+    if(draggingEdge){
+      ctx.strokeStyle = "#aaa";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(draggingEdge.fromNode.x, draggingEdge.fromNode.y);
+      ctx.lineTo(draggingEdge.currentX, draggingEdge.currentY);
+      ctx.stroke();
+      drawArrow(draggingEdge.fromNode.x, draggingEdge.fromNode.y,
+                draggingEdge.currentX, draggingEdge.currentY,
+                "#aaa", 2);
+    }
+
+    // Draw nodes
+    nodes.forEach(node=>{
+      let isCurrent = false, highlight=false;
+      let dist = null;
+      let pred = null;
+      if(dijkstraState){
+        dist = dijkstraState.dist.get(node) || Infinity;
+        pred = dijkstraState.prev.has(node) ? dijkstraState.prev.get(node)?.id : null;
+        if(dijkstraState.currentNode === node) isCurrent = true;
+        if(dijkstraState.visited.has(node)) highlight = true;
+      }
+      drawNode(node, highlight, dist, pred, isCurrent);
+    });
+  }
+
+  // Node hit detection
+  function getNodeAt(x,y){
+    for(let i=nodes.length-1; i >= 0; i--){
+      const n = nodes[i];
+      if(distance(x,y,n.x,n.y) <= n.radius + 4){
+        return n;
+      }
+    }
+    return null;
+  }
+
+  // Event Handlers
+  canvas.addEventListener("mousedown", e=>{
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+
+    if(dijkstraState){
+      // Don't allow editing during algorithm run
+      return;
+    }
+
+    const clickedNode = getNodeAt(cx,cy);
+    if(clickedNode){
+      draggingNode = clickedNode;
+      dragOffset.x = cx - clickedNode.x;
+      dragOffset.y = cy - clickedNode.y;
+    } else {
+      // Add new node
+      nodeIdCounter++;
+      const newNode = new Node(nodeIdCounter, cx, cy);
+      nodes.push(newNode);
+      updateNodeSelects();
+      enableControls();
+      resetDijkstraState();
+      clearLog();
+      appendLog(`Added Node ${newNode.id} at (${Math.round(cx)},${Math.round(cy)})`);
+    }
+    render();
+  });
+  canvas.addEventListener("mousemove", e=>{
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+
+    if(draggingEdge){
+      draggingEdge.currentX = cx;
+      draggingEdge.currentY = cy;
+      render();
+      return;
+    }
+    if(draggingNode){
+      draggingNode.x = cx - dragOffset.x;
+      draggingNode.y = cy - dragOffset.y;
+      render();
+      return;
+    }
+  });
+  canvas.addEventListener("mouseup", e=>{
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+
+    if(draggingNode){
+      draggingNode = null;
+      render();
+      return;
+    }
+    if(draggingEdge){
+      const fromNode = draggingEdge.fromNode;
+      const toNode = getNodeAt(cx, cy);
+      if(toNode && toNode !== fromNode){
+        // Create edge from fromNode to toNode
+        let existingEdge = edges.find(e=>e.from===fromNode && e.to===toNode);
+        if(existingEdge){
+          alert("Edge already exists!");
+        } else {
+          let weightStr = prompt(`Enter weight for edge from Node ${fromNode.id} to Node ${toNode.id}:`, "1");
+          if(weightStr !== null){
+            let weight = Number(weightStr);
+            if(isNaN(weight) || weight <= 0){
+              alert("Invalid weight! Must be a positive number.");
+            } else {
+              fromNode.adj.push({to: toNode, weight});
+              edges.push(new Edge(fromNode, toNode, weight));
+              appendLog(`Added edge: ${fromNode.id} → ${toNode.id} (weight ${weight})`);
+              resetDijkstraState();
+            }
+          }
+        }
+      }
+      draggingEdge = null;
+      render();
+      return;
+    }
+  });
+
+  canvas.addEventListener("dblclick", e=>{
+    // Optional: Remove node or edge on dblclick? For simplicity, no.
+  });
+
+  canvas.addEventListener("contextmenu", e=>{
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+
+    if(dijkstraState){
+      // Don't allow editing
+      return;
+    }
+
+    const node = getNodeAt(cx, cy);
+    if(node){
+      // Remove node and its edges
+      if(confirm(`Delete Node ${node.id} and all connecting edges?`)){
+        // Remove edges connected to node
+        edges = edges.filter(e=>e.from !== node && e.to !== node);
+        nodes = nodes.filter(n=>n !== node);
+        // Remove adj entries
+        nodes.forEach(n=>{
+          n.adj = n.adj.filter(a=>a.to !== node);
+        });
+        appendLog(`Deleted Node ${node.id} and connected edges.`);
+        updateNodeSelects();
+        enableControls();
+        resetDijkstraState();
+        render();
+      }
+    }
+  });
+
+  // Implement drag to create edges: drag from node with right-click or shift/alt key or ctrl ? For simplicity, add edge on mousedown+drag from a node
+  // We'll use mousedown on node + shift key to start drag edge creation
+  canvas.addEventListener("mousedown", e=>{
+    if(e.shiftKey){
+      const rect = canvas.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const n = getNodeAt(cx, cy);
+      if(n && !dijkstraState){
+        draggingEdge = {fromNode: n, currentX: cx, currentY: cy};
+        render();
+      }
+    }
+  });
+
+  // Buttons
+  runBtn.addEventListener("click", ()=>{
+    if(dijkstraState) return; // already running
+
+    const startId = Number(startNodeSelect.value);
+    const endId = Number(endNodeSelect.value);
+    if(!startId || !endId || startId === endId) return;
+
+    const startNode = nodes.find(n=>n.id === startId);
+    const endNode = nodes.find(n=>n.id === endId);
+
+    if(!startNode || !endNode) return;
+
+    // Initialize Dijkstra state
+    dijkstraState = {
+      dist: new Map(),
+      prev: new Map(),
+      visited: new Set(),
+      queue: new MinHeap(),
+      currentNode: null,
+      endNode: endNode,
+      pathEdges: new Set(),
+      finished: false,
+    };
+
+    // init distances
+    nodes.forEach(n=>{
+      dijkstraState.dist.set(n, Infinity);
+      dijkstraState.prev.set(n, null);
+    });
+    dijkstraState.dist.set(startNode, 0);
+    dijkstraState.queue.push({node: startNode, priority: 0});
+
+    appendLog(`Starting Dijkstra's Algorithm from Node ${startNode.id} to Node ${endNode.id}...`);
+    stepBtn.disabled = false;
+    resetBtn.disabled = false;
+    runBtn.disabled = true;
+    startNodeSelect.disabled = true;
+    endNodeSelect.disabled = true;
+    clearBtn.disabled = true;
+    render();
+  });
+
+  stepBtn.addEventListener("click", ()=>{
+    if(!dijkstraState || dijkstraState.finished) return;
+
+    // Dijkstra step
+    let q = dijkstraState.queue;
+    if(q.size() === 0){
+      appendLog("No path found to destination.");
+      dijkstraState.finished = true;
+      stepBtn.disabled = true;
+      resetBtn.disabled = false;
+      render();
+      return;
+    }
+    let current = q.pop().node;
+    if(dijkstraState.visited.has(current)){
+      // Already processed, skip
+      dijkstraState.currentNode = null;
+      render();
+      return;
+    }
+    dijkstraState.currentNode = current;
+    dijkstraState.visited.add(current);
+    appendLog(`Processing Node ${current.id} (dist: ${dijkstraState.dist.get(current)})`);
+
+    if(current === dijkstraState.endNode){
+      // Finish and reconstruct path edges
+      appendLog(`Reached destination Node ${current.id}.`);
+      dijkstraState.finished = true;
+      stepBtn.disabled = true;
+      // Highlight path edges
+      dijkstraState.pathEdges.clear();
+      let cur = current;
+      while(dijkstraState.prev.get(cur)){
+        let p = dijkstraState.prev.get(cur);
+        let edge = edges.find(e=>e.from === p && e.to === cur);
+        if(edge) dijkstraState.pathEdges.add(edge);
+        cur = p;
+      }
+      render();
+      return;
+    }
+
+    // Relax edges
+    current.adj.forEach(adjEdge=>{
+      if(dijkstraState.visited.has(adjEdge.to)) return;
+      const altDist = dijkstraState.dist.get(current) + adjEdge.weight;
+      if(altDist < dijkstraState.dist.get(adjEdge.to)){
+        dijkstraState.dist.set(adjEdge.to, altDist);
+        dijkstraState.prev.set(adjEdge.to, current);
+        q.push({node: adjEdge.to, priority: altDist});
+        appendLog(`Updated dist of Node ${adjEdge.to.id} to ${altDist} via Node ${current.id}.`);
+      }
+    });
+    render();
+  });
+
+  resetBtn.addEventListener("click", ()=>{
+    if(!dijkstraState) return;
+    dijkstraState = null;
+    appendLog("Reset algorithm. You can run it again.");
+    stepBtn.disabled = true;
+    resetBtn.disabled = true;
+    runBtn.disabled = false;
+    startNodeSelect.disabled = false;
+    endNodeSelect.disabled = false;
+    clearBtn.disabled = false;
+    render();
+  });
+
+  clearBtn.addEventListener("click", ()=>{
+    if(dijkstraState){
+      alert("Reset algorithm before clearing graph.");
+      return;
+    }
+    if(!confirm("Clear entire graph? This cannot be undone.")) return;
+    nodes = [];
+    edges = [];
+    nodeIdCounter = 0;
+    updateNodeSelects();
+    enableControls();
+    clearLog();
+    render();
+  });
+
+  // Initial render
+  updateNodeSelects();
+  enableControls();
+  render();
+})();
+</script>
+</body>
+</html>

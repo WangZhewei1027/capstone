@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Huffman Coding Demonstration</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 18px; color: #111; background: #f7f9fb; }
+  h1 { margin: 0 0 8px 0; font-size: 20px; }
+  .layout { display: grid; grid-template-columns: 46% 54%; gap: 16px; align-items: start; }
+  .panel { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 1px 4px rgba(15,20,30,0.06); }
+  textarea { width: 100%; height: 140px; padding: 8px; font-family: monospace; font-size: 13px; box-sizing: border-box; border: 1px solid #dde6ef; border-radius: 6px; resize: vertical; }
+  .controls { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+  button { background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+  button.secondary { background: #eef2ff; color: #1f2937; }
+  button.small { padding: 6px 8px; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  th { background: #fbfdff; font-weight: 600; position: sticky; top: 0; }
+  .code { font-family: monospace; background: #f8fafc; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+  .small-note { color: #475569; font-size: 13px; margin-top: 6px; }
+  .stat-row { display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; }
+  .stat { background: #f1f5f9; padding: 8px 10px; border-radius:8px; font-size:13px; }
+  .svg-wrap { width: 100%; height: 340px; overflow: auto; border: 1px dashed #e6eef8; border-radius: 8px; background: #fff; }
+  svg { width: 100%; height: 100%; }
+  .leaf-highlight { stroke: #fb923c; stroke-width: 3px; }
+  .node { cursor: default; }
+  .bit-output { font-family: monospace; background: #0f1724; color: #e2e8f0; padding: 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; font-size: 13px; max-height:160px; overflow:auto; }
+  .muted { color: #334155; font-size: 13px; }
+  .footer { margin-top: 12px; color: #475569; font-size: 13px; }
+  .legend { font-size: 13px; display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+  .legend .box { display:inline-flex; align-items:center; gap:8px; }
+  .color { width:14px; height:14px; border-radius:4px; display:inline-block; }
+  .color.orange { background:#fb923c; }
+  .color.blue { background:#60a5fa; }
+  .hint { color:#0f1724; background:#fffbeb; padding:8px;border-radius:6px; font-size:13px; margin-top:8px; border:1px solid #fef3c7; }
+  .footer small { color:#64748b; }
+</style>
+</head>
+<body>
+<h1>Huffman Coding — Interactive Demonstration</h1>
+<div class="layout">
+  <div class="panel">
+    <strong>Input text</strong>
+    <textarea id="inputText" spellcheck="false">this is an example for huffman coding</textarea>
+    <div class="controls">
+      <button id="buildBtn">Build Huffman Codes</button>
+      <button class="secondary" id="randomBtn">Load Random Sample</button>
+      <button class="secondary" id="clearBtn">Clear</button>
+      <button class="secondary small" id="toggleSpaces">Show invisible chars</button>
+    </div>
+
+    <div id="freqSection" style="margin-top:10px; display:none;">
+      <strong>Frequency table</strong>
+      <table id="freqTable">
+        <thead><tr><th>Symbol</th><th>Count</th><th>Probability</th><th>Code</th><th>Bits</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="stat-row">
+        <div class="stat" id="totalBits">Total bits: —</div>
+        <div class="stat" id="avgBits">Average bits/symbol: —</div>
+        <div class="stat" id="entropy">Entropy (H): —</div>
+        <div class="stat" id="ratio">Compression vs 8-bit: —</div>
+      </div>
+
+      <div class="small-note" id="noteText"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <strong>Huffman Tree (visual)</strong>
+    <div class="svg-wrap" id="svgContainer">
+      <svg id="huffmanSVG" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+      <button id="encodeBtn">Encode input</button>
+      <button id="decodeBtn" class="secondary">Decode bits → text</button>
+      <button id="stepBtn" class="secondary">Step decode (animate)</button>
+      <button id="copyBits" class="secondary small">Copy bits</button>
+    </div>
+
+    <div style="margin-top:8px;">
+      <div style="display:flex; gap:8px;">
+        <div style="flex:1;">
+          <strong>Encoded bits</strong>
+          <div id="bits" class="bit-output">—</div>
+        </div>
+        <div style="width:45%;">
+          <strong>Decoded text</strong>
+          <div id="decoded" class="bit-output">—</div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="box"><span class="color orange"></span> Current leaf (during animation)</div>
+        <div class="box"><span class="color blue"></span> Node / branch</div>
+      </div>
+      <div class="hint" id="hint">Type or paste text on the left and click "Build Huffman Codes". Then encode, decode, and step through bits to see how the tree is traversed.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  Huffman Coding interactive demo
+  - Build frequency table from input text
+  - Build Huffman tree (binary, standard greedy)
+  - Assign codes
+  - Encode / decode
+  - Visualize tree in SVG and animate decoding
+*/
+
+// Utilities
+function escapeSymbol(ch, showInvisible) {
+  if (ch === ' ') return showInvisible ? '␣' : '[space]';
+  if (ch === '\\n') return '\\n';
+  if (ch === '\\t') return '\\t';
+  if (ch === '\n') return showInvisible ? '↵' : '[LF]';
+  if (ch === '\t') return showInvisible ? '⇥' : '[TAB]';
+  if (ch === '\r') return '[CR]';
+  if (ch === '') return '[empty]';
+  return ch;
+}
+
+function formatProb(p) { return (p*100).toFixed(2) + '%'; }
+function bitsToGroupedString(bits) {
+  if (!bits) return '—';
+  // group in 8 bits for readability, also show total bits
+  let out = '';
+  for (let i=0;i<bits.length;i++){
+    out += bits[i];
+    if ((i+1)%8===0 && i+1 < bits.length) out += ' ';
+  }
+  return out + '  (' + bits.length + ' bits)';
+}
+
+// Huffman functions
+function buildFrequency(text) {
+  const freq = new Map();
+  for (let ch of text) freq.set(ch, (freq.get(ch) || 0) + 1);
+  return freq;
+}
+
+// Node structure: {id, weight, char (if leaf), left, right}
+let nodeIdCounter = 0;
+function buildHuffmanTree(freqMap) {
+  // create initial nodes
+  let nodes = [];
+  for (let [ch,w] of freqMap.entries()) {
+    nodes.push({ id: nodeIdCounter++, weight: w, char: ch, left: null, right: null });
+  }
+  if (nodes.length === 0) return null;
+  if (nodes.length === 1) {
+    // Special-case: single symbol -> create dummy node so it gets code '0'
+    const leaf = nodes[0];
+    const root = { id: nodeIdCounter++, weight: leaf.weight, char: null, left: leaf, right: { id: nodeIdCounter++, weight: 0, char: null, left: null, right: null } };
+    return root;
+  }
+  // standard greedy: repeatedly merge two smallest weights
+  while (nodes.length > 1) {
+    nodes.sort((a,b) => a.weight - b.weight || (a.id - b.id)); // deterministic tie-breaker by id
+    const a = nodes.shift();
+    const b = nodes.shift();
+    const parent = { id: nodeIdCounter++, weight: a.weight + b.weight, char: null, left: a, right: b };
+    nodes.push(parent);
+  }
+  return nodes[0];
+}
+
+function assignCodes(node, prefix='', codes={}) {
+  if (!node) return codes;
+  if (node.char !== null && node.left === null && node.right === null) {
+    // leaf
+    codes[node.char] = prefix || '0'; // single symbol -> code '0'
+  } else {
+    assignCodes(node.left, prefix + '0', codes);
+    assignCodes(node.right, prefix + '1', codes);
+  }
+  return codes;
+}
+
+// Encoding & decoding
+function encodeText(text, codes) {
+  let out = '';
+  for (let ch of text) out += codes[ch];
+  return out;
+}
+
+function decodeBits(bits, root) {
+  if (!root) return '';
+  let res = '';
+  let node = root;
+  for (let b of bits) {
+    if (b === '0') node = node.left;
+    else node = node.right;
+    if (!node) return null; // invalid bits
+    if (node.char !== null && node.left === null && node.right === null) {
+      res += node.char;
+      node = root;
+    }
+  }
+  // If ended mid-way, return null to indicate incomplete/invalid
+  if (node !== root) return null;
+  return res;
+}
+
+// Visualization: compute layout positions by assigning x positions to leaves evenly
+function layoutTree(root) {
+  if (!root) return { nodes: [], links: [] };
+  // count leaves
+  function countLeaves(n) {
+    if (!n.left && !n.right) return 1;
+    let sum = 0;
+    if (n.left) sum += countLeaves(n.left);
+    if (n.right) sum += countLeaves(n.right);
+    return sum;
+  }
+  const totalLeaves = countLeaves(root);
+  const levelGap = 80;
+  const leafGap = 60;
+  let xCursor = 20;
+
+  const positions = new Map();
+  function dfs(n, depth) {
+    if (!n.left && !n.right) {
+      const x = xCursor;
+      const y = depth * levelGap + 30;
+      positions.set(n.id, { x, y });
+      xCursor += leafGap;
+      return 1;
+    }
+    let leftCount = 0, rightCount = 0;
+    if (n.left) leftCount = dfs(n.left, depth+1);
+    if (n.right) rightCount = dfs(n.right, depth+1);
+    // center parent above its children
+    // compute children's x
+    const childXs = [];
+    if (n.left) childXs.push(positions.get(n.left.id).x);
+    if (n.right) childXs.push(positions.get(n.right.id).x);
+    const avgX = childXs.reduce((a,b)=>a+b,0)/childXs.length;
+    const y = depth * levelGap + 30;
+    positions.set(n.id, { x: avgX, y });
+    return leftCount + rightCount;
+  }
+  dfs(root, 0);
+
+  const nodes = [];
+  const links = [];
+  function collect(n) {
+    const p = positions.get(n.id);
+    nodes.push({...n, x: p.x, y: p.y});
+    if (n.left) {
+      links.push({ from: n.id, to: n.left.id });
+      collect(n.left);
+    }
+    if (n.right) {
+      links.push({ from: n.id, to: n.right.id });
+      collect(n.right);
+    }
+  }
+  collect(root);
+  return { nodes, links };
+}
+
+// Render SVG
+function renderSVG(root, codes, showInvisible, highlightLeafId=null) {
+  const svg = document.getElementById('huffmanSVG');
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  if (!root) {
+    svg.setAttribute('viewBox','0 0 400 120');
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',20); t.setAttribute('y',40); t.setAttribute('fill','#94a3b8'); t.setAttribute('font-size','13');
+    t.textContent = 'No tree (empty input)';
+    g.appendChild(t);
+    svg.appendChild(g);
+    return;
+  }
+  const layout = layoutTree(root);
+  // compute viewBox
+  const xs = layout.nodes.map(n=>n.x);
+  const ys = layout.nodes.map(n=>n.y);
+  const minX = Math.max(0, Math.min(...xs)-40), maxX = Math.max(...xs)+80;
+  const minY = Math.min(...ys)-40, maxY = Math.max(...ys)+40;
+  svg.setAttribute('viewBox', `${minX} ${Math.max(0,minY)} ${Math.max(300, maxX-minX)} ${Math.max(200, maxY-minY)}`);
+
+  // helper to find node by id
+  const nodeById = new Map(layout.nodes.map(n=>[n.id,n]));
+
+  // draw links
+  for (let link of layout.links) {
+    const from = nodeById.get(link.from);
+    const to = nodeById.get(link.to);
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', from.x); line.setAttribute('y1', from.y+18);
+    line.setAttribute('x2', to.x); line.setAttribute('y2', to.y-18);
+    line.setAttribute('stroke','#cfe6ff');
+    line.setAttribute('stroke-width','2');
+    svg.appendChild(line);
+    // add label 0 or 1 near half of the link (left child = 0, right child = 1)
+    const childNode = nodeById.get(link.to);
+    const parentNode = nodeById.get(link.from);
+    const midX = (parentNode.x + childNode.x) / 2;
+    const midY = (parentNode.y + childNode.y) / 2;
+    const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+    const isLeft = parentNode.left && parentNode.left.id === childNode.id;
+    label.setAttribute('x', midX - (isLeft ? 6 : 0));
+    label.setAttribute('y', midY - 6);
+    label.setAttribute('fill','#1e293b');
+    label.setAttribute('font-size','12');
+    label.textContent = isLeft ? '0' : '1';
+    svg.appendChild(label);
+  }
+
+  // draw nodes
+  for (let n of layout.nodes) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('transform', `translate(${n.x},${n.y})`);
+    g.classList.add('node');
+    // circle
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('r', 18);
+    circle.setAttribute('fill', '#fff');
+    circle.setAttribute('stroke', '#60a5fa');
+    circle.setAttribute('stroke-width', '2');
+    if (n.id === highlightLeafId) {
+      circle.setAttribute('stroke', '#fb923c');
+      circle.setAttribute('stroke-width', '4');
+    }
+    g.appendChild(circle);
+    // weight text
+    const wtext = document.createElementNS('http://www.w3.org/2000/svg','text');
+    wtext.setAttribute('x',0); wtext.setAttribute('y',5); wtext.setAttribute('text-anchor','middle');
+    wtext.setAttribute('font-size','12'); wtext.setAttribute('fill','#0f1724'); wtext.textContent = n.weight;
+    g.appendChild(wtext);
+    // if leaf, show char and code
+    if (n.char !== null && !n.left && !n.right) {
+      const top = document.createElementNS('http://www.w3.org/2000/svg','text');
+      top.setAttribute('x',0); top.setAttribute('y',-26); top.setAttribute('text-anchor','middle');
+      top.setAttribute('font-size','12'); top.setAttribute('fill','#0f1724');
+      top.textContent = escapeSymbol(n.char, showInvisible);
+      g.appendChild(top);
+      const code = document.createElementNS('http://www.w3.org/2000/svg','text');
+      code.setAttribute('x',0); code.setAttribute('y',44); code.setAttribute('text-anchor','middle');
+      code.setAttribute('font-size','11'); code.setAttribute('fill','#475569');
+      code.textContent = codes[n.char] || '';
+      g.appendChild(code);
+      // interactive: click leaf to show mapping highlight in table
+      g.style.cursor = 'pointer';
+      g.addEventListener('mouseenter', ()=> {
+        // highlight corresponding table row
+        const row = document.querySelector(`tr[data-char="${encodeURIComponent(n.char)}"]`);
+        if (row) row.style.background = '#fffbeb';
+      });
+      g.addEventListener('mouseleave', ()=> {
+        const row = document.querySelector(`tr[data-char="${encodeURIComponent(n.char)}"]`);
+        if (row) row.style.background = '';
+      });
+      g.addEventListener('click', ()=> {
+        // scroll table to that row
+        const row = document.querySelector(`tr[data-char="${encodeURIComponent(n.char)}"]`);
+        if (row) row.scrollIntoView({behavior:'smooth', block:'center'});
+      });
+    }
+    svg.appendChild(g);
+  }
+}
+
+// UI wiring
+const inputText = document.getElementById('inputText');
+const buildBtn = document.getElementById('buildBtn');
+const randomBtn = document.getElementById('randomBtn');
+const clearBtn = document.getElementById('clearBtn');
+const toggleSpaces = document.getElementById('toggleSpaces');
+const freqSection = document.getElementById('freqSection');
+const freqTableBody = document.querySelector('#freqTable tbody');
+const totalBitsDiv = document.getElementById('totalBits');
+const avgBitsDiv = document.getElementById('avgBits');
+const entropyDiv = document.getElementById('entropy');
+const ratioDiv = document.getElementById('ratio');
+const noteText = document.getElementById('noteText');
+const bitsDiv = document.getElementById('bits');
+const decodedDiv = document.getElementById('decoded');
+const encodeBtn = document.getElementById('encodeBtn');
+const decodeBtn = document.getElementById('decodeBtn');
+const stepBtn = document.getElementById('stepBtn');
+const copyBitsBtn = document.getElementById('copyBits');
+const svgContainer = document.getElementById('svgContainer');
+let currentRoot = null;
+let currentCodes = null;
+let showInvisible = false;
+
+// sample specifics
+const samples = [
+  "this is an example for huffman coding",
+  "aaaaaaaaaaaaaaaaaaaaaaa", // single symbol
+  "To be, or not to be, that is the question: Whether 'tis nobler in the mind to suffer.",
+  "a quick brown fox jumps over the lazy dog",
+  "Huffman coding is a lossless data compression algorithm."
+];
+
+function buildFromInput() {
+  const text = inputText.value;
+  const freq = buildFrequency(text);
+  if (freq.size === 0) {
+    freqSection.style.display = 'none';
+    currentRoot = null;
+    currentCodes = null;
+    renderSVG(null, {}, showInvisible);
+    bitsDiv.textContent = '—';
+    decodedDiv.textContent = '—';
+    totalBitsDiv.textContent = 'Total bits: —';
+    avgBitsDiv.textContent = 'Average bits/symbol: —';
+    entropyDiv.textContent = 'Entropy (H): —';
+    ratioDiv.textContent = 'Compression vs 8-bit: —';
+    noteText.textContent = '';
+    return;
+  }
+  freqSection.style.display = 'block';
+  // build tree
+  currentRoot = buildHuffmanTree(freq);
+  currentCodes = assignCodes(currentRoot, '', {});
+  // prepare table
+  const total = text.length;
+  // create an array of entries sorted by count desc
+  const entries = Array.from(freq.entries()).sort((a,b)=> b[1]-a[1] || (a[0] < b[0] ? -1:1));
+  freqTableBody.innerHTML = '';
+  let totalBits = 0;
+  let entropy = 0;
+  for (let [ch,count] of entries) {
+    const p = count/total;
+    const code = currentCodes[ch];
+    const bits = code ? code.length * count : 0;
+    totalBits += bits;
+    if (p > 0) entropy += -p * Math.log2(p);
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-char', encodeURIComponent(ch));
+    const symTd = document.createElement('td');
+    symTd.textContent = escapeSymbol(ch, showInvisible);
+    const countTd = document.createElement('td'); countTd.textContent = ''+count;
+    const probTd = document.createElement('td'); probTd.textContent = formatProb(p);
+    const codeTd = document.createElement('td'); codeTd.innerHTML = '<span class="code">'+ (code || '') +'</span>';
+    const bitsTd = document.createElement('td'); bitsTd.textContent = bits;
+    tr.append(symTd, countTd, probTd, codeTd, bitsTd);
+    // hover highlight on table to highlight leaf in SVG
+    tr.addEventListener('mouseenter', ()=> {
+      // find leaf node id for this char
+      let lid = findLeafIdByChar(currentRoot, ch);
+      renderSVG(currentRoot, currentCodes, showInvisible, lid);
+    });
+    tr.addEventListener('mouseleave', ()=> {
+      renderSVG(currentRoot, currentCodes, showInvisible, null);
+    });
+    freqTableBody.appendChild(tr);
+  }
+  const avgBits = totalBits / total;
+  totalBitsDiv.textContent = 'Total bits: ' + totalBits;
+  avgBitsDiv.textContent = 'Average bits/symbol: ' + avgBits.toFixed(3);
+  entropyDiv.textContent = 'Entropy (H): ' + entropy.toFixed(3) + ' bits/symbol';
+  const ratio = ((total*8) / totalBits);
+  ratioDiv.textContent = 'Compression vs 8-bit: ' + (isFinite(ratio) ? ratio.toFixed(3) + '×' : '—');
+  noteText.textContent = 'Note: Huffman produces variable-length prefix-free codes. Average bits per symbol is ≥ entropy. Ties in the algorithm can change exact codes but not code lengths distribution.';
+  // render tree
+  renderSVG(currentRoot, currentCodes, showInvisible, null);
+  bitsDiv.textContent = '—';
+  decodedDiv.textContent = '—';
+}
+
+// helper to find leaf node id by char
+function findLeafIdByChar(node, ch) {
+  if (!node) return null;
+  if (node.char !== null && node.char === ch) return node.id;
+  let l = null, r = null;
+  if (node.left) l = findLeafIdByChar(node.left, ch);
+  if (node.right) r = findLeafIdByChar(node.right, ch);
+  return l || r;
+}
+
+// button handlers
+buildBtn.addEventListener('click', ()=> {
+  nodeIdCounter = 0;
+  buildFromInput();
+});
+randomBtn.addEventListener('click', ()=> {
+  const s = samples[Math.floor(Math.random()*samples.length)];
+  inputText.value = s;
+  nodeIdCounter = 0;
+  buildFromInput();
+});
+clearBtn.addEventListener('click', ()=> {
+  inputText.value = '';
+  nodeIdCounter = 0;
+  buildFromInput();
+});
+toggleSpaces.addEventListener('click', ()=> {
+  showInvisible = !showInvisible;
+  toggleSpaces.textContent = showInvisible ? 'Show invisible chars' : 'Show invisible chars';
+  buildFromInput();
+});
+
+// encode / decode
+encodeBtn.addEventListener('click', ()=> {
+  if (!currentCodes) { alert('Build codes first'); return; }
+  const text = inputText.value;
+  const bits = encodeText(text, currentCodes);
+  bitsDiv.textContent = bitsToGroupedString(bits);
+  decodedDiv.textContent = '—';
+});
+
+decodeBtn.addEventListener('click', ()=> {
+  if (!currentRoot) { alert('Build codes first'); return; }
+  const bitsText = prompt('Paste bits to decode (e.g. 010110...)\nOr leave empty to decode the current encoded bits displayed below.');
+  let bits = bitsText;
+  if (bits === null) return;
+  if (bits.trim() === '') {
+    // take from bitsDiv internal content (strip parenthesis)
+    const cur = bitsDiv.textContent;
+    if (!cur || cur === '—') { alert('No bits to decode'); return; }
+    bits = cur.replace(/[^01]/g,'');
+  } else {
+    bits = bits.replace(/[^01]/g,'');
+  }
+  const decoded = decodeBits(bits, currentRoot);
+  if (decoded === null) {
+    alert('Bits could not be decoded fully (incomplete or invalid sequence).');
+  } else {
+    decodedDiv.textContent = decoded;
+  }
+});
+
+// animate step decode
+stepBtn.addEventListener('click', async ()=> {
+  if (!currentRoot) { alert('Build codes first'); return; }
+  const curBits = bitsDiv.textContent;
+  if (!curBits || curBits === '—') { alert('No encoded bits available. Click "Encode input" first.'); return; }
+  const bits = curBits.replace(/[^01]/g,'');
+  if (bits.length === 0) { alert('No bits to animate'); return; }
+  // animation: iterate bits, traverse, highlight current leaf when found
+  let node = currentRoot;
+  renderSVG(currentRoot, currentCodes, showInvisible, null);
+  decodedDiv.textContent = '';
+  for (let i=0;i<bits.length;i++) {
+    const b = bits[i];
+    if (b === '0') node = node.left;
+    else node = node.right;
+    // highlight current node if leaf
+    if (!node) {
+      alert('Invalid traversal (bits do not match tree).');
+      return;
+    }
+    // find leaf id if at leaf
+    if (node.char !== null && !node.left && !node.right) {
+      // highlight leaf
+      renderSVG(currentRoot, currentCodes, showInvisible, node.id);
+      // append decoded char
+      decodedDiv.textContent += node.char;
+      await new Promise(r=>setTimeout(r, 350));
+      node = currentRoot;
+    } else {
+      // highlight intermediate node: render with no leaf highlight
+      renderSVG(currentRoot, currentCodes, showInvisible, null);
+      await new Promise(r=>setTimeout(r, 160));
+    }
+    // scroll svg container to show center (for wide trees)
+    svgContainer.scrollLeft = Math.max(0, node ? node.x - 50 : 0);
+  }
+  // final: ensure full decode
+  if (node !== currentRoot) {
+    alert('Ended mid-code. Bits may be incomplete.');
+  }
+});
+
+// copy bits
+copyBitsBtn.addEventListener('click', ()=> {
+  const cur = bitsDiv.textContent.replace(/[^01]/g,'');
+  if (!cur) { alert('No bits to copy'); return; }
+  navigator.clipboard.writeText(cur).then(()=> {
+    copyBitsBtn.textContent = 'Copied!';
+    setTimeout(()=> copyBitsBtn.textContent = 'Copy bits', 1200);
+  }, ()=> alert('Could not copy'));
+});
+
+// build on load
+nodeIdCounter = 0;
+buildFromInput();
+
+// allow encoding by pressing Ctrl+Enter in textarea
+inputText.addEventListener('keydown', (e)=> {
+  if (e.ctrlKey && e.key === 'Enter') {
+    nodeIdCounter = 0;
+    buildFromInput();
+  }
+});
+
+</script>
+</body>
+</html>

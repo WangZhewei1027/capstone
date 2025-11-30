@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prim's Algorithm Demonstration</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    background: #f5f5f5;
+  }
+  header {
+    background: #2c3e50;
+    color: white;
+    padding: 1rem 2rem;
+    text-align: center;
+  }
+  #container {
+    display: flex;
+    height: calc(100vh - 72px);
+  }
+  #graphArea {
+    flex: 1;
+    background: white;
+    border-right: 1px solid #ccc;
+    position: relative;
+  }
+  #controls {
+    width: 300px;
+    padding: 1rem;
+    background: #ecf0f1;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+  #controls section {
+    margin-bottom: 1.5rem;
+  }
+  label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-weight: bold;
+  }
+  input[type=number], select {
+    width: 100%;
+    padding: 0.3rem;
+    margin-bottom: 0.6rem;
+    box-sizing: border-box;
+  }
+  button {
+    padding: 0.6rem 1rem;
+    font-size: 1rem;
+    margin-top: 0.5rem;
+    background: #3498db;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  button:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  #log {
+    height: 150px;
+    background: #222;
+    color: #eee;
+    font-family: monospace;
+    overflow-y: auto;
+    padding: 10px;
+    border-radius: 4px;
+  }
+  .edge-weight-label {
+    position: absolute;
+    background: rgba(255,255,255,0.9);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 12px;
+    pointer-events: none;
+  }
+  .node {
+    fill: #2980b9;
+    stroke: #1f5980;
+    stroke-width: 2px;
+    cursor: pointer;
+  }
+  .node.selected {
+    fill: #e74c3c;
+  }
+  .edge {
+    stroke: #bdc3c7;
+    stroke-width: 2px;
+  }
+  .edge.in-mst {
+    stroke: #27ae60;
+    stroke-width: 4px;
+  }
+  #info {
+    font-size: 14px;
+    margin-top: 1rem;
+    color: #333;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Prim's Algorithm Visualization</h1>
+</header>
+<div id="container">
+  <div id="graphArea">
+    <svg id="graphSvg" width="100%" height="100%"></svg>
+  </div>
+  <div id="controls">
+    <section>
+      <h2>Graph Input</h2>
+      <label for="nodeCount">Number of nodes (2-10):</label>
+      <input type="number" id="nodeCount" min="2" max="10" value="6" />
+      <button id="generateRandomGraphBtn">Generate Random Graph</button>
+      <small>Click on nodes to select start node for Prim's algorithm.</small>
+    </section>
+    <section>
+      <h2>Run Prim's Algorithm</h2>
+      <button id="startPrimBtn" disabled>Start Prim's Algorithm</button>
+      <button id="stepPrimBtn" disabled>Next Step</button>
+      <button id="resetPrimBtn" disabled>Reset Algorithm</button>
+    </section>
+    <section>
+      <h2>Log:</h2>
+      <div id="log"></div>
+    </section>
+    <section id="info">
+      <b>How to use:</b><br/>
+      1. Generate a random weighted undirected graph.<br/>
+      2. Click on a node to select it as the start node.<br/>
+      3. Press "Start Prim's Algorithm".<br/>
+      4. Use "Next Step" button to advance algorithm step by step.<br/>
+      5. Edges in green are included in the MST.<br/>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const svgNS = "http://www.w3.org/2000/svg";
+  const graphSvg = document.getElementById("graphSvg");
+  const nodeCountInput = document.getElementById("nodeCount");
+  const generateBtn = document.getElementById("generateRandomGraphBtn");
+  const startBtn = document.getElementById("startPrimBtn");
+  const stepBtn = document.getElementById("stepPrimBtn");
+  const resetBtn = document.getElementById("resetPrimBtn");
+  const logDiv = document.getElementById("log");
+
+  let width, height;
+
+  function getSvgSize() {
+    width = graphSvg.clientWidth;
+    height = graphSvg.clientHeight;
+  }
+
+  let nodes = [];
+  let edges = [];
+  // nodes: {id, x, y, circleElement, labelElement}
+  // edges: {id, u, v, weight, lineElement, labelElement, inMST}
+
+  // Prim's algorithm state
+  let primState = null;
+  // primState: {
+  //   startNode,
+  //   mstSet: Set(nodeId),
+  //   edgeQueue: array of edges candidates (or better a PriorityQueue)
+  //   mstEdges: array of edges in MST
+  //   step: current step number
+  // }
+  let selectedNodeId = null;
+
+  // Priority Queue implementation (min-heap based on edge weight)
+  class PriorityQueue {
+    constructor() {
+      this.data = [];
+    }
+    enqueue(edge) {
+      this.data.push(edge);
+      this._bubbleUp(this.data.length -1);
+    }
+    dequeue() {
+      if(this.isEmpty()) return null;
+      const min = this.data[0];
+      const end = this.data.pop();
+      if(this.data.length > 0) {
+        this.data[0] = end;
+        this._sinkDown(0);
+      }
+      return min;
+    }
+    _bubbleUp(idx) {
+      let element = this.data[idx];
+      while(idx > 0) {
+        const parentIdx = Math.floor((idx-1)/2);
+        const parent = this.data[parentIdx];
+        if(element.weight >= parent.weight) break;
+        this.data[parentIdx] = element;
+        this.data[idx] = parent;
+        idx = parentIdx;
+      }
+    }
+    _sinkDown(idx) {
+      const length = this.data.length;
+      const element = this.data[idx];
+      while(true){
+        let leftChildIdx = 2*idx + 1;
+        let rightChildIdx = 2*idx + 2;
+        let swap = null;
+        if(leftChildIdx < length){
+          if(this.data[leftChildIdx].weight < element.weight){
+            swap = leftChildIdx;
+          }
+        }
+        if(rightChildIdx < length){
+          if((swap === null && this.data[rightChildIdx].weight < element.weight) ||
+             (swap !== null && this.data[rightChildIdx].weight < this.data[leftChildIdx].weight)){
+            swap = rightChildIdx;
+          }
+        }
+        if(swap === null) break;
+        this.data[idx] = this.data[swap];
+        this.data[swap] = element;
+        idx = swap;
+      }
+    }
+    isEmpty() {
+      return this.data.length === 0;
+    }
+    clear() {
+      this.data.length = 0;
+    }
+  }
+
+  function clearLog(){
+    logDiv.textContent = "";
+  }
+  function log(msg){
+    const time = new Date().toLocaleTimeString();
+    logDiv.textContent += `[${time}] ${msg}\n`;
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  function createNode(id, x, y){
+    // Group for circle + label
+    const g = document.createElementNS(svgNS, "g");
+    g.setAttribute("class", "node-group");
+    g.style.cursor = "pointer";
+    g.dataset.id = id;
+
+    // Circle
+    const circle = document.createElementNS(svgNS, "circle");
+    circle.setAttribute("cx", x);
+    circle.setAttribute("cy", y);
+    circle.setAttribute("r", 20);
+    circle.setAttribute("class", "node");
+    circle.style.transition = "fill 0.3s ease";
+
+    // Label
+    const label = document.createElementNS(svgNS, "text");
+    label.setAttribute("x", x);
+    label.setAttribute("y", y+5);
+    label.setAttribute("text-anchor", "middle");
+    label.setAttribute("font-weight", "bold");
+    label.setAttribute("font-size", "14");
+    label.textContent = id;
+
+    g.appendChild(circle);
+    g.appendChild(label);
+    graphSvg.appendChild(g);
+
+    return {id, x, y, group: g, circleElement: circle, labelElement: label};
+  }
+
+  function createEdge(id, uNode, vNode, weight){
+    // Line
+    const line = document.createElementNS(svgNS, "line");
+    line.setAttribute("x1", uNode.x);
+    line.setAttribute("y1", uNode.y);
+    line.setAttribute("x2", vNode.x);
+    line.setAttribute("y2", vNode.y);
+    line.setAttribute("class", "edge");
+
+    // Label
+    const label = document.createElementNS(svgNS, "text");
+    label.setAttribute("font-size", "12");
+    label.setAttribute("font-weight", "bold");
+    label.setAttribute("fill", "#2c3e50");
+    // midpoint for label:
+    const mx = (uNode.x + vNode.x) / 2;
+    const my = (uNode.y + vNode.y) / 2;
+
+    label.setAttribute("x", mx);
+    label.setAttribute("y", my - 5);
+    label.setAttribute("text-anchor", "middle");
+    label.textContent = weight;
+
+    graphSvg.appendChild(line);
+    graphSvg.appendChild(label);
+
+    return {id, u: uNode.id, v: vNode.id, weight, lineElement: line, labelElement: label, inMST:false};
+  }
+
+  function clearGraph(){
+    while(graphSvg.lastChild){
+      graphSvg.removeChild(graphSvg.lastChild);
+    }
+    nodes.length = 0;
+    edges.length = 0;
+    selectedNodeId = null;
+  }
+
+  // Generate random connected graph with n nodes
+  function generateRandomGraph(n){
+    clearGraph();
+    getSvgSize();
+
+    // Place nodes in a circle
+    const radius = Math.min(width, height)/2.5;
+    const centerX = width/2;
+    const centerY = height/2;
+    for(let i=0; i<n; i++){
+      const angle = (2*Math.PI * i) / n;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      nodes.push(createNode(i+1, x, y));
+    }
+
+    // Connect nodes to form a spanning tree first (to ensure connectivity)
+    let connected = new Set();
+    connected.add(1);
+    const remaining = new Set();
+    for(let i=2; i<=n; i++) remaining.add(i);
+
+    let edgeId = 1;
+    while(remaining.size > 0){
+      // pick one node from connected and one from remaining
+      let cArray = Array.from(connected);
+      let rArray = Array.from(remaining);
+      const u = cArray[Math.floor(Math.random()*cArray.length)];
+      const v = rArray[Math.floor(Math.random()*rArray.length)];
+      // Weight random 1 to 20
+      const w = Math.floor(Math.random()*20)+1;
+      let uNode = nodes.find(nd=>nd.id === u);
+      let vNode = nodes.find(nd=>nd.id === v);
+      edges.push(createEdge(edgeId++, uNode, vNode, w));
+      connected.add(v);
+      remaining.delete(v);
+    }
+
+    // Add some additional random edges to make the graph denser
+    const maxEdges = n*(n-1)/2;
+    const currentEdges = edges.length;
+    const additionalEdgesCount = Math.min(n*2, maxEdges - currentEdges);
+    let attempts = 0;
+    while(additionalEdgesCount > 0 && attempts < 1000){
+      const u = Math.floor(Math.random()*n)+1;
+      const v = Math.floor(Math.random()*n)+1;
+      if(u === v) { attempts++; continue;}
+      // Check if edge exists already
+      const exists = edges.some(e => (e.u === u && e.v === v) || (e.u === v && e.v === u));
+      if(exists) {
+        attempts++;
+        continue;
+      }
+      const w = Math.floor(Math.random()*20)+1;
+      let uNode = nodes.find(nd=>nd.id === u);
+      let vNode = nodes.find(nd=>nd.id === v);
+      edges.push(createEdge(edgeId++, uNode, vNode, w));
+      if(edges.length >= currentEdges + additionalEdgesCount) break;
+      attempts++;
+    }
+
+    // Attach events to nodes (for selection)
+    nodes.forEach(node => {
+      node.group.style.pointerEvents = "auto";
+      node.group.onclick = () => {
+        setSelectedNode(node.id);
+      };
+    });
+
+    clearLog();
+    log(`Generated random graph with ${n} nodes and ${edges.length} edges.`);
+    selectedNodeId = null;
+    updateButtons();
+    clearPrimState();
+    updateGraphStyles();
+  }
+
+  function setSelectedNode(id){
+    if(selectedNodeId === id) return;
+    selectedNodeId = id;
+    nodes.forEach(nd => {
+      if(nd.id === id){
+        nd.circleElement.classList.add("selected");
+      } else {
+        nd.circleElement.classList.remove("selected");
+      }
+    });
+    log(`Selected node ${id} as start node.`);
+    updateButtons();
+  }
+
+  function updateButtons(){
+    startBtn.disabled = (selectedNodeId === null) || (primState !== null);
+    stepBtn.disabled = primState === null;
+    resetBtn.disabled = primState === null;
+  }
+
+  function clearPrimState(){
+    if(primState !== null){
+      primState = null;
+    }
+    // Reset edge styles:
+    edges.forEach(e => {
+      e.inMST = false;
+    });
+    updateGraphStyles();
+    updateButtons();
+  }
+
+  // Update visual style of edges and nodes based on MST inclusion
+  function updateGraphStyles(){
+    edges.forEach(e => {
+      if(e.inMST){
+        e.lineElement.classList.add("in-mst");
+      } else {
+        e.lineElement.classList.remove("in-mst");
+      }
+    });
+  }
+
+  // Prim's algorithm initialization
+  function startPrim(){
+    if(selectedNodeId === null) return;
+    clearLog();
+    log(`Starting Prim's Algorithm at node ${selectedNodeId}`);
+    primState = {
+      startNode: selectedNodeId,
+      mstSet: new Set([selectedNodeId]),
+      edgeQueue: new PriorityQueue(),
+      mstEdges: [],
+      step: 0
+    };
+    // Add edges adjacent to startNode to the queue
+    addAdjacentEdges(selectedNodeId);
+    updateButtons();
+  }
+
+  // Add edges that connect mstSet to outside vertices into the queue
+  function addAdjacentEdges(nodeId){
+    edges.forEach(e => {
+      if( (e.u === nodeId && !primState.mstSet.has(e.v)) ||
+          (e.v === nodeId && !primState.mstSet.has(e.u))){
+        primState.edgeQueue.enqueue(e);
+        log(`Added edge (${e.u} — ${e.v}) with weight ${e.weight} to candidates.`);
+      }
+    });
+  }
+
+  const highlightTimeoutDelay = 1200;
+  let highlightTimeoutHandle = null;
+
+  function stepPrim(){
+    if(primState === null) return;
+
+    // If all nodes included, done
+    if(primState.mstSet.size === nodes.length){
+      log("All nodes included in MST. Prim's algorithm completed.");
+      stepBtn.disabled = true;
+      return;
+    }
+
+    let edge = null;
+    // Extract min edge that connects mstSet to outside
+    while(!primState.edgeQueue.isEmpty()){
+      let e = primState.edgeQueue.dequeue();
+      const uIn = primState.mstSet.has(e.u);
+      const vIn = primState.mstSet.has(e.v);
+      if( (uIn && !vIn) || (vIn && !uIn) ){
+        edge = e;
+        break;
+      }
+    }
+
+    if(edge === null){
+      log("No connecting edges found. Graph might be disconnected.");
+      stepBtn.disabled = true;
+      return;
+    }
+
+    // Highlight edge temporarily
+    highlightEdge(edge);
+
+    primState.step++;
+    const newNode = primState.mstSet.has(edge.u) ? edge.v : edge.u;
+    primState.mstSet.add(newNode);
+    primState.mstEdges.push(edge);
+    edge.inMST = true;
+
+    log(`Step ${primState.step}: Selected edge (${edge.u} — ${edge.v}) weight ${edge.weight}, adding node ${newNode} to MST.`);
+
+    // Add new adjacent edges for the newly included node
+    addAdjacentEdges(newNode);
+    updateGraphStyles();
+
+    if(primState.mstSet.size === nodes.length){
+      log("All nodes included in MST. Prim's algorithm completed.");
+      stepBtn.disabled = true;
+    }
+  }
+
+  // Visually highlight edge briefly
+  function highlightEdge(edge){
+    edge.lineElement.style.stroke = "#f1c40f";
+    edge.lineElement.style.strokeWidth = "6px";
+
+    if(highlightTimeoutHandle) clearTimeout(highlightTimeoutHandle);
+    highlightTimeoutHandle = setTimeout(() => {
+      edge.lineElement.style.stroke = "";
+      edge.lineElement.style.strokeWidth = "";
+      updateGraphStyles();
+    }, highlightTimeoutDelay);
+  }
+
+  generateBtn.onclick = () => {
+    let n = parseInt(nodeCountInput.value);
+    if(isNaN(n) || n < 2 || n > 10){
+      alert("Please enter a number of nodes between 2 and 10.");
+      return;
+    }
+    generateRandomGraph(n);
+  };
+
+  startBtn.onclick = () => {
+    startPrim();
+  };
+
+  stepBtn.onclick = () => {
+    stepPrim();
+  };
+
+  resetBtn.onclick = () => {
+    clearPrimState();
+    startBtn.disabled = (selectedNodeId === null);
+    stepBtn.disabled = true;
+    resetBtn.disabled = true;
+    log("Algorithm reset.");
+  };
+
+  window.addEventListener('resize', () => {
+    // Redraw graph positions on resize
+    if(nodes.length > 0){
+      generateRandomGraph(nodes.length);
+    }
+  });
+
+  // Initial graph on load
+  window.onload = () => {
+    generateRandomGraph(parseInt(nodeCountInput.value));
+  };
+})();
+</script>
+</body>
+</html>

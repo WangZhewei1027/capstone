@@ -1,0 +1,42 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Queue Data Structure Demo" [level=1] [ref=e2]
+  - list "Queue visualization" [ref=e3]:
+    - generic [ref=e4]: Queue is empty
+  - generic [ref=e5]:
+    - textbox "Input value to enqueue" [ref=e6]:
+      - /placeholder: Enter value to enqueue
+    - button "Enqueue value" [ref=e7] [cursor=pointer]: Enqueue
+    - button "Dequeue value" [ref=e8] [cursor=pointer]: Dequeue
+    - button "Peek front value" [ref=e9] [cursor=pointer]: Peek
+    - button "Clear queue" [ref=e10] [cursor=pointer]: Clear
+  - generic [ref=e12]:
+    - heading "What is a Queue?" [level=2] [ref=e13]
+    - paragraph [ref=e14]:
+      - text: A
+      - strong [ref=e15]: queue
+      - text: is a linear data structure that follows the
+      - emphasis [ref=e16]: First-In-First-Out (FIFO)
+      - text: principle. This means elements are added (enqueued) at the
+      - emphasis [ref=e17]: rear
+      - text: (end) and removed (dequeued) from the
+      - emphasis [ref=e18]: front
+      - text: (beginning).
+    - paragraph [ref=e19]: "Operations demonstrated here:"
+    - list [ref=e20]:
+      - listitem [ref=e21]:
+        - strong [ref=e22]: "Enqueue:"
+        - text: Add a new element to the rear of the queue.
+      - listitem [ref=e23]:
+        - strong [ref=e24]: "Dequeue:"
+        - text: Remove the element at the front of the queue.
+      - listitem [ref=e25]:
+        - strong [ref=e26]: "Peek:"
+        - text: View the front element without removing it.
+      - listitem [ref=e27]:
+        - strong [ref=e28]: "Clear:"
+        - text: Remove all elements from the queue.
+    - paragraph [ref=e29]: Queues are commonly used in scheduling, buffering, and breadth-first search algorithms.
+```

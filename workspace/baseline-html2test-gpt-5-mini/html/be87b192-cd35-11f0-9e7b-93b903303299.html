@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Bellman-Ford Algorithm Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    html,body { height:100%; margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: #f7f9fb; color:#111; }
+    #app { display:flex; height:100vh; gap:12px; padding:12px; box-sizing:border-box; }
+    #left { flex:1; background:#fff; border-radius:8px; padding:12px; box-shadow:0 4px 18px rgba(20,40,80,0.06); display:flex; flex-direction:column; }
+    #canvasWrap { flex:1; position:relative; border:1px dashed #e3e9ef; border-radius:8px; overflow:hidden; background:linear-gradient(180deg,#fcfeff, #f7fbff); }
+    canvas { width:100%; height:100%; display:block; }
+    #controls { margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    button, input[type=number], select { padding:8px 10px; border-radius:6px; border:1px solid #cfd8e3; background:#fff; cursor:pointer; }
+    button:active { transform:translateY(1px); }
+    .btn-primary { background:linear-gradient(180deg,#2f8cff,#216ad8); color:#fff; border-color: #1e66c8; }
+    .btn-danger { background:linear-gradient(180deg,#ff6b6b,#e64a4a); color:#fff; border-color: #d63b3b; }
+    #right { width:360px; min-width:260px; background:#fff; border-radius:8px; padding:12px; box-shadow:0 4px 18px rgba(20,40,80,0.06); display:flex; flex-direction:column; gap:8px; }
+    h3 { margin:0 0 6px 0; font-size:16px; }
+    .panel { padding:8px; border-radius:6px; background:#fbfcfe; border:1px solid #eef3fb; }
+    label { font-size:13px; color:#334155; display:block; margin-bottom:6px; }
+    #edgeList { max-height:140px; overflow:auto; font-family:monospace; background:#fff; border-radius:6px; padding:8px; border:1px solid #eef3fb; }
+    .small { font-size:13px; color:#555; }
+    #distanceTable { display:grid; gap:6px; grid-template-columns:1fr 1fr; }
+    .nodeRow { display:flex; align-items:center; gap:8px; padding:6px; border-radius:6px; }
+    .nodeBadge { width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; color:#fff; font-weight:600; }
+    .distVal { font-weight:700; }
+    #log { max-height:140px; overflow:auto; font-family:monospace; font-size:13px; background:#fff; padding:8px; border-radius:6px; border:1px solid #eef3fb; }
+    .statusOk { color:green; font-weight:700; }
+    .statusWarn { color:crimson; font-weight:700; }
+    footer { font-size:12px; color:#5b6b7a; margin-top:6px; }
+    .topRow { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .hint { font-size:12px; color:#5b6b7a; }
+    input[type=range] { width:120px; }
+    .edgeItem { display:flex; justify-content:space-between; gap:8px; padding:6px 4px; align-items:center; }
+    .edgeText { font-family:monospace; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="left">
+    <div class="topRow">
+      <div>
+        <button id="addNodeBtn">Add Node (click canvas)</button>
+        <button id="addEdgeBtn">Add Edge (click source → target)</button>
+        <button id="delBtn">Delete Element</button>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <label class="hint">Directed
+          <input id="directedChk" type="checkbox" checked style="margin-left:6px;">
+        </label>
+        <label class="hint">Allow negative weights
+          <input id="negAllowChk" type="checkbox" checked style="margin-left:6px;">
+        </label>
+      </div>
+    </div>
+
+    <div id="canvasWrap">
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="controls">
+      <button id="setSourceBtn">Set Source Node</button>
+      <button id="resetBtn">Reset Distances</button>
+      <button id="stepBtn" class="btn-primary">Step</button>
+      <button id="runBtn" class="btn-primary">Run</button>
+      <button id="stopBtn" class="btn-danger">Stop</button>
+      <label style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+        Speed <input id="speed" type="range" min="100" max="2000" step="100" value="800">
+      </label>
+    </div>
+
+    <div style="margin-top:8px; display:flex; gap:8px;">
+      <button id="sampleBtn">Load Sample (negative edge)</button>
+      <button id="randomBtn">Random Graph</button>
+      <button id="clearBtn">Clear Graph</button>
+    </div>
+
+    <footer>
+      Controls:
+      - Click empty canvas to add node when "Add Node" is active.
+      - Click "Add Edge", then click source then target to create edge (weight prompted).
+      - Use "Set Source" then click a node to mark source.
+      - Drag nodes to rearrange.
+    </footer>
+  </div>
+
+  <div id="right">
+    <h3>Graph Info</h3>
+    <div class="panel">
+      <label>Nodes: <span id="nodeCount">0</span> &nbsp; Edges: <span id="edgeCount">0</span></label>
+      <label>Source: <span id="sourceDisplay">—</span></label>
+      <div style="margin-top:8px;">
+        <label>Edge list (order used by Bellman-Ford):</label>
+        <div id="edgeList"></div>
+      </div>
+    </div>
+
+    <h3>Algorithm State</h3>
+    <div class="panel">
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <label>Iteration: <strong id="iterDisplay">0</strong> / <span id="maxIter">0</span></label>
+        <label>Edge idx: <strong id="edgeIdxDisplay">-</strong></label>
+      </div>
+      <div id="distanceTable"></div>
+      <div style="margin-top:8px;">
+        <label>Predecessors:</label>
+        <div id="predList" class="small"></div>
+      </div>
+    </div>
+
+    <h3>Log & Status</h3>
+    <div class="panel">
+      <div id="log"></div>
+      <div style="margin-top:8px;">
+        <span id="status" class="small"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  Bellman-Ford Visualizer
+  - Single-file interactive demo
+  - Add nodes, create edges (directed/undirected), set source node
+  - Step through Bellman-Ford relaxations; auto-run with speed control
+  - Detect negative cycles after V-1 iterations
+*/
+
+(() => {
+  // Canvas / Graph data structures
+  const canvas = document.getElementById('canvas');
+  const wrap = document.getElementById('canvasWrap');
+  const ctx = canvas.getContext('2d');
+  let DPR = window.devicePixelRatio || 1;
+
+  function resize() {
+    canvas.width = wrap.clientWidth * DPR;
+    canvas.height = wrap.clientHeight * DPR;
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    draw();
+  }
+  window.addEventListener('resize', resize);
+
+  // Graph
+  let nodes = []; // {id, x, y}
+  let edges = []; // {u, v, w, id}
+  let nextNodeId = 0;
+  let nextEdgeId = 0;
+  let directed = true;
+  let allowNegative = true;
+
+  // Interaction state
+  let mode = 'none'; // addNode, addEdge, delete, setSource
+  let addingEdgeFrom = null;
+  let draggingNode = null;
+  let dragOffset = {x:0,y:0};
+  let sourceNode = null;
+
+  // Algorithm state
+  let dist = {}; // nodeId -> distance (number or +Infinity)
+  let pred = {}; // nodeId -> predecessor nodeId or null
+  let iter = 0; // current iteration (1..V-1). We'll display 0 as not started.
+  let edgeIndex = 0; // index of edge inside each iteration
+  let running = false;
+  let runTimer = null;
+  let speed = 800; // ms per step
+  let V = 0;
+  let maxIter = 0;
+
+  // UI elements
+  const addNodeBtn = document.getElementById('addNodeBtn');
+  const addEdgeBtn = document.getElementById('addEdgeBtn');
+  const delBtn = document.getElementById('delBtn');
+  const setSourceBtn = document.getElementById('setSourceBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const runBtn = document.getElementById('runBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const sampleBtn = document.getElementById('sampleBtn');
+  const randomBtn = document.getElementById('randomBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const directedChk = document.getElementById('directedChk');
+  const negAllowChk = document.getElementById('negAllowChk');
+  const nodeCountEl = document.getElementById('nodeCount');
+  const edgeCountEl = document.getElementById('edgeCount');
+  const edgeListEl = document.getElementById('edgeList');
+  const distanceTable = document.getElementById('distanceTable');
+  const predList = document.getElementById('predList');
+  const logEl = document.getElementById('log');
+  const statusEl = document.getElementById('status');
+  const iterDisplay = document.getElementById('iterDisplay');
+  const edgeIdxDisplay = document.getElementById('edgeIdxDisplay');
+  const maxIterEl = document.getElementById('maxIter');
+  const sourceDisplay = document.getElementById('sourceDisplay');
+  const speedInput = document.getElementById('speed');
+
+  // Colors
+  const nodeColor = '#2f8cff';
+  const nodeSelectedColor = '#21a2ff';
+  const nodeTextColor = '#fff';
+  const edgeColor = '#2b3440';
+  const edgeHighlightColor = '#ff9900';
+  const relaxedColor = '#22c55e';
+  const negativeCycleColor = '#ff3b3b';
+
+  // Utilities
+  function findNodeAt(x,y) {
+    for (let i = nodes.length-1; i>=0; i--) {
+      const n = nodes[i];
+      const dx = x - n.x;
+      const dy = y - n.y;
+      if (Math.hypot(dx,dy) <= 18) return n;
+    }
+    return null;
+  }
+
+  function addNode(x,y) {
+    const n = { id: String(nextNodeId++), x, y };
+    nodes.push(n);
+    updateCounts();
+    draw();
+    return n;
+  }
+
+  function addEdge(uId, vId, w) {
+    const e = { id: String(nextEdgeId++), u: uId, v: vId, w: Number(w) };
+    edges.push(e);
+    updateCounts();
+    draw();
+    return e;
+  }
+
+  function removeNode(node) {
+    nodes = nodes.filter(n => n.id !== node.id);
+    edges = edges.filter(e => e.u !== node.id && e.v !== node.id);
+    if (sourceNode === node.id) sourceNode = null;
+    updateCounts();
+    draw();
+  }
+
+  function removeEdge(edge) {
+    edges = edges.filter(e => e.id !== edge.id);
+    updateCounts();
+    draw();
+  }
+
+  function updateCounts() {
+    nodeCountEl.textContent = nodes.length;
+    edgeCountEl.textContent = edges.length;
+    edgeListEl.innerHTML = '';
+    edges.forEach((e, idx) => {
+      const div = document.createElement('div');
+      div.className = 'edgeItem';
+      const txt = document.createElement('div');
+      txt.className = 'edgeText';
+      txt.textContent = `[${idx}] ${e.u} → ${e.v}  w=${e.w}`;
+      const del = document.createElement('button');
+      del.textContent = 'Delete';
+      del.style.padding = '4px 6px';
+      del.onclick = (ev) => { ev.stopPropagation(); removeEdge(e); };
+      div.appendChild(txt);
+      div.appendChild(del);
+      edgeListEl.appendChild(div);
+    });
+    refreshDistanceUI();
+  }
+
+  function refreshDistanceUI(highlightNode) {
+    distanceTable.innerHTML = '';
+    predList.textContent = '';
+    nodes.forEach(n => {
+      const row = document.createElement('div');
+      row.className = 'nodeRow';
+      const badge = document.createElement('div');
+      badge.className = 'nodeBadge';
+      badge.style.background = (n.id === sourceNode ? nodeSelectedColor : nodeColor);
+      badge.textContent = n.id;
+      const info = document.createElement('div');
+      const d = dist[n.id];
+      info.innerHTML = `<div style="font-size:13px">${n.id}</div><div class="distVal">${d===Infinity? '∞' : d}</div>`;
+      if (highlightNode && highlightNode === n.id) row.style.background = '#fff5e6';
+      row.appendChild(badge);
+      row.appendChild(info);
+      distanceTable.appendChild(row);
+
+      const p = document.createElement('div');
+      p.textContent = `${n.id}: ${pred[n.id] === null ? '—' : pred[n.id]}`;
+      predList.appendChild(p);
+    });
+    sourceDisplay.textContent = sourceNode === null ? '—' : sourceNode;
+  }
+
+  function log(msg, kind='info') {
+    const p = document.createElement('div');
+    p.textContent = msg;
+    if (kind === 'warn') p.style.color = 'crimson';
+    if (kind === 'ok') p.style.color = 'green';
+    logEl.prepend(p);
+  }
+
+  // Drawing
+  function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const W = canvas.width / DPR;
+    const H = canvas.height / DPR;
+
+    // Draw edges
+    edges.forEach(e => {
+      const u = nodes.find(n => n.id === e.u);
+      const v = nodes.find(n => n.id === e.v);
+      if (!u || !v) return;
+      drawEdge(u.x, u.y, v.x, v.y, e.w, e.id);
+    });
+
+    // Draw nodes
+    nodes.forEach(n => {
+      drawNode(n);
+    });
+
+    // If adding edge and we have a start, draw temporary line from start to mouse
+    if (addingEdgeFrom) {
+      if (mousePos) {
+        drawTempEdge(addingEdgeFrom.x, addingEdgeFrom.y, mousePos.x, mousePos.y);
+      }
+    }
+  }
+
+  function drawNode(n) {
+    ctx.beginPath();
+    ctx.fillStyle = (n.id === sourceNode ? nodeSelectedColor : nodeColor);
+    ctx.strokeStyle = '#12314f';
+    ctx.lineWidth = 1;
+    ctx.arc(n.x, n.y, 18, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = nodeTextColor;
+    ctx.font = 'bold 13px system-ui, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.id, n.x, n.y);
+  }
+
+  function drawEdge(x1, y1, x2, y2, w, id) {
+    const ang = Math.atan2(y2-y1, x2-x1);
+    const offset = 18; // node radius
+    const startX = x1 + Math.cos(ang)*offset;
+    const startY = y1 + Math.sin(ang)*offset;
+    const endX = x2 - Math.cos(ang)*offset;
+    const endY = y2 - Math.sin(ang)*offset;
+
+    ctx.beginPath();
+    ctx.strokeStyle = edgeColor;
+    ctx.lineWidth = 2;
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    // Arrowhead for directed
+    if (directed) {
+      drawArrowhead(endX, endY, ang);
+    } else {
+      // small circle midpoint for undirected
+      const mx = (startX+endX)/2, my = (startY+endY)/2;
+      ctx.beginPath();
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#223248';
+      ctx.lineWidth = 1;
+      ctx.arc(mx, my, 6, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Draw weight label near middle, offset slightly perpendicular
+    const mx = (startX+endX)/2, my = (startY+endY)/2;
+    const perpAng = ang + Math.PI/2;
+    const labelX = mx + Math.cos(perpAng)*12;
+    const labelY = my + Math.sin(perpAng)*12;
+    ctx.beginPath();
+    ctx.fillStyle = '#0f1724';
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(w, labelX, labelY);
+  }
+
+  function drawArrowhead(x,y,ang) {
+    const size=8;
+    ctx.beginPath();
+    ctx.fillStyle = edgeColor;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - Math.cos(ang - 0.4)*size, y - Math.sin(ang - 0.4)*size);
+    ctx.lineTo(x - Math.cos(ang + 0.4)*size, y - Math.sin(ang + 0.4)*size);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawTempEdge(x1,y1,x2,y2) {
+    const ang = Math.atan2(y2-y1, x2-x1);
+    const offset = 18;
+    const startX = x1 + Math.cos(ang)*offset;
+    const startY = y1 + Math.sin(ang)*offset;
+    const endX = x2;
+    const endY = y2;
+    ctx.beginPath();
+    ctx.strokeStyle = '#7aaefc';
+    ctx.setLineDash([6,6]);
+    ctx.lineWidth = 2;
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Mouse handling
+  let mousePos = null;
+  canvas.addEventListener('mousemove', (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left);
+    const y = (ev.clientY - rect.top);
+    mousePos = {x,y};
+    if (draggingNode) {
+      draggingNode.x = x - dragOffset.x;
+      draggingNode.y = y - dragOffset.y;
+      draw();
+    } else {
+      if (addingEdgeFrom) draw();
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => { mousePos = null; if (!draggingNode) draw(); });
+
+  canvas.addEventListener('mousedown', (ev) => {
+    ev.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left);
+    const y = (ev.clientY - rect.top);
+    const clicked = findNodeAt(x,y);
+
+    if (mode === 'addNode') {
+      addNode(x,y);
+      return;
+    }
+
+    if (mode === 'addEdge') {
+      if (!addingEdgeFrom) {
+        if (clicked) {
+          addingEdgeFrom = clicked;
+        }
+      } else {
+        if (clicked && clicked.id === addingEdgeFrom.id) {
+          // Cancel
+          addingEdgeFrom = null;
+        } else if (clicked) {
+          // prompt for weight
+          let w = prompt("Edge weight (can be negative if allowed):", "1");
+          if (w !== null) {
+            w = Number(w);
+            if (!allowNegative && w < 0) {
+              alert("Negative weights are disabled in settings.");
+            } else if (isNaN(w)) {
+              alert("Invalid weight.");
+            } else {
+              addEdge(addingEdgeFrom.id, clicked.id, w);
+              if (!directed) addEdge(clicked.id, addingEdgeFrom.id, w);
+            }
+          }
+          addingEdgeFrom = null;
+        } else {
+          // clicked empty - allow drawing to empty space? We'll create node and edge to it.
+          const newN = addNode(x,y);
+          let w = prompt("Edge weight (can be negative if allowed):", "1");
+          if (w !== null) {
+            w = Number(w);
+            if (!allowNegative && w < 0) {
+              alert("Negative weights are disabled in settings.");
+            } else if (isNaN(w)) {
+              alert("Invalid weight.");
+            } else {
+              addEdge(addingEdgeFrom.id, newN.id, w);
+              if (!directed) addEdge(newN.id, addingEdgeFrom.id, w);
+            }
+          }
+          addingEdgeFrom = null;
+        }
+      }
+      draw();
+      return;
+    }
+
+    if (mode === 'delete') {
+      if (clicked) {
+        if (confirm('Delete node ' + clicked.id + ' and its incident edges?')) {
+          removeNode(clicked);
+        }
+      } else {
+        // maybe click an edge? find closest edge within threshold
+        const edge = findEdgeNear(x,y);
+        if (edge) {
+          if (confirm('Delete edge ' + edge.u + '→' + edge.v + ' ?')) removeEdge(edge);
+        }
+      }
+      return;
+    }
+
+    if (mode === 'setSource') {
+      if (clicked) {
+        sourceNode = clicked.id;
+        resetAlgorithm();
+      }
+      mode = 'none';
+      setModeButtonStyles();
+      draw();
+      return;
+    }
+
+    // Default interactions: start dragging node
+    if (clicked) {
+      draggingNode = clicked;
+      dragOffset.x = x - clicked.x;
+      dragOffset.y = y - clicked.y;
+    }
+  });
+
+  canvas.addEventListener('mouseup', (ev) => {
+    draggingNode = null;
+  });
+
+  function findEdgeNear(x,y) {
+    // find an edge where distance to segment < threshold
+    const threshold = 8;
+    for (let e of edges) {
+      const u = nodes.find(n=>n.id===e.u);
+      const v = nodes.find(n=>n.id===e.v);
+      if (!u || !v) continue;
+      const d = distToSegment({x,y}, {x:u.x,y:u.y}, {x:v.x,y:v.y});
+      if (d < threshold) return e;
+    }
+    return null;
+  }
+
+  function distToSegment(p, v, w) {
+    // distance point p to segment vw
+    const l2 = (v.x-w.x)*(v.x-w.x)+(v.y-w.y)*(v.y-w.y);
+    if (l2===0) return Math.hypot(p.x-v.x, p.y-v.y);
+    let t = ((p.x - v.x)*(w.x - v.x) + (p.y - v.y)*(w.y - v.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const projx = v.x + t*(w.x - v.x);
+    const projy = v.y + t*(w.y - v.y);
+    return Math.hypot(p.x - projx, p.y - projy);
+  }
+
+  // Mode buttons
+  addNodeBtn.onclick = () => { mode='addNode'; setModeButtonStyles(); addingEdgeFrom=null; };
+  addEdgeBtn.onclick = () => { mode='addEdge'; setModeButtonStyles(); addingEdgeFrom=null; };
+  delBtn.onclick = () => { mode='delete'; setModeButtonStyles(); addingEdgeFrom=null; };
+  setSourceBtn.onclick = () => { mode='setSource'; setModeButtonStyles(); addingEdgeFrom=null; };
+
+  function setModeButtonStyles() {
+    addNodeBtn.style.border = mode==='addNode' ? '2px solid #1e66c8' : '';
+    addEdgeBtn.style.border = mode==='addEdge' ? '2px solid #1e66c8' : '';
+    delBtn.style.border = mode==='delete' ? '2px solid #1e66c8' : '';
+    setSourceBtn.style.border = mode==='setSource' ? '2px solid #1e66c8' : '';
+  }
+
+  directedChk.onchange = () => { directed = directedChk.checked; draw(); };
+  negAllowChk.onchange = () => { allowNegative = negAllowChk.checked; };
+
+  // Algorithmic implementation: step-by-step Bellman-Ford
+  function initAlgorithm() {
+    if (sourceNode === null) {
+      alert('Please set a source node first (use Set Source).');
+      return false;
+    }
+    dist = {};
+    pred = {};
+    nodes.forEach(n => { dist[n.id] = Infinity; pred[n.id] = null; });
+    dist[sourceNode] = 0;
+    V = nodes.length;
+    maxIter = Math.max(0, V-1);
+    iter = 1;
+    edgeIndex = 0;
+    running = false;
+    clearInterval(runTimer);
+    maxIterEl.textContent = maxIter;
+    iterDisplay.textContent = 0;
+    edgeIdxDisplay.textContent = '-';
+    updateStatus('Initialized. Ready to step.', 'ok');
+    refreshDistanceUI();
+    return true;
+  }
+
+  function resetAlgorithm() {
+    // reinitialize dist/pred but do not change graph
+    initAlgorithm();
+    draw();
+  }
+
+  resetBtn.onclick = () => { resetAlgorithm(); log('Distances reset.'); };
+
+  stepBtn.onclick = () => {
+    if (!dist || Object.keys(dist).length===0) {
+      if (!initAlgorithm()) return;
+    }
+    stepOnce();
+  };
+
+  runBtn.onclick = () => {
+    if (!dist || Object.keys(dist).length===0) {
+      if (!initAlgorithm()) return;
+    }
+    running = true;
+    speed = Number(speedInput.value);
+    runTimer = setInterval(() => {
+      if (!running) return;
+      stepOnce();
+    }, speed);
+  };
+
+  stopBtn.onclick = () => {
+    running = false;
+    clearInterval(runTimer);
+    updateStatus('Stopped.', 'warn');
+  };
+
+  speedInput.oninput = (e) => { speed = Number(e.target.value); if (running) { clearInterval(runTimer); runTimer = setInterval(() => stepOnce(), speed); } };
+
+  function stepOnce() {
+    if (iter === 0) {
+      if (!initAlgorithm()) return;
+    }
+    if (iter > maxIter) {
+      // Completed V-1 iterations, now do negative cycle check
+      updateStatus('Checking for negative-weight cycles...', 'info');
+      let negFound = false;
+      for (let i=0;i<edges.length;i++) {
+        const e = edges[i];
+        const u = e.u, v = e.v, w = e.w;
+        if (dist[u] !== Infinity && dist[u] + w < dist[v]) {
+          negFound = true;
+          highlightNegativeEdge(e);
+          log(`Negative cycle detected via edge ${u}→${v} (w=${w}).`, 'warn');
+          updateStatus('Negative-weight cycle detected! Shortest paths are undefined.', 'warn');
+          running = false;
+          clearInterval(runTimer);
+          return;
+        }
+      }
+      // if not found
+      updateStatus('No negative-weight cycles detected. Shortest paths found.', 'ok');
+      log('Bellman-Ford completed successfully. Shortest distances set.', 'ok');
+      running = false;
+      clearInterval(runTimer);
+      iterDisplay.textContent = maxIter;
+      edgeIdxDisplay.textContent = '-';
+      return;
+    }
+
+    // If there are no edges, simply finish
+    if (edges.length === 0) {
+      iter = maxIter + 1;
+      stepOnce();
+      return;
+    }
+
+    // Process edge at edgeIndex of current iteration
+    const e = edges[edgeIndex];
+    iterDisplay.textContent = iter;
+    edgeIdxDisplay.textContent = edgeIndex;
+    highlightEdgeTemp(e);
+
+    const u = e.u, v = e.v, w = e.w;
+    const du = dist[u];
+    const dv = dist[v];
+    if (du !== Infinity && du + w < dv) {
+      // relax
+      dist[v] = du + w;
+      pred[v] = u;
+      log(`Relaxed edge ${u}→${v}: dist[${v}] updated to ${dist[v]}`, 'ok');
+      refreshDistanceUI(v);
+    } else {
+      log(`Edge ${u}→${v} did not relax (dist[${v}] remains ${dv===Infinity? '∞': dv}).`);
+      refreshDistanceUI();
+    }
+
+    edgeIndex++;
+    if (edgeIndex >= edges.length) {
+      // done an iteration
+      iter++;
+      edgeIndex = 0;
+    }
+    draw();
+  }
+
+  function highlightEdgeTemp(e) {
+    // temporarily draw edge highlighted
+    draw();
+    const u = nodes.find(n => n.id === e.u);
+    const v = nodes.find(n => n.id === e.v);
+    if (!u || !v) return;
+    const ang = Math.atan2(v.y-u.y, v.x-u.x);
+    const offset = 18;
+    const startX = u.x + Math.cos(ang)*offset;
+    const startY = u.y + Math.sin(ang)*offset;
+    const endX = v.x - Math.cos(ang)*offset;
+    const endY = v.y - Math.sin(ang)*offset;
+    ctx.beginPath();
+    ctx.strokeStyle = edgeHighlightColor;
+    ctx.lineWidth = 3;
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    if (directed) drawArrowhead(endX,endY,ang);
+    // highlight weight
+    const mx = (startX+endX)/2, my = (startY+endY)/2;
+    ctx.beginPath();
+    ctx.fillStyle = edgeHighlightColor;
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(e.w, mx + Math.cos(ang+Math.PI/2)*12, my + Math.sin(ang+Math.PI/2)*12);
+  }
+
+  function highlightNegativeEdge(e) {
+    draw();
+    const u = nodes.find(n => n.id === e.u);
+    const v = nodes.find(n => n.id === e.v);
+    if (!u || !v) return;
+    const ang = Math.atan2(v.y-u.y, v.x-u.x);
+    const offset = 18;
+    const startX = u.x + Math.cos(ang)*offset;
+    const startY = u.y + Math.sin(ang)*offset;
+    const endX = v.x - Math.cos(ang)*offset;
+    const endY = v.y - Math.sin(ang)*offset;
+    ctx.beginPath();
+    ctx.strokeStyle = negativeCycleColor;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([8,4]);
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (directed) drawArrowhead(endX,endY,ang);
+  }
+
+  function updateStatus(msg, kind='info') {
+    statusEl.textContent = msg;
+    if (kind === 'ok') statusEl.className = 'statusOk';
+    else if (kind === 'warn') statusEl.className = 'statusWarn';
+    else statusEl.className = 'small';
+  }
+
+  // Sample graph
+  sampleBtn.onclick = () => {
+    clearGraph();
+    // create sample graph (with negative edge)
+    const n0 = addNode(80,80);
+    const n1 = addNode(260,60);
+    const n2 = addNode(420,120);
+    const n3 = addNode(200,200);
+    const n4 = addNode(340,240);
+    // edges
+    addEdge(n0.id, n1.id, 6);
+    addEdge(n0.id, n3.id, 7);
+    addEdge(n1.id, n2.id, 5);
+    addEdge(n1.id, n3.id, 8);
+    addEdge(n1.id, n4.id, -4);
+    addEdge(n3.id, n2.id, -3);
+    addEdge(n3.id, n4.id, 9);
+    addEdge(n4.id, n2.id, 7);
+    directedChk.checked = true; directed = true;
+    negAllowChk.checked = true; allowNegative = true;
+    updateCounts();
+    log('Sample graph loaded (classic Bellman-Ford example).');
+  };
+
+  // Random graph generator
+  randomBtn.onclick = () => {
+    clearGraph();
+    const N = Math.max(3, Math.min(8, Math.floor(Math.random()*6)+3));
+    for (let i=0;i<N;i++) {
+      addNode(80 + Math.random()*(wrap.clientWidth-160), 60 + Math.random()*(wrap.clientHeight-120));
+    }
+    directed = directedChk.checked;
+    allowNegative = negAllowChk.checked;
+    // add random edges
+    for (let i=0;i<N*2;i++) {
+      const a = nodes[Math.floor(Math.random()*nodes.length)].id;
+      const b = nodes[Math.floor(Math.random()*nodes.length)].id;
+      if (a === b) continue;
+      let w = Math.floor(Math.random()*11)-5; // -5..5
+      if (!allowNegative && w<0) w = Math.abs(w);
+      addEdge(a,b,w);
+    }
+    updateCounts();
+    log('Random graph generated.');
+  };
+
+  clearBtn.onclick = clearGraph;
+
+  function clearGraph() {
+    nodes = [];
+    edges = [];
+    nextNodeId = 0;
+    nextEdgeId = 0;
+    addingEdgeFrom = null;
+    sourceNode = null;
+    dist = {};
+    pred = {};
+    iter = 0;
+    edgeIndex = 0;
+    running = false;
+    clearInterval(runTimer);
+    updateCounts();
+    draw();
+    log('Cleared graph.');
+  }
+
+  // Initialization
+  resize();
+  setModeButtonStyles();
+  updateCounts();
+  updateStatus('Idle. Create a graph and set a source to begin.', 'info');
+
+  // Simple helpful default graph to start
+  (function autoSample(){
+    // small default graph
+    clearGraph();
+    const A = addNode(120,100);
+    const B = addNode(260,70);
+    const C = addNode(400,110);
+    const D = addNode(200,220);
+    addEdge(A.id,B.id, 4);
+    addEdge(A.id,D.id, 5);
+    addEdge(B.id,C.id, -2);
+    addEdge(C.id,D.id, 3);
+    addEdge(D.id,B.id, 1);
+    directed = true; directedChk.checked = true;
+    negAllowChk.checked = true; allowNegative = true;
+    updateCounts();
+    log('Default demo graph placed. Set source and Step/Run to see Bellman-Ford.');
+  })();
+
+})();
+</script>
+</body>
+</html>

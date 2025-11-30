@@ -1,0 +1,99 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - button "Add Node (click canvas)" [ref=e6] [cursor=pointer]
+        - button "Add Edge (click source → target)" [ref=e7] [cursor=pointer]
+        - button "Delete Element" [ref=e8] [cursor=pointer]
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - text: Directed
+          - checkbox "Directed" [checked] [ref=e11]
+        - generic [ref=e12]:
+          - text: Allow negative weights
+          - checkbox "Allow negative weights" [checked] [ref=e13]
+    - generic [ref=e16]:
+      - button "Set Source Node" [ref=e17] [cursor=pointer]
+      - button "Reset Distances" [ref=e18] [cursor=pointer]
+      - button "Step" [ref=e19] [cursor=pointer]
+      - button "Run" [ref=e20] [cursor=pointer]
+      - button "Stop" [ref=e21] [cursor=pointer]
+      - generic [ref=e22]:
+        - text: Speed
+        - slider "Speed" [ref=e23]: "800"
+    - generic [ref=e24]:
+      - button "Load Sample (negative edge)" [ref=e25] [cursor=pointer]
+      - button "Random Graph" [ref=e26] [cursor=pointer]
+      - button "Clear Graph" [ref=e27] [cursor=pointer]
+    - contentinfo [ref=e28]: "Controls: - Click empty canvas to add node when \"Add Node\" is active. - Click \"Add Edge\", then click source then target to create edge (weight prompted). - Use \"Set Source\" then click a node to mark source. - Drag nodes to rearrange."
+  - generic [ref=e29]:
+    - heading "Graph Info" [level=3] [ref=e30]
+    - generic [ref=e31]:
+      - generic [ref=e32]: "Nodes: 4 Edges: 5"
+      - generic [ref=e33]: "Source: —"
+      - generic [ref=e34]:
+        - generic [ref=e35]: "Edge list (order used by Bellman-Ford):"
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - generic [ref=e38]: "[0] 0 → 1 w=4"
+            - button "Delete" [ref=e39] [cursor=pointer]
+          - generic [ref=e40]:
+            - generic [ref=e41]: "[1] 0 → 3 w=5"
+            - button "Delete" [ref=e42] [cursor=pointer]
+          - generic [ref=e43]:
+            - generic [ref=e44]: "[2] 1 → 2 w=-2"
+            - button "Delete" [ref=e45] [cursor=pointer]
+          - generic [ref=e46]:
+            - generic [ref=e47]: "[3] 2 → 3 w=3"
+            - button "Delete" [ref=e48] [cursor=pointer]
+          - generic [ref=e49]:
+            - generic [ref=e50]: "[4] 3 → 1 w=1"
+            - button "Delete" [ref=e51] [cursor=pointer]
+    - heading "Algorithm State" [level=3] [ref=e52]
+    - generic [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - text: "Iteration:"
+          - strong [ref=e56]: "0"
+          - text: / 0
+        - generic [ref=e57]:
+          - text: "Edge idx:"
+          - strong [ref=e58]: "-"
+      - generic [ref=e59]:
+        - generic [ref=e60]:
+          - generic [ref=e61]: "0"
+          - generic [ref=e62]:
+            - generic [ref=e63]: "0"
+            - generic [ref=e64]: undefined
+        - generic [ref=e65]:
+          - generic [ref=e66]: "1"
+          - generic [ref=e67]:
+            - generic [ref=e68]: "1"
+            - generic [ref=e69]: undefined
+        - generic [ref=e70]:
+          - generic [ref=e71]: "2"
+          - generic [ref=e72]:
+            - generic [ref=e73]: "2"
+            - generic [ref=e74]: undefined
+        - generic [ref=e75]:
+          - generic [ref=e76]: "3"
+          - generic [ref=e77]:
+            - generic [ref=e78]: "3"
+            - generic [ref=e79]: undefined
+      - generic [ref=e80]:
+        - generic [ref=e81]: "Predecessors:"
+        - generic [ref=e82]:
+          - generic [ref=e83]: "0: undefined"
+          - generic [ref=e84]: "1: undefined"
+          - generic [ref=e85]: "2: undefined"
+          - generic [ref=e86]: "3: undefined"
+    - heading "Log & Status" [level=3] [ref=e87]
+    - generic [ref=e88]:
+      - generic [ref=e89]:
+        - generic [ref=e90]: Default demo graph placed. Set source and Step/Run to see Bellman-Ford.
+        - generic [ref=e91]: Cleared graph.
+      - generic [ref=e92]: Idle. Create a graph and set a source to begin.
+```

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>K-Means Clustering Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #f7f9fc;
+  }
+  h1 {
+    margin: 1rem 0 0.5rem 0;
+  }
+  #container {
+    display: flex;
+    flex-direction: row;
+    margin: 1rem;
+  }
+  #canvas-container {
+    position: relative;
+  }
+  canvas {
+    border: 1px solid #ccc;
+    background: #fff;
+    cursor: crosshair;
+  }
+  #controls {
+    margin-left: 20px;
+    max-width: 300px;
+  }
+  #controls label {
+    display: block;
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  #controls input[type=range] {
+    width: 100%;
+  }
+  #info {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    color: #555;
+  }
+  button {
+    margin-top: 20px;
+    background: #007bff;
+    color: white;
+    font-size: 1rem;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #0056b3;
+  }
+  #legend {
+    margin-top: 15px;
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    margin-right: 15px;
+    font-size: 0.9rem;
+  }
+  .legend-color {
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    border-radius: 3px;
+    border: 1px solid #999;
+  }
+  #instructions {
+    max-width: 650px;
+    font-size: 0.9rem;
+    color: #333;
+    margin: 0 auto 1rem auto;
+    line-height: 1.4;
+  }
+  #footer {
+    margin: 2rem 0 1rem 0;
+    font-size: 0.8rem;
+    color: #777;
+  }
+</style>
+</head>
+<body>
+<h1>K-Means Clustering Demo</h1>
+<div id="instructions">
+  <p><strong>Instructions:</strong> Click inside the white canvas to add points. Set the number of clusters (K) and then click <em>Run K-Means</em> to cluster the points into K groups. You can reset the points or run multiple times with different K.</p>
+  <p>The color of points and their cluster centroid will be shown. Centroids are displayed as larger crosses.</p>
+</div>
+<div id="container">
+  <div id="canvas-container">
+    <canvas id="canvas" width="600" height="600" tabindex="0" aria-label="K-Means clustering canvas"></canvas>
+  </div>
+  <div id="controls" role="region" aria-label="Controls for clustering">
+    <label for="kRange">Number of clusters (K): <span id="kValue">3</span></label>
+    <input type="range" id="kRange" min="1" max="10" value="3" />
+    <button id="runButton" aria-live="polite">Run K-Means</button>
+    <button id="resetButton">Reset Points</button>
+    <div id="info" aria-live="polite" aria-atomic="true"></div>
+    <div id="legend" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const kRange = document.getElementById('kRange');
+  const kValueSpan = document.getElementById('kValue');
+  const runButton = document.getElementById('runButton');
+  const resetButton = document.getElementById('resetButton');
+  const info = document.getElementById('info');
+  const legend = document.getElementById('legend');
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  let points = [];
+  let clusters = [];
+  let centroids = [];
+  let colors = [];
+
+  // Generate an array of visually distinct colors for cluster coloring
+  function generateColors(n) {
+    const baseColors = [
+      '#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231',
+      '#911eb4', '#46f0f0', '#f032e6', '#d2f53c', '#fabebe',
+      '#008080', '#e6beff', '#aa6e28', '#fffac8', '#800000',
+      '#aaffc3', '#808000', '#ffd8b1', '#000080', '#808080'
+    ];
+    if (n <= baseColors.length) {
+      return baseColors.slice(0, n);
+    }
+    // If more colors needed, generate via HSL stepping
+    let arr = [];
+    for (let i = 0; i < n; i++) {
+      const hue = i * 360 / n;
+      arr.push(`hsl(${hue}, 80%, 60%)`);
+    }
+    return arr;
+  }
+
+  // Draw functions
+  function drawCanvas() {
+    ctx.clearRect(0, 0, width, height);
+    drawPoints();
+    drawCentroids();
+  }
+
+  function drawPoints() {
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const c = clusters[i];
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, 2 * Math.PI);
+      ctx.fillStyle = c === -1 ? '#999999' : colors[c];
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  function drawCentroids() {
+    for (let i = 0; i < centroids.length; i++) {
+      const c = centroids[i];
+      const color = colors[i];
+      drawCross(c.x, c.y, 12, color, 3);
+    }
+  }
+
+  function drawCross(x, y, size, color, lineWidth=2) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    ctx.moveTo(x - size, y - size);
+    ctx.lineTo(x + size, y + size);
+    ctx.moveTo(x + size, y - size);
+    ctx.lineTo(x - size, y + size);
+    ctx.stroke();
+  }
+
+  // K-Means algorithm implementation
+  function kMeans(points, K, maxIterations = 100) {
+    if (points.length === 0) return {clusters: [], centroids: []};
+    // Initialize centroids by randomly selecting distinct points
+    let centroids = [];
+    const usedIndexes = new Set();
+    while (centroids.length < K) {
+      const idx = Math.floor(Math.random() * points.length);
+      if (!usedIndexes.has(idx)) {
+        usedIndexes.add(idx);
+        centroids.push({x: points[idx].x, y: points[idx].y});
+      }
+    }
+
+    let clusters = new Array(points.length).fill(-1);
+    let changed = true;
+    let iterations = 0;
+
+    while (changed && iterations < maxIterations) {
+      changed = false;
+      iterations++;
+
+      // Assign points to nearest centroid
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        let minDist = Infinity;
+        let assignedCluster = clusters[i];
+        for (let c = 0; c < K; c++) {
+          const dist = distance(p, centroids[c]);
+          if (dist < minDist) {
+            minDist = dist;
+            assignedCluster = c;
+          }
+        }
+        if (clusters[i] !== assignedCluster) {
+          clusters[i] = assignedCluster;
+          changed = true;
+        }
+      }
+
+      // Update centroids
+      let sums = new Array(K).fill(0).map(() => ({x: 0, y: 0, count: 0}));
+      for (let i = 0; i < points.length; i++) {
+        const c = clusters[i];
+        sums[c].x += points[i].x;
+        sums[c].y += points[i].y;
+        sums[c].count++;
+      }
+      for (let c = 0; c < K; c++) {
+        if (sums[c].count > 0) {
+          centroids[c].x = sums[c].x / sums[c].count;
+          centroids[c].y = sums[c].y / sums[c].count;
+        } else {
+          // If cluster lost all points, reinitialize centroid randomly
+          const idx = Math.floor(Math.random() * points.length);
+          centroids[c].x = points[idx].x;
+          centroids[c].y = points[idx].y;
+          changed = true;
+        }
+      }
+    }
+
+    return {clusters, centroids, iterations};
+  }
+
+  function distance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  // Event handlers and UI updates
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    // Add point snapped inside canvas bounds
+    points.push({x: clamp(x, 0, width), y: clamp(y, 0, height)});
+    // Reset clustering - need to run again to see clusters
+    clusters = new Array(points.length).fill(-1);
+    centroids = [];
+    colors = generateColors(kRange.value);
+    updateLegend([]);
+    updateInfo(`Point added. Total points: ${points.length}`);
+    drawCanvas();
+  });
+
+  kRange.addEventListener('input', () => {
+    kValueSpan.textContent = kRange.value;
+    colors = generateColors(kRange.value);
+    // Reset clusters and centroids on K change
+    clusters = new Array(points.length).fill(-1);
+    centroids = [];
+    updateLegend([]);
+    updateInfo('');
+    drawCanvas();
+  });
+
+  runButton.addEventListener('click', () => {
+    const K = parseInt(kRange.value, 10);
+    if (points.length === 0) {
+      updateInfo('Please add points by clicking on the canvas first.');
+      return;
+    }
+    if (K < 1) {
+      updateInfo('Number of clusters must be at least 1.');
+      return;
+    }
+    if (K > points.length) {
+      updateInfo('Number of clusters cannot exceed number of points.');
+      return;
+    }
+    updateInfo('Running K-Means clustering...');
+    colors = generateColors(K);
+    const startTime = performance.now();
+    const result = kMeans(points, K);
+    const endTime = performance.now();
+
+    clusters = result.clusters;
+    centroids = result.centroids;
+    updateInfo(`K-Means converged in ${result.iterations} iterations (${(endTime - startTime).toFixed(2)} ms).`);
+    updateLegend(colors);
+    drawCanvas();
+  });
+
+  resetButton.addEventListener('click', () => {
+    points = [];
+    clusters = [];
+    centroids = [];
+    colors = generateColors(kRange.value);
+    updateLegend([]);
+    updateInfo('Points reset. Add new points by clicking on the canvas.');
+    drawCanvas();
+  });
+
+  // Utility functions
+  function clamp(v, min, max) {
+    return Math.min(max, Math.max(min, v));
+  }
+
+  function updateInfo(text) {
+    info.textContent = text;
+  }
+
+  function updateLegend(colorsArray) {
+    legend.innerHTML = '';
+    if (colorsArray.length === 0) {
+      return;
+    }
+    for (let i = 0; i < colorsArray.length; i++) {
+      const div = document.createElement('div');
+      div.className = 'legend-item';
+      const colorBox = document.createElement('div');
+      colorBox.className = 'legend-color';
+      colorBox.style.backgroundColor = colorsArray[i];
+      div.appendChild(colorBox);
+      const label = document.createElement('span');
+      label.textContent = `Cluster ${i+1}`;
+      div.appendChild(label);
+      legend.appendChild(div);
+    }
+  }
+
+  // Initialize
+  clusters = [];
+  centroids = [];
+  colors = generateColors(kRange.value);
+  updateInfo('Click on canvas to add points. Set K and run clustering.');
+  drawCanvas();
+
+})();
+</script>
+</body>
+</html>

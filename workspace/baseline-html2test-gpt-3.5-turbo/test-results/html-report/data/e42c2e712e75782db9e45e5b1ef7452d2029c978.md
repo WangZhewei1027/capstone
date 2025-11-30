@@ -1,0 +1,41 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Interactive Linear Regression Demo" [level=1] [ref=e2]
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: Number of points
+      - spinbutton "Number of points" [ref=e7]: "50"
+    - generic [ref=e8]:
+      - generic [ref=e9]: Noise level (std dev)
+      - spinbutton "Noise level (std dev)" [ref=e10]: "10"
+    - generic [ref=e11]:
+      - generic [ref=e12]: True slope (m)
+      - spinbutton "True slope (m)" [ref=e13]: "2"
+    - generic [ref=e14]:
+      - generic [ref=e15]: True intercept (b)
+      - spinbutton "True intercept (b)" [ref=e16]: "5"
+    - button "Generate Data" [ref=e18] [cursor=pointer]
+  - generic [ref=e19]:
+    - paragraph [ref=e20]:
+      - text: This demo illustrates simple
+      - strong [ref=e21]: linear regression
+      - text: ", which fits a straight line y = m x + b to a dataset. You can adjust the number of data points, noise level, and true underlying slope/intercept used to generate the points."
+    - paragraph [ref=e22]:
+      - text: The blue dots are the generated noisy data points, while the red line is the best fit line computed using the
+      - link "least squares method" [ref=e23] [cursor=pointer]:
+        - /url: https://en.wikipedia.org/wiki/Simple_linear_regression#Fitting_the_regression_line
+      - text: .
+    - paragraph [ref=e24]: The computed parameters are displayed below the plot.
+  - generic [ref=e25]:
+    - generic [ref=e26]:
+      - strong [ref=e27]: "Estimated slope (m):"
+      - text: "1.9478"
+    - generic [ref=e28]:
+      - strong [ref=e29]: "Estimated intercept (b):"
+      - text: "7.6966"
+    - generic [ref=e30]:
+      - strong [ref=e31]: "R² (coefficient of determination):"
+      - text: "0.9584"
+```

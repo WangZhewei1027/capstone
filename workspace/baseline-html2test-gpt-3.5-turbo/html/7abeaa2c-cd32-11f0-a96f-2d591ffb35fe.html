@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Breadth-First Search (BFS) Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f0f0f0;
+  }
+  h1 {
+    text-align: center;
+  }
+  #graph-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  svg {
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 8px;
+  }
+  circle.node {
+    fill: #3498db;
+    stroke: #2980b9;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: fill 0.3s;
+  }
+  circle.node.visited {
+    fill: #2ecc71;
+  }
+  circle.node.current {
+    fill: #e67e22;
+  }
+  text.nodelabel {
+    font-size: 14px;
+    pointer-events: none;
+    fill: #fff;
+    font-weight: bold;
+    user-select: none;
+  }
+  line.edge {
+    stroke: #ccc;
+    stroke-width: 2;
+  }
+  #controls {
+    max-width: 400px;
+    margin: 0 auto 40px;
+    background: #fff;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  #controls label {
+    display: block;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    font-weight: bold;
+  }
+  #controls select, #controls button {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 16px;
+    border-radius: 5px;
+    border: 1.5px solid #ccc;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+  #controls select:focus, #controls button:focus {
+    border-color: #3498db;
+  }
+  #start-bfs {
+    margin-top: 20px;
+    background: #3498db;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  #start-bfs:disabled {
+    background: #aaa;
+    cursor: not-allowed;
+  }
+  #bfs-output {
+    max-width: 600px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 15px 20px;
+    border-radius: 8px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    min-height: 50px;
+    box-shadow: inset 0 0 10px #ddd;
+  }
+  #reset-button {
+    margin-top: 10px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    padding: 8px 10px;
+    width: 100%;
+    border-radius: 5px;
+  }
+  #legend {
+    max-width: 600px;
+    margin: 0 auto 40px;
+    background: #fff;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-around;
+    font-size: 14px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .legend-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+  }
+  .color-notvisited {
+    background: #3498db;
+    border: 2px solid #2980b9;
+  }
+  .color-visited {
+    background: #2ecc71;
+  }
+  .color-current {
+    background: #e67e22;
+  }
+</style>
+</head>
+<body>
+<h1>Breadth-First Search (BFS) Visualization</h1>
+
+<div id="legend">
+  <div class="legend-item"><div class="legend-color color-notvisited"></div> Not Visited</div>
+  <div class="legend-item"><div class="legend-color color-current"></div> Currently Visiting</div>
+  <div class="legend-item"><div class="legend-color color-visited"></div> Visited</div>
+</div>
+
+<div id="graph-container">
+  <svg id="graph" width="600" height="400"></svg>
+</div>
+
+<div id="controls">
+  <label for="start-node">Select Start Node:</label>
+  <select id="start-node"></select>
+
+  <button id="start-bfs">Start BFS</button>
+  <button id="reset-button" style="display:none;">Reset Graph</button>
+</div>
+
+<div id="bfs-output" aria-live="polite" aria-atomic="true">
+  BFS traversal order will appear here...
+</div>
+
+<script>
+(() => {
+  const svg = document.getElementById('graph');
+  const startNodeSelect = document.getElementById('start-node');
+  const startBFSButton = document.getElementById('start-bfs');
+  const resetButton = document.getElementById('reset-button');
+  const bfsOutput = document.getElementById('bfs-output');
+
+  // Define a graph as adjacency list:
+  // We'll create a simple undirected graph with nodes and edges.
+
+  const nodes = [
+    { id: 'A', x: 100, y: 100 },
+    { id: 'B', x: 250, y: 70 },
+    { id: 'C', x: 400, y: 100 },
+    { id: 'D', x: 100, y: 250 },
+    { id: 'E', x: 250, y: 250 },
+    { id: 'F', x: 400, y: 250 },
+    { id: 'G', x: 520, y: 180 },
+    { id: 'H', x: 520, y: 300 }
+  ];
+
+  // Adjacency list (undirected)
+  const edges = [
+    ['A', 'B'],
+    ['A', 'D'],
+    ['B', 'C'],
+    ['B', 'E'],
+    ['C', 'F'],
+    ['D', 'E'],
+    ['E', 'F'],
+    ['F', 'G'],
+    ['F', 'H']
+  ];
+
+  // Build adjacency map for quick lookup
+  const adjacency = {};
+  nodes.forEach(n => adjacency[n.id] = []);
+  edges.forEach(([a,b]) => {
+    adjacency[a].push(b);
+    adjacency[b].push(a);
+  });
+
+  // States for the nodes for coloring:
+  // "notvisited", "current", "visited"
+  const nodeStates = {};
+  nodes.forEach(n => nodeStates[n.id] = 'notvisited');
+
+  function createEdgeLine(x1, y1, x2, y2) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("class", "edge");
+    line.setAttribute("x1", x1);
+    line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2);
+    line.setAttribute("y2", y2);
+    return line;
+  }
+
+  function createNodeCircle(node) {
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("class", "node");
+    circle.setAttribute("id", "node-"+node.id);
+    circle.setAttribute("cx", node.x);
+    circle.setAttribute("cy", node.y);
+    circle.setAttribute("r", 25);
+    circle.setAttribute("tabindex", 0);
+    circle.setAttribute("aria-label", `Node ${node.id}. Click to select as start node.`);
+    circle.setAttribute("role", "button");
+    return circle;
+  }
+
+  function createNodeLabel(node) {
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("class", "nodelabel");
+    text.setAttribute("x", node.x);
+    text.setAttribute("y", node.y+6); // roughly center vertically on circle
+    text.setAttribute("text-anchor", "middle");
+    text.textContent = node.id;
+    return text;
+  }
+
+  // Draw graph
+  function drawGraph() {
+    // Clear svg first
+    while (svg.firstChild) {
+      svg.removeChild(svg.firstChild);
+    }
+    // Draw edges first
+    edges.forEach(([a,b]) => {
+      const nodeA = nodes.find(n => n.id === a);
+      const nodeB = nodes.find(n => n.id === b);
+      svg.appendChild(createEdgeLine(nodeA.x, nodeA.y, nodeB.x, nodeB.y));
+    });
+    // Draw nodes
+    nodes.forEach(node => {
+      svg.appendChild(createNodeCircle(node));
+      svg.appendChild(createNodeLabel(node));
+    });
+  }
+
+  // Update colors based on state
+  function updateNodeColors() {
+    nodes.forEach(n => {
+      const circle = document.getElementById("node-"+n.id);
+      circle.classList.remove("visited", "current");
+      if(nodeStates[n.id] === 'visited') {
+        circle.classList.add("visited");
+      } else if(nodeStates[n.id] === 'current') {
+        circle.classList.add("current");
+      }
+    });
+  }
+
+  // Populate start node options
+  function populateStartNodeOptions() {
+    startNodeSelect.innerHTML = '';
+    nodes.forEach(n => {
+      const option = document.createElement('option');
+      option.value = n.id;
+      option.textContent = n.id;
+      startNodeSelect.appendChild(option);
+    });
+  }
+
+  // Highlight selected start node in dropdown and on graph circle
+  function highlightSelectedStartNode(id) {
+    nodes.forEach(n => {
+      const circle = document.getElementById("node-"+n.id);
+      if(n.id === id) {
+        circle.setAttribute("stroke-width", 4);
+        circle.setAttribute("stroke", "#f1c40f");
+      } else {
+        circle.setAttribute("stroke-width", 2);
+        circle.setAttribute("stroke", "#2980b9");
+      }
+    });
+  }
+
+  // Run BFS with delay to show steps
+  async function bfs(startId) {
+    // Reset states
+    nodes.forEach(n => nodeStates[n.id] = 'notvisited');
+    updateNodeColors();
+
+    const visitedOrder = [];
+    const queue = [];
+    const visited = new Set();
+
+    queue.push(startId);
+    visited.add(startId);
+
+    bfsOutput.textContent = "Starting BFS from node " + startId + "...\n";
+
+    while(queue.length > 0) {
+      const current = queue.shift();
+      // Mark current
+      nodeStates[current] = 'current';
+      updateNodeColors();
+
+      bfsOutput.textContent += `Visiting Node ${current}\n`;
+      visitedOrder.push(current);
+
+      // Wait so user can see the step
+      await delay(1000);
+
+      // Mark visited
+      nodeStates[current] = 'visited';
+      updateNodeColors();
+
+      for (const neighbor of adjacency[current]) {
+        if (!visited.has(neighbor)) {
+          queue.push(neighbor);
+          visited.add(neighbor);
+          // Optional: could highlight neighbor queue addition here if desired
+        }
+      }
+      await delay(400);
+    }
+
+    bfsOutput.textContent += "\nBFS Traversal Completed.\nOrder: " + visitedOrder.join(" → ");
+    return visitedOrder;
+  }
+
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Event handlers
+  startBFSButton.addEventListener('click', async () => {
+    const startId = startNodeSelect.value;
+    startBFSButton.disabled = true;
+    resetButton.style.display = 'block';
+    startNodeSelect.disabled = true;
+    highlightSelectedStartNode(startId);
+
+    await bfs(startId);
+
+    startBFSButton.disabled = true;
+  });
+
+  resetButton.addEventListener('click', () => {
+    // Reset states and UI
+    nodes.forEach(n => nodeStates[n.id] = 'notvisited');
+    updateNodeColors();
+    bfsOutput.textContent = "BFS traversal order will appear here...";
+    startBFSButton.disabled = false;
+    resetButton.style.display = 'none';
+    startNodeSelect.disabled = false;
+    highlightSelectedStartNode(null);
+  });
+
+  // Clicking a node sets start node select
+  svg.addEventListener('click', e => {
+    if(e.target.classList.contains('node') && !startBFSButton.disabled) {
+      const id = e.target.id.replace('node-', '');
+      startNodeSelect.value = id;
+      highlightSelectedStartNode(id);
+      startNodeSelect.focus();
+    }
+  });
+
+  // Keyboard support for nodes (Enter / Space to select)
+  svg.addEventListener('keydown', e => {
+    if((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('node') && !startBFSButton.disabled) {
+      e.preventDefault();
+      const id = e.target.id.replace('node-', '');
+      startNodeSelect.value = id;
+      highlightSelectedStartNode(id);
+      startNodeSelect.focus();
+    }
+  });
+
+  startNodeSelect.addEventListener('change', (e) => {
+    highlightSelectedStartNode(e.target.value);
+  });
+
+  // Initial draw
+  drawGraph();
+  populateStartNodeOptions();
+  highlightSelectedStartNode(startNodeSelect.value || nodes[0].id);
+
+})();
+</script>
+</body>
+</html>

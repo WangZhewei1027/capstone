@@ -1,0 +1,70 @@
+# Page snapshot
+
+```yaml
+- application "Stack Data Structure Demo" [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Stack — Interactive Visualizer" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Push, pop and peek values. Toggle implementations and watch a live visual representation and operation log.
+  - region "Controls" [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: "Implementation:"
+      - combobox "Implementation:" [ref=e10]:
+        - option "Array-backed Stack (simple)" [selected]
+        - option "Linked-list Stack (nodes & pointers)"
+    - generic [ref=e11]:
+      - text: Value to push
+      - generic [ref=e12]:
+        - textbox "e.g. 42 or hello" [ref=e13]
+        - button "Push" [ref=e14] [cursor=pointer]
+        - button "Push Random" [ref=e15] [cursor=pointer]
+      - generic [ref=e16]: Press Enter in the input to push. Empty strings are allowed as values.
+    - generic [ref=e17]:
+      - text: Batch / Quantity
+      - generic [ref=e18]:
+        - spinbutton [ref=e19]: "1"
+        - button "Bulk Push" [ref=e20] [cursor=pointer]
+        - button "Clear" [ref=e21] [cursor=pointer]
+    - generic [ref=e22]:
+      - button "Pop" [ref=e23] [cursor=pointer]
+      - button "Peek" [ref=e24] [cursor=pointer]
+      - button "Run Sample Ops" [ref=e25] [cursor=pointer]
+      - button "Reverse Stack" [ref=e26] [cursor=pointer]
+    - generic [ref=e27]:
+      - strong [ref=e28]: "Complexities:"
+      - text: "Push: O(1) | Pop: O(1) | Peek: O(1) (amortized for array-backed)"
+    - generic [ref=e29]:
+      - text: Code (implementation)
+      - generic [ref=e30]: "class ArrayStack { constructor(){ this._arr = []; } push(v){ this._arr.push(v); } pop(){ return this._arr.length ? this._arr.pop() : null; } peek(){ return this._arr.length ? this._arr[this._arr.length-1] : null; } size(){ return this._arr.length; } clear(){ this._arr.length = 0 } }"
+    - generic [ref=e31]:
+      - text: Operation Log
+      - generic [ref=e33]:
+        - strong [ref=e34]: 11:21:02 PM
+        - text: — Initialized with A, B, C
+  - region "Visualization" [ref=e35]:
+    - generic [ref=e36]:
+      - generic [ref=e37]:
+        - generic [ref=e38]: "Size: 3"
+        - generic [ref=e39]: "Top: C"
+        - generic [ref=e40]: "Empty: false"
+      - generic [ref=e41]: "Implementation: Array-backed"
+      - generic [ref=e42]:
+        - text: Notes
+        - generic [ref=e43]: This demo supports two implementations. Choose "linked" to see nodes and pointers. Use Reverse to invert the stack order.
+    - generic [ref=e44]:
+      - generic "Stack contents" [ref=e45]:
+        - generic [ref=e46]:
+          - generic [ref=e47]: A
+          - generic [ref=e48]: "0"
+        - generic [ref=e49]:
+          - generic [ref=e50]: B
+          - generic [ref=e51]: "1"
+        - generic [ref=e52]:
+          - generic [ref=e53]: C
+          - generic [ref=e54]: "2"
+      - generic [ref=e55]: Top ↑
+    - generic [ref=e57]: "Tip: Try pushing many items then pop to see transitions."
+  - contentinfo [ref=e58]:
+    - generic [ref=e59]: "Built-in implementations: Array-backed & Linked-list. Visual & interactive."
+    - generic [ref=e60]: Enter to push • Ctrl+R runs sample
+```

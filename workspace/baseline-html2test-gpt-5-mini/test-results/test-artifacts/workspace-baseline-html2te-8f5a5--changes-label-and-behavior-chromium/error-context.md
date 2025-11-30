@@ -1,0 +1,66 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - text: Click canvas to add node. Drag nodes to move. Click a node, then another to create an edge (you'll be prompted for weight).
+    - text: Click "Sample Graph" to load an example. Select a source node by clicking it (it will be highlighted).
+  - generic [ref=e6]:
+    - heading "Bellman-Ford Visualizer" [level=2] [ref=e7]
+    - generic [ref=e8]:
+      - button "Sample Graph" [ref=e9] [cursor=pointer]
+      - button "Random Graph" [ref=e10] [cursor=pointer]
+      - button "Clear" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]:
+      - button "Select Source" [ref=e13] [cursor=pointer]
+      - button "Reset Algorithm" [ref=e14] [cursor=pointer]
+      - combobox [ref=e15]:
+        - option "Step-by-step" [selected]
+        - option "Animate"
+      - button "Run" [ref=e16] [cursor=pointer]
+      - button "Pause" [ref=e17] [cursor=pointer]
+    - generic [ref=e18]:
+      - button "Step" [ref=e19] [cursor=pointer]
+      - button "Detect Negative Cycle" [ref=e20] [cursor=pointer]
+    - generic [ref=e21]:
+      - generic [ref=e22]: "Iterations: 0"
+      - generic [ref=e23]: V = 5
+      - generic [ref=e24]: E = 9
+    - generic [ref=e25]:
+      - strong [ref=e26]: Distances / Predecessors
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - strong [ref=e29]: A
+          - text: "dist:"
+          - emphasis [ref=e30]: "0"
+          - text: "pred: -"
+        - generic [ref=e31]:
+          - strong [ref=e32]: B
+          - text: "dist:"
+          - emphasis [ref=e33]: ∞
+          - text: "pred: -"
+        - generic [ref=e34]:
+          - strong [ref=e35]: C
+          - text: "dist:"
+          - emphasis [ref=e36]: ∞
+          - text: "pred: -"
+        - generic [ref=e37]:
+          - strong [ref=e38]: D
+          - text: "dist:"
+          - emphasis [ref=e39]: ∞
+          - text: "pred: -"
+        - generic [ref=e40]:
+          - strong [ref=e41]: E
+          - text: "dist:"
+          - emphasis [ref=e42]: ∞
+          - text: "pred: -"
+    - generic [ref=e43]:
+      - strong [ref=e44]: Controls & Tips
+      - generic [ref=e45]:
+        - text: "- To create an edge: click one node (it will flash), then click target node and enter weight (can be negative)."
+        - text: "- Click a node to set it as source (orange)."
+        - text: "- \"Run\" with auto mode animates relaxations. \"Step\" executes one relaxation."
+    - generic [ref=e46]:
+      - strong [ref=e47]: Log / Events
+      - generic [ref=e48]: "[11:22:56 PM] Loaded sample graph (classic Bellman-Ford example). Source = A"
+```

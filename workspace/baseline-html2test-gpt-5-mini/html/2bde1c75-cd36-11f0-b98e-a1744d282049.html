@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Adjacency Matrix Interactive Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  .container { display:flex; height:100vh; gap:12px; padding:12px; box-sizing:border-box; }
+  .left, .right { background:#fbfbfb; border:1px solid #ddd; border-radius:8px; padding:12px; box-sizing:border-box; }
+  .left { flex:1 1 60%; display:flex; flex-direction:column; gap:8px; min-width:420px; }
+  .canvas-wrap { background:white; border:1px solid #eee; border-radius:6px; flex:1; position:relative; overflow:hidden; }
+  svg { width:100%; height:100%; display:block; }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button, input[type="number"], select { padding:6px 8px; border-radius:6px; border:1px solid #ccc; background:white; }
+  label { display:flex; gap:6px; align-items:center; font-size:13px; color:#333; }
+  .right { flex:0 1 420px; display:flex; flex-direction:column; gap:10px; min-width:320px; max-width:480px; }
+  .panel { background:#fff; border:1px solid #eee; padding:8px; border-radius:6px; max-height:44vh; overflow:auto; }
+  table { border-collapse:collapse; font-size:13px; }
+  td, th { border:1px solid #e6e6e6; padding:6px; text-align:center; min-width:28px; }
+  th { background:#fafafa; position:sticky; top:0; z-index:2; }
+  .matrix-wrap { overflow:auto; max-height:36vh; border-radius:6px; border:1px solid #f0f0f0; }
+  .node { cursor:pointer; }
+  .selected { stroke:#f90 !important; stroke-width:3px !important; }
+  .small { font-size:12px; color:#444;}
+  .muted { color:#666; font-size:12px; }
+  .edge-weight { font-size:12px; fill:#000; background:transparent; }
+  .info { font-size:13px; color:#333; }
+  .footer { font-size:12px; color:#666; text-align:right; }
+  .hint { font-size:12px; color:#555; }
+  input[type="checkbox"] { transform:scale(1.05); margin:0 4px 0 0; }
+  .top-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .flex-col { display:flex; flex-direction:column; gap:6px; }
+  .adj-list { font-family:monospace; white-space:pre; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="left">
+    <div class="top-row controls">
+      <button id="addNodeBtn" title="Add a node">Add Node</button>
+      <button id="removeNodeBtn" title="Remove last node">Remove Node</button>
+      <button id="randomBtn" title="Generate random edges">Random Graph</button>
+      <button id="clearBtn" title="Remove all edges">Clear Edges</button>
+      <label><input type="checkbox" id="directedChk"> Directed</label>
+      <label><input type="checkbox" id="weightedChk"> Weighted</label>
+      <label class="muted">Max nodes: <span id="maxNodes">20</span></label>
+      <div style="margin-left:auto" class="hint">Click nodes to select & connect. Or edit the matrix on the right.</div>
+    </div>
+
+    <div class="canvas-wrap">
+      <svg id="svgCanvas" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+    <div class="controls">
+      <div class="muted">Selected node: <span id="selectedNode">None</span></div>
+      <button id="deselectBtn">Deselect</button>
+      <button id="fitBtn" title="Center layout">Center Nodes</button>
+      <button id="layoutCircleBtn">Circle Layout</button>
+      <div style="margin-left:auto" class="muted">Click an adjacency matrix cell to toggle/edit edges.</div>
+    </div>
+
+    <div class="panel">
+      <div class="info"><strong>Degrees / Totals</strong></div>
+      <div id="degreeInfo" class="small muted">No nodes</div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="panel flex-col">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div><strong>Adjacency Matrix</strong> <span class="muted small" id="matrixMode"></span></div>
+        <div class="muted small">Rows = source, Columns = target</div>
+      </div>
+      <div class="matrix-wrap" id="matrixWrap"></div>
+      <div class="muted small">Click a cell: toggles edge (unweighted) or edit weight (weighted). For undirected graphs updates are symmetric.</div>
+    </div>
+
+    <div class="panel">
+      <div class="info"><strong>Adjacency List</strong></div>
+      <pre id="adjList" class="adj-list"></pre>
+      <div class="muted small">Format: node: (target, weight)</div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div><strong>Export / Import</strong></div>
+      </div>
+      <div style="display:flex; gap:6px; margin-top:8px;">
+        <button id="exportBtn">Export JSON</button>
+        <button id="importBtn">Import JSON</button>
+        <input id="importArea" placeholder='Paste JSON here' style="flex:1; padding:6px;" />
+      </div>
+      <div class="muted small" style="margin-top:8px">Export includes nodes positions and adjacency matrix.</div>
+    </div>
+
+    <div class="panel">
+      <div class="info"><strong>Tips</strong></div>
+      <ul class="muted small">
+        <li>Undirected: adjacency matrix is symmetric. Toggle "Directed" for arrows.</li>
+        <li>Weighted: matrix cells are numeric; zero means no edge.</li>
+        <li>Click a node to select it, then click another node to create/remove an edge between them.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Data
+  const svg = document.getElementById('svgCanvas');
+  const matrixWrap = document.getElementById('matrixWrap');
+  const adjListPre = document.getElementById('adjList');
+  const degreeInfo = document.getElementById('degreeInfo');
+  const selectedNodeSpan = document.getElementById('selectedNode');
+  const matrixModeSpan = document.getElementById('matrixMode');
+  const maxNodesSpan = document.getElementById('maxNodes');
+
+  let directed = false;
+  let weighted = false;
+  const MAX_NODES = 20;
+  maxNodesSpan.textContent = MAX_NODES;
+
+  let nodes = []; // {id, x,y}
+  let adj = []; // NxN numeric matrix (0 means no edge)
+  let selectedNode = null;
+
+  // init basic elements
+  const defs = createSVG('defs');
+  svg.appendChild(defs);
+  // arrow marker
+  const marker = createSVG('marker');
+  marker.setAttribute('id','arrow');
+  marker.setAttribute('markerWidth','8');
+  marker.setAttribute('markerHeight','8');
+  marker.setAttribute('refX','10');
+  marker.setAttribute('refY','4');
+  marker.setAttribute('orient','auto');
+  const arrowPath = createSVG('path');
+  arrowPath.setAttribute('d','M0,0 L8,4 L0,8 Z');
+  arrowPath.setAttribute('fill','#555');
+  marker.appendChild(arrowPath);
+  defs.appendChild(marker);
+
+  // layers
+  const edgesLayer = createSVG('g'); svg.appendChild(edgesLayer);
+  const labelsLayer = createSVG('g'); svg.appendChild(labelsLayer);
+  const nodesLayer = createSVG('g'); svg.appendChild(nodesLayer);
+
+  // Utility to create SVG elements
+  function createSVG(tag, attrs){
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    if (attrs) for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  // Initialize with 5 nodes in circle
+  function init(n=5){
+    nodes = [];
+    adj = [];
+    for (let i=0;i<n;i++){
+      nodes.push({id:i, x: 400 + 200*Math.cos(i*2*Math.PI/n), y:300 + 200*Math.sin(i*2*Math.PI/n)});
+    }
+    for (let i=0;i<n;i++){
+      adj[i] = Array(n).fill(0);
+    }
+    selectedNode = null;
+    updateUI();
+  }
+
+  // Draw graph
+  function draw(){
+    // clear layers
+    edgesLayer.innerHTML=''; labelsLayer.innerHTML=''; nodesLayer.innerHTML='';
+
+    // update arrow marker color and attach to defs
+    marker.setAttribute('markerUnits','strokeWidth');
+
+    // Draw edges
+    for (let i=0;i<nodes.length;i++){
+      for (let j=0;j<nodes.length;j++){
+        if (adj[i][j] && (i!==j || adj[i][j]!==0)) {
+          const a = nodes[i], b = nodes[j];
+          drawEdge(a,b,i,j,adj[i][j]);
+        }
+      }
+    }
+
+    // Draw nodes
+    for (const nd of nodes){
+      const g = createSVG('g');
+      g.classList.add('node');
+      g.setAttribute('data-id', nd.id);
+      const circle = createSVG('circle', {cx:nd.x, cy:nd.y, r:20, fill:'#fff', stroke:'#3b82f6', 'stroke-width':2});
+      if (selectedNode === nd.id) circle.classList.add('selected');
+      const label = createSVG('text', {x:nd.x, y:nd.y+5, 'text-anchor':'middle', 'font-size':14, 'fill':'#111'});
+      label.textContent = 'n' + nd.id;
+      g.appendChild(circle);
+      g.appendChild(label);
+      nodesLayer.appendChild(g);
+
+      // Event handlers
+      g.addEventListener('mousedown', onNodeMouseDown);
+      g.addEventListener('click', onNodeClick);
+    }
+
+    updateMatrix();
+    updateAdjList();
+    updateDegreeInfo();
+  }
+
+  function drawEdge(a,b,i,j,w){
+    // compute line endpoints so they don't touch node circles
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const dist = Math.hypot(dx,dy) || 1;
+    const r = 20;
+    const ux = dx/dist, uy = dy/dist;
+    const startX = a.x + ux*r;
+    const startY = a.y + uy*r;
+    const endX = b.x - ux*r;
+    const endY = b.y - uy*r;
+
+    const line = createSVG('line', {x1:startX, y1:startY, x2:endX, y2:endY, stroke:'#444', 'stroke-width':2});
+    if (directed){
+      line.setAttribute('marker-end','url(#arrow)');
+    }
+    edgesLayer.appendChild(line);
+
+    // weight label if weighted
+    if (weighted){
+      const midX = (startX + endX)/2;
+      const midY = (startY + endY)/2;
+      const text = createSVG('text', {x:midX+6, y:midY-6, 'font-size':12, 'fill':'#000'});
+      text.textContent = String(w);
+      labelsLayer.appendChild(text);
+    }
+  }
+
+  // Matrix UI
+  function updateMatrix(){
+    matrixWrap.innerHTML = '';
+    matrixModeSpan.textContent = weighted ? 'weighted' : 'unweighted';
+    const n = nodes.length;
+    if (n === 0) return;
+    const table = document.createElement('table');
+    // header row
+    const thead = document.createElement('thead');
+    const hr = document.createElement('tr');
+    hr.appendChild(document.createElement('th')); // corner
+    for (let j=0;j<n;j++){
+      const th = document.createElement('th');
+      th.textContent = 'n'+j;
+      hr.appendChild(th);
+    }
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    // body
+    const tbody = document.createElement('tbody');
+    for (let i=0;i<n;i++){
+      const tr = document.createElement('tr');
+      const rowHeader = document.createElement('th');
+      rowHeader.textContent = 'n'+i;
+      tr.appendChild(rowHeader);
+      for (let j=0;j<n;j++){
+        const td = document.createElement('td');
+        if (!weighted){
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = !!adj[i][j];
+          cb.addEventListener('change', (e)=>{
+            setEdgeFromMatrix(i,j, e.target.checked ? 1 : 0);
+          });
+          td.appendChild(cb);
+        } else {
+          const inp = document.createElement('input');
+          inp.type = 'number';
+          inp.value = adj[i][j] || 0;
+          inp.style.width = '60px';
+          inp.addEventListener('change', (e)=>{
+            const val = Number(e.target.value) || 0;
+            setEdgeFromMatrix(i,j, val);
+          });
+          td.appendChild(inp);
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    matrixWrap.appendChild(table);
+  }
+
+  function setEdgeFromMatrix(i,j,val){
+    if (!directed){
+      // symmetrize
+      adj[i][j] = val;
+      adj[j][i] = val;
+    } else {
+      adj[i][j] = val;
+    }
+    draw();
+  }
+
+  // Adj list
+  function updateAdjList(){
+    let s = '';
+    for (let i=0;i<nodes.length;i++){
+      const outs = [];
+      for (let j=0;j<nodes.length;j++){
+        if (adj[i][j]){
+          if (weighted) outs.push(`n${j}(${adj[i][j]})`);
+          else outs.push(`n${j}`);
+        }
+      }
+      s += `n${i}: ${outs.join(', ')}\n`;
+    }
+    adjListPre.textContent = s;
+  }
+
+  // Degrees
+  function updateDegreeInfo(){
+    if (nodes.length===0){
+      degreeInfo.textContent = 'No nodes';
+      return;
+    }
+    if (!directed){
+      const arr = nodes.map((_,i)=> adj[i].reduce((a,b)=>a+(b?1:0),0));
+      const lines = arr.map((d,i)=> `n${i}: degree=${d}`);
+      degreeInfo.textContent = lines.join(' | ');
+    } else {
+      const lines = [];
+      for (let i=0;i<nodes.length;i++){
+        const out = adj[i].reduce((a,b)=>a+(b?1:0),0);
+        let inn = 0;
+        for (let r=0;r<nodes.length;r++) if (adj[r][i]) inn++;
+        lines.push(`n${i}: out=${out}, in=${inn}`);
+      }
+      degreeInfo.textContent = lines.join(' | ');
+    }
+  }
+
+  // Node interactions
+  let dragging = null;
+  let dragOffset = {x:0,y:0};
+
+  function onNodeMouseDown(e){
+    e.stopPropagation();
+    const id = Number(this.getAttribute('data-id'));
+    dragging = id;
+    const nd = nodes.find(n=>n.id===id);
+    const pt = getMousePoint(e);
+    dragOffset.x = pt.x - nd.x;
+    dragOffset.y = pt.y - nd.y;
+    window.addEventListener('mousemove', onDrag);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function onDrag(e){
+    if (dragging === null) return;
+    const nd = nodes.find(n=>n.id===dragging);
+    const pt = getMousePoint(e);
+    nd.x = pt.x - dragOffset.x;
+    nd.y = pt.y - dragOffset.y;
+    draw();
+  }
+
+  function onUp(){
+    dragging = null;
+    window.removeEventListener('mousemove', onDrag);
+    window.removeEventListener('mouseup', onUp);
+  }
+
+  function onNodeClick(e){
+    e.stopPropagation();
+    const id = Number(this.getAttribute('data-id'));
+    if (selectedNode === null){
+      selectedNode = id;
+    } else if (selectedNode === id) {
+      selectedNode = null;
+    } else {
+      // toggle edge between selectedNode -> id
+      if (!weighted){
+        const exists = !!adj[selectedNode][id];
+        const newVal = exists ? 0 : 1;
+        if (!directed){
+          adj[selectedNode][id] = newVal;
+          adj[id][selectedNode] = newVal;
+        } else {
+          adj[selectedNode][id] = newVal;
+        }
+      } else {
+        // ask for weight
+        const cur = adj[selectedNode][id] || 0;
+        const input = prompt('Enter edge weight (0 to remove):', String(cur));
+        if (input !== null){
+          const val = Number(input) || 0;
+          if (!directed){
+            adj[selectedNode][id] = val;
+            adj[id][selectedNode] = val;
+          } else {
+            adj[selectedNode][id] = val;
+          }
+        }
+      }
+      selectedNode = null;
+    }
+    updateUI();
+  }
+
+  // canvas background click to deselect
+  svg.addEventListener('click', ()=>{
+    selectedNode = null;
+    updateUI();
+  });
+
+  // UI update
+  function updateUI(){
+    selectedNodeSpan.textContent = selectedNode===null ? 'None' : 'n'+selectedNode;
+    draw();
+  }
+
+  // helper: get mouse position relative to svg viewBox coordinates
+  function getMousePoint(evt){
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+    return {x: svgP.x, y: svgP.y};
+  }
+
+  // Controls
+  document.getElementById('addNodeBtn').addEventListener('click', ()=>{
+    if (nodes.length >= MAX_NODES) return alert('Max nodes reached');
+    const id = nodes.length ? Math.max(...nodes.map(n=>n.id)) + 1 : 0;
+    nodes.push({id, x: 400 + (Math.random()*300-150), y: 300 + (Math.random()*200-100)});
+    // expand adj matrix
+    for (let i=0;i<adj.length;i++) adj[i].push(0);
+    adj.push(Array(nodes.length).fill(0));
+    updateUI();
+  });
+
+  document.getElementById('removeNodeBtn').addEventListener('click', ()=>{
+    if (!nodes.length) return;
+    const rem = nodes.pop();
+    // remove row and column
+    adj.splice(rem.id,1);
+    for (let i=0;i<adj.length;i++) adj[i].splice(rem.id,1);
+    // reassign ids to be 0..n-1 for clarity
+    nodes = nodes.map((n,i)=>({id:i,x:n.x,y:n.y}));
+    // rebuild adj to be sized correctly if necessary
+    while(adj.length < nodes.length) adj.push(Array(nodes.length).fill(0));
+    updateUI();
+  });
+
+  document.getElementById('randomBtn').addEventListener('click', ()=>{
+    if (nodes.length===0) return;
+    const p = Number(prompt('Edge probability (0-1):', '0.35')) || 0.35;
+    for (let i=0;i<nodes.length;i++){
+      for (let j=0;j<nodes.length;j++){
+        if (i===j){
+          adj[i][j] = 0;
+        } else {
+          if (!directed && j<i) continue; // fill only half and mirror
+          const exists = Math.random() < p;
+          const val = exists ? (weighted ? Math.round(Math.random()*9)+1 : 1) : 0;
+          adj[i][j] = val;
+          if (!directed) adj[j][i] = val;
+        }
+      }
+    }
+    draw();
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', ()=>{
+    for (let i=0;i<nodes.length;i++) for (let j=0;j<nodes.length;j++) adj[i][j]=0;
+    draw();
+  });
+
+  document.getElementById('directedChk').addEventListener('change', (e)=>{
+    directed = e.target.checked;
+    // If toggling to undirected, symmetrize matrix: make symmetric using OR
+    if (!directed){
+      for (let i=0;i<nodes.length;i++){
+        for (let j=i+1;j<nodes.length;j++){
+          const v = adj[i][j] || adj[j][i] ? (weighted ? (adj[i][j] || adj[j][i]) : 1) : 0;
+          adj[i][j] = v;
+          adj[j][i] = v;
+        }
+      }
+    }
+    updateUI();
+  });
+
+  document.getElementById('weightedChk').addEventListener('change', (e)=>{
+    weighted = e.target.checked;
+    // If toggling to unweighted, convert positive weights to 1
+    if (!weighted){
+      for (let i=0;i<nodes.length;i++) for (let j=0;j<nodes.length;j++) adj[i][j] = adj[i][j] ? 1 : 0;
+    }
+    updateUI();
+  });
+
+  document.getElementById('deselectBtn').addEventListener('click', ()=>{
+    selectedNode = null; updateUI();
+  });
+
+  document.getElementById('fitBtn').addEventListener('click', ()=>{
+    // center nodes roughly in view, keep relative layout
+    if (nodes.length===0) return;
+    const cx = 400, cy=300;
+    const avgX = nodes.reduce((a,b)=>a+b.x,0)/nodes.length;
+    const avgY = nodes.reduce((a,b)=>a+b.y,0)/nodes.length;
+    const dx = cx - avgX, dy = cy - avgY;
+    nodes.forEach(n=>{ n.x += dx; n.y += dy; });
+    draw();
+  });
+
+  document.getElementById('layoutCircleBtn').addEventListener('click', ()=>{
+    const n = nodes.length;
+    if (!n) return;
+    const cx = 400, cy = 300, r = Math.min(240, 60 + n*12);
+    for (let i=0;i<n;i++){
+      nodes[i].x = cx + r*Math.cos(i*2*Math.PI/n);
+      nodes[i].y = cy + r*Math.sin(i*2*Math.PI/n);
+    }
+    draw();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', ()=>{
+    const data = {
+      directed, weighted, nodes, adj
+    };
+    const txt = JSON.stringify(data, null, 2);
+    prompt('Copy JSON export:', txt);
+  });
+
+  document.getElementById('importBtn').addEventListener('click', ()=>{
+    const raw = document.getElementById('importArea').value.trim();
+    if (!raw) { alert('Paste JSON in the input field first'); return; }
+    try {
+      const data = JSON.parse(raw);
+      directed = !!data.directed;
+      weighted = !!data.weighted;
+      document.getElementById('directedChk').checked = directed;
+      document.getElementById('weightedChk').checked = weighted;
+      nodes = (data.nodes || []).map((n,i)=>({id:i, x:n.x || 400 + Math.random()*200-100, y:n.y || 300 + Math.random()*150-75}));
+      // normalize adj
+      const n = nodes.length;
+      adj = Array.from({length:n}, (_,i)=> Array.from({length:n}, (_,j)=> (data.adj && data.adj[i] && data.adj[i][j]) ? data.adj[i][j] : 0));
+      updateUI();
+    } catch(err){
+      alert('Invalid JSON');
+    }
+  });
+
+  // initialize
+  init(5);
+
+  // Make initial random-ish edges
+  document.getElementById('randomBtn').click();
+
+  // Expose minor functions for debugging (not necessary)
+  window._graph = { nodes, adj };
+
+})();
+</script>
+</body>
+</html>

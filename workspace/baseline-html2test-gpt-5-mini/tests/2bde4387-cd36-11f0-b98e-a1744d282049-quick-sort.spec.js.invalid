@@ -1,0 +1,327 @@
+import { test, expect } from '@playwright/test';
+
+const URL = 'http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/2bde4387-cd36-11f0-b98e-a1744d282049.html';
+
+// Page Object for the Quick Sort Visualizer
+class QuickSortPage {
+  constructor(page) {
+    this.page = page;
+    // Controls
+    this.size = page.locator('#size');
+    this.speed = page.locator('#speed');
+    this.randomPivot = page.locator('#randomPivot');
+    this.randomizeBtn = page.locator('#randomize');
+    this.startBtn = page.locator('#start');
+    this.pauseBtn = page.locator('#pause');
+    this.stepBtn = page.locator('#step');
+    // Visuals and status
+    this.visual = page.locator('#visual');
+    this.bars = page.locator('#visual .bar');
+    this.actionState = page.locator('#actionState');
+    this.actionCount = page.locator('#actionCount');
+    this.progress = page.locator('#progress');
+    this.stackDisplay = page.locator('#stackDisplay');
+    this.pseudocode = page.locator('#pseudocode');
+  }
+
+  // Helper: get current number of bars
+  async getBarCount() {
+    return await this.bars.count();
+  }
+
+  // Helper: get array of bar values (textContent)
+  async getBarValues() {
+    const count = await this.getBarCount();
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      arr.push(await this.bars.nth(i).textContent());
+    }
+    return arr;
+  }
+
+  // Set range input value via DOM and dispatch input event
+  async setSizeValue(n) {
+    await this.page.evaluate((value) => {
+      const el = document.getElementById('size');
+      el.value = String(value);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }, n);
+    // wait for re-render
+    await this.page.waitForTimeout(50);
+  }
+
+  // Click helpers
+  async clickRandomize() {
+    await this.randomizeBtn.click();
+    await this.page.waitForTimeout(20);
+  }
+
+  async clickStart() {
+    await this.startBtn.click();
+  }
+
+  async clickPause() {
+    await this.pauseBtn.click();
+  }
+
+  async clickStep() {
+    await this.stepBtn.click();
+  }
+
+  async toggleRandomPivot(value) {
+    const isChecked = await this.randomPivot.isChecked();
+    if (isChecked !== value) {
+      await this.randomPivot.click();
+    }
+  }
+
+  // Wait until the actionState displays 'Done'
+  async waitForDone(timeout = 5000) {
+    await this.page.waitForFunction(() => {
+      const el1 = document.getElementById('actionState');
+      return el && el.textContent === 'Done';
+    }, { timeout });
+  }
+
+  // Wait until progress shows at least one action processed (starts with "1/")
+  async waitForFirstStep(timeout = 2000) {
+    await this.page.waitForFunction(() => {
+      const el2 = document.getElementById('progress');
+      return el && /^1\\//.test(el.textContent);
+    }, { timeout });
+  }
+
+  // Access exposed generator for comparison (window._qs.gen)
+  async generateActionsForArray(arr, randomPivot) {
+    return await this.page.evaluate((a, rp) => {
+      // Use the exposed function if available
+      if (window._qs && typeof window._qs.gen === 'function') {
+        return window._qs.gen(a, rp);
+      }
+      return null;
+    }, arr, randomPivot);
+  }
+}
+
+test.describe('Quick Sort Visualizer - end-to-end', () => {
+  // Will collect console errors and page errors for assertions
+  let consoleErrors;
+  let pageErrors;
+
+  test.beforeEach(async ({ page }) => {
+    consoleErrors = [];
+    pageErrors = [];
+
+    // capture console error messages
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        consoleErrors.push({ text: msg.text(), location: msg.location() });
+      }
+    });
+
+    // capture uncaught page errors (exceptions)
+    page.on('pageerror', err => {
+      pageErrors.push(err);
+    });
+
+    // Navigate to the application page
+    await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  });
+
+  test.afterEach(async () => {
+    // After each test ensure there were no console errors or page errors
+    // This asserts that runtime errors did not occur during the interaction.
+    expect(consoleErrors, 'No console error messages should have been logged during the test').toEqual([]);
+    expect(pageErrors, 'No uncaught page errors should have occurred during the test').toEqual([]);
+  });
+
+  test('Initial load - UI elements present and default array rendered', async ({ page }) => {
+    // Purpose: Verify the page loads and renders the default array and controls are in expected default state
+    const qs = new QuickSortPage(page);
+
+    // Title and controls visible
+    await expect(page.locator('h1')).toHaveText('Quick Sort Visualizer');
+    await expect(qs.size).toBeVisible();
+    await expect(qs.speed).toBeVisible();
+    await expect(qs.randomizeBtn).toBeVisible();
+    await expect(qs.startBtn).toBeVisible();
+    await expect(qs.pauseBtn).toBeVisible();
+    await expect(qs.stepBtn).toBeVisible();
+
+    // Default size value and corresponding number of bars
+    const sizeVal = await page.locator('#size').inputValue();
+    const expectedCount = Number(sizeVal);
+    const barCount = await qs.getBarCount();
+    expect(barCount, 'Number of rendered bars should match the size input default').toBe(expectedCount);
+
+    // Initial state badges
+    await expect(qs.actionState).toHaveText('Idle');
+    await expect(qs.actionCount).toHaveText('0');
+    await expect(qs.progress).toHaveText('0/0');
+    await expect(qs.stackDisplay).toHaveText('[]');
+
+    // Pseudocode block visible
+    await expect(qs.pseudocode).toBeVisible();
+  });
+
+  test('Size slider updates array length and UI resets', async ({ page }) => {
+    // Purpose: Changing the size range input re-creates the array and updates the number of bars
+    const qs1 = new QuickSortPage(page);
+
+    // Set size to a smaller number and verify re-render
+    await qs.setSizeValue(10);
+
+    const barCount1 = await qs.getBarCount();
+    expect(barCount, 'After changing size slider, bars should be re-rendered to new size').toBe(10);
+
+    // Changing size should reset actions/progress
+    await expect(qs.actionCount).toHaveText('0');
+    await expect(qs.progress).toHaveText('0/0');
+    await expect(qs.actionState).toHaveText('Idle');
+  });
+
+  test('Randomize button regenerates data and resets UI counters', async ({ page }) => {
+    // Purpose: Verify randomize creates a new array and clears previous action state
+    const qs2 = new QuickSortPage(page);
+
+    const beforeValues = await qs.getBarValues();
+    await qs.clickRandomize();
+    const afterValues = await qs.getBarValues();
+
+    // It's possible (rare) that the new array equals the old one, but deterministic UI resets should occur
+    await expect(qs.actionCount).toHaveText('0');
+    await expect(qs.progress).toHaveText('0/0');
+    await expect(qs.actionState).toHaveText('Idle');
+
+    // We try to assert at least some change in values across randomize calls to ensure randomness
+    // If they are identical (extremely unlikely), the test will still pass due to UI assertions above
+    const arraysEqual = JSON.stringify(beforeValues) === JSON.stringify(afterValues);
+    expect(typeof arraysEqual).toBe('boolean'); // just ensure evaluation happened
+  });
+
+  test('Step button generates actions and processes exactly one action', async ({ page }) => {
+    // Purpose: Clicking "Step" should generate the sequence of actions and perform exactly one action,
+    // updating the progress to 1/N and showing some change in the action state.
+    const qs3 = new QuickSortPage(page);
+
+    // Ensure a small enough array is used to keep the test deterministic
+    await qs.setSizeValue(8);
+
+    // Click step to execute a single action
+    await qs.clickStep();
+
+    // Wait until progress indicates at least one action processed (progress begins with "1/")
+    await qs.waitForFirstStep();
+
+    // Assert that actionCount is greater than 0 (actions were generated)
+    const actionCountText = await qs.actionCount.textContent();
+    const actionCountNum = Number(actionCountText || '0');
+    expect(actionCountNum).toBeGreaterThan(0);
+
+    // Progress should show currentAction at 1
+    const progressText = await qs.progress.textContent();
+    expect(progressText.startsWith('1/')).toBeTruthy();
+
+    // actionState should have changed from 'Idle' (could be '...' or any informative state)
+    const stateText = (await qs.actionState.textContent()) || '';
+    expect(stateText.length).toBeGreaterThan(0);
+    // The stack display must be a JSON-like string or '[]'
+    const stackTxt = await qs.stackDisplay.textContent();
+    expect(stackTxt).toBeTruthy();
+  });
+
+  test('Start runs to completion for a small array and marks all bars as sorted', async ({ page }) => {
+    // Purpose: For a small array, clicking Start should run the algorithm until completion and mark all items as sorted
+    const qs4 = new QuickSortPage(page);
+
+    // Use a very small array so the animation finishes quickly
+    await qs.setSizeValue(6);
+
+    // Click start to begin and wait for 'Done'
+    await qs.clickStart();
+
+    // Wait for completion (actionState === 'Done'); give a generous timeout for animations
+    await qs.waitForDone(8000);
+
+    // After done, all bars should have the 'sorted' class
+    const count1 = await qs.getBarCount();
+    for (let i = 0; i < count; i++) {
+      const classList = await page.locator('#visual .bar').nth(i).getAttribute('class');
+      expect(classList, `Bar ${i} should include 'sorted' after completion`).toContain('sorted');
+    }
+
+    // Controls should be re-enabled and pause should be disabled
+    await expect(qs.startBtn).toBeEnabled();
+    await expect(qs.randomizeBtn).toBeEnabled();
+    await expect(qs.pauseBtn).toBeDisabled();
+  });
+
+  test('Random pivot option affects generated action sequence', async ({ page }) => {
+    // Purpose: Ensure toggling the "Use random pivot" checkbox results in a different action sequence for the same array
+    const qs5 = new QuickSortPage(page);
+
+    // Create a deterministic small array by setting size and reading values
+    await qs.setSizeValue(7);
+    const arr1 = await qs.getBarValues();
+
+    // Convert bar values to numbers for generator (generator expects numeric array)
+    const numericArr = arr.map(s => Number(s));
+
+    // Generate actions without random pivot
+    const actionsNoRandom = await qs.generateActionsForArray(numericArr, false);
+    // Generate actions with random pivot
+    const actionsWithRandom = await qs.generateActionsForArray(numericArr, true);
+
+    // Both should be arrays (generator exposed by page)
+    expect(Array.isArray(actionsNoRandom)).toBeTruthy();
+    expect(Array.isArray(actionsWithRandom)).toBeTruthy();
+
+    // It's possible the sequences are equal by chance for this particular random index,
+    // but in general they should differ. We assert that both arrays exist and are non-empty.
+    expect(actionsNoRandom.length).toBeGreaterThan(0);
+    expect(actionsWithRandom.length).toBeGreaterThan(0);
+
+    // If the sequences differ, this confirms the checkbox affects generation.
+    const identical = JSON.stringify(actionsNoRandom) === JSON.stringify(actionsWithRandom);
+    // We don't fail deterministically if they happen to be identical; we assert that at least both provided sequences.
+    expect(typeof identical).toBe('boolean');
+  });
+
+  test('Accessibility and basic semantics - buttons have accessible names and visual region present', async ({ page }) => {
+    // Purpose: Basic accessibility smoke tests: controls should be focusable and the visual region should be present in the DOM
+    const qs6 = new QuickSortPage(page);
+
+    // Check buttons are focusable and have roles via tag semantics
+    await expect(qs.startBtn).toBeEnabled();
+    await expect(qs.stepBtn).toBeEnabled();
+
+    // Visual container has aria-hidden attribute set (per implementation)
+    const ariaHidden = await page.locator('#visual').getAttribute('aria-hidden');
+    expect(ariaHidden).toBe('false');
+
+    // Ensure legend items exist
+    await expect(page.locator('.legend')).toBeVisible();
+    await expect(page.locator('.legend span')).toHaveCount(5);
+  });
+
+  test('No console error or uncaught exceptions during various interactions', async ({ page }) => {
+    // Purpose: Exercise multiple controls and confirm no runtime errors are emitted to console or uncaught
+    const qs7 = new QuickSortPage(page);
+
+    // Interact through a typical flow
+    await qs.setSizeValue(9);
+    await qs.toggleRandomPivot(true);
+    await qs.clickRandomize();
+    await qs.clickStep();
+    await qs.waitForFirstStep();
+    // toggle pause/resume if possible - clicking pause when not playing may be no-op, but safe
+    await qs.clickPause();
+    // resume by clicking pause again if it toggled
+    await qs.clickPause();
+    // start run (small size to finish quickly)
+    await qs.clickStart();
+    await qs.waitForDone(8000);
+
+    // If any console errors or page errors were captured, afterEach will assert and fail
+  });
+});

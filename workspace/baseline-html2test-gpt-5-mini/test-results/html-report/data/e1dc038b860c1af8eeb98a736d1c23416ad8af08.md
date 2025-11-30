@@ -1,0 +1,120 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Knapsack Problem Demonstration" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Number of items
+      - generic [ref=e6]:
+        - spinbutton [ref=e7]: "5"
+        - button "Apply" [ref=e8] [cursor=pointer]
+      - generic [ref=e9]: Items (weight, value)
+      - table [ref=e10]:
+        - rowgroup [ref=e11]:
+          - row "# Weight Value" [ref=e12]:
+            - cell "#" [ref=e13]
+            - cell "Weight" [ref=e14]
+            - cell "Value" [ref=e15]
+        - rowgroup [ref=e16]:
+          - row "1 7 8" [ref=e17]:
+            - cell "1" [ref=e18]
+            - cell "7" [ref=e19]:
+              - spinbutton [ref=e20]: "7"
+            - cell "8" [ref=e21]:
+              - spinbutton [ref=e22]: "8"
+          - row "2 3 13" [ref=e23]:
+            - cell "2" [ref=e24]
+            - cell "3" [ref=e25]:
+              - spinbutton [ref=e26]: "3"
+            - cell "13" [ref=e27]:
+              - spinbutton [ref=e28]: "13"
+          - row "3 3 21" [ref=e29]:
+            - cell "3" [ref=e30]
+            - cell "3" [ref=e31]:
+              - spinbutton [ref=e32]: "3"
+            - cell "21" [ref=e33]:
+              - spinbutton [ref=e34]: "21"
+          - row "4 4 20" [ref=e35]:
+            - cell "4" [ref=e36]
+            - cell "4" [ref=e37]:
+              - spinbutton [ref=e38]: "4"
+            - cell "20" [ref=e39]:
+              - spinbutton [ref=e40]: "20"
+          - row "5 6 17" [ref=e41]:
+            - cell "5" [ref=e42]
+            - cell "6" [ref=e43]:
+              - spinbutton [ref=e44]: "6"
+            - cell "17" [ref=e45]:
+              - spinbutton [ref=e46]: "17"
+      - generic [ref=e47]:
+        - button "Randomize" [ref=e48] [cursor=pointer]
+        - button "Clear" [ref=e49] [cursor=pointer]
+      - generic [ref=e50]: Capacity (W)
+      - spinbutton [ref=e51]: "15"
+      - generic [ref=e52]: Algorithm
+      - combobox [ref=e53]:
+        - option "0-1 Knapsack (Dynamic Programming)" [selected]
+        - option "Fractional Knapsack (Greedy)"
+        - option "Brute Force (Exact, n ≤ 20)"
+      - generic [ref=e54]: Animation & Controls
+      - generic [ref=e55]:
+        - checkbox [checked] [ref=e56]
+        - generic [ref=e57]: Animate steps (DP & Brute)
+      - generic [ref=e58]: Speed (ms per step)
+      - spinbutton [ref=e59]: "80"
+      - generic [ref=e60]:
+        - button "Run" [ref=e61] [cursor=pointer]
+        - button "Explain" [ref=e62] [cursor=pointer]
+      - generic [ref=e63]: "Tips: For DP animation, keep capacity ≤ 200 to avoid huge tables. Brute force is exponential — use small n."
+    - generic [ref=e64]:
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - generic [ref=e67]: Item 1
+          - generic [ref=e68]:
+            - strong [ref=e69]: "W:"
+            - text: "7"
+          - generic [ref=e70]:
+            - strong [ref=e71]: "V:"
+            - text: "8"
+          - generic [ref=e72]: "V/W: 1.14"
+        - generic [ref=e73]:
+          - generic [ref=e74]: Item 2
+          - generic [ref=e75]:
+            - strong [ref=e76]: "W:"
+            - text: "3"
+          - generic [ref=e77]:
+            - strong [ref=e78]: "V:"
+            - text: "13"
+          - generic [ref=e79]: "V/W: 4.33"
+        - generic [ref=e80]:
+          - generic [ref=e81]: Item 3
+          - generic [ref=e82]:
+            - strong [ref=e83]: "W:"
+            - text: "3"
+          - generic [ref=e84]:
+            - strong [ref=e85]: "V:"
+            - text: "21"
+          - generic [ref=e86]: "V/W: 7.00"
+        - generic [ref=e87]:
+          - generic [ref=e88]: Item 4
+          - generic [ref=e89]:
+            - strong [ref=e90]: "W:"
+            - text: "4"
+          - generic [ref=e91]:
+            - strong [ref=e92]: "V:"
+            - text: "20"
+          - generic [ref=e93]: "V/W: 5.00"
+        - generic [ref=e94]:
+          - generic [ref=e95]: Item 5
+          - generic [ref=e96]:
+            - strong [ref=e97]: "W:"
+            - text: "6"
+          - generic [ref=e98]:
+            - strong [ref=e99]: "V:"
+            - text: "17"
+          - generic [ref=e100]: "V/W: 2.83"
+      - generic [ref=e102]:
+        - strong [ref=e103]: Result
+        - generic [ref=e104]: No run yet.
+```

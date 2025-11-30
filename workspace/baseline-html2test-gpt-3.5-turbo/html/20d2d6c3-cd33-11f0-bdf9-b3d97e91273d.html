@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dijkstra's Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #leftPanel {
+    width: 320px;
+    background: #f0f0f0;
+    padding: 15px;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+  #leftPanel h2 {
+    margin-top: 0;
+  }
+  #graphCanvas {
+    flex: 1;
+    background: #222;
+    display: block;
+  }
+  label {
+    display: block;
+    margin-top: 15px;
+    font-weight: bold;
+  }
+  select, button {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+    font-size: 1em;
+  }
+  #distanceTable {
+    margin-top: 15px;
+    border-collapse: collapse;
+    width: 100%;
+  }
+  #distanceTable th, #distanceTable td {
+    border: 1px solid #ccc;
+    padding: 6px 8px;
+    text-align: center;
+  }
+  #steps {
+    margin-top: 10px;
+    background: #fff;
+    padding: 10px;
+    height: 220px;
+    overflow-y: auto;
+    font-size: 0.9em;
+    line-height: 1.3;
+    white-space: pre-wrap;
+    border: 1px solid #ccc;
+  }
+  #footer {
+    font-size: 0.8em;
+    color: #555;
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="leftPanel">
+  <h2>Dijkstra's Algorithm</h2>
+  <label for="startNode">Select Start Node:</label>
+  <select id="startNode"></select>
+
+  <button id="runBtn">Run Algorithm</button>
+  <button id="resetBtn" style="margin-top: 8px;">Reset</button>
+
+  <h3>Distances from Start Node</h3>
+  <table id="distanceTable" aria-label="Distances table">
+    <thead><tr><th>Node</th><th>Distance</th><th>Previous</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h3>Algorithm Steps</h3>
+  <div id="steps" aria-live="polite" aria-atomic="true"></div>
+
+  <div id="footer">Click nodes on the graph to set edges (drag from one node to another).
+  You can drag nodes to reposition.<br><br>Edges show weights. Running starts from selected node.</div>
+</div>
+
+<canvas id="graphCanvas" tabindex="0" aria-label="Graph visualization"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+  const startNodeSelect = document.getElementById('startNode');
+  const runBtn = document.getElementById('runBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const distanceTableBody = document.querySelector('#distanceTable tbody');
+  const stepsDiv = document.getElementById('steps');
+
+  // Constants
+  const NODE_RADIUS = 20;
+  const NODE_COLOR = '#4a90e2';
+  const NODE_COLOR_SELECTED = '#f5a623';
+  const NODE_COLOR_VISITED = '#50e3c2';
+  const EDGE_COLOR = '#999';
+  const EDGE_COLOR_HIGHLIGHT = '#f5a623';
+  const EDGE_WEIGHT_BG = '#333';
+  const EDGE_WEIGHT_TEXT = '#eee';
+
+  // Graph data structures
+  // We'll use an adjacency list:
+  // nodes: array of {id, x, y}
+  // edges: array of {from, to, weight}
+  // Undirected graph for demo simplicity
+  let nodes = [];
+  let edges = [];
+
+  // Interaction state
+  let draggingNode = null;
+  let dragOffset = {x:0,y:0};
+  let creatingEdge = null;  // node id from which edge is created
+  let hoverNode = null;
+  let hoverEdge = null;
+
+  // Algorithm state
+  let distances = {};
+  let previous = {};
+  let visited = new Set();
+  let algorithmRunning = false;
+
+  // Utility Functions
+  function distanceBetween(x1,y1,x2,y2){
+    return Math.sqrt((x1-x2)**2 + (y1-y2)**2);
+  }
+
+  function clearCanvas(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+
+  function drawNode(node, options = {}){
+    const {highlight=false, visited=false, selected=false} = options;
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI*2);
+    if(selected){
+      ctx.fillStyle = NODE_COLOR_SELECTED;
+    } else if(visited){
+      ctx.fillStyle = NODE_COLOR_VISITED;
+    } else if(highlight){
+      ctx.fillStyle = '#7b9aff';
+    } else {
+      ctx.fillStyle = NODE_COLOR;
+    }
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#222';
+    ctx.stroke();
+
+    // Node label
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.id, node.x, node.y);
+  }
+
+  function drawEdge(edge, options = {}) {
+    const {highlight=false} = options;
+    const fromNode = nodes.find(n => n.id === edge.from);
+    const toNode = nodes.find(n => n.id === edge.to);
+    if(!fromNode || !toNode) return;
+
+    ctx.beginPath();
+    ctx.lineWidth = highlight ? 4 : 2;
+    ctx.strokeStyle = highlight ? EDGE_COLOR_HIGHLIGHT : EDGE_COLOR;
+
+    // Draw line from fromNode to toNode, but offset so line doesn't cross node center (for better aesthetics)
+    const dx = toNode.x - fromNode.x;
+    const dy = toNode.y - fromNode.y;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if(dist === 0) return;
+
+    const offsetX = (dx/dist)*NODE_RADIUS;
+    const offsetY = (dy/dist)*NODE_RADIUS;
+    ctx.moveTo(fromNode.x + offsetX, fromNode.y + offsetY);
+    ctx.lineTo(toNode.x - offsetX, toNode.y - offsetY);
+    ctx.stroke();
+
+    // Draw weight label at midpoint
+    const midX = (fromNode.x + toNode.x)/2;
+    const midY = (fromNode.y + toNode.y)/2;
+    const label = edge.weight.toString();
+
+    ctx.font = '14px Arial';
+    const textWidth = ctx.measureText(label).width;
+    const textHeight = 14;
+
+    ctx.fillStyle = EDGE_WEIGHT_BG;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    const padding = 4;
+    ctx.lineWidth = 2;
+    ctx.fillRect(midX - textWidth/2 - padding, midY - textHeight/2 - padding/2, textWidth + 2*padding, textHeight + padding);
+    ctx.strokeRect(midX - textWidth/2 - padding, midY - textHeight/2 - padding/2, textWidth + 2*padding, textHeight + padding);
+
+    ctx.fillStyle = EDGE_WEIGHT_TEXT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, midX, midY);
+  }
+
+  // Detect if mouse is on a node
+  function nodeAtPosition(x,y){
+    return nodes.find(n => distanceBetween(n.x, n.y, x, y) <= NODE_RADIUS);
+  }
+
+  // Detect edge at position (rough estimation: distance from point to line segment)
+  function edgeAtPosition(x,y){
+    for(let edge of edges){
+      const fromNode = nodes.find(n => n.id === edge.from);
+      const toNode = nodes.find(n => n.id === edge.to);
+      if(!fromNode || !toNode) continue;
+      // Distance from point (x,y) to line segment fromNode->toNode
+      let dist = pointToSegmentDistance(x,y,fromNode.x,fromNode.y,toNode.x,toNode.y);
+      if(dist < 8) return edge;
+    }
+    return null;
+  }
+
+  // Compute distance from point (px,py) to line segment (x1,y1)-(x2,y2)
+  function pointToSegmentDistance(px, py, x1, y1, x2, y2){
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    if(dx === 0 && dy === 0){
+      return distanceBetween(px, py, x1, y1);
+    }
+    let t = ((px - x1)*dx + (py - y1)*dy)/(dx*dx + dy*dy);
+    t = Math.max(0, Math.min(1, t));
+    const projX = x1 + t*dx;
+    const projY = y1 + t*dy;
+    return distanceBetween(px, py, projX, projY);
+  }
+
+  // Draw everything
+  function drawGraph(highlightEdges = []) {
+    clearCanvas();
+    // Draw edges first
+    for(let edge of edges){
+      let highlight = highlightEdges.some(e=>(
+        (e.from === edge.from && e.to === edge.to) || (e.from === edge.to && e.to === edge.from)
+      ));
+      drawEdge(edge, {highlight});
+    }
+
+    // Draw nodes
+    for(let node of nodes){
+      const visitedFlag = visited.has(node.id);
+      const selectedFlag = node.id === startNodeSelect.value;
+      const highlightFlag = node === hoverNode || node === creatingEdge;
+      drawNode(node, {visited: visitedFlag, selected: selectedFlag, highlight: highlightFlag});
+    }
+
+    // If creating edge, draw a line from originating node to mouse
+    if(creatingEdge && mousePos){
+      const fromNode = nodes.find(n=>n.id === creatingEdge);
+      if(fromNode){
+        ctx.beginPath();
+        ctx.strokeStyle = 'orange';
+        ctx.lineWidth = 2;
+        ctx.moveTo(fromNode.x, fromNode.y);
+        ctx.lineTo(mousePos.x, mousePos.y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Populate start node options
+  function populateStartNodeOptions(){
+    startNodeSelect.innerHTML = '';
+    for(let node of nodes){
+      let option = document.createElement('option');
+      option.value = node.id;
+      option.textContent = node.id;
+      startNodeSelect.appendChild(option);
+    }
+  }
+
+  // Initialize graph with some nodes & edges
+  function initGraph(){
+    nodes = [
+      {id: 'A', x: 100, y: 150},
+      {id: 'B', x: 270, y: 80},
+      {id: 'C', x: 450, y: 140},
+      {id: 'D', x: 380, y: 280},
+      {id: 'E', x: 150, y: 300},
+      {id: 'F', x: 600, y: 200}
+    ];
+    edges = [
+      {from: 'A', to: 'B', weight: 4},
+      {from: 'A', to: 'E', weight: 7},
+      {from: 'B', to: 'C', weight: 8},
+      {from: 'B', to: 'E', weight: 11},
+      {from: 'C', to: 'D', weight: 2},
+      {from: 'D', to: 'E', weight: 6},
+      {from: 'C', to: 'F', weight: 7},
+      {from: 'D', to: 'F', weight: 14}
+    ];
+    distances = {};
+    previous = {};
+    visited = new Set();
+    algorithmRunning = false;
+    stepsDiv.textContent = '';
+    populateStartNodeOptions();
+  }
+
+  // Resize canvas to window size minus left panel
+  function resizeCanvas(){
+    canvas.width = window.innerWidth - 320;
+    canvas.height = window.innerHeight;
+    drawGraph();
+  }
+
+  // Convert mouse event coords to canvas coords
+  function getMousePos(evt){
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: evt.clientX - rect.left,
+      y: evt.clientY - rect.top
+    };
+  }
+
+  // Add / edit edges weights via prompt
+  function editEdgeWeight(edge){
+    let newWeight = prompt('Enter new weight (positive integer):', edge.weight);
+    if(newWeight === null) return; // cancel
+    newWeight = parseInt(newWeight);
+    if(isNaN(newWeight) || newWeight <= 0){
+      alert('Invalid weight. Must be a positive integer.');
+      return;
+    }
+    edge.weight = newWeight;
+    drawGraph();
+  }
+
+  // Update distances table
+  function updateDistancesTable(){
+    distanceTableBody.innerHTML = '';
+    for(let node of nodes){
+      let tr = document.createElement('tr');
+      let tdNode = document.createElement('td');
+      tdNode.textContent = node.id;
+      let tdDist = document.createElement('td');
+      tdDist.textContent = distances[node.id] === Infinity ? '∞' : distances[node.id];
+      let tdPrev = document.createElement('td');
+      tdPrev.textContent = previous[node.id] ? previous[node.id] : '-';
+      tr.appendChild(tdNode);
+      tr.appendChild(tdDist);
+      tr.appendChild(tdPrev);
+      distanceTableBody.appendChild(tr);
+    }
+  }
+
+  // Dijkstra's Algorithm Implementation
+
+  // Using a simple priority queue (min heap) implementation.
+  class MinPriorityQueue {
+    constructor(){
+      this.elements = [];
+    }
+    enqueue(item, priority){
+      this.elements.push({item, priority});
+      this.elements.sort((a,b) => a.priority - b.priority);
+    }
+    dequeue(){
+      return this.elements.shift().item;
+    }
+    isEmpty(){
+      return this.elements.length === 0;
+    }
+  }
+
+  function getNeighbors(nodeId){
+    let neighbors = [];
+    for(let edge of edges){
+      if(edge.from === nodeId){
+        neighbors.push({id: edge.to, weight: edge.weight});
+      } else if(edge.to === nodeId){
+        neighbors.push({id: edge.from, weight: edge.weight});
+      }
+    }
+    return neighbors;
+  }
+
+  // Run the algorithm stepwise with animation and update UI
+  async function runDijkstra(startId){
+    algorithmRunning = true;
+    distances = {};
+    previous = {};
+    visited = new Set();
+
+    // Set all distances to infinity
+    for(let node of nodes){
+      distances[node.id] = Infinity;
+      previous[node.id] = null;
+    }
+    distances[startId] = 0;
+    updateDistancesTable();
+
+    const pq = new MinPriorityQueue();
+    pq.enqueue(startId, 0);
+
+    stepsDiv.textContent = `Start from node ${startId}\n\n`;
+
+    while(!pq.isEmpty()){
+      const current = pq.dequeue();
+      if(visited.has(current)) continue;
+      visited.add(current);
+
+      stepsDiv.textContent += `Visiting node ${current} with current shortest distance ${distances[current]}\n`;
+      updateDistancesTable();
+      drawGraph();
+
+      // Highlight edges used to reach current node (single edge from previous)
+      if(previous[current]){
+        drawGraph([{from: previous[current], to: current}]);
+        await sleep(800);
+      } else {
+        await sleep(800);
+      }
+
+      if(distances[current] === Infinity){
+        stepsDiv.textContent += `Node ${current} is unreachable from start node.\n\n`;
+        continue;
+      }
+
+      const neighbors = getNeighbors(current);
+
+      for(let neighbor of neighbors){
+        if(visited.has(neighbor.id)) continue;
+        let newDist = distances[current] + neighbor.weight;
+        if(newDist < distances[neighbor.id]){
+          distances[neighbor.id] = newDist;
+          previous[neighbor.id] = current;
+          pq.enqueue(neighbor.id, newDist);
+          stepsDiv.textContent += `Updated distance of node ${neighbor.id} to ${newDist} via ${current}\n`;
+          updateDistancesTable();
+          drawGraph([{from: current, to: neighbor.id}]);
+          await sleep(700);
+        }
+      }
+      stepsDiv.textContent += '\n';
+    }
+    algorithmRunning = false;
+    stepsDiv.textContent += 'Algorithm finished!';
+  }
+
+  // Pause helper
+  function sleep(ms){
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Mouse interaction
+  let mousePos = null;
+
+  canvas.addEventListener('mousedown', e => {
+    if(algorithmRunning) return;
+    const pos = getMousePos(e);
+    mousePos = pos;
+    let node = nodeAtPosition(pos.x,pos.y);
+    if(node){
+      draggingNode = node;
+      dragOffset.x = pos.x - node.x;
+      dragOffset.y = pos.y - node.y;
+      return;
+    }
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    if(algorithmRunning) return;
+    const pos = getMousePos(e);
+    mousePos = pos;
+
+    if(draggingNode){
+      draggingNode.x = pos.x - dragOffset.x;
+      draggingNode.y = pos.y - dragOffset.y;
+      drawGraph();
+      return;
+    }
+
+    // Hover logic
+    let node = nodeAtPosition(pos.x, pos.y);
+    if(node !== hoverNode){
+      hoverNode = node;
+      drawGraph();
+    }
+
+    // highlight edges on hover
+    let edge = edgeAtPosition(pos.x,pos.y);
+    if(edge !== hoverEdge){
+      hoverEdge = edge;
+    }
+
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    if(algorithmRunning) return;
+    const pos = getMousePos(e);
+    if(draggingNode){
+      draggingNode = null;
+      drawGraph();
+      return;
+    }
+
+    let nodeClicked = nodeAtPosition(pos.x,pos.y);
+    if(!creatingEdge){
+      // Start edge creation by clicking on node
+      if(nodeClicked){
+        creatingEdge = nodeClicked.id;
+        drawGraph();
+      }
+    } else {
+      // Finish edge creation by clicking second node (could be same)
+      if(nodeClicked && nodeClicked.id !== creatingEdge){
+        // Check if edge already exists between these nodes
+        let existingEdge = edges.find(e => 
+          (e.from === creatingEdge && e.to === nodeClicked.id) || 
+          (e.to === creatingEdge && e.from === nodeClicked.id)
+        );
+        if(existingEdge){
+          if(confirm('Edge already exists. Do you want to edit its weight?')){
+            editEdgeWeight(existingEdge);
+          }
+        } else {
+          // Create new edge with user input weight
+          let w = prompt(`Enter weight for edge (${creatingEdge} <-> ${nodeClicked.id}):`, '1');
+          if(w !== null){
+            w = parseInt(w);
+            if(isNaN(w) || w <= 0){
+              alert('Invalid weight, edge not created.');
+            } else {
+              edges.push({from: creatingEdge, to: nodeClicked.id, weight: w});
+            }
+          }
+        }
+      }
+      creatingEdge = null;
+      drawGraph();
+    }
+  });
+
+  // Right-click on edge to edit weight
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if(algorithmRunning) return;
+    const pos = getMousePos(e);
+    let edge = edgeAtPosition(pos.x,pos.y);
+    if(edge){
+      editEdgeWeight(edge);
+    }
+  });
+
+  // Run button
+  runBtn.addEventListener('click', async () => {
+    if(algorithmRunning) return;
+    const startId = startNodeSelect.value;
+    if(!startId){
+      alert('Select a start node!');
+      return;
+    }
+    stepsDiv.textContent = '';
+    visited.clear();
+    await runDijkstra(startId);
+  });
+
+  resetBtn.addEventListener('click', () => {
+    if(algorithmRunning) return;
+    initGraph();
+    drawGraph();
+    stepsDiv.textContent = '';
+    distanceTableBody.innerHTML = '';
+  });
+
+  // Keyboard accessibility: select node with arrows and run
+  let keyboardSelectedIndex = 0;
+  startNodeSelect.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){
+      runBtn.click();
+    }
+  });
+
+  // Initialization
+  function init(){
+    resizeCanvas();
+    initGraph();
+    drawGraph();
+  }
+
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+  });
+
+  init();
+})();
+</script>
+
+</body>
+</html>

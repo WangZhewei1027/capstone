@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Weighted Graph Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    overflow: hidden;
+    background: #f0f0f0;
+  }
+  svg {
+    background: white;
+    border: 1px solid #ccc;
+    display: block;
+    margin: 20px auto;
+  }
+  .node circle {
+    fill: #4285f4;
+    stroke: #3367d6;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: fill 0.3s;
+  }
+  .node text {
+    pointer-events: none;
+    fill: white;
+    font-weight: bold;
+    font-size: 14px;
+    user-select: none;
+    text-anchor: middle;
+    dominant-baseline: middle;
+  }
+  .edge path {
+    stroke: #999;
+    stroke-width: 2px;
+    fill: none;
+  }
+  .edge text {
+    font-size: 12px;
+    fill: #333;
+    user-select: none;
+  }
+  #info {
+    max-width: 700px;
+    margin: 0 auto 20px auto;
+    padding: 10px 15px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 0 7px rgba(0,0,0,0.1);
+    font-size: 16px;
+  }
+  #legend {
+    max-width: 700px;
+    margin: 0 auto 10px auto;
+    font-size: 14px;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<div id="info">Click a node to highlight its connections and see edge weights.</div>
+<div id="legend">
+  <b>Legend:</b> Blue circles = nodes, Gray lines = edges, Numbers on edges = weights.
+</div>
+
+<svg id="graph" width="700" height="500"></svg>
+
+<script>
+// Weighted Graph Data Structure
+// Nodes and edges with weights
+
+const nodes = [
+  { id: 0, label: 'A', x: 150, y: 100 },
+  { id: 1, label: 'B', x: 400, y: 80 },
+  { id: 2, label: 'C', x: 600, y: 150 },
+  { id: 3, label: 'D', x: 350, y: 250 },
+  { id: 4, label: 'E', x: 550, y: 350 },
+  { id: 5, label: 'F', x: 180, y: 300 }
+];
+
+const edges = [
+  { from: 0, to: 1, weight: 7 },
+  { from: 0, to: 5, weight: 9 },
+  { from: 0, to: 3, weight: 14 },
+  { from: 1, to: 2, weight: 10 },
+  { from: 1, to: 3, weight: 15 },
+  { from: 2, to: 4, weight: 11 },
+  { from: 3, to: 4, weight: 2 },
+  { from: 5, to: 4, weight: 6 },
+  { from: 5, to: 3, weight: 9 }
+];
+
+// We treat the graph as undirected for visualization:
+// so each edge is drawn once, between from and to.
+
+const svg = document.getElementById('graph');
+
+const ns = "http://www.w3.org/2000/svg";
+
+// Create groups for edges and nodes
+const edgeGroup = document.createElementNS(ns, 'g');
+edgeGroup.setAttribute('id', 'edges');
+svg.appendChild(edgeGroup);
+
+const nodeGroup = document.createElementNS(ns, 'g');
+nodeGroup.setAttribute('id', 'nodes');
+svg.appendChild(nodeGroup);
+
+function createEdge(fromNode, toNode, weight) {
+  const edge = document.createElementNS(ns, 'g');
+  edge.classList.add('edge');
+
+  // Draw line/path with a slight curve if desired - here a straight line
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('stroke', '#999');
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('fill', 'none');
+  
+  // For slight offset, we could use a quadratic Bezier curve. Let's keep straight lines:
+  const d = `M${fromNode.x} ${fromNode.y} L${toNode.x} ${toNode.y}`;
+  path.setAttribute('d', d);
+
+  edge.appendChild(path);
+
+  // Edge weight label, positioned mid-point between from & to with slight offset perpendicular
+  const weightText = document.createElementNS(ns, 'text');
+  weightText.classList.add('edge-weight');
+  
+  const midX = (fromNode.x + toNode.x) / 2;
+  const midY = (fromNode.y + toNode.y) / 2;
+
+  // Compute offset perpendicular for better visibility
+  const dx = toNode.x - fromNode.x;
+  const dy = toNode.y - fromNode.y;
+  const length = Math.sqrt(dx*dx + dy*dy);
+  const offset = 15;
+  const offsetX = -dy / length * offset;
+  const offsetY = dx / length * offset;
+
+  weightText.setAttribute('x', midX + offsetX);
+  weightText.setAttribute('y', midY + offsetY);
+  weightText.setAttribute('fill', '#333');
+  weightText.textContent = weight;
+
+  edge.appendChild(weightText);
+
+  return edge;
+}
+
+function createNode(node) {
+  const g = document.createElementNS(ns, 'g');
+  g.classList.add('node');
+  g.setAttribute('data-id', node.id);
+
+  const circle = document.createElementNS(ns, 'circle');
+  circle.setAttribute('r', 20);
+  circle.setAttribute('cx', node.x);
+  circle.setAttribute('cy', node.y);
+  circle.setAttribute('fill', '#4285f4');
+  circle.setAttribute('stroke', '#3367d6');
+  circle.setAttribute('stroke-width', 2);
+
+  const text = document.createElementNS(ns, 'text');
+  text.setAttribute('x', node.x);
+  text.setAttribute('y', node.y);
+  text.textContent = node.label;
+
+  g.appendChild(circle);
+  g.appendChild(text);
+
+  return g;
+}
+
+// We draw each edge only once since undirected graph:
+const seenEdges = new Set();
+edges.forEach(({ from, to, weight }) => {
+  const key = from < to ? `${from}-${to}` : `${to}-${from}`;
+  if (!seenEdges.has(key)) {
+    const edgeElem = createEdge(nodes[from], nodes[to], weight);
+    edgeGroup.appendChild(edgeElem);
+    seenEdges.add(key);
+  }
+});
+
+nodes.forEach(node => {
+  const nodeElem = createNode(node);
+  nodeGroup.appendChild(nodeElem);
+});
+
+// Interaction: clicking on a node highlights it and edges connected to it
+
+const info = document.getElementById('info');
+
+nodeGroup.querySelectorAll('.node').forEach(nodeElem => {
+  nodeElem.style.cursor = 'pointer';
+  nodeElem.addEventListener('click', () => {
+    const nodeId = Number(nodeElem.getAttribute('data-id'));
+    highlightNodeAndEdges(nodeId);
+  });
+});
+
+function highlightNodeAndEdges(nodeId) {
+  // Reset all nodes and edges style
+  nodeGroup.querySelectorAll('.node circle').forEach(c => {
+    c.setAttribute('fill', '#4285f4');
+    c.setAttribute('stroke', '#3367d6');
+  });
+  edgeGroup.querySelectorAll('path').forEach(path => {
+    path.setAttribute('stroke', '#999');
+    path.setAttribute('stroke-width', '2');
+  });
+  edgeGroup.querySelectorAll('text').forEach(t => {
+    t.setAttribute('fill', '#333');
+    t.style.fontWeight = 'normal';
+    t.style.fontSize = '12px';
+  });
+
+  // Highlight selected node
+  const selectedNodeCircle = nodeGroup.querySelector(`.node[data-id="${nodeId}"] circle`);
+  selectedNodeCircle.setAttribute('fill', '#fbbc04');
+  selectedNodeCircle.setAttribute('stroke', '#c49000');
+
+  // Highlight edges connected to this node
+  // And highlight the other node connected as well
+  edges.forEach(({ from, to, weight }) => {
+    if (from === nodeId || to === nodeId) {
+      // Find the path element corresponding to this edge:
+      // Paths are in order and only once, so find by matching coordinates
+      let key = from < to ? `${from}-${to}` : `${to}-${from}`;
+      // We identify edges by positions of the path element in DOM == order in seenEdges
+      // To do a direct approach - find the edge with same endpoints (order independent)
+      // Iterate edges group children to find a path with matching line endpoints
+      for (let edgeElem of edgeGroup.children) {
+        const path = edgeElem.querySelector('path');
+        if (!path) continue;
+        const d = path.getAttribute('d');
+        // d format: MfromX fromY LtoX toY
+        const match = d.match(/M([\d\.]+) ([\d\.]+) L([\d\.]+) ([\d\.]+)/);
+        if (!match) continue;
+        const [_, x1, y1, x2, y2] = match;
+        const coords1 = [parseFloat(x1), parseFloat(y1)];
+        const coords2 = [parseFloat(x2), parseFloat(y2)];
+        const nFrom = nodes[from];
+        const nTo = nodes[to];
+        // Check if coords match from-to or to-from
+        if (
+          (approxEqual(coords1[0], nFrom.x) && approxEqual(coords1[1], nFrom.y) &&
+           approxEqual(coords2[0], nTo.x) && approxEqual(coords2[1], nTo.y)) ||
+          (approxEqual(coords2[0], nFrom.x) && approxEqual(coords2[1], nFrom.y) &&
+           approxEqual(coords1[0], nTo.x) && approxEqual(coords1[1], nTo.y))
+        ) {
+          // Highlight this edge
+          path.setAttribute('stroke', '#fbbc04');
+          path.setAttribute('stroke-width', '4');
+          const weightText = edgeElem.querySelector('text');
+          if (weightText) {
+            weightText.setAttribute('fill', '#c49000');
+            weightText.style.fontWeight = 'bold';
+            weightText.style.fontSize = '14px';
+          }
+          // Highlight the other node as well
+          if (from === nodeId) {
+            highlightOtherNode(to);
+          } else {
+            highlightOtherNode(from);
+          }
+          break;
+        }
+      }
+    }
+  });
+
+  info.textContent = `Selected node: ${nodes[nodeId].label}. Highlighted edges show weights of connections. Click another node or the same node again to reset.`;
+}
+
+function highlightOtherNode(nodeId) {
+  const nodeCircle = nodeGroup.querySelector(`.node[data-id="${nodeId}"] circle`);
+  const currentFill = nodeCircle.getAttribute('fill');
+  if (currentFill === '#fbbc04') return; // already selected node
+  nodeCircle.setAttribute('fill', '#34a853');
+  nodeCircle.setAttribute('stroke', '#2c8e41');
+}
+
+function approxEqual(a, b, epsilon = 0.1) {
+  return Math.abs(a - b) < epsilon;
+}
+
+// Reset highlight on clicking empty space (svg background)
+svg.addEventListener('click', (evt) => {
+  if (evt.target === svg) {
+    resetHighlights();
+  }
+});
+function resetHighlights() {
+  nodeGroup.querySelectorAll('.node circle').forEach(c => {
+    c.setAttribute('fill', '#4285f4');
+    c.setAttribute('stroke', '#3367d6');
+  });
+  edgeGroup.querySelectorAll('path').forEach(path => {
+    path.setAttribute('stroke', '#999');
+    path.setAttribute('stroke-width', '2');
+  });
+  edgeGroup.querySelectorAll('text').forEach(t => {
+    t.setAttribute('fill', '#333');
+    t.style.fontWeight = 'normal';
+    t.style.fontSize = '12px';
+  });
+  info.textContent = 'Click a node to highlight its connections and see edge weights.';
+}
+
+</script>
+</body>
+</html>

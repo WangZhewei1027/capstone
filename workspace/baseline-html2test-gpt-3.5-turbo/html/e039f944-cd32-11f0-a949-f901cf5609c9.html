@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Red-Black Tree Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    display: flex; flex-direction: column; align-items: center;
+    background: #f0f0f0;
+  }
+  h1 {
+    margin-top: 1em;
+  }
+  #controls {
+    margin: 1em;
+  }
+  input[type=number] {
+    font-size: 1em;
+    padding: 0.3em;
+    width: 6em;
+  }
+  button {
+    font-size: 1em;
+    padding: 0.4em 1em;
+    margin-left: 0.5em;
+    cursor: pointer;
+  }
+  #canvasContainer {
+    background: white;
+    border: 1px solid #aaa;
+    box-shadow: 0 0 10px #ccc;
+    margin-bottom: 2em;
+    width: 95vw;
+    max-width: 1000px;
+    height: 600px;
+    overflow: auto;
+  }
+  canvas {
+    display: block;
+  }
+  #log {
+    width: 95vw;
+    max-width: 1000px;
+    max-height: 150px;
+    overflow-y: auto;
+    background: #222;
+    color: #eee;
+    font-family: monospace;
+    font-size: 0.9em;
+    border: 1px solid #444;
+    padding: 0.5em;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+  }
+
+  /* Legend */
+  #legend {
+    margin-bottom: 1em;
+    max-width: 1000px;
+    font-size: 0.9em;
+  }
+  .node-red {
+    color: #c0392b;
+    font-weight: bold;
+  }
+  .node-black {
+    color: #2c3e50;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+<h1>Red-Black Tree Visualization</h1>
+<div id="controls">
+  <label for="valueInput">Insert key:</label>
+  <input type="number" id="valueInput" />
+  <button id="insertBtn">Insert</button>
+  <button id="clearBtn">Clear Tree</button>
+</div>
+<div id="legend">
+  <strong>Legend:</strong> 
+  <span class="node-red">● Red Node</span> &nbsp;&nbsp; 
+  <span class="node-black">● Black Node</span>
+</div>
+<div id="canvasContainer">
+  <canvas id="treeCanvas" width="1000" height="600"></canvas>
+</div>
+<div id="log" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(() => {
+  // Red-Black Tree Node colors
+  const RED = 'RED';
+  const BLACK = 'BLACK';
+  
+  // Node class
+  class Node {
+    constructor(key) {
+      this.key = key;
+      this.color = RED;
+      this.left = null;
+      this.right = null;
+      this.parent = null;
+    }
+  }
+  
+  // RedBlackTree implementation
+  class RedBlackTree {
+    constructor() {
+      this.nil = new Node(null);
+      this.nil.color = BLACK;
+      this.root = this.nil;
+    }
+    
+    leftRotate(x) {
+      let y = x.right;
+      x.right = y.left;
+      if (y.left !== this.nil) {
+        y.left.parent = x;
+      }
+      y.parent = x.parent;
+      if (x.parent === this.nil) {
+        this.root = y;
+      } else if (x === x.parent.left) {
+        x.parent.left = y;
+      } else {
+        x.parent.right = y;
+      }
+      y.left = x;
+      x.parent = y;
+      log(`Left rotate on node ${x.key}`);
+    }
+    
+    rightRotate(y) {
+      let x = y.left;
+      y.left = x.right;
+      if (x.right !== this.nil) {
+        x.right.parent = y;
+      }
+      x.parent = y.parent;
+      if (y.parent === this.nil) {
+        this.root = x;
+      } else if (y === y.parent.right) {
+        y.parent.right = x;
+      } else {
+        y.parent.left = x;
+      }
+      x.right = y;
+      y.parent = x;
+      log(`Right rotate on node ${y.key}`);
+    }
+    
+    insert(key) {
+      let node = new Node(key);
+      node.left = this.nil;
+      node.right = this.nil;
+      node.parent = this.nil;
+      
+      let y = this.nil;
+      let x = this.root;
+      while (x !== this.nil) {
+        y = x;
+        if (node.key < x.key) {
+          x = x.left;
+        } else if(node.key > x.key) {
+          x = x.right;
+        } else {
+          log(`Key ${key} already present. Duplicates not allowed.`);
+          return false;
+        }
+      }
+      node.parent = y;
+      if (y === this.nil) {
+        this.root = node;
+      } else if (node.key < y.key) {
+        y.left = node;
+      } else {
+        y.right = node;
+      }
+      node.color = RED;
+      log(`Inserted node ${node.key} (color RED)`);
+      this.insertFixup(node);
+      return true;
+    }
+    
+    insertFixup(z) {
+      while (z.parent.color === RED) {
+        if (z.parent === z.parent.parent.left) {
+          let y = z.parent.parent.right;
+          if (y.color === RED) {
+            log(`Case 1 (uncle red) at node ${z.key}`);
+            z.parent.color = BLACK;
+            y.color = BLACK;
+            z.parent.parent.color = RED;
+            z = z.parent.parent;
+          } else {
+            if (z === z.parent.right) {
+              log(`Case 2 (triangle) at node ${z.key}`);
+              z = z.parent;
+              this.leftRotate(z);
+            }
+            log(`Case 3 (line) at node ${z.key}`);
+            z.parent.color = BLACK;
+            z.parent.parent.color = RED;
+            this.rightRotate(z.parent.parent);
+          }
+        } else {
+          let y = z.parent.parent.left;
+          if (y.color === RED) {
+            log(`Case 1 mirror (uncle red) at node ${z.key}`);
+            z.parent.color = BLACK;
+            y.color = BLACK;
+            z.parent.parent.color = RED;
+            z = z.parent.parent;
+          } else {
+            if (z === z.parent.left) {
+              log(`Case 2 mirror (triangle) at node ${z.key}`);
+              z = z.parent;
+              this.rightRotate(z);
+            }
+            log(`Case 3 mirror (line) at node ${z.key}`);
+            z.parent.color = BLACK;
+            z.parent.parent.color = RED;
+            this.leftRotate(z.parent.parent);
+          }
+        }
+        if (z === this.root) {
+          break;
+        }
+      }
+      this.root.color = BLACK;
+      log(`Root set to BLACK`);
+    }
+    
+    inorderWalk(node, func) {
+      if (node !== this.nil) {
+        this.inorderWalk(node.left, func);
+        func(node);
+        this.inorderWalk(node.right, func);
+      }
+    }
+    
+    // For visualization - builds a tree structure with position
+    getNodesWithPositions() {
+      if (this.root === this.nil) return [];
+      // Assign (x,y) using BFS and relative positions
+      let levels = [];
+      let queue = [{node: this.root, depth: 0, pos: 0}];
+      while (queue.length > 0) {
+        let {node, depth, pos} = queue.shift();
+        if (!levels[depth]) levels[depth] = [];
+        levels[depth].push({node, pos});
+        // For pos we just assign index in array, exact X calculated later
+        if (node.left !== this.nil)
+          queue.push({node: node.left, depth: depth+1, pos: 2*pos});
+        if (node.right !== this.nil)
+          queue.push({node: node.right, depth: depth+1, pos: 2*pos+1});
+      }
+      return levels;
+    }
+  }
+
+  // UI and visualization part
+
+  const canvas = document.getElementById('treeCanvas');
+  const ctx = canvas.getContext('2d');
+  const insertBtn = document.getElementById('insertBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const valueInput = document.getElementById('valueInput');
+  const logDiv = document.getElementById('log');
+
+  const TREE_NODE_RADIUS = 20;
+  const VERTICAL_GAP = 70;  
+  const HORIZONTAL_MARGIN = 20;
+  const COLORS = {
+    RED: '#c0392b',
+    BLACK: '#2c3e50',
+    LINE: '#35495e',
+    BACKGROUND: '#fff'
+  };
+
+  let tree = new RedBlackTree();
+
+  // Clear log text
+  function clearLog() {
+    logDiv.textContent = '';
+  }
+
+  // Append a message to log window with time stamp
+  function log(msg) {
+    let time = new Date().toLocaleTimeString();
+    logDiv.textContent += `[${time}] ${msg}\n`;
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  // Calculate horizontal positions for nodes in each level to avoid overlapping
+  function calculatePositions(levels, width) {
+    // levels: array of arrays of {node, pos}
+    // assign x coordinate for each node at each level
+
+    let positions = new Map();
+
+    let maxLevels = levels.length;
+    if (maxLevels === 0) return positions;
+    
+    // The horizontal width for a node: roughly space between nodes on bottom-most level
+    // We use the bottom level's count to divide width
+    
+    // Bottom level nodes (usually the most)
+    let bottomCount = levels[maxLevels - 1].length;
+
+    let nodeGap = Math.max(TREE_NODE_RADIUS*2 + 10,
+      (width - 2*HORIZONTAL_MARGIN) / bottomCount);
+
+    // We calculate x pos for bottom level nodes
+    levels[maxLevels - 1].forEach((entry, index) => {
+      let x = HORIZONTAL_MARGIN + nodeGap/2 + index * nodeGap;
+      positions.set(entry.node, {x: x, y: VERTICAL_GAP * (maxLevels - 1) + TREE_NODE_RADIUS + 10});
+    });
+
+    // Now for each upper level, calculate x pos as average of children if exists
+    for (let level = maxLevels - 2; level >= 0; level--) {
+      levels[level].forEach(entry => {
+        let node = entry.node;
+        let leftPos = positions.get(node.left);
+        let rightPos = positions.get(node.right);
+        let y = VERTICAL_GAP * level + TREE_NODE_RADIUS + 10;
+        let x;
+        if (leftPos && rightPos) {
+          x = (leftPos.x + rightPos.x) / 2;
+        } else if (leftPos) {
+          x = leftPos.x + nodeGap / 2;
+        } else if (rightPos) {
+          x = rightPos.x - nodeGap / 2;
+        } else {
+          // Leaf node
+          x = HORIZONTAL_MARGIN + nodeGap/2 + entry.pos * nodeGap;
+        }
+        positions.set(node, {x, y});
+      });
+    }
+    return positions;
+  }
+
+  // Draw a node with key, color, and position
+  function drawNode(node, x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, TREE_NODE_RADIUS, 0, 2*Math.PI);
+    ctx.fillStyle = node.color === RED ? COLORS.RED : COLORS.BLACK;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#333';
+    ctx.stroke();
+
+    // Text - white for red nodes, white for black nodes
+    ctx.fillStyle = node.color === RED ? '#fff' : '#fff';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.key, x, y);
+  }
+
+  // Draw edge between parent and child nodes
+  function drawEdge(x1, y1, x2, y2) {
+    ctx.beginPath();
+    ctx.strokeStyle = COLORS.LINE;
+    ctx.lineWidth = 2;
+    ctx.moveTo(x1, y1 + TREE_NODE_RADIUS);
+    ctx.lineTo(x2, y2 - TREE_NODE_RADIUS);
+    ctx.stroke();
+  }
+
+  // Clear canvas
+  function clearCanvas() {
+    ctx.fillStyle = COLORS.BACKGROUND;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Draw tree to canvas
+  function drawTree() {
+    clearCanvas();
+    let levels = tree.getNodesWithPositions();
+    let positions = calculatePositions(levels, canvas.width);
+    if (positions.size === 0) return;
+
+    // Draw edges first
+    positions.forEach((pos, node) => {
+      if (node.left !== tree.nil) {
+        let childPos = positions.get(node.left);
+        drawEdge(pos.x, pos.y, childPos.x, childPos.y);
+      }
+      if (node.right !== tree.nil) {
+        let childPos = positions.get(node.right);
+        drawEdge(pos.x, pos.y, childPos.x, childPos.y);
+      }
+    });
+
+    // Draw nodes on top
+    positions.forEach((pos, node) => {
+      drawNode(node, pos.x, pos.y);
+    });
+  }
+
+  // Insert key from input and redraw tree
+  function insertKey() {
+    let val = parseInt(valueInput.value);
+    if (isNaN(val)) {
+      alert('Please enter a valid integer');
+      return;
+    }
+    if(val === null) return;
+    if(tree.insert(val)) {
+      drawTree();
+    }
+    valueInput.value = '';
+    valueInput.focus();
+  }
+
+  // Clear the entire tree (reset)
+  function clearTree() {
+    tree = new RedBlackTree();
+    clearCanvas();
+    clearLog();
+  }
+
+  // Event listeners
+  insertBtn.addEventListener('click', insertKey);
+  clearBtn.addEventListener('click', clearTree);
+  valueInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      insertKey();
+    }
+  });
+
+  // Initial welcome message in log
+  log("Welcome! Enter integer keys and click 'Insert' to build the Red-Black Tree.");
+  log("Duplicates are not allowed.");
+  valueInput.focus();
+
+  // Initial draw call for empty tree
+  drawTree();
+
+})();
+</script>
+</body>
+</html>

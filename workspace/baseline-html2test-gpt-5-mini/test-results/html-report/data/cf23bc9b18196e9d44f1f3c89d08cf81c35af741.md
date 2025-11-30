@@ -1,0 +1,61 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - heading "Depth-First Search (DFS) Visualizer" [level=2] [ref=e5]
+        - generic [ref=e6]: Click empty space to add nodes. Click a node to select a source, then click another node to add an edge. Drag a node to move it. Toggle directed/undirected graphs.
+      - generic [ref=e8]: "Nodes: 0 Edges: 0"
+    - generic [ref=e9]:
+      - button "Clear All" [ref=e10] [cursor=pointer]
+      - button "Random Graph" [ref=e11] [cursor=pointer]
+      - 'button "Mode: Undirected" [ref=e12] [cursor=pointer]'
+      - generic [ref=e13]: "Start:"
+      - combobox "Start:" [ref=e14]
+      - button "Run Recursive DFS" [ref=e15] [cursor=pointer]
+      - button "Run Iterative DFS" [ref=e16] [cursor=pointer]
+      - button "Step" [ref=e17] [cursor=pointer]
+      - button "Play" [ref=e18] [cursor=pointer]
+      - button "Reset Traversal" [ref=e19] [cursor=pointer]
+      - generic [ref=e20]:
+        - text: Speed
+        - slider "Speed" [ref=e21]: "200"
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - heading "Traversal" [level=3] [ref=e27]
+          - generic [ref=e28]: "Time: 0"
+        - generic [ref=e29]: Press Run to start. You can also Step through the algorithm.
+        - strong [ref=e31]: "Order visited:"
+      - generic [ref=e32]:
+        - heading "Stack / Call Stack" [level=3] [ref=e33]
+        - generic [ref=e34]: "[empty]"
+        - generic [ref=e35]:
+          - strong [ref=e36]: "Algorithm choice:"
+          - text: None
+        - button "Show Short Explanation" [ref=e38] [cursor=pointer]
+  - generic [ref=e39]:
+    - generic [ref=e40]:
+      - heading "Adjacency List" [level=3] [ref=e41]
+      - generic [ref=e43]:
+        - generic [ref=e44]: Unvisited
+        - generic [ref=e46]: In progress
+        - generic [ref=e48]: Finished
+    - generic [ref=e50]:
+      - heading "Discovery & Finish Times" [level=3] [ref=e51]
+      - table [ref=e53]:
+        - rowgroup [ref=e54]:
+          - row "Node Disc Finish" [ref=e55]:
+            - cell "Node" [ref=e56]
+            - cell "Disc" [ref=e57]
+            - cell "Finish" [ref=e58]
+        - rowgroup
+    - generic [ref=e59]:
+      - heading "Notes" [level=3] [ref=e60]
+      - list [ref=e61]:
+        - listitem [ref=e62]: DFS explores as deep as possible along each branch before backtracking.
+        - listitem [ref=e63]: Use "Recursive" to see the natural recursion stack, or "Iterative" to see an explicit stack simulation.
+        - listitem [ref=e64]: Discovery time when a node is first visited; finish time when all descendants are fully explored.
+```

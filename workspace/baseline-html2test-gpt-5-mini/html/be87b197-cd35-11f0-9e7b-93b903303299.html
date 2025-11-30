@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fibonacci Sequence Explorer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 18px; color: #222; }
+    h1 { margin-bottom: 6px; }
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 980px; align-items: center; }
+    .controls > div { background: #f8f9fb; padding: 12px; border-radius: 8px; border: 1px solid #e3e6ea; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; }
+    input[type="number"] { width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid #ccc; }
+    .methods { display:flex; gap: 10px; flex-wrap:wrap; }
+    .methods label { font-weight: 500; }
+    button { padding: 8px 12px; border: none; background: #0b74de; color: white; border-radius: 6px; cursor: pointer; }
+    button.secondary { background: #64748b; }
+    button:active { transform: translateY(1px); }
+    .output { margin-top: 14px; display: grid; grid-template-columns: 1fr 420px; gap: 14px; align-items: start; }
+    .panel { background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 12px; }
+    .sequence { max-height: 260px; overflow: auto; padding-right: 6px; font-family: monospace; white-space: pre; }
+    .stats { font-size: 14px; line-height: 1.6; }
+    canvas { width: 100%; height: 260px; background: linear-gradient(180deg,#ffffff,#fbfdff); border-radius: 6px; display:block; }
+    .small { font-size: 13px; color: #555; }
+    .hint { margin-top:8px; color:#666; font-size:13px; }
+    .bad { color: #9b1c1c; font-weight:700; }
+    .good { color: #11623a; font-weight:700; }
+    footer { margin-top: 18px; font-size: 13px; color: #666; }
+    .legend { display:flex; gap:10px; margin-bottom:8px; align-items:center; }
+    .legend span { display:inline-block; width:12px; height:12px; border-radius:2px; }
+    .ratio { color: #0b74de; }
+  </style>
+</head>
+<body>
+  <h1>Fibonacci Sequence Explorer</h1>
+  <div class="small">Interactive demonstration: compute Fibonacci numbers, compare methods, visualize growth and convergence to the golden ratio (φ).</div>
+
+  <div class="controls" style="margin-top:12px;">
+    <div>
+      <label for="n">Number of terms (n)</label>
+      <input id="n" type="number" min="1" max="2000" value="20" />
+      <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+        <label style="font-weight:600;"><input id="useBigInt" type="checkbox" /> Use BigInt for integer accuracy</label>
+        <label style="font-weight:600;"><input id="animate" type="checkbox" /> Animate build</label>
+      </div>
+      <div style="margin-top:8px;">
+        <div class="methods">
+          <label><input name="method" type="radio" value="iterative" checked /> Iterative</label>
+          <label><input name="method" type="radio" value="naive" /> Recursive (naive)</label>
+          <label><input name="method" type="radio" value="memo" /> Recursive (memoized)</label>
+          <label><input name="method" type="radio" value="binet" /> Binet's formula</label>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <label>Actions</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="generateBtn">Generate</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+        <button id="demoBtn">Auto demo</button>
+      </div>
+      <div class="hint">Notes: naive recursion is exponentially slow and limited to small n (recommended n ≤ 40). Binet uses floating point and can lose precision for large n.</div>
+      <div style="margin-top:10px;">
+        <label style="font-weight:600;">Max safe Binet n (approx): <span id="binetLimit">70</span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="output">
+    <div class="panel">
+      <div class="legend">
+        <span style="background:#0b74de"></span><div style="font-size:13px;">Fibonacci values (index: value)</div>
+      </div>
+      <div id="sequence" class="sequence" aria-live="polite"></div>
+      <div style="margin-top:8px;" class="small">
+        <div id="ratios"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel" style="margin-bottom:10px;">
+        <h3 style="margin:4px 0 8px 0;">Statistics</h3>
+        <div id="stats" class="stats">No computation yet.</div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin:4px 0 8px 0;">Growth chart (log scale)</h3>
+        <canvas id="chart" width="600" height="260"></canvas>
+        <div class="small" style="margin-top:8px;">Hover the chart to see values. Display uses log scale to keep visualization readable for large terms.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Built to demonstrate different Fibonacci computation techniques, timing, and how ratios converge to φ = (1 + √5)/2 ≈ 1.6180339887.
+  </footer>
+
+  <script>
+/*
+  Fibonacci Sequence Explorer
+  - Iterative (fast)
+  - Naive recursive (exponential time; limited)
+  - Memoized recursive (fast)
+  - Binet's formula (floating-point)
+  Features:
+  - Option to use BigInt for exact integer values
+  - Animated building of sequence
+  - Timing and counters for method comparison
+  - Log-scale chart visualization (canvas) with tooltip on hover
+*/
+
+(function () {
+  // DOM elements
+  const nInput = document.getElementById('n');
+  const generateBtn = document.getElementById('generateBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const demoBtn = document.getElementById('demoBtn');
+  const seqContainer = document.getElementById('sequence');
+  const statsContainer = document.getElementById('stats');
+  const chart = document.getElementById('chart');
+  const ratiosDiv = document.getElementById('ratios');
+  const useBigIntBox = document.getElementById('useBigInt');
+  const animateBox = document.getElementById('animate');
+  const binetLimitSpan = document.getElementById('binetLimit');
+
+  const ctx = chart.getContext('2d');
+  const PHI = (1 + Math.sqrt(5)) / 2;
+  const SQRT5 = Math.sqrt(5);
+
+  // safety limits
+  const NAIVE_RECURSION_LIMIT = 40;
+  const BINET_REASONABLE_LIMIT = 70; // beyond this floating inaccuracy and overflow happens
+
+  binetLimitSpan.textContent = BINET_REASONABLE_LIMIT;
+
+  // helper: format value (BigInt or Number)
+  function formatValue(v) {
+    if (typeof v === 'bigint') return v.toString();
+    // Use toLocaleString for readability for large numbers (but not too large)
+    if (Number.isFinite(v)) {
+      // Show integers without decimals; small fractions if any
+      if (Math.abs(Math.round(v) - v) < 1e-12) return Math.round(v).toLocaleString();
+      return v.toPrecision(10);
+    }
+    return String(v);
+  }
+
+  // Iterative Fibonacci (returns array of length n)
+  function iterativeFib(n, useBigInt) {
+    if (n <= 0) return [];
+    if (useBigInt) {
+      const arr = new Array(n);
+      arr[0] = 0n;
+      if (n > 1) arr[1] = 1n;
+      for (let i = 2; i < n; i++) arr[i] = arr[i-1] + arr[i-2];
+      return arr;
+    } else {
+      const arr = new Array(n);
+      arr[0] = 0;
+      if (n > 1) arr[1] = 1;
+      for (let i = 2; i < n; i++) arr[i] = arr[i-1] + arr[i-2];
+      return arr;
+    }
+  }
+
+  // Naive recursion with counter (counts function invocations)
+  function naiveRecursiveFib(n, useBigInt, counter) {
+    counter.count++;
+    if (n === 0) return useBigInt ? 0n : 0;
+    if (n === 1) return useBigInt ? 1n : 1;
+    const a = naiveRecursiveFib(n-1, useBigInt, counter);
+    const b = naiveRecursiveFib(n-2, useBigInt, counter);
+    return useBigInt ? (BigInt(a) + BigInt(b)) : (a + b);
+  }
+
+  // Memoized recursion: builds values up to n and returns array
+  function memoizedFib(n, useBigInt) {
+    const mem = {};
+    const calls = { count: 0 };
+    function f(k) {
+      calls.count++;
+      if (k in mem) return mem[k];
+      if (k === 0) return mem[k] = useBigInt ? 0n : 0;
+      if (k === 1) return mem[k] = useBigInt ? 1n : 1;
+      const a = f(k-1), b = f(k-2);
+      return mem[k] = useBigInt ? (BigInt(a) + BigInt(b)) : (a + b);
+    }
+    const arr = new Array(n);
+    for (let i = 0; i < n; i++) arr[i] = f(i);
+    return { arr, calls: calls.count };
+  }
+
+  // Binet's formula: fib(n) = round(phi^n / sqrt(5))
+  // returns array of length n
+  function binetFib(n) {
+    const arr = new Array(n);
+    for (let i = 0; i < n; i++) {
+      // For large i, using pow may overflow to Infinity; handle carefully
+      const val = Math.round(Math.pow(PHI, i) / SQRT5);
+      arr[i] = val;
+    }
+    return arr;
+  }
+
+  // Compute ratios (F[n]/F[n-1]) for indices >=1
+  function computeRatios(fibArr) {
+    const res = [];
+    for (let i = 1; i < fibArr.length; i++) {
+      const a = fibArr[i], b = fibArr[i-1];
+      let ratio;
+      if (typeof a === 'bigint' || typeof b === 'bigint') {
+        // convert to Number for ratio (may lose precision for very big values)
+        ratio = Number(a) / Number(b);
+      } else {
+        ratio = a / b;
+      }
+      res.push(ratio);
+    }
+    return res;
+  }
+
+  // Chart drawing (log scale)
+  function drawChart(fibArr) {
+    const canvas = chart;
+    const w = canvas.width = canvas.clientWidth * devicePixelRatio;
+    const h = canvas.height = canvas.clientHeight * devicePixelRatio;
+    ctx.clearRect(0, 0, w, h);
+
+    if (!fibArr || fibArr.length === 0) {
+      ctx.fillStyle = "#888";
+      ctx.font = `${12 * devicePixelRatio}px sans-serif`;
+      ctx.fillText("No data to plot", 10 * devicePixelRatio, 20 * devicePixelRatio);
+      return;
+    }
+
+    // Convert to numeric logs; handle BigInt by converting to Number (lossy for huge)
+    const vals = fibArr.map(v => {
+      if (typeof v === 'bigint') {
+        // convert BigInt to Number when safe; if too large, use magnitude via string length
+        const s = v.toString();
+        // approximate log10 by length
+        const log10 = Math.log10(parseFloat(s.slice(0, 15))) + (s.length - Math.min(15, s.length));
+        return { v, log: log10 * Math.LOG10E }; // not used; keep simple
+      } else {
+        return { v, log: Math.log10(Math.max(1, Math.abs(v))) };
+      }
+    });
+
+    // For simplicity use numeric log values when possible; fallback: derive from string length for BigInt
+    const logs = fibArr.map(v => {
+      if (typeof v === 'bigint') {
+        const s = v.toString();
+        // approximate log10 by number of digits - 1 plus fractional part from first digits
+        const len = s.length;
+        const head = parseFloat(s.slice(0, Math.min(15, len)));
+        const log10 = Math.log10(head) + (len - Math.min(15, len));
+        return log10;
+      } else {
+        return Math.log10(Math.max(1, Math.abs(v)));
+      }
+    });
+
+    const maxLog = Math.max(...logs);
+    const minLog = Math.min(...logs);
+
+    const padding = 32 * devicePixelRatio;
+    const chartW = w - padding * 1.2;
+    const chartH = h - padding;
+    const left = padding * 0.8;
+    const top = padding * 0.25;
+    const n = logs.length;
+    const barW = Math.max(2 * devicePixelRatio, chartW / Math.max(1, n) - 4 * devicePixelRatio);
+
+    // background grid lines
+    ctx.strokeStyle = "#eef3fb";
+    ctx.lineWidth = 1 * devicePixelRatio;
+    ctx.beginPath();
+    for (let i = 0; i <= 4; i++) {
+      const y = top + (chartH) * (i / 4);
+      ctx.moveTo(left, y);
+      ctx.lineTo(left + chartW, y);
+    }
+    ctx.stroke();
+
+    // bars
+    for (let i = 0; i < n; i++) {
+      const logv = logs[i];
+      // normalize: map minLog..maxLog to 0..1
+      const t = (logv - minLog) / (maxLog - minLog + 1e-12);
+      const barH = Math.max(4 * devicePixelRatio, t * chartH);
+      const x = left + i * (chartW / n) + 2 * devicePixelRatio;
+      const y = top + chartH - barH;
+      ctx.fillStyle = "#0b74de";
+      ctx.fillRect(x, y, barW, barH);
+    }
+
+    // axes / labels
+    ctx.fillStyle = "#333";
+    ctx.font = `${12 * devicePixelRatio}px sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText("log10 scale (approx)", left, top - 8 * devicePixelRatio);
+
+    // x labels: show 0, mid, last
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#555";
+    ctx.font = `${11 * devicePixelRatio}px sans-serif`;
+    const xs = [0, Math.floor(n/2), n-1];
+    xs.forEach(ix => {
+      const x = left + ix * (chartW / n) + barW / 2;
+      ctx.fillText(String(ix), x, top + chartH + 14 * devicePixelRatio);
+    });
+
+    // add hover tooltip handling
+    // store normalized data for quick tooltip
+    chart._plot = { left, top, chartW, chartH, barW, n, logs, fibArr };
+  }
+
+  // Chart tooltip: on mouse move, show details under stats area temporarily
+  chart.addEventListener('mousemove', function (ev) {
+    const rect = chart.getBoundingClientRect();
+    const dpr = devicePixelRatio;
+    if (!chart._plot) return;
+    const { left, top, chartW, chartH, barW, n, logs, fibArr } = chart._plot;
+    const x = (ev.clientX - rect.left) * dpr;
+    const y = (ev.clientY - rect.top) * dpr;
+    if (x < left || x > left + chartW) return;
+    const idx = Math.floor((x - left) / (chartW / n));
+    if (idx < 0 || idx >= n) return;
+
+    // prepare tooltip info
+    const value = fibArr[idx];
+    let valueStr = formatValue(value);
+    // ratio to previous
+    let ratioStr = "—";
+    if (idx >= 1) {
+      const a = fibArr[idx], b = fibArr[idx-1];
+      const ratio = (typeof a === 'bigint' || typeof b === 'bigint') ? (Number(a)/Number(b)) : (a/b);
+      ratioStr = ratio.toPrecision(10);
+    }
+    // temporarily show near stats
+    const old = statsContainer._oldHTML || statsContainer.innerHTML;
+    statsContainer._oldHTML = old;
+    statsContainer.innerHTML = `<strong>Index ${idx}</strong><div>${valueStr}</div><div class="small">Ratio to previous: <span class="ratio">${ratioStr}</span></div>`;
+  });
+
+  chart.addEventListener('mouseleave', function () {
+    // restore stats area if we changed it due to hover
+    if (statsContainer._oldHTML) {
+      statsContainer.innerHTML = statsContainer._oldHTML;
+      delete statsContainer._oldHTML;
+    }
+  });
+
+  // Build and display sequence according to chosen method
+  let animationTimer = null;
+  async function buildAndDisplay() {
+    // cancel any active animation
+    if (animationTimer) {
+      clearInterval(animationTimer); animationTimer = null;
+    }
+    const n = parseInt(nInput.value, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      alert("Please enter a positive integer for n.");
+      return;
+    }
+    if (n > 2000 && useBigIntBox.checked === false) {
+      // for visualization, restrict extremely large n when not using BigInt? Not strictly required.
+    }
+
+    const method = document.querySelector('input[name="method"]:checked').value;
+    const useBigInt = useBigIntBox.checked;
+    const animate = animateBox.checked;
+
+    // handle method-specific limits
+    if (method === 'naive' && n > NAIVE_RECURSION_LIMIT) {
+      if (!confirm(`Naive recursion is extremely slow for n > ${NAIVE_RECURSION_LIMIT}. Continue?`)) return;
+    }
+    if (method === 'binet' && n > BINET_REASONABLE_LIMIT) {
+      if (!confirm(`Binet's formula will lose integer precision for n > ${BINET_REASONABLE_LIMIT}. Continue?`)) return;
+    }
+
+    seqContainer.textContent = "Computing...";
+    ratiosDiv.textContent = "";
+    statsContainer.textContent = "Working...";
+
+    let fibArr = [];
+    let info = { method, timeMs: 0, calls: 0 };
+    const t0 = performance.now();
+
+    try {
+      if (method === 'iterative') {
+        const start = performance.now();
+        fibArr = iterativeFib(n, useBigInt);
+        info.timeMs = performance.now() - start;
+      } else if (method === 'naive') {
+        // naive recursion computes single nth term; we can compute all terms up to n by calling naive for each index (very expensive).
+        // to show the sequence we compute naive for each i from 0..n-1. Limit n in UI to small values.
+        const arr = new Array(n);
+        let calls = 0;
+        const start = performance.now();
+        for (let i = 0; i < n; i++) {
+          const counter = { count: 0 };
+          arr[i] = naiveRecursiveFib(i, useBigInt, counter);
+          calls += counter.count;
+        }
+        info.timeMs = performance.now() - start;
+        info.calls = calls;
+        fibArr = arr;
+      } else if (method === 'memo') {
+        const start = performance.now();
+        const res = memoizedFib(n, useBigInt);
+        info.timeMs = performance.now() - start;
+        info.calls = res.calls;
+        fibArr = res.arr;
+      } else if (method === 'binet') {
+        const start = performance.now();
+        fibArr = binetFib(n);
+        info.timeMs = performance.now() - start;
+      }
+    } catch (err) {
+      seqContainer.textContent = "Error during computation: " + err;
+      console.error(err);
+      return;
+    }
+
+    // If animate: reveal one term at a time
+    if (animate && n <= 1000) {
+      seqContainer.textContent = "";
+      let i = 0;
+      const interval = Math.max(20, 400 / Math.min(n, 40)); // adaptive speed
+      return new Promise(resolve => {
+        animationTimer = setInterval(() => {
+          if (i >= fibArr.length) {
+            clearInterval(animationTimer); animationTimer = null;
+            // show final stats and chart
+            displayResults(fibArr, info);
+            resolve();
+            return;
+          }
+          appendSequenceLine(i, fibArr[i]);
+          i++;
+        }, interval);
+      });
+    } else {
+      // immediate display
+      displayResults(fibArr, info);
+    }
+  }
+
+  function appendSequenceLine(i, val) {
+    const indexStr = String(i).padStart(3, ' ');
+    const line = `${indexStr}: ${formatValue(val)}\n`;
+    seqContainer.textContent += line;
+    seqContainer.scrollTop = seqContainer.scrollHeight;
+  }
+
+  function displayResults(fibArr, info) {
+    // Display sequence text (limit how many to print for very large n)
+    const MAX_PRINT = 500;
+    seqContainer.textContent = "";
+    if (fibArr.length <= MAX_PRINT) {
+      fibArr.forEach((v, i) => appendSequenceLine(i, v));
+    } else {
+      // print first 20 and last 20
+      for (let i = 0; i < 20; i++) appendSequenceLine(i, fibArr[i]);
+      seqContainer.textContent += "   ...\n";
+      for (let i = fibArr.length - 20; i < fibArr.length; i++) appendSequenceLine(i, fibArr[i]);
+    }
+
+    // compute ratios and show a few
+    let ratiosHTML = "";
+    if (fibArr.length >= 2) {
+      const ratios = computeRatios(fibArr);
+      // show last 6 ratios to indicate convergence
+      const shown = ratios.slice(Math.max(0, ratios.length - 6));
+      ratiosHTML = "Last ratios (F[n]/F[n-1]): " + shown.map(r => r.toFixed(10)).join(", ");
+      // Show convergence to PHI using last ratio
+      const lastRatio = shown[shown.length - 1];
+      const diff = Math.abs(lastRatio - PHI);
+      ratiosHTML += `<div class="small">Last ratio ≈ <span class="ratio">${lastRatio.toPrecision(10)}</span> (difference from φ: ${diff.toExponential(3)})</div>`;
+    } else {
+      ratiosHTML = "Ratios require at least 2 terms.";
+    }
+    ratiosDiv.innerHTML = ratiosHTML;
+
+    // Stats
+    const methodNice = info.method === 'naive' ? 'Naive recursion' :
+                       info.method === 'memo' ? 'Memoized recursion' :
+                       info.method === 'binet' ? "Binet's formula" : 'Iterative';
+    let statsHTML = `<strong>Method:</strong> ${methodNice}<br>`;
+    statsHTML += `<strong>Computed terms:</strong> ${fibArr.length}<br>`;
+    statsHTML += `<strong>Time:</strong> ${info.timeMs.toFixed(3)} ms<br>`;
+    if (info.calls) statsHTML += `<strong>Function calls:</strong> ${info.calls}<br>`;
+    if (info.method === 'binet') statsHTML += `<div class="small">Note: Binet uses floating point and can be inaccurate for large n.</div>`;
+    statsContainer.innerHTML = statsHTML;
+
+    // draw chart
+    drawChart(fibArr);
+  }
+
+  // Event handlers
+  generateBtn.addEventListener('click', buildAndDisplay);
+  clearBtn.addEventListener('click', function () {
+    seqContainer.textContent = "";
+    ratiosDiv.textContent = "";
+    statsContainer.textContent = "Cleared.";
+    ctx.clearRect(0,0,chart.width,chart.height);
+  });
+
+  // Demo: run increasing n values automatically to show growth & performance
+  demoBtn.addEventListener('click', async function () {
+    const originalN = parseInt(nInput.value, 10);
+    const methodSaved = document.querySelector('input[name="method"]:checked').value;
+    const useBigIntSaved = useBigIntBox.checked;
+    // cycle through small to moderate n
+    const demoNs = [5, 8, 12, 16, 20, 30];
+    // If method is naive and demo includes large n, limit
+    for (const m of demoNs) {
+      nInput.value = m;
+      await buildAndDisplay();
+      // wait 700ms between steps
+      await new Promise(r => setTimeout(r, 700));
+    }
+    // restore
+    nInput.value = originalN;
+    document.querySelector(`input[name="method"][value="${methodSaved}"]`).checked = true;
+    useBigIntBox.checked = useBigIntSaved;
+  });
+
+  // Initialize chart empty
+  drawChart([]);
+
+  // Prettify enter key in n input to trigger generate
+  nInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { buildAndDisplay(); }
+  });
+})();
+  </script>
+</body>
+</html>

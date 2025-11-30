@@ -1,0 +1,66 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - strong [ref=e5]: Interactive Graph
+        - generic [ref=e6]: Create nodes & edges, drag nodes, toggle Directed/Undirected, show adjacency matrix/list, compute shortest path.
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - checkbox "Directed" [checked] [ref=e9] [cursor=pointer]
+          - text: Directed
+        - combobox [ref=e10] [cursor=pointer]:
+          - option "Add Node (double-click)" [selected]
+          - option "Add Edge (click source → target)"
+          - option "Move / Select"
+        - button "Clear" [ref=e11] [cursor=pointer]
+        - button "Random" [ref=e12] [cursor=pointer]
+        - button "Export" [ref=e13] [cursor=pointer]
+    - generic [ref=e15]:
+      - generic [ref=e16]: "Mode: Add Node"
+      - generic [ref=e17]: "Nodes: 5 Edges: 2"
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - text: Edge weight
+          - spinbutton "Edge weight" [ref=e22]: "1"
+        - button "Delete Selected" [ref=e23] [cursor=pointer]
+      - generic [ref=e24]:
+        - button "Compute Shortest Path" [ref=e25] [cursor=pointer]
+        - combobox [ref=e26] [cursor=pointer]:
+          - option "1" [selected]
+          - option "2"
+          - option "3"
+          - option "4"
+          - option "5"
+        - combobox [ref=e27] [cursor=pointer]:
+          - option "1" [selected]
+          - option "2"
+          - option "3"
+          - option "4"
+          - option "5"
+      - generic [ref=e28]:
+        - button "Show Adjacency List" [ref=e29] [cursor=pointer]
+        - button "Show Adjacency Matrix" [ref=e30] [cursor=pointer]
+    - generic [ref=e31]:
+      - generic [ref=e32]: Graph JSON
+      - textbox [ref=e33]: "{ \"directed\": true, \"nodes\": [ { \"id\": 1, \"x\": 671, \"y\": 316.5 }, { \"id\": 2, \"x\": 525.202585813114, \"y\": 517.1729249382774 }, { \"id\": 3, \"x\": 289.2974141868861, \"y\": 440.52268823371185 }, { \"id\": 4, \"x\": 289.29741418688604, \"y\": 192.4773117662882 }, { \"id\": 5, \"x\": 525.2025858131138, \"y\": 115.82707506172258 } ], \"edges\": [ { \"id\": 1, \"from\": 3, \"to\": 5, \"w\": 1 }, { \"id\": 2, \"from\": 5, \"to\": 4, \"w\": 1 } ] }"
+      - generic [ref=e34]:
+        - button "Load JSON" [ref=e35] [cursor=pointer]
+        - button "Copy" [ref=e36] [cursor=pointer]
+    - generic [ref=e37]:
+      - generic [ref=e38]: Adjacency Output
+      - generic [ref=e39]: (Press "Show Adjacency List" or "Matrix")
+    - generic [ref=e40]:
+      - generic [ref=e41]: Instructions
+      - list [ref=e42]:
+        - listitem [ref=e43]: Double-click canvas to add nodes (in Add Node mode).
+        - listitem [ref=e44]: "In Add Edge mode: click a source node then a target node to create an edge. Self-loops allowed."
+        - listitem [ref=e45]: "Move mode: drag nodes to reposition. Click a node to select. Use Delete Selected to remove it."
+        - listitem [ref=e46]: Toggle Directed to switch how edges are interpreted and drawn.
+        - listitem [ref=e47]: Use Shortest Path to compute path (Dijkstra if weights ≠ 1, else BFS).
+    - contentinfo [ref=e48]: "Tip: Click \"Random\" to generate a sample graph. Export to JSON to save."
+```

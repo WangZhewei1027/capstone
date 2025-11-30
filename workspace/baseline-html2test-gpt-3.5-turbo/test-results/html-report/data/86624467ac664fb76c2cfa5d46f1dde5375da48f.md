@@ -1,0 +1,80 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Dijkstra's Algorithm Visualization" [level=1] [ref=e3]
+    - paragraph [ref=e4]: Click nodes to select the Start and End nodes. Then click "Run Dijkstra" to find shortest path.
+  - generic [ref=e5]:
+    - img "Graph visualization" [ref=e7]:
+      - generic "Edge weight between A and B is 4" [ref=e9]: "4"
+      - generic "Edge weight between A and D is 1" [ref=e11]: "1"
+      - generic "Edge weight between B and C is 3" [ref=e13]: "3"
+      - generic "Edge weight between B and E is 2" [ref=e15]: "2"
+      - generic "Edge weight between C and F is 4" [ref=e17]: "4"
+      - generic "Edge weight between D and E is 2" [ref=e18]: "2"
+      - generic "Edge weight between D and G is 7" [ref=e20]: "7"
+      - generic "Edge weight between E and F is 1" [ref=e21]: "1"
+      - generic "Edge weight between E and H is 3" [ref=e23]: "3"
+      - generic "Edge weight between F and I is 5" [ref=e25]: "5"
+      - generic "Edge weight between G and H is 2" [ref=e26]: "2"
+      - generic "Edge weight between H and I is 2" [ref=e27]: "2"
+      - button "Node A. Click to select as start or end node." [ref=e28]:
+        - generic: A
+      - button "Node B. Click to select as start or end node." [ref=e30]:
+        - generic: B
+      - button "Node C. Click to select as start or end node." [ref=e32]:
+        - generic: C
+      - button "Node D. Click to select as start or end node." [ref=e34]:
+        - generic: D
+      - button "Node E. Click to select as start or end node." [ref=e36]:
+        - generic: E
+      - button "Node F. Click to select as start or end node." [ref=e38]:
+        - generic: F
+      - button "Node G. Click to select as start or end node." [ref=e40]:
+        - generic: G
+      - button "Node H. Click to select as start or end node." [ref=e42]:
+        - generic: H
+      - button "Node I. Click to select as start or end node." [ref=e44]:
+        - generic: I
+    - generic "Controls for Dijkstra's Algorithm" [ref=e46]:
+      - generic [ref=e47]:
+        - text: "Start Node:"
+        - combobox "Start Node:" [ref=e48]:
+          - option "Select start node" [selected]
+          - option "A"
+          - option "B"
+          - option "C"
+          - option "D"
+          - option "E"
+          - option "F"
+          - option "G"
+          - option "H"
+          - option "I"
+      - generic [ref=e49]:
+        - text: "End Node:"
+        - combobox "End Node:" [ref=e50]:
+          - option "Select end node" [selected]
+          - option "A"
+          - option "B"
+          - option "C"
+          - option "D"
+          - option "E"
+          - option "F"
+          - option "G"
+          - option "H"
+          - option "I"
+      - button "Run Dijkstra" [disabled] [ref=e51]
+      - button "Reset" [ref=e52]
+      - heading "Algorithm Log" [level=3] [ref=e53]
+      - generic [ref=e55]:
+        - strong [ref=e56]: "Legend:"
+        - text: ● Unvisited Node
+        - text: ● Visited Node
+        - text: ● Current Node
+        - text: ● Path Node
+        - img [ref=e57]
+        - text: Edge
+        - img [ref=e58]
+        - text: Shortest Path Edge
+```

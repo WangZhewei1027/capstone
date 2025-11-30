@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Weighted Graph Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    background: #f0f0f0;
+  }
+  #graphContainer {
+    width: 90vw;
+    height: 90vh;
+    margin: 20px auto;
+    background: white;
+    border: 1px solid #ccc;
+    position: relative;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  #info {
+    text-align: center;
+    margin: 10px auto;
+    width: 90vw;
+  }
+  #instructions {
+    font-size: 14px;
+    color: #555;
+    margin: 0 auto 10px;
+    width: 90vw;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<h1 style="text-align:center;">Weighted Graph Visualization</h1>
+<div id="instructions">
+  <b>Instructions:</b> Drag nodes to reposition them. Hover over edges to see their weights.
+</div>
+<div id="graphContainer">
+  <canvas id="graphCanvas"></canvas>
+</div>
+<div id="info"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("graphCanvas");
+  const ctx = canvas.getContext("2d");
+  const info = document.getElementById("info");
+
+  let width, height;
+
+  function resize() {
+    width = canvas.clientWidth;
+    height = canvas.clientHeight;
+    // set actual drawing buffer size
+    canvas.width = width * devicePixelRatio;
+    canvas.height = height * devicePixelRatio;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+  }
+  window.addEventListener('resize', () => {
+    resize();
+    drawGraph();
+  });
+  resize();
+
+  // Weighted Graph Data Structure
+
+  // We'll represent a graph as:
+  // nodes: array of objects {id, x, y}
+  // edges: array of objects {source: nodeId, target: nodeId, weight}
+
+  // Sample graph definition
+  const nodes = [
+    { id: 0, x: 150, y: 150 },
+    { id: 1, x: 350, y: 120 },
+    { id: 2, x: 300, y: 300 },
+    { id: 3, x: 500, y: 200 },
+    { id: 4, x: 400, y: 400 },
+    { id: 5, x: 150, y: 350 },
+  ];
+
+  // edges connect nodes, with weights:
+  const edges = [
+    { source: 0, target: 1, weight: 5 },
+    { source: 0, target: 5, weight: 10 },
+    { source: 1, target: 2, weight: 3 },
+    { source: 1, target: 3, weight: 8 },
+    { source: 2, target: 4, weight: 7 },
+    { source: 5, target: 4, weight: 2 },
+    { source: 3, target: 4, weight: 6 },
+  ];
+
+  // helper: find node by id
+  function getNode(id) {
+    return nodes.find(n => n.id === id);
+  }
+
+  // Drawing params
+  const nodeRadius = 15;
+  const font = "14px Arial";
+
+  function distance(x1, y1, x2, y2) {
+    return Math.sqrt((x1-x2)**2+(y1-y2)**2);
+  }
+
+  // For edge hover detection, we determine the minimum distance from mouse to edge line segment,
+  // if less than threshold, consider hovered.
+  function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+
+    const dot = A * C + B * D;
+    const len_sq = C*C + D*D;
+    let param = -1;
+    if(len_sq != 0) //in case of 0 length line
+        param = dot / len_sq;
+
+    let xx, yy;
+
+    if(param < 0) {
+      xx = x1;
+      yy = y1;
+    }
+    else if(param > 1) {
+      xx = x2;
+      yy = y2;
+    }
+    else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+
+    const dx = px - xx;
+    const dy = py - yy;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  // Dragging
+  let draggingNode = null;
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
+
+  // Track hovered edge
+  let hoveredEdge = null;
+
+  // Draw
+
+  function drawGraph() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Draw edges
+    ctx.lineCap = 'round';
+    edges.forEach(edge => {
+      const n1 = getNode(edge.source);
+      const n2 = getNode(edge.target);
+
+      // highlight if hovered
+      if(hoveredEdge === edge){
+        ctx.strokeStyle = '#f44336';
+        ctx.lineWidth = 4;
+      } else {
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 2;
+      }
+
+      // Draw edge line
+      ctx.beginPath();
+      ctx.moveTo(n1.x, n1.y);
+      ctx.lineTo(n2.x, n2.y);
+      ctx.stroke();
+
+      // Draw weight text in the middle of the edge
+      const mx = (n1.x + n2.x) / 2;
+      const my = (n1.y + n2.y) / 2;
+      ctx.fillStyle = hoveredEdge === edge ? '#f44336' : 'black';
+      ctx.font = font;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(edge.weight, mx, my - 10);
+    });
+
+    // Draw nodes
+    nodes.forEach(node => {
+      // Fill circle
+      ctx.beginPath();
+      ctx.fillStyle = '#2196f3';
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 2;
+      ctx.arc(node.x, node.y, nodeRadius, 0, 2*Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw node id centered
+      ctx.fillStyle = 'white';
+      ctx.font = font;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.id, node.x, node.y);
+    });
+  }
+
+  // Mouse interaction
+
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    // Check if clicking on a node (to drag)
+    for(let node of nodes) {
+      if(distance(mx, my, node.x, node.y) < nodeRadius) {
+        draggingNode = node;
+        dragOffsetX = mx - node.x;
+        dragOffsetY = my - node.y;
+        break;
+      }
+    }
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    draggingNode = null;
+  });
+
+  canvas.addEventListener('mouseleave', (e) => {
+    draggingNode = null;
+    if(hoveredEdge){
+      hoveredEdge = null;
+      info.textContent = '';
+      drawGraph();
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    // Handle dragging
+    if(draggingNode) {
+      draggingNode.x = Math.min(width - nodeRadius, Math.max(nodeRadius, mx - dragOffsetX));
+      draggingNode.y = Math.min(height - nodeRadius, Math.max(nodeRadius, my - dragOffsetY));
+      drawGraph();
+      return;
+    }
+
+    // Check if hovering any edge for weight display
+    let foundHover = false;
+    for(let edge of edges) {
+      const n1 = getNode(edge.source);
+      const n2 = getNode(edge.target);
+      const dist = pointToSegmentDistance(mx, my, n1.x, n1.y, n2.x, n2.y);
+      if(dist < 10){
+        if(hoveredEdge !== edge){
+          hoveredEdge = edge;
+          info.textContent = `Edge weight (Node ${edge.source} ↔ Node ${edge.target}): ${edge.weight}`;
+          drawGraph();
+        }
+        foundHover = true;
+        break;
+      }
+    }
+    if(!foundHover && hoveredEdge){
+      hoveredEdge = null;
+      info.textContent = '';
+      drawGraph();
+    }
+  });
+
+  drawGraph();
+
+})();
+</script>
+</body>
+</html>

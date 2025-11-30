@@ -1,0 +1,54 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Binary Tree Visualizer" [level=1] [ref=e4]
+    - paragraph [ref=e5]: Interactive demonstration of a Binary Search Tree (BST). Insert, delete, search, and animate traversals. Nodes are positioned using an inorder layout for clarity.
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - spinbutton [ref=e8]
+        - button "Insert" [ref=e9] [cursor=pointer]
+        - button "Delete" [ref=e10] [cursor=pointer]
+      - generic [ref=e11]:
+        - spinbutton [ref=e12]
+        - button "Search" [ref=e13] [cursor=pointer]
+        - button "Clear" [ref=e14] [cursor=pointer]
+      - generic [ref=e15]:
+        - combobox [ref=e16]:
+          - option "Random 5"
+          - option "Random 8" [selected]
+          - option "Random 12"
+          - option "Random 20"
+        - button "Fill Random BST" [ref=e17] [cursor=pointer]
+        - button "Build from sorted" [ref=e18] [cursor=pointer]
+      - generic [ref=e19]:
+        - button "In-order" [ref=e20] [cursor=pointer]
+        - button "Pre-order" [ref=e21] [cursor=pointer]
+        - button "Post-order" [ref=e22] [cursor=pointer]
+        - button "Level-order" [ref=e23] [cursor=pointer]
+      - generic [ref=e24]:
+        - button "Animate Traversal" [ref=e25] [cursor=pointer]
+        - button "Stop" [ref=e26] [cursor=pointer]
+      - generic [ref=e27]: "Tip: Use the \"Balanced\" button to build a balanced BST from a sorted list of current values."
+      - generic [ref=e28]: "Nodes: 11"
+    - contentinfo [ref=e30]: "- Click nodes in the canvas to highlight a value. Traversal animations will highlight nodes in order."
+  - generic [ref=e31]:
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - generic [ref=e35]: Node
+        - generic [ref=e37]: Edge
+      - generic [ref=e39]: "Traversal:"
+    - img [ref=e41]:
+      - generic [ref=e54] [cursor=pointer]: "50"
+      - generic [ref=e57] [cursor=pointer]: "30"
+      - generic [ref=e60] [cursor=pointer]: "20"
+      - generic [ref=e63] [cursor=pointer]: "10"
+      - generic [ref=e66] [cursor=pointer]: "25"
+      - generic [ref=e69] [cursor=pointer]: "40"
+      - generic [ref=e72] [cursor=pointer]: "35"
+      - generic [ref=e75] [cursor=pointer]: "45"
+      - generic [ref=e78] [cursor=pointer]: "70"
+      - generic [ref=e81] [cursor=pointer]: "60"
+      - generic [ref=e84] [cursor=pointer]: "80"
+```

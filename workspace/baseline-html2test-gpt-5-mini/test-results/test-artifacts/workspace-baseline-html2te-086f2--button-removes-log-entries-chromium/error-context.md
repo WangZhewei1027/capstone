@@ -1,0 +1,71 @@
+# Page snapshot
+
+```yaml
+- application "Deque demo" [ref=e2]:
+  - heading "Deque (Double-Ended Queue) — Interactive Demo" [level=1] [ref=e3]
+  - paragraph [ref=e4]: A deque supports insertion and removal at both ends. This demo implements a circular-buffer-backed Deque with dynamic resizing. Try pushing/popping from either end and watch the internal buffer change.
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - textbox "Value to insert" [ref=e7]:
+        - /placeholder: value (text or number)
+      - button "Push Front" [ref=e8] [cursor=pointer]
+      - button "Push Back" [ref=e9] [cursor=pointer]
+    - generic [ref=e10]:
+      - button "Pop Front" [ref=e11] [cursor=pointer]
+      - button "Pop Back" [ref=e12] [cursor=pointer]
+      - button "Peek Front" [ref=e13] [cursor=pointer]
+      - button "Peek Back" [ref=e14] [cursor=pointer]
+      - button "Clear" [ref=e15] [cursor=pointer]
+    - generic [ref=e16]:
+      - button "Random Fill" [ref=e17] [cursor=pointer]
+      - button "Rotate Left" [ref=e18] [cursor=pointer]
+      - button "Rotate Right" [ref=e19] [cursor=pointer]
+  - generic [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]: "Capacity: 8"
+        - generic [ref=e24]: "Size: 0"
+        - generic [ref=e25]: "Head index: 0"
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]: "0"
+          - text: •
+        - generic [ref=e29]:
+          - generic [ref=e30]: "1"
+          - text: •
+        - generic [ref=e31]:
+          - generic [ref=e32]: "2"
+          - text: •
+        - generic [ref=e33]:
+          - generic [ref=e34]: "3"
+          - text: •
+        - generic [ref=e35]:
+          - generic [ref=e36]: "4"
+          - text: •
+        - generic [ref=e37]:
+          - generic [ref=e38]: "5"
+          - text: •
+        - generic [ref=e39]:
+          - generic [ref=e40]: "6"
+          - text: •
+        - generic [ref=e41]:
+          - generic [ref=e42]: "7"
+          - text: •
+      - generic [ref=e43]:
+        - generic [ref=e44]: head → 0
+        - generic [ref=e45]: tail → —
+      - generic [ref=e46]: "Array-level view: empty slots show as faded. Highlights show logical head and tail."
+    - generic [ref=e47]:
+      - generic [ref=e48]:
+        - strong [ref=e49]: Operations Log
+        - button "Clear Log" [ref=e50] [cursor=pointer]
+      - generic [ref=e52]: Deque initialized (capacity 8). Try pushFront/pushBack, then popFront/popBack.
+      - generic [ref=e53]:
+        - text: "Complexity (amortized):"
+        - list [ref=e54]:
+          - listitem [ref=e55]: "pushFront / pushBack / popFront / popBack: O(1)"
+          - listitem [ref=e56]: "peekFront / peekBack / size / clear: O(1)"
+          - listitem [ref=e57]: "resize (internal): O(n) but happens rarely; overall amortized O(1)."
+      - generic [ref=e58]: "Tip: Try alternating push/pop at different ends to see head/tail wrap inside the circular buffer."
+  - contentinfo [ref=e59]: "Implementation note: This demo uses a circular array with a head index and a length. When capacity is reached it doubles the buffer and realigns items starting at index 0."
+```

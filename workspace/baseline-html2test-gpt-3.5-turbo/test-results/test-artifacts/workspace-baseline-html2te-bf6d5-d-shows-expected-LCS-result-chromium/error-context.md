@@ -1,0 +1,108 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Longest Common Subsequence (LCS) Calculator" [level=1] [ref=e2]
+  - generic [ref=e3]: "First String:"
+  - textbox "First String:" [ref=e4]:
+    - /placeholder: Enter the first string
+    - text: AGGTAB
+  - generic [ref=e5]: "Second String:"
+  - textbox "Second String:" [ref=e6]:
+    - /placeholder: Enter the second string
+    - text: GXTXAYB
+  - button "Compute LCS" [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - paragraph [ref=e9]:
+      - strong [ref=e10]: "Length of LCS:"
+      - text: "4"
+    - paragraph [ref=e11]:
+      - strong [ref=e12]: "Longest Common Subsequence:"
+      - text: GTAB
+    - paragraph [ref=e13]:
+      - emphasis [ref=e14]: "DP Matrix (rows: first string, columns: second string). Highlighted cells show the path of the LCS."
+    - table [ref=e16]:
+      - rowgroup [ref=e17]:
+        - row "0 G X T X A Y B" [ref=e18]:
+          - cell [ref=e19]
+          - cell "0" [ref=e20]
+          - cell "G" [ref=e21]
+          - cell "X" [ref=e22]
+          - cell "T" [ref=e23]
+          - cell "X" [ref=e24]
+          - cell "A" [ref=e25]
+          - cell "Y" [ref=e26]
+          - cell "B" [ref=e27]
+      - rowgroup [ref=e28]:
+        - row "0 0 0 0 0 0 0 0 0" [ref=e29]:
+          - cell "0" [ref=e30]
+          - cell "0" [ref=e31]
+          - cell "0" [ref=e32]
+          - cell "0" [ref=e33]
+          - cell "0" [ref=e34]
+          - cell "0" [ref=e35]
+          - cell "0" [ref=e36]
+          - cell "0" [ref=e37]
+          - cell "0" [ref=e38]
+        - row "A 0 0 0 0 0 1 1 1" [ref=e39]:
+          - cell "A" [ref=e40]
+          - cell "0" [ref=e41]
+          - cell "0" [ref=e42]
+          - cell "0" [ref=e43]
+          - cell "0" [ref=e44]
+          - cell "0" [ref=e45]
+          - cell "1" [ref=e46]
+          - cell "1" [ref=e47]
+          - cell "1" [ref=e48]
+        - row "G 0 1 1 1 1 1 1 1" [ref=e49]:
+          - cell "G" [ref=e50]
+          - cell "0" [ref=e51]
+          - cell "1" [ref=e52]
+          - cell "1" [ref=e53]
+          - cell "1" [ref=e54]
+          - cell "1" [ref=e55]
+          - cell "1" [ref=e56]
+          - cell "1" [ref=e57]
+          - cell "1" [ref=e58]
+        - row "G 0 1 1 1 1 1 1 1" [ref=e59]:
+          - cell "G" [ref=e60]
+          - cell "0" [ref=e61]
+          - cell "1" [ref=e62]
+          - cell "1" [ref=e63]
+          - cell "1" [ref=e64]
+          - cell "1" [ref=e65]
+          - cell "1" [ref=e66]
+          - cell "1" [ref=e67]
+          - cell "1" [ref=e68]
+        - row "T 0 1 1 2 2 2 2 2" [ref=e69]:
+          - cell "T" [ref=e70]
+          - cell "0" [ref=e71]
+          - cell "1" [ref=e72]
+          - cell "1" [ref=e73]
+          - cell "2" [ref=e74]
+          - cell "2" [ref=e75]
+          - cell "2" [ref=e76]
+          - cell "2" [ref=e77]
+          - cell "2" [ref=e78]
+        - row "A 0 1 1 2 2 3 3 3" [ref=e79]:
+          - cell "A" [ref=e80]
+          - cell "0" [ref=e81]
+          - cell "1" [ref=e82]
+          - cell "1" [ref=e83]
+          - cell "2" [ref=e84]
+          - cell "2" [ref=e85]
+          - cell "3" [ref=e86]
+          - cell "3" [ref=e87]
+          - cell "3" [ref=e88]
+        - row "B 0 1 1 2 2 3 3 4" [ref=e89]:
+          - cell "B" [ref=e90]
+          - cell "0" [ref=e91]
+          - cell "1" [ref=e92]
+          - cell "1" [ref=e93]
+          - cell "2" [ref=e94]
+          - cell "2" [ref=e95]
+          - cell "3" [ref=e96]
+          - cell "3" [ref=e97]
+          - cell "4" [ref=e98]
+  - contentinfo [ref=e99]: © 2024 - Longest Common Subsequence Demo
+```

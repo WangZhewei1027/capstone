@@ -1,0 +1,76 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Adjacency Matrix of a Graph" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]: "Number of Nodes (max 15):"
+    - spinbutton "Number of Nodes (max 15):" [ref=e5]: "5"
+    - generic [ref=e6]:
+      - text: "Enter edges (one per line), format:"
+      - code [ref=e7]: source destination
+      - text: "Nodes are zero-indexed (0 to n-1). For example:"
+      - text: 0 1
+      - text: 0 4
+      - text: 1 2
+      - text: 1 3
+      - text: 1 4
+    - 'textbox "Enter edges (one per line), format: source destination Nodes are zero-indexed (0 to n-1). For example: 0 1 0 4 1 2 1 3 1 4" [ref=e8]': 0 1 0 4 1 2 1 3 1 4 2 3 3 4
+    - button "Generate Adjacency Matrix" [ref=e9]
+  - generic [ref=e10]:
+    - table "Adjacency matrix" [ref=e11]:
+      - caption [ref=e12]: Adjacency Matrix
+      - row "0 1 2 3 4" [ref=e13]:
+        - cell [ref=e14]
+        - cell "0" [ref=e15]
+        - cell "1" [ref=e16]
+        - cell "2" [ref=e17]
+        - cell "3" [ref=e18]
+        - cell "4" [ref=e19]
+      - row "0 0 1 0 0 1" [ref=e20]:
+        - cell "0" [ref=e21]
+        - cell "0" [ref=e22]
+        - cell "1" [ref=e23]
+        - cell "0" [ref=e24]
+        - cell "0" [ref=e25]
+        - cell "1" [ref=e26]
+      - row "1 1 0 1 1 1" [ref=e27]:
+        - cell "1" [ref=e28]
+        - cell "1" [ref=e29]
+        - cell "0" [ref=e30]
+        - cell "1" [ref=e31]
+        - cell "1" [ref=e32]
+        - cell "1" [ref=e33]
+      - row "2 0 1 0 1 0" [ref=e34]:
+        - cell "2" [ref=e35]
+        - cell "0" [ref=e36]
+        - cell "1" [ref=e37]
+        - cell "0" [ref=e38]
+        - cell "1" [ref=e39]
+        - cell "0" [ref=e40]
+      - row "3 0 1 1 0 1" [ref=e41]:
+        - cell "3" [ref=e42]
+        - cell "0" [ref=e43]
+        - cell "1" [ref=e44]
+        - cell "1" [ref=e45]
+        - cell "0" [ref=e46]
+        - cell "1" [ref=e47]
+      - row "4 1 1 0 1 0" [ref=e48]:
+        - cell "4" [ref=e49]
+        - cell "1" [ref=e50]
+        - cell "1" [ref=e51]
+        - cell "0" [ref=e52]
+        - cell "1" [ref=e53]
+        - cell "0" [ref=e54]
+    - img "Graph visualization" [ref=e56]:
+      - generic "Node 0" [ref=e62]
+      - generic [ref=e63]: "0"
+      - generic "Node 1" [ref=e64]
+      - generic [ref=e65]: "1"
+      - generic "Node 2" [ref=e66]
+      - generic [ref=e67]: "2"
+      - generic "Node 3" [ref=e68]
+      - generic [ref=e69]: "3"
+      - generic "Node 4" [ref=e70]
+      - generic [ref=e71]: "4"
+```

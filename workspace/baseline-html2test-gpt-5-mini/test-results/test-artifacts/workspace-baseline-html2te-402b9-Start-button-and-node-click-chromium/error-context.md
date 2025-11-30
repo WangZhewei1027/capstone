@@ -1,0 +1,87 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]: Prim's Algorithm — Minimum Spanning Tree (Interactive)
+        - generic [ref=e6]: Click a node to pick starting vertex. Drag nodes to reposition.
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - generic [ref=e9]: Nodes
+          - slider "Nodes" [ref=e10]: "7"
+          - generic [ref=e11]: "7"
+          - button "Generate Random Graph" [ref=e12] [cursor=pointer]
+          - button "Clear" [ref=e13] [cursor=pointer]
+        - generic [ref=e14]:
+          - button "Choose Start" [ref=e15] [cursor=pointer]
+          - button "Initialize Prim" [ref=e16] [cursor=pointer]
+          - button "Step" [disabled] [ref=e17] [cursor=pointer]
+          - button "Play" [disabled] [ref=e18] [cursor=pointer]
+          - button "Reset" [disabled] [ref=e19] [cursor=pointer]
+    - img [ref=e20]:
+      - generic [ref=e23]: "19"
+      - generic [ref=e26]: "11"
+      - generic [ref=e29]: "15"
+      - generic [ref=e32]: "5"
+      - generic [ref=e35]: "10"
+      - generic [ref=e38]: "1"
+      - generic [ref=e41]: "20"
+      - generic [ref=e44]: "4"
+      - generic [ref=e47]: "6"
+      - generic [ref=e50]: "14"
+      - generic [ref=e53]: "18"
+      - generic [ref=e56]: "17"
+      - generic [ref=e59]: "16"
+      - generic [ref=e62]: "10"
+      - generic [ref=e63] [cursor=pointer]:
+        - generic: "0"
+      - generic [ref=e65] [cursor=pointer]:
+        - generic: "1"
+      - generic [ref=e67] [cursor=pointer]:
+        - generic: "2"
+      - generic [ref=e69] [cursor=pointer]:
+        - generic: "3"
+      - generic [ref=e71] [cursor=pointer]:
+        - generic: "4"
+      - generic [ref=e73] [cursor=pointer]:
+        - generic: "5"
+      - generic [ref=e75] [cursor=pointer]:
+        - generic: "6"
+  - generic [ref=e77]:
+    - generic [ref=e78]:
+      - generic [ref=e79]:
+        - strong [ref=e81]: MST Status
+        - generic [ref=e82]: "Steps: 0"
+      - generic [ref=e83]:
+        - generic [ref=e84]:
+          - text: "MST total weight:"
+          - strong [ref=e85]: "0"
+        - generic [ref=e86]: "Start vertex: none"
+        - generic [ref=e87]: "Visited vertices: []"
+    - generic [ref=e89]:
+      - strong [ref=e90]: Candidate edges (min frontier)
+      - generic [ref=e91]: Sorted by weight
+    - generic [ref=e92]:
+      - strong [ref=e93]: Pseudocode (Prim)
+      - generic [ref=e94]:
+        - generic [ref=e95]: "1:1: for each v in V:"
+        - generic [ref=e96]: "2:2: key[v] = ∞ ; parent[v] = null"
+        - generic [ref=e97]: "3:3: key[start] = 0"
+        - generic [ref=e98]: "4:4: Q = V"
+        - generic [ref=e99]: "5:5: while Q not empty:"
+        - generic [ref=e100]: "6:6: u = extract-min(Q) // vertex with minimal key"
+        - generic [ref=e101]: "7:7: add u to MST"
+        - generic [ref=e102]: "8:8: for each v adjacent to u:"
+        - generic [ref=e103]: "9:9: if v in Q and weight(u,v) < key[v]:"
+        - generic [ref=e104]: "10:10: parent[v] = u; key[v] = weight(u,v)"
+        - generic [ref=e105]: "11:"
+    - generic [ref=e106]:
+      - strong [ref=e107]: How to use
+      - list [ref=e108]:
+        - listitem [ref=e109]: Generate a random connected graph or draw your own with "Clear" then add nodes by clicking (not implemented here).
+        - listitem [ref=e110]: Click a node to set the starting vertex (or let it default to node 0).
+        - listitem [ref=e111]: Click "Initialize Prim" then step through with "Step" or auto-run with "Play".
+    - contentinfo [ref=e112]: "Implementation: JavaScript + SVG. Edges highlighted orange are current candidates; red edges are in the MST; blue nodes belong to MST."
+```

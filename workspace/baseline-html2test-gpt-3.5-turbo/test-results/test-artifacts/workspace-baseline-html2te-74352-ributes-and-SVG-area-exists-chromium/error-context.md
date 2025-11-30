@@ -1,0 +1,49 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Breadth-First Search (BFS) Visualization" [level=1] [ref=e2]
+  - img "Graph visualization area" [ref=e3]:
+    - img [ref=e4]:
+      - button "Node A, click to select as start node" [ref=e10] [cursor=pointer]:
+        - generic: A
+      - button "Node B, click to select as start node" [ref=e12] [cursor=pointer]:
+        - generic: B
+      - button "Node C, click to select as start node" [ref=e14] [cursor=pointer]:
+        - generic: C
+      - button "Node D, click to select as start node" [ref=e16] [cursor=pointer]:
+        - generic: D
+      - button "Node E, click to select as start node" [ref=e18] [cursor=pointer]:
+        - generic: E
+      - button "Node F, click to select as start node" [ref=e20] [cursor=pointer]:
+        - generic: F
+      - button "Node G, click to select as start node" [ref=e22] [cursor=pointer]:
+        - generic: G
+      - button "Node H, click to select as start node" [ref=e24] [cursor=pointer]:
+        - generic: H
+  - generic "Controls for BFS visualization" [ref=e26]:
+    - text: "Start Node:"
+    - combobox "Start Node:" [ref=e27]:
+      - option "A" [selected]
+      - option "B"
+      - option "C"
+      - option "D"
+      - option "E"
+      - option "F"
+      - option "G"
+      - option "H"
+    - button "Start BFS" [ref=e28]
+    - button "Step" [disabled] [ref=e29]
+    - button "Auto Run" [disabled] [ref=e30]
+    - button "Reset" [ref=e31]
+    - generic [ref=e32]:
+      - text: "Speed:"
+      - slider "Speed:" [ref=e33]: "800"
+      - text: 800ms
+  - region [ref=e34]:
+    - strong [ref=e35]: "Queue:"
+    - text: (empty)
+  - generic [ref=e36]:
+    - paragraph [ref=e37]: "Instructions: Select a start node and press \"Start BFS\" to visualize the BFS algorithm on the graph. Use \"Step\" to advance one step at a time, or \"Auto Run\" for automatic step advancement. \"Reset\" clears the visualization."
+    - paragraph [ref=e38]: The graph is undirected. Nodes visited will turn green. The current node being explored is yellow. Edges used in BFS are highlighted.
+```

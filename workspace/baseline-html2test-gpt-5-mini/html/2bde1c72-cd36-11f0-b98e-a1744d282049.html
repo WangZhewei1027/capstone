@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Interactive Heap (Min / Max) Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --accent:#06b6d4;
+      --muted:#94a3b8;
+      --card:#071026;
+      --good:#10b981;
+      --danger:#ef4444;
+      --node-bg:#0ea5a;
+    }
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial}
+    body{
+      margin:0;
+      min-height:100vh;
+      background:linear-gradient(180deg,#071025 0%, #081428 50%, #02111a 100%);
+      color:#e6eef6;
+      padding:20px;
+    }
+    .wrap{
+      max-width:1200px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:20px;
+      align-items:start;
+    }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);
+      padding:16px;
+      border-radius:12px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+    }
+    h1{font-size:20px;margin:0 0 12px 0}
+    .controls label{display:block;margin-bottom:8px;color:var(--muted);font-size:13px}
+    .row{display:flex;gap:8px;align-items:center}
+    input[type="text"], input[type="number"]{
+      flex:1;
+      padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);
+      background:transparent;color:inherit;font-size:14px;
+    }
+    button{
+      background:var(--accent);color:#042027;border:0;padding:8px 10px;border-radius:8px;font-weight:600;cursor:pointer;
+      box-shadow: 0 4px 14px rgba(6,182,212,0.12);
+    }
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);box-shadow:none}
+    .small{padding:6px 8px;font-size:13px}
+    .muted{color:var(--muted);font-size:13px}
+    .controls .seg{display:flex;gap:8px;margin:8px 0 16px 0}
+    .seg button{flex:1}
+    .array-view{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+    .cell{min-width:48px;min-height:48px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));font-weight:700}
+    .cell.index{font-size:11px;color:var(--muted);opacity:0.9;flex-direction:column;padding:6px;min-height:56px}
+    .cell .idx{font-size:11px;color:var(--muted);font-weight:600;margin-top:6px}
+    .info{margin-top:12px;color:var(--muted);font-size:13px}
+    .visual{
+      position:relative;
+      height:420px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.0));
+      border-radius:10px;padding:12px;border:1px solid rgba(255,255,255,0.03);
+      overflow:auto;
+    }
+    svg{width:100%;height:100%}
+    .node{
+      transition:transform 220ms ease, background-color 220ms ease;
+      transform-origin:center center;
+    }
+    .node circle{
+      fill:linear-gradient(180deg,#083044,#05303b);
+      stroke:rgba(255,255,255,0.06);
+    }
+    .node .value{
+      font-weight:700;
+      font-size:14px;
+      fill:#e6eef6;
+      text-anchor:middle;
+      dominant-baseline:middle;
+    }
+    .node .idx{
+      font-size:10px;fill:var(--muted);text-anchor:middle;
+    }
+    .edge{
+      stroke:rgba(255,255,255,0.06);stroke-width:2;fill:none;
+    }
+    .highlight{filter:drop-shadow(0 6px 16px rgba(6,182,212,0.18));}
+    .swap circle{stroke:var(--accent);stroke-width:2}
+    .compare circle{stroke:#f59e0b;stroke-width:2}
+    .removed circle{opacity:0.25}
+    .log{background:rgba(255,255,255,0.02);border-radius:8px;padding:10px;margin-top:12px;font-size:13px;max-height:160px;overflow:auto;border:1px solid rgba(255,255,255,0.02)}
+    .log .entry{padding:6px 8px;border-radius:6px;margin-bottom:6px;background:linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.008));}
+    .legend{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+    .legend .item{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+    .dot{width:14px;height:14px;border-radius:4px;background:var(--accent);box-shadow:0 6px 12px rgba(6,182,212,0.12)}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    @media(max-width:940px){
+      .wrap{grid-template-columns:1fr; padding:8px}
+      .visual{height:360px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card controls" aria-labelledby="title">
+      <h1 id="title">Heap Visualizer (Min & Max)</h1>
+      <div class="muted">Explore how a binary heap (array-backed) behaves. Insert, remove, build from array and see per-step swaps!</div>
+
+      <div style="margin-top:12px">
+        <label>Heap Type</label>
+        <div class="seg">
+          <button id="minBtn" class="small">Min Heap</button>
+          <button id="maxBtn" class="small ghost">Max Heap</button>
+        </div>
+
+        <label>Value to insert (number)</label>
+        <div class="row" style="margin-bottom:8px">
+          <input id="valInput" type="number" placeholder="e.g. 42" />
+          <button id="insertBtn" class="small">Insert</button>
+          <button id="peekBtn" class="small ghost">Peek</button>
+          <button id="popBtn" class="small ghost">Pop</button>
+        </div>
+
+        <label>Build / Load</label>
+        <div class="row" style="margin-bottom:8px">
+          <input id="arrInput" type="text" placeholder="Comma-separated numbers. e.g. 5,3,8,1" />
+          <button id="buildBtn" class="small ghost">Build From Array</button>
+          <button id="randBtn" class="small">Random</button>
+        </div>
+
+        <div class="row" style="margin-bottom:8px">
+          <button id="clearBtn" class="small ghost">Clear</button>
+          <button id="stepToggle" class="small ghost">Step Mode: On</button>
+          <select id="speed" style="background:transparent;color:var(--muted);border-radius:8px;border:1px solid rgba(255,255,255,0.04);padding:6px 8px">
+            <option value="700">Slow</option>
+            <option value="350" selected>Normal</option>
+            <option value="120">Fast</option>
+          </select>
+        </div>
+
+        <div class="info">
+          <div style="display:flex;justify-content:space-between;gap:10px">
+            <div><strong>Size:</strong> <span id="size">0</span></div>
+            <div><strong>Peek:</strong> <span id="peek">—</span></div>
+            <div><strong>Type:</strong> <span id="typeLabel">Min</span></div>
+          </div>
+          <div class="legend">
+            <div class="item"><div class="dot" style="background:var(--accent)"></div> Current swap</div>
+            <div class="item"><div class="dot" style="background:#f59e0b"></div> Comparison</div>
+            <div class="item"><div class="dot" style="background:rgba(255,255,255,0.06)"></div> Normal node</div>
+          </div>
+        </div>
+
+        <div class="log" id="log" aria-live="polite" style="margin-top:12px">
+          <div class="entry">Welcome — start by inserting or building a heap.</div>
+        </div>
+
+        <footer>
+          Notes: This is a binary heap visualizer (array representation). Insert and pop are animated with sift-up / sift-down swaps. Step Mode pauses between operations for per-step inspection.
+        </footer>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+          <strong>Array Representation</strong>
+          <div class="muted" style="margin-top:6px">Indices are 0-based. Parent formula: parent = floor((i-1)/2)</div>
+        </div>
+        <div class="muted">Try clicking "Random" to generate a heap</div>
+      </div>
+
+      <div id="arrayContainer" class="array-view"></div>
+
+      <div style="margin-top:14px">
+        <strong>Tree View</strong>
+        <div class="muted" style="margin-bottom:8px">Visualized as a complete binary tree. Root at top.</div>
+        <div class="visual" id="visual">
+          <svg id="svg" viewBox="0 0 1000 420" preserveAspectRatio="xMidYMin meet"></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Heap implementation that logs steps for visualization
+    class VisualHeap {
+      constructor(isMin=true, logger=null) {
+        this.a = [];
+        this.isMin = isMin;
+        this.logger = logger;
+      }
+      cmp(i,j){
+        if (this.isMin) return this.a[i] < this.a[j];
+        else return this.a[i] > this.a[j];
+      }
+      setLogger(fn){ this.logger = fn; }
+      swap(i,j){
+        const ai=this.a[i], aj=this.a[j];
+        if (this.logger) this.logger({type:'swap',i,j,ai,aj});
+        [this.a[i],this.a[j]] = [this.a[j],this.a[i]];
+      }
+      compare(i,j){
+        if (this.logger) this.logger({type:'compare',i,j});
+      }
+      insert(val){
+        const idx = this.a.length;
+        this.a.push(val);
+        if (this.logger) this.logger({type:'insert',idx,val});
+        this.siftUp(idx);
+      }
+      peek(){ return this.a.length?this.a[0]:null; }
+      poll(){
+        if (!this.a.length) return null;
+        const root = this.a[0];
+        if (this.logger) this.logger({type:'poll',val:root});
+        if (this.a.length===1){ this.a.pop(); return root; }
+        this.a[0]=this.a.pop();
+        this.siftDown(0);
+        return root;
+      }
+      siftUp(i){
+        while(i>0){
+          const p = Math.floor((i-1)/2);
+          this.compare(i,p);
+          if (!this.cmp(i,p)) break;
+          this.swap(i,p);
+          i=p;
+        }
+      }
+      siftDown(i){
+        const n=this.a.length;
+        while(true){
+          const l=2*i+1, r=2*i+2;
+          let best = i;
+          if (l<n){
+            this.compare(l,best);
+            if (this.cmp(l,best)) best=l;
+          }
+          if (r<n){
+            this.compare(r,best);
+            if (this.cmp(r,best)) best=r;
+          }
+          if (best===i) break;
+          this.swap(i,best);
+          i=best;
+        }
+      }
+      heapifyFromArray(arr){
+        this.a = arr.slice();
+        if (this.logger) this.logger({type:'heapify',arr:this.a.slice()});
+        for (let i=Math.floor(this.a.length/2); i>=0; --i){
+          this.siftDown(i);
+        }
+      }
+      clear(){ this.a=[]; if (this.logger) this.logger({type:'clear'}); }
+      size(){ return this.a.length; }
+      asArray(){ return this.a.slice(); }
+      toggleType(isMin){
+        this.isMin = isMin;
+        if (this.logger) this.logger({type:'toggle',isMin});
+        // re-heapify current array under new comparator
+        this.heapifyFromArray(this.a);
+      }
+    }
+
+    // UI and visualization
+    const heap = new VisualHeap(true, stepLogger);
+    const svg = document.getElementById('svg');
+    const arrayContainer = document.getElementById('arrayContainer');
+    const logEl = document.getElementById('log');
+    const sizeEl = document.getElementById('size');
+    const peekEl = document.getElementById('peek');
+    const typeLabel = document.getElementById('typeLabel');
+
+    // Step mode controls
+    let stepMode = true;
+    document.getElementById('stepToggle').addEventListener('click',()=>{
+      stepMode = !stepMode;
+      document.getElementById('stepToggle').textContent = 'Step Mode: ' + (stepMode?'On':'Off');
+      document.getElementById('stepToggle').classList.toggle('ghost',!stepMode);
+    });
+
+    // speed
+    function speed(){
+      return parseInt(document.getElementById('speed').value,10);
+    }
+
+    // Buttons
+    document.getElementById('minBtn').addEventListener('click',()=>setType(true));
+    document.getElementById('maxBtn').addEventListener('click',()=>setType(false));
+    function setType(isMin){
+      heap.toggleType(isMin);
+      document.getElementById('minBtn').classList.toggle('ghost', !isMin);
+      document.getElementById('maxBtn').classList.toggle('ghost', isMin);
+      typeLabel.textContent = isMin ? 'Min' : 'Max';
+      renderAll();
+    }
+
+    document.getElementById('insertBtn').addEventListener('click',()=>{
+      const v = document.getElementById('valInput').value;
+      if (v===''){ flashLog('Please enter a number', true); return; }
+      const num = Number(v);
+      if (Number.isNaN(num)){ flashLog('Invalid number', true); return; }
+      runOperation(() => heap.insert(num), `Insert ${num}`);
+    });
+
+    document.getElementById('peekBtn').addEventListener('click',()=>{
+      const p = heap.peek();
+      flashLog('Peek -> ' + (p===null? '—' : p));
+      renderAll();
+    });
+
+    document.getElementById('popBtn').addEventListener('click',()=>{
+      runOperation(()=> heap.poll(), 'Pop root');
+    });
+
+    document.getElementById('clearBtn').addEventListener('click',()=>{
+      heap.clear();
+      flashLog('Heap cleared');
+      renderAll();
+    });
+
+    document.getElementById('buildBtn').addEventListener('click',()=>{
+      const txt = document.getElementById('arrInput').value.trim();
+      if (!txt){ flashLog('Enter comma-separated numbers', true); return; }
+      const parts = txt.split(',').map(s=>s.trim()).filter(s=>s.length);
+      const nums = [];
+      for (const p of parts){
+        const n = Number(p);
+        if (Number.isNaN(n)){ flashLog('Invalid number in array: ' + p, true); return; }
+        nums.push(n);
+      }
+      runOperation(()=> heap.heapifyFromArray(nums), 'Heapify from array: [' + nums.join(',') + ']');
+    });
+
+    document.getElementById('randBtn').addEventListener('click',()=>{
+      const count = Math.floor(Math.random()*8)+5;
+      const arr = Array.from({length:count},()=>Math.floor(Math.random()*90)-10);
+      document.getElementById('arrInput').value = arr.join(',');
+      runOperation(()=> heap.heapifyFromArray(arr), 'Random heap built ('+count+' elems)');
+    });
+
+    // Operation runner: captures steps logged by heap and animates them
+    let stepQueue = [];
+    let running = false;
+    function runOperation(fn, label){
+      // Clear previous queued steps
+      stepQueue = [];
+      // Temporarily set logger to capture steps into stepQueue
+      const originalLogger = heap.logger;
+      heap.setLogger((s)=>{ stepQueue.push(s); });
+      try {
+        const ret = fn();
+      } finally {
+        heap.setLogger(originalLogger);
+      }
+      // Add final snapshot step
+      stepQueue.push({type:'snapshot',arr:heap.asArray()});
+      if (stepMode) {
+        playSteps(stepQueue, label);
+      } else {
+        // If not step mode, play faster in one go
+        playSteps(stepQueue, label, true);
+      }
+    }
+
+    // Step logger used as default (when not capturing)
+    function stepLogger(s){
+      // append to global queue and play if in interactive actions
+      // By default, we push to queue and play (for operations that call heap directly)
+      stepQueue.push(s);
+    }
+
+    function playSteps(steps, label, fast=false){
+      if (running) {
+        flashLog('Operation queued — please wait for current animation to finish', true);
+        // append to existing queue
+        queuedOps.push(()=> playSteps(steps,label,fast));
+        return;
+      }
+      running = true;
+      flashLog(label);
+      // We'll apply steps to a visual copy to animate before finalizing heap state
+      // For simplicity, the heap's internal array has already been mutated by the operation.
+      // So steps are mainly for visualization; we update visuals as we go but final state is heap.a
+      let i = 0;
+      function next(){
+        if (i>=steps.length){
+          running = false;
+          renderAll(); // ensure final state is shown
+          // After finishing, flush queued ops
+          if (queuedOps.length) { const fn = queuedOps.shift(); fn(); }
+          return;
+        }
+        const s = steps[i++];
+        handleStep(s);
+        const delay = fast ? 20 : speed();
+        setTimeout(next, delay);
+      }
+      next();
+    }
+    const queuedOps = [];
+
+    // Visual step handling
+    function handleStep(s){
+      if (!s) return;
+      switch(s.type){
+        case 'insert':
+          addLog(`Inserted ${s.val} at index ${s.idx}`);
+          renderAllHighlight([s.idx], 'compare'); break;
+        case 'compare':
+          addLog(`Compare indices ${s.i} and ${s.j}`);
+          renderAllHighlight([s.i,s.j], 'compare');
+          break;
+        case 'swap':
+          addLog(`Swap indices ${s.i} (${s.ai}) and ${s.j} (${s.aj})`);
+          // Show swap highlight and then update visual to current heap array
+          renderAllHighlight([s.i,s.j], 'swap');
+          break;
+        case 'heapify':
+          addLog(`Heapify initial array: [${s.arr.join(',')}]`);
+          renderAllHighlight([], null);
+          break;
+        case 'poll':
+          addLog(`Remove root -> ${s.val}`);
+          renderAllHighlight([0], 'removed');
+          break;
+        case 'clear':
+          addLog('Cleared heap');
+          break;
+        case 'toggle':
+          addLog(`Toggled heap to ${s.isMin? 'Min' : 'Max'}`);
+          break;
+        case 'snapshot':
+          // final snapshot - just render array
+          renderAll();
+          break;
+        default:
+          // unknown
+          renderAll();
+      }
+    }
+
+    // Rendering utilities
+    function renderAll(){
+      renderArray();
+      renderTree();
+      sizeEl.textContent = heap.size();
+      const p = heap.peek();
+      peekEl.textContent = (p===null? '—' : p);
+    }
+
+    function renderAllHighlight(idxes=[], cls=null){
+      renderArray(idxes, cls);
+      renderTree(idxes, cls);
+      sizeEl.textContent = heap.size();
+      const p = heap.peek();
+      peekEl.textContent = (p===null? '—' : p);
+    }
+
+    function renderArray(highlightIdx=[], cls=null){
+      arrayContainer.innerHTML = '';
+      const arr = heap.asArray();
+      if (arr.length===0){
+        const el = document.createElement('div'); el.className='muted'; el.textContent='Heap is empty'; arrayContainer.appendChild(el); return;
+      }
+      arr.forEach((v,i)=>{
+        const el = document.createElement('div');
+        el.className = 'cell index';
+        if (highlightIdx.includes(i)){
+          el.style.borderColor = cls==='swap' ? 'rgba(6,182,212,0.6)' : cls==='compare' ? '#f59e0b' : 'rgba(255,255,255,0.06)';
+          el.style.boxShadow = cls==='swap' ? '0 6px 20px rgba(6,182,212,0.08)' : '';
+          el.style.transform = cls==='swap' ? 'scale(1.06)' : '';
+        } else {
+          el.style.transform = '';
+          el.style.boxShadow = '';
+        }
+        el.innerHTML = '<div style="font-size:14px">'+v+'</div><div class="idx">['+i+']</div>';
+        arrayContainer.appendChild(el);
+      });
+    }
+
+    // Tree rendering:
+    function renderTree(highlightIdx=[], cls=null){
+      const arr = heap.asArray();
+      const n = arr.length;
+      // Prepare SVG size and compute node positions
+      const width = 1000, height = 420;
+      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      if (n===0){
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+        text.setAttribute('x', width/2);
+        text.setAttribute('y', height/2);
+        text.setAttribute('text-anchor','middle');
+        text.setAttribute('fill','rgba(255,255,255,0.12)');
+        text.setAttribute('font-size','18');
+        text.textContent = 'Empty heap';
+        g.appendChild(text);
+        svg.appendChild(g);
+        return;
+      }
+      const levels = Math.floor(Math.log2(n))+1;
+      const nodeYGap = Math.min(120, height / (levels+1));
+      const nodes = [];
+      for (let i=0;i<n;i++){
+        const level = Math.floor(Math.log2(i+1));
+        const firstIndexAtLevel = Math.pow(2, level)-1;
+        const indexInLevel = i - firstIndexAtLevel;
+        const maxSlots = Math.pow(2, level);
+        const padding = 40;
+        const xSpacing = (width - 2*padding) / (maxSlots);
+        const x = padding + xSpacing*(indexInLevel + 0.5);
+        const y = 30 + level * nodeYGap;
+        nodes.push({i,x,y});
+      }
+      // draw edges
+      for (let i=0;i<n;i++){
+        const l = 2*i+1, r=2*i+2;
+        const u = nodes[i];
+        if (l<n){
+          const v = nodes[l];
+          drawEdge(u.x,u.y,v.x,v.y);
+        }
+        if (r<n){
+          const v = nodes[r];
+          drawEdge(u.x,u.y,v.x,v.y);
+        }
+      }
+      // draw nodes
+      for (let i=0;i<n;i++){
+        const node = nodes[i];
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('class','node');
+        g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+        g.setAttribute('data-idx', i);
+        const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circ.setAttribute('r', 22);
+        circ.setAttribute('cx',0);
+        circ.setAttribute('cy',0);
+        circ.setAttribute('fill', i===0 ? '#052d34' : '#072231');
+        circ.setAttribute('stroke','rgba(255,255,255,0.04)');
+        g.appendChild(circ);
+
+        const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+        txt.setAttribute('class','value');
+        txt.setAttribute('x',0);
+        txt.setAttribute('y',-2);
+        txt.textContent = arr[i];
+        g.appendChild(txt);
+
+        const idxTxt = document.createElementNS('http://www.w3.org/2000/svg','text');
+        idxTxt.setAttribute('class','idx');
+        idxTxt.setAttribute('x',0);
+        idxTxt.setAttribute('y',18);
+        idxTxt.textContent = '['+i+']';
+        g.appendChild(idxTxt);
+
+        // apply highlights if needed
+        if (highlightIdx.includes(i)){
+          if (cls==='swap'){
+            circ.setAttribute('stroke', '#06b6d4');
+            circ.setAttribute('stroke-width', '3');
+            g.classList.add('highlight');
+          } else if (cls==='compare'){
+            circ.setAttribute('stroke', '#f59e0b');
+            circ.setAttribute('stroke-width', '3');
+            g.classList.add('highlight');
+          } else if (cls==='removed'){
+            circ.style.opacity = '0.35';
+            txt.style.opacity = '0.45';
+            idxTxt.style.opacity = '0.45';
+          }
+        }
+        svg.appendChild(g);
+      }
+    }
+
+    function drawEdge(x1,y1,x2,y2){
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const mx = (x1 + x2)/2;
+      const my = (y1 + y2)/2;
+      // simple quadratic curve for nicer look
+      const cx = mx; const cy = my - Math.abs(dx)*0.12;
+      const d = `M ${x1} ${y1+18} Q ${cx} ${cy} ${x2} ${y2-18}`;
+      path.setAttribute('d', d);
+      path.setAttribute('class','edge');
+      svg.appendChild(path);
+    }
+
+    // Logging
+    function addLog(s){
+      const ent = document.createElement('div');
+      ent.className = 'entry';
+      ent.textContent = s;
+      logEl.insertBefore(ent, logEl.firstChild);
+    }
+    function flashLog(s, isError=false){
+      addLog(s);
+      if (isError) {
+        // optional more visible
+      }
+    }
+
+    // initial render
+    renderAll();
+
+    // Make heap operations via keyboard shortcuts for convenience
+    document.addEventListener('keydown',(e)=>{
+      if (e.key==='i' && e.ctrlKey){ e.preventDefault(); document.getElementById('insertBtn').click(); }
+    });
+
+    // Example: prepopulate with some values
+    (function seed(){
+      const seedArr = [15, 10, 8, 12, 20, 25, 5];
+      heap.heapifyFromArray(seedArr);
+      addLog('Seeded heap with: ['+seedArr.join(',')+']');
+      renderAll();
+    })();
+  </script>
+</body>
+</html>

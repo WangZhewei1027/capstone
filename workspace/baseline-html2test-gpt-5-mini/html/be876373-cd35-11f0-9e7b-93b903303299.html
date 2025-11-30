@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Interactive Red-Black Tree (Insertion Demonstration)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 0; padding: 0; background: #f7f8fb; color: #111; }
+  header { padding: 18px 22px; background: linear-gradient(90deg,#3b82f6,#06b6d4); color: white; }
+  header h1 { margin: 0; font-size: 20px; }
+  #container { display:flex; gap:18px; padding:18px; }
+  #left { width: 640px; background: white; border-radius:8px; padding:12px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+  #canvasWrap { background: #fff; border-radius:6px; padding:6px; min-height:420px; display:flex; align-items:center; justify-content:center; }
+  svg { width:100%; height:520px; }
+  #controls { display:flex; gap:8px; align-items:center; padding-top:10px; flex-wrap:wrap; }
+  input[type="number"], input[type="text"] { padding:8px 10px; border-radius:6px; border:1px solid #d1d5db; width:130px; }
+  button { padding:8px 12px; border:none; border-radius:6px; background:#111827; color:white; cursor:pointer; }
+  button.secondary { background:#efefef; color:#111; border:1px solid #e5e7eb; }
+  button:disabled { opacity:0.5; cursor:default; }
+  #stepsPanel { margin-top:12px; max-height:180px; overflow:auto; border-radius:6px; padding:8px; background:#fbfbfd; border:1px dashed #eef2ff; font-size:13px; }
+  .stepItem { padding:6px 8px; border-radius:6px; margin-bottom:6px; cursor:pointer; }
+  .stepItem.active { background:#eef2ff; border:1px solid #c7ddff; }
+  .desc { margin-top:8px; font-size:14px; }
+  #right { flex:1; display:flex; flex-direction:column; gap:12px; }
+  .card { background:white; border-radius:8px; padding:12px; box-shadow: 0 6px 18px rgba(15,23,42,0.04); }
+  .legend { display:flex; gap:10px; align-items:center; font-size:14px; }
+  .legend .nodePreview { width:22px; height:22px; border-radius:22px; display:inline-block; margin-right:6px; border:2px solid #111827; box-sizing: border-box; }
+  .controlsRow { display:flex; gap:8px; align-items:center; }
+  .status { font-size:13px; color:#374151; }
+  .propsGood { color: #047857; font-weight:600 }
+  .propsBad { color:#b91c1c; font-weight:700 }
+  footer { padding:12px 18px; font-size:13px; color:#6b7280; background:transparent; }
+  small.note { color:#6b7280; display:block; margin-top:6px; }
+  .nodeLabel { font-size:12px; text-anchor:middle; dominant-baseline:middle; fill:white; font-weight:700; }
+  .edge { stroke:#94a3b8; stroke-width:2; stroke-linecap:round; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Red-Black Tree — Interactive Insertion Visualizer</h1>
+    <small style="opacity:.9">See how insertion, recoloring and rotations maintain Red-Black properties (step-by-step).</small>
+  </header>
+
+  <div id="container">
+    <div id="left">
+      <div id="canvasWrap">
+        <svg id="svgRoot" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+
+      <div id="controls">
+        <input id="valueInput" type="number" placeholder="Enter integer" />
+        <button id="insertBtn">Insert</button>
+        <button id="randomBtn" class="secondary">Insert random</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+
+        <div style="margin-left:12px; display:flex; gap:6px; align-items:center;">
+          <button id="prevStep" class="secondary">Prev</button>
+          <button id="playPause" class="secondary">Play</button>
+          <button id="nextStep" class="secondary">Next</button>
+        </div>
+
+        <div style="margin-left:auto; display:flex; gap:6px; align-items:center;">
+          <label style="font-size:13px; color:#374151;">Speed</label>
+          <input id="speed" type="range" min="200" max="2000" step="100" value="900"/>
+        </div>
+      </div>
+
+      <div id="stepsPanel" aria-live="polite"></div>
+      <div class="desc card" id="stepDesc">No operations yet. Insert a number to see steps.</div>
+    </div>
+
+    <div id="right">
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Legend & Status</h3>
+        <div class="legend">
+          <div style="display:flex; align-items:center;">
+            <div class="nodePreview" style="background: #111827; border-color: #111827;"></div> Black node
+          </div>
+          <div style="display:flex; align-items:center;">
+            <div class="nodePreview" style="background: #ef4444; border-color: #7f1d1d;"></div> Red node
+          </div>
+        </div>
+        <div style="margin-top:10px;" class="status">
+          Tree size: <span id="treeSize">0</span> nodes
+          <div id="propsStatus" style="margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">About</h3>
+        <div style="font-size:13px; color:#374151;">
+          A Red-Black Tree is a self-balancing binary search tree with these key properties:
+          <ul>
+            <li>Every node is red or black.</li>
+            <li>The root is black.</li>
+            <li>No red node has a red parent (no consecutive reds).</li>
+            <li>Every path from a node to its descendant NIL nodes contains the same number of black nodes (black-depth).</li>
+          </ul>
+          This demo implements insertion (CLRS-style). Each step shows the intermediate tree states: insert as red, recolor operations, and rotations that restore balance.
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Tips</h3>
+        <div style="font-size:13px; color:#374151;">
+          - Insert several values to watch how rebalancing works.<br/>
+          - Click steps to jump. Use Play to animate the sequence.<br/>
+          - This demo omits explicit NIL nodes in the drawing for clarity (they remain in the algorithm).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Implementation note: Classic insertion algorithm with step recording. Deletion is not implemented in this demo.
+  </footer>
+
+<script>
+(() => {
+  // Simple Red-Black Tree with sentinel NIL, step recording for visualization of insert/fixup.
+  const svg = document.getElementById('svgRoot');
+  const stepsPanel = document.getElementById('stepsPanel');
+  const stepDesc = document.getElementById('stepDesc');
+  const treeSizeEl = document.getElementById('treeSize');
+  const propsStatus = document.getElementById('propsStatus');
+
+  const input = document.getElementById('valueInput');
+  const insertBtn = document.getElementById('insertBtn');
+  const randomBtn = document.getElementById('randomBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const prevBtn = document.getElementById('prevStep');
+  const nextBtn = document.getElementById('nextStep');
+  const playPauseBtn = document.getElementById('playPause');
+  const speedInput = document.getElementById('speed');
+
+  let playTimer = null;
+
+  // Node ID generator to maintain persistent ids across snapshots
+  let globalNodeId = 1;
+
+  // RB tree internal objects use sentinel nil object for algorithmic simplicity.
+  function createNil() {
+    const n = { id: 0, val: null, color: 'B', left: null, right: null, parent: null };
+    n.left = n.right = n.parent = n;
+    return n;
+  }
+  const NIL = createNil();
+
+  // Root pointer
+  let root = NIL;
+  let nodeCount = 0;
+
+  // Steps array: each step is { nodes: [...], rootId, desc }
+  let steps = [];
+  let stepIndex = -1;
+
+  // Capture snapshot helper: traverse and record nodes (skip NIL sentinel in output)
+  function snapshot(desc, highlightIds=[]) {
+    // BFS or DFS to collect nodes (exclude NIL)
+    const nodes = [];
+    const visited = new Set();
+    function visit(n) {
+      if (!n || n === NIL) return;
+      if (visited.has(n.id)) return;
+      visited.add(n.id);
+      nodes.push({
+        id: n.id,
+        val: n.val,
+        color: n.color,
+        left: n.left !== NIL ? n.left.id : null,
+        right: n.right !== NIL ? n.right.id : null,
+        parent: n.parent !== NIL ? (n.parent ? n.parent.id : null) : null
+      });
+      visit(n.left);
+      visit(n.right);
+    }
+    visit(root);
+    steps.push({ nodes, rootId: root !== NIL ? root.id : null, desc: desc || '', highlight: highlightIds.slice() });
+    stepIndex = steps.length - 1;
+    renderStepsList();
+    renderCurrentStep();
+  }
+
+  // Utility to find a node by value (return actual reference)
+  function findNodeByValue(v) {
+    let x = root;
+    while (x !== NIL) {
+      if (v === x.val) return x;
+      x = v < x.val ? x.left : x.right;
+    }
+    return null;
+  }
+
+  // Left rotate at node x
+  function leftRotate(x) {
+    const y = x.right;
+    // Standard rotate
+    x.right = y.left;
+    if (y.left !== NIL) y.left.parent = x;
+    y.parent = x.parent;
+    if (x.parent === NIL) {
+      root = y;
+    } else if (x === x.parent.left) {
+      x.parent.left = y;
+    } else {
+      x.parent.right = y;
+    }
+    y.left = x;
+    x.parent = y;
+    snapshot(`Left rotate at node ${x.val}`, [x.id, y.id]);
+  }
+
+  // Right rotate at node x
+  function rightRotate(x) {
+    const y = x.left;
+    x.left = y.right;
+    if (y.right !== NIL) y.right.parent = x;
+    y.parent = x.parent;
+    if (x.parent === NIL) {
+      root = y;
+    } else if (x === x.parent.right) {
+      x.parent.right = y;
+    } else {
+      x.parent.left = y;
+    }
+    y.right = x;
+    x.parent = y;
+    snapshot(`Right rotate at node ${x.val}`, [x.id, y.id]);
+  }
+
+  // Insert and fix-up with step recording
+  function rbInsertValue(val) {
+    if (typeof val !== 'number' || Number.isNaN(val)) return;
+    if (findNodeByValue(val)) {
+      snapshot(`Value ${val} already exists — no insertion performed.`);
+      return;
+    }
+
+    // Create new node
+    const z = { id: globalNodeId++, val: val, color: 'R', left: NIL, right: NIL, parent: NIL };
+    nodeCount++;
+
+    // BST insert
+    let y = NIL;
+    let x = root;
+    while (x !== NIL) {
+      y = x;
+      if (z.val < x.val) x = x.left;
+      else x = x.right;
+    }
+    z.parent = y;
+    if (y === NIL) {
+      root = z;
+    } else if (z.val < y.val) {
+      y.left = z;
+    } else {
+      y.right = z;
+    }
+
+    snapshot(`Inserted ${z.val} as red leaf`, [z.id, z.parent && z.parent !== NIL ? z.parent.id : null].filter(Boolean));
+
+    // Fixup
+    rbInsertFixup(z);
+    // Ensure root black
+    if (root.color !== 'B') {
+      root.color = 'B';
+      snapshot(`Ensure root is black (set node ${root.val} black)`, [root.id]);
+    }
+
+    snapshot(`Insertion of ${val} complete.`, []);
+  }
+
+  function rbInsertFixup(z) {
+    while (z.parent.color === 'R') {
+      const p = z.parent;
+      const g = p.parent;
+      if (g === NIL) break; // safety
+      if (p === g.left) {
+        const y = g.right;
+        if (y.color === 'R') {
+          // Case 1: uncle red -> recolor parent and uncle black, grandparent red, move z up
+          p.color = 'B';
+          y.color = 'B';
+          g.color = 'R';
+          snapshot(`Case 1: recolor parent ${p.val} and uncle ${y.val} black; grandparent ${g.val} red`, [p.id, y.id, g.id]);
+          z = g;
+        } else {
+          if (z === p.right) {
+            // Case 2: z is right child -> left-rotate at parent
+            z = p;
+            snapshot(`Case 2: prepare left-rotate at parent ${z.val}`, [z.id]);
+            leftRotate(z);
+          }
+          // Case 3: z is left child -> right-rotate at grandparent
+          p.color = 'B';
+          g.color = 'R';
+          snapshot(`Case 3: recolor parent ${p.val} black and grandparent ${g.val} red, then right-rotate at ${g.val}`, [p.id, g.id]);
+          rightRotate(g);
+        }
+      } else {
+        // mirror
+        const y = g.left;
+        if (y.color === 'R') {
+          p.color = 'B';
+          y.color = 'B';
+          g.color = 'R';
+          snapshot(`Case 1 (mirror): recolor parent ${p.val} and uncle ${y.val} black; grandparent ${g.val} red`, [p.id, y.id, g.id]);
+          z = g;
+        } else {
+          if (z === p.left) {
+            z = p;
+            snapshot(`Case 2 (mirror): prepare right-rotate at parent ${z.val}`, [z.id]);
+            rightRotate(z);
+          }
+          p.color = 'B';
+          g.color = 'R';
+          snapshot(`Case 3 (mirror): recolor parent ${p.val} black and grandparent ${g.val} red, then left-rotate at ${g.val}`, [p.id, g.id]);
+          leftRotate(g);
+        }
+      }
+    }
+  }
+
+  // Rendering of a step (snapshot)
+  function renderCurrentStep() {
+    if (stepIndex < 0 || stepIndex >= steps.length) {
+      svg.innerHTML = '';
+      stepDesc.textContent = 'No steps recorded.';
+      treeSizeEl.textContent = nodeCount;
+      updatePropsDisplay(null);
+      return;
+    }
+    const s = steps[stepIndex];
+    stepDesc.textContent = s.desc || '';
+    // Build map of nodes
+    const map = new Map();
+    s.nodes.forEach(n => map.set(n.id, Object.assign({}, n)));
+
+    // Compute positions using inorder traversal starting from rootId
+    let positions = new Map(); // id -> {x,y}
+    let xCounter = 0;
+    const levelGap = 80;
+    const nodeSpacing = 60;
+
+    function inorder(id, depth) {
+      if (id == null || !map.has(id)) return;
+      const node = map.get(id);
+      inorder(node.left, depth + 1);
+      const x = ++xCounter;
+      positions.set(node.id, { x: x, y: depth });
+      inorder(node.right, depth + 1);
+    }
+
+    if (s.rootId !== null && map.size > 0) inorder(s.rootId, 0);
+
+    // If tree is empty, show message
+    svg.innerHTML = '';
+    const width = 1200, height = 520;
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+    if (!s.rootId) {
+      const g = createSVG('g', {});
+      const txt = createSVG('text', { x: width/2, y: height/2 - 8, 'text-anchor': 'middle', 'font-size': 18, 'fill': '#475569' });
+      txt.textContent = 'Empty tree — insert values to start';
+      g.appendChild(txt);
+      svg.appendChild(g);
+      treeSizeEl.textContent = nodeCount;
+      updatePropsDisplay(s);
+      return;
+    }
+
+    // translate logical positions to pixels
+    const maxX = Math.max(...Array.from(positions.values()).map(p=>p.x));
+    const xStart = 40;
+    const yStart = 40;
+    const usableW = width - xStart*2;
+    const xStep = maxX > 1 ? Math.max(nodeSpacing, usableW / (maxX)) : usableW / 2;
+    // compute actual coordinates
+    const coords = new Map();
+    positions.forEach((p, id) => {
+      const cx = xStart + (p.x - 0.5) * xStep;
+      const cy = yStart + p.y * levelGap;
+      coords.set(id, {cx, cy});
+    });
+
+    // draw edges first
+    const edgesGroup = createSVG('g', {});
+    map.forEach(n => {
+      const c = coords.get(n.id);
+      if (!c) return;
+      if (n.left !== null && map.has(n.left)) {
+        const lc = coords.get(n.left);
+        edgesGroup.appendChild(createEdge(c.cx, c.cy, lc.cx, lc.cy));
+      }
+      if (n.right !== null && map.has(n.right)) {
+        const rc = coords.get(n.right);
+        edgesGroup.appendChild(createEdge(c.cx, c.cy, rc.cx, rc.cy));
+      }
+    });
+    svg.appendChild(edgesGroup);
+
+    // draw nodes
+    const nodeGroup = createSVG('g', {});
+    map.forEach(n => {
+      const c = coords.get(n.id);
+      if (!c) return;
+      const isHighlighted = (s.highlight || []).includes(n.id);
+      nodeGroup.appendChild(createNode(c.cx, c.cy, n.val, n.color, isHighlighted));
+    });
+    svg.appendChild(nodeGroup);
+
+    treeSizeEl.textContent = nodeCount;
+    updatePropsDisplay(s);
+
+    // Update step list highlighting
+    const items = stepsPanel.querySelectorAll('.stepItem');
+    items.forEach((el, idx) => {
+      el.classList.toggle('active', idx === stepIndex);
+    });
+  }
+
+  // Draw helpers
+  function createSVG(tag, attrs) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function createEdge(x1,y1,x2,y2) {
+    // draw curved line or simple straight with slight vertical offset to avoid touching node center
+    const g = createSVG('g', {});
+    const path = createSVG('path', {
+      d: `M ${x1} ${y1+18} L ${x2} ${y2-18}`,
+      class: 'edge',
+      fill: 'none'
+    });
+    g.appendChild(path);
+    return g;
+  }
+
+  function createNode(cx, cy, val, color, highlight) {
+    const g = createSVG('g', {});
+    const r = 20;
+    const circle = createSVG('circle', {
+      cx, cy, r,
+      fill: color === 'B' ? '#111827' : '#ef4444',
+      stroke: highlight ? '#fde68a' : '#0f172a',
+      'stroke-width': highlight ? 3 : 2,
+      'filter': 'none'
+    });
+    g.appendChild(circle);
+    const txt = createSVG('text', {
+      x: cx, y: cy, 'class': 'nodeLabel'
+    });
+    txt.textContent = String(val);
+    g.appendChild(txt);
+    return g;
+  }
+
+  // Steps panel rendering
+  function renderStepsList() {
+    stepsPanel.innerHTML = '';
+    steps.forEach((s, idx) => {
+      const div = document.createElement('div');
+      div.className = 'stepItem' + (idx === stepIndex ? ' active' : '');
+      div.textContent = `${idx+1}. ${s.desc}`;
+      div.onclick = () => {
+        stepIndex = idx;
+        stopPlay();
+        renderCurrentStep();
+      };
+      stepsPanel.appendChild(div);
+    });
+  }
+
+  // Play/pause controls
+  function play() {
+    if (playTimer) return;
+    playPauseBtn.textContent = 'Pause';
+    playTimer = setInterval(() => {
+      if (stepIndex < steps.length - 1) {
+        stepIndex++;
+        renderCurrentStep();
+      } else {
+        stopPlay();
+      }
+    }, Number(speedInput.value));
+  }
+  function stopPlay() {
+    if (playTimer) clearInterval(playTimer);
+    playTimer = null;
+    playPauseBtn.textContent = 'Play';
+  }
+
+  // Property check: root black, no red-red, equal black depth
+  function updatePropsDisplay(snapshot) {
+    // Build map
+    if (!snapshot || !snapshot.rootId) {
+      propsStatus.innerHTML = `<span class="propsBad">Tree is empty</span>`;
+      return;
+    }
+    const map = new Map();
+    snapshot.nodes.forEach(n => map.set(n.id, n));
+
+    function check() {
+      const rootNode = map.get(snapshot.rootId);
+      if (!rootNode) return { ok: false, msg: 'Invalid root' };
+      // root black
+      if (rootNode.color !== 'B') return { ok: false, msg: 'Root is not black' };
+
+      // no consecutive reds
+      let redIssue = null;
+      function dfs(nId, parentColor) {
+        if (!nId || !map.has(nId)) return;
+        const n = map.get(nId);
+        if (n.color === 'R' && parentColor === 'R') redIssue = `Red node ${n.val} has red parent`;
+        dfs(n.left, n.color);
+        dfs(n.right, n.color);
+      }
+      dfs(rootNode.id, 'B');
+      if (redIssue) return { ok: false, msg: redIssue };
+
+      // black-depth consistency
+      const blackCounts = new Set();
+      function dfsDepth(nId, currBlack) {
+        if (!nId || !map.has(nId)) {
+          blackCounts.add(currBlack);
+          return;
+        }
+        const n = map.get(nId);
+        if (n.color === 'B') currBlack++;
+        dfsDepth(n.left, currBlack);
+        dfsDepth(n.right, currBlack);
+      }
+      dfsDepth(rootNode.id, 0);
+      if (blackCounts.size !== 1) return { ok: false, msg: `Inconsistent black-depths (${Array.from(blackCounts).join(',')})` };
+
+      return { ok: true, msg: 'All Red-Black properties satisfied' };
+    }
+
+    const res = check();
+    if (res.ok) propsStatus.innerHTML = `<span class="propsGood">${res.msg}</span>`;
+    else propsStatus.innerHTML = `<span class="propsBad">${res.msg}</span>`;
+  }
+
+  // UI event wiring
+  insertBtn.addEventListener('click', () => {
+    const val = Number(input.value);
+    if (!Number.isFinite(val) || input.value.trim() === '') {
+      alert('Please enter an integer value to insert.');
+      return;
+    }
+    stopPlay();
+    rbInsertValue(val);
+    renderStepsList();
+    renderCurrentStep();
+    input.value = '';
+  });
+
+  randomBtn.addEventListener('click', () => {
+    stopPlay();
+    const val = Math.floor(Math.random() * 100);
+    rbInsertValue(val);
+    renderStepsList();
+    renderCurrentStep();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    stopPlay();
+    root = NIL;
+    nodeCount = 0;
+    steps = [];
+    stepIndex = -1;
+    globalNodeId = 1;
+    stepsPanel.innerHTML = '';
+    renderCurrentStep();
+  });
+
+  prevBtn.addEventListener('click', () => {
+    stopPlay();
+    if (stepIndex > 0) {
+      stepIndex--;
+      renderCurrentStep();
+    }
+  });
+
+  nextBtn.addEventListener('click', () => {
+    stopPlay();
+    if (stepIndex < steps.length - 1) {
+      stepIndex++;
+      renderCurrentStep();
+    }
+  });
+
+  playPauseBtn.addEventListener('click', () => {
+    if (playTimer) stopPlay();
+    else {
+      // if at end, go to first
+      if (stepIndex >= steps.length - 1) stepIndex = Math.max(0, steps.length - 1);
+      play();
+    }
+  });
+
+  // keyboard: Enter to insert
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') insertBtn.click();
+  });
+
+  // Initial empty snapshot
+  snapshot('Initial empty tree');
+
+  // Expose for debugging (optional)
+  window._rb_demo = {
+    rootRef: () => root,
+    steps,
+    rbInsertValue
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,356 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL = 'http://127.0.0.1:5500/workspace/baseline-html2test-gpt-5-mini/html/2bde6a91-cd36-11f0-b98e-a1744d282049.html';
+
+// Page Object encapsulating common selectors and helpers
+class PrimsPage {
+  constructor(page) {
+    this.page = page;
+    this.nodeCountSlider = page.locator('#nodeCount');
+    this.nodeCountVal = page.locator('#nodeCountVal');
+    this.densitySlider = page.locator('#density');
+    this.densityVal = page.locator('#densityVal');
+    this.genBtn = page.locator('#genBtn');
+    this.resetBtn = page.locator('#resetBtn');
+    this.startBtn = page.locator('#startBtn');
+    this.stepBtn = page.locator('#stepBtn');
+    this.playBtn = page.locator('#playBtn');
+    this.pauseBtn = page.locator('#pauseBtn');
+    this.speedSlider = page.locator('#speed');
+    this.status = page.locator('#status');
+    this.totalWeight = page.locator('#totalWeight');
+    this.selectedCount = page.locator('#selectedCount');
+    this.needCount = page.locator('#needCount');
+    this.vertexTable = page.locator('#vertexTable');
+    this.mstList = page.locator('#mstList');
+    this.svg = page.locator('#svgCanvas');
+    this.minW = page.locator('#minW');
+    this.maxW = page.locator('#maxW');
+  }
+
+  // count the node groups in the SVG (node groups have a circle child)
+  async nodeGroupsCount() {
+    return await this.page.locator('#svgCanvas g:has(circle)').count();
+  }
+
+  // get nth node group (0-based)
+  nodeGroupNth(n) {
+    return this.page.locator('#svgCanvas g:has(circle)').nth(n);
+  }
+
+  // click the nth node (circle)
+  async clickNodeNth(n) {
+    const g = this.nodeGroupNth(n);
+    await g.click();
+  }
+
+  // hover first edge line (with data-key)
+  firstEdgeLine() {
+    return this.page.locator('#svgCanvas line[data-key]').first();
+  }
+
+  // read stroke attribute of nth node's circle
+  async nodeCircleStroke(n) {
+    return await this.nodeGroupNth(n).locator('circle').getAttribute('stroke');
+  }
+
+  // read selectedCount numeric
+  async getSelectedCountNumber() {
+    const txt = (await this.selectedCount.textContent()) || '0';
+    return parseInt(txt, 10);
+  }
+
+  // read needCount numeric
+  async getNeedCountNumber() {
+    const txt1 = (await this.needCount.textContent()) || '0';
+    return parseInt(txt, 10);
+  }
+
+  // set node count slider value and trigger input
+  async setNodeCount(val) {
+    await this.nodeCountSlider.evaluate((el, v) => { el.value = String(v); el.dispatchEvent(new Event('input')); }, val);
+  }
+
+  // set density slider value and trigger input
+  async setDensity(val) {
+    await this.densitySlider.evaluate((el, v) => { el.value = String(v); el.dispatchEvent(new Event('input')); }, val);
+  }
+
+  // set speed slider (reduce animation delay)
+  async setSpeed(val) {
+    await this.speedSlider.evaluate((el, v) => { el.value = String(v); el.dispatchEvent(new Event('input')); }, val);
+  }
+
+  // generate graph by clicking Generate
+  async generateGraph() {
+    await this.genBtn.click();
+  }
+
+  // start Prim
+  async startPrim() {
+    await this.startBtn.click();
+  }
+
+  // step Prim once
+  async stepPrim() {
+    await this.stepBtn.click();
+  }
+
+  // click play
+  async play() {
+    await this.playBtn.click();
+  }
+
+  // click pause
+  async pause() {
+    await this.pauseBtn.click();
+  }
+}
+
+test.describe('Prim\'s Algorithm Visualizer - End-to-End', () => {
+  // Capture console errors and page errors for each test run
+  test.beforeEach(async ({ page }) => {
+    // small timeout increase where animation might run
+    page.setDefaultTimeout(12000);
+  });
+
+  test.describe('Initialization & UI Controls', () => {
+    test('page loads and shows default UI state', async ({ page }) => {
+      // Track any console.error and page errors
+      const consoleErrors = [];
+      const pageErrors = [];
+      page.on('console', msg => {
+        if (msg.type() === 'error') consoleErrors.push(msg.text());
+      });
+      page.on('pageerror', err => pageErrors.push(err));
+
+      await page.goto(APP_URL);
+
+      const app = new PrimsPage(page);
+
+      // Verify default slider labels
+      await expect(app.nodeCountVal).toHaveText('10');
+      await expect(app.densityVal).toHaveText('45%');
+
+      // Status instructs to click a node or press Start
+      await expect(app.status).toHaveText(/Click a node to choose start/);
+
+      // SVG should exist and contain node groups (default 10)
+      const nodeGroups = await app.nodeGroupsCount();
+      expect(nodeGroups).toBeGreaterThanOrEqual(4); // at least
+      expect(nodeGroups).toBe(10); // default set by HTML script
+
+      // Vertex table should reflect node count: has 3 * nodeCount children
+      const vtCount = await page.locator('#vertexTable .cell').count();
+      expect(vtCount).toBe(10 * 3);
+
+      // No uncaught page errors and no console.error messages (asserting healthy load)
+      expect(pageErrors).toEqual([]);
+      expect(consoleErrors).toEqual([]);
+    });
+
+    test('generate graph updates node count and density values', async ({ page }) => {
+      await page.goto(APP_URL);
+      const app1 = new PrimsPage(page);
+
+      // Set up capturing console/page errors for this action
+      const consoleErrors1 = [];
+      const pageErrors1 = [];
+      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+      page.on('pageerror', err => pageErrors.push(err));
+
+      // Change node count to 6 and density to 20%
+      await app.setNodeCount(6);
+      await app.setDensity(20);
+
+      await expect(app.nodeCountVal).toHaveText('6');
+      await expect(app.densityVal).toHaveText('20%');
+
+      // Click generate - should produce exactly 6 node groups
+      await app.generateGraph();
+      // Wait for rendering - nodes are drawn synchronously during makeGraph, but ensure stable
+      await page.waitForTimeout(200);
+      const nodes = await app.nodeGroupsCount();
+      expect(nodes).toBe(6);
+
+      // needCount should be nodeCount - 1
+      expect(await app.getNeedCountNumber()).toBe(5);
+
+      // No runtime errors triggered by generating a graph
+      expect(pageErrors).toEqual([]);
+      expect(consoleErrors).toEqual([]);
+    });
+  });
+
+  test.describe('Selecting Start Node and Prim Initialization', () => {
+    test('clicking a node sets it as start and Start Prim initializes algorithm', async ({ page }) => {
+      await page.goto(APP_URL);
+      const app2 = new PrimsPage(page);
+
+      // Reduce speed to minimize animation waits
+      await app.setSpeed(100);
+
+      // Ensure a small graph for predictability
+      await app.setNodeCount(6);
+      await app.generateGraph();
+      await page.waitForTimeout(150);
+
+      // Click the first node (this should set startNode to 0)
+      await app.clickNodeNth(0);
+
+      // Status should mention chosen start node
+      await expect(app.status).toHaveText(/Chosen start node: 0/);
+
+      // The clicked node's circle should have a highlight stroke color '#ffd166'
+      const stroke = await app.nodeCircleStroke(0);
+      // The attribute is set to '#ffd166' by the app on setStartNode
+      expect(stroke?.toLowerCase()).toBe('#ffd166');
+
+      // Now click Start Prim to initialize
+      await app.startPrim();
+
+      // Status should indicate Prim initialized and mention start node
+      await expect(app.status).toHaveText(/Prim initialized\. Start at node 0/);
+
+      // Vertex table key for start node (second row) should be '0'
+      // vertexTable cells layout: first row node ids [0..n-1], second row keys [n..2n-1], third row parents [2n..3n-1]
+      const nodeCount = 6;
+      const keyCellIndex = nodeCount + 0; // key for node 0
+      const keyCell = page.locator('#vertexTable .cell').nth(keyCellIndex);
+      await expect(keyCell).toHaveText('0');
+
+      // No unexpected page errors after initialization
+      // (Note: capturing page errors globally is done in outer test hooks; here we assert that app remains functional)
+    });
+  });
+
+  test.describe('Prim Algorithm Execution (Step & Play)', () => {
+    test('stepping through Prim progressively builds MST and updates UI', async ({ page }) => {
+      await page.goto(APP_URL);
+      const app3 = new PrimsPage(page);
+
+      // Use a smaller graph to limit steps
+      await app.setNodeCount(5);
+      await app.generateGraph();
+      await page.waitForTimeout(150);
+
+      // Choose node 0 as start and initialize
+      await app.clickNodeNth(0);
+      await app.setSpeed(100);
+      await app.startPrim();
+
+      const need = await app.getNeedCountNumber();
+      expect(need).toBe(4);
+
+      // Perform step actions until MST is complete. We expect selectedCount to reach need.
+      // Give an upper bound on iteration count to avoid infinite loop in case of errors.
+      for (let i = 0; i < need + 3; i++) {
+        const selected = await app.getSelectedCountNumber();
+        if (selected >= need) break;
+        await app.stepPrim();
+        // Allow brief pause for animation to complete
+        await page.waitForTimeout(80);
+      }
+
+      const finalSelected = await app.getSelectedCountNumber();
+      expect(finalSelected).toBeGreaterThanOrEqual(need);
+
+      // MST list should contain at least 'need' entries (root doesn't add an edge)
+      const items = await app.mstList.locator('div').count();
+      expect(items).toBeGreaterThanOrEqual(need);
+
+      // Total weight should be a numeric string
+      const totalWText = await app.totalWeight.textContent();
+      expect(totalWText).toMatch(/^\d+$/);
+    });
+
+    test('play button auto-runs algorithm and pause stops it', async ({ page }) => {
+      await page.goto(APP_URL);
+      const app4 = new PrimsPage(page);
+
+      // Prepare small graph and speed up
+      await app.setNodeCount(6);
+      await app.generateGraph();
+      await page.waitForTimeout(150);
+
+      await app.clickNodeNth(0);
+      await app.setSpeed(100);
+      await app.startPrim();
+
+      // Start playing
+      await app.play();
+
+      // After starting play, pause button should be enabled, play disabled
+      await expect(app.pauseBtn).toBeEnabled();
+      await expect(app.playBtn).toBeDisabled();
+
+      // Wait for completion: poll selectedCount until it reaches needCount or timeouts
+      const need1 = await app.getNeedCountNumber();
+      await page.waitForFunction(
+        ({ sel, need }) => parseInt(document.querySelector('#selectedCount').textContent || '0', 10) >= need,
+        { timeout: 8000 },
+        { sel: '#selectedCount', need }
+      );
+
+      // After completion, play should be re-enabled and pause disabled
+      await expect(app.playBtn).toBeEnabled();
+      await expect(app.pauseBtn).toBeDisabled();
+
+      // Ensure the status mentions completion
+      await expect(app.status).toHaveText(/MST complete|Done\. MST complete\./);
+    });
+  });
+
+  test.describe('Visual Interaction & Edge Hover', () => {
+    test('hovering an edge highlights it (stroke opacity increases)', async ({ page }) => {
+      await page.goto(APP_URL);
+      const app5 = new PrimsPage(page);
+
+      // Ensure there is at least one edge line with data-key
+      const firstLine = app.page.locator('#svgCanvas line[data-key]').first();
+      await expect(firstLine).toBeVisible();
+
+      // Get initial computed strokeOpacity
+      const initialOpacity = await firstLine.evaluate(el => getComputedStyle(el).strokeOpacity);
+      // Hover the edge
+      await firstLine.hover();
+      // after hover the event listener sets style.strokeOpacity = 1
+      // Read computed style again (some browsers treat numeric vs string)
+      const hoveredOpacity = await firstLine.evaluate(el => getComputedStyle(el).strokeOpacity);
+
+      // Hovered opacity should be greater-than or equal to initial (usually 1 vs 0.35)
+      const init = parseFloat(initialOpacity as unknown) || 0;
+      const hov = parseFloat(hoveredOpacity as unknown) || 0;
+      expect(hov).toBeGreaterThanOrEqual(init);
+      expect(hov).toBeGreaterThan(0);
+    });
+  });
+
+  test.describe('Console and Page Error Monitoring', () => {
+    test('no uncaught page errors or console.error messages during typical flows', async ({ page }) => {
+      const pageErrors2 = [];
+      const consoleErrors2 = [];
+      page.on('pageerror', err => pageErrors.push(err));
+      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+
+      await page.goto(APP_URL);
+      const app6 = new PrimsPage(page);
+
+      // Run a few typical interactions to exercise code paths
+      await app.setNodeCount(6);
+      await app.generateGraph();
+      await page.waitForTimeout(150);
+      await app.clickNodeNth(0);
+      await app.setSpeed(100);
+      await app.startPrim();
+      // perform a single step
+      await app.stepPrim();
+      await page.waitForTimeout(120);
+
+      // Assert that there were no uncaught exceptions reported
+      expect(pageErrors).toEqual([]);
+      // And no console.error messages produced
+      expect(consoleErrors).toEqual([]);
+    });
+  });
+});

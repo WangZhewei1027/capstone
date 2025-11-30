@@ -1,0 +1,80 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Set — Interactive Demo" [level=1] [ref=e2]
+  - paragraph [ref=e3]: Explore JavaScript Sets and common set operations (union, intersection, difference, symmetric difference), deduplication, and important behavior notes (NaN, objects by reference, insertion order).
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: Array A (comma-separated tokens)
+      - 'textbox "e.g. 1, 2, 2, \"apple\", {\"x\":1}, NaN, undefined" [ref=e7]': "1, 2, 2, \"apple\", {\"x\":1}, NaN"
+      - generic [ref=e8]: Array B (comma-separated tokens)
+      - 'textbox "e.g. 2, \"banana\", {\"x\":1}, NaN" [ref=e9]': "2, \"banana\", {\"x\":1}, NaN"
+      - generic [ref=e10]:
+        - button "Create Sets" [ref=e11] [cursor=pointer]
+        - button "Dedupe A → Array" [ref=e12] [cursor=pointer]
+        - button "Clear" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - text: "Examples:"
+        - button "Numbers" [ref=e15] [cursor=pointer]
+        - button "Strings & duplicates" [ref=e16] [cursor=pointer]
+        - button "NaN behavior" [ref=e17] [cursor=pointer]
+        - button "Objects by reference" [ref=e18] [cursor=pointer]
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]:
+            - generic [ref=e22]:
+              - strong [ref=e23]: Set A
+              - text: "— size: 5"
+            - generic [ref=e24]:
+              - generic [ref=e25]:
+                - generic [ref=e26]: "1"
+                - generic [ref=e27]: number
+              - generic [ref=e28]:
+                - generic [ref=e29]: "2"
+                - generic [ref=e30]: number
+              - generic [ref=e31]:
+                - generic [ref=e32]: "\"apple\""
+                - generic [ref=e33]: string
+              - generic [ref=e34]:
+                - generic [ref=e35]: "{\"x\":1}"
+                - generic [ref=e36]: object
+              - generic [ref=e37]:
+                - generic [ref=e38]: NaN
+                - generic [ref=e39]: NaN
+          - generic [ref=e40]:
+            - generic [ref=e41]:
+              - strong [ref=e42]: Set B
+              - text: "— size: 4"
+            - generic [ref=e43]:
+              - generic [ref=e44]:
+                - generic [ref=e45]: "2"
+                - generic [ref=e46]: number
+              - generic [ref=e47]:
+                - generic [ref=e48]: "\"banana\""
+                - generic [ref=e49]: string
+              - generic [ref=e50]:
+                - generic [ref=e51]: "{\"x\":1}"
+                - generic [ref=e52]: object
+              - generic [ref=e53]:
+                - generic [ref=e54]: NaN
+                - generic [ref=e55]: NaN
+        - generic [ref=e56]: "In JavaScript, Sets use \"SameValueZero\" equality: - NaN is considered equal to NaN (so duplicates of NaN are removed). - Objects are compared by reference (two distinct objects with same content are different). - Insertion order is preserved when iterating."
+    - generic [ref=e57]:
+      - generic [ref=e58]: Set Operations
+      - generic [ref=e59]:
+        - button "Union" [ref=e60] [cursor=pointer]
+        - button "Intersection" [ref=e61] [cursor=pointer]
+        - button "A \\ B (Difference)" [ref=e62] [cursor=pointer]
+        - button "Symmetric Diff" [ref=e63] [cursor=pointer]
+        - button "A ⊆ B?" [ref=e64] [cursor=pointer]
+        - button "A == B?" [ref=e65] [cursor=pointer]
+      - generic [ref=e66]:
+        - generic [ref=e67]: Quick demos & gotchas
+        - generic [ref=e68]:
+          - button "Show NaN behavior" [ref=e69] [cursor=pointer]
+          - button "Show objects-by-reference" [ref=e70] [cursor=pointer]
+          - button "Insertion order demo" [ref=e71] [cursor=pointer]
+      - generic [ref=e72]: "Code note: examples below show idiomatic JS for creating and computing set operations."
+  - contentinfo [ref=e73]: "Tip: You can enter tokens like 1, \"two\", true, null, undefined, NaN, {\"x\":1} (objects/arrays using JSON syntax), or bare words (treated as strings)."
+```

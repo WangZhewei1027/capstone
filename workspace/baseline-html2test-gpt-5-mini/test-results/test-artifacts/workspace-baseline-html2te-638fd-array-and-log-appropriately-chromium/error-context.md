@@ -1,0 +1,61 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Two Pointers — Interactive Visualizations" [level=1] [ref=e5]
+      - paragraph [ref=e6]: "Explore common two-pointer patterns: pair-sum in a sorted array, in-place remove duplicates, and maximizing water container. Step through the pointer movements to build intuition."
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: Choose problem
+      - combobox "Choose problem" [ref=e10]:
+        - option "Pair Sum (sorted array)" [selected]
+        - option "Remove Duplicates (in-place)"
+        - option "Container With Most Water"
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - generic [ref=e13]: Array (comma or space separated numbers)
+          - textbox "Array (comma or space separated numbers)" [ref=e14]:
+            - /placeholder: e.g. 1 2 2 3 4 5
+          - generic [ref=e15]:
+            - button "Random" [ref=e16] [cursor=pointer]
+            - button "Clear" [ref=e17] [cursor=pointer]
+        - generic [ref=e18]:
+          - generic [ref=e19]: Target (for Pair Sum)
+          - spinbutton "Target (for Pair Sum)" [ref=e20]
+          - generic [ref=e21]: Pair Sum assumes a sorted array. Use the "Sort" button or provide a sorted array.
+          - generic [ref=e22]:
+            - button "Sort" [ref=e23] [cursor=pointer]
+            - button "Shuffle" [ref=e24] [cursor=pointer]
+      - generic [ref=e25]:
+        - generic [ref=e26]: Animation speed
+        - slider [ref=e27]: "450"
+        - generic [ref=e28]: "Step delay: 450ms"
+      - generic [ref=e29]:
+        - generic [ref=e30]: Controls
+        - generic [ref=e31]:
+          - button "Start" [ref=e32] [cursor=pointer]
+          - button "Pause" [ref=e33] [cursor=pointer]
+          - button "Step" [ref=e34] [cursor=pointer]
+          - button "Reset" [ref=e35] [cursor=pointer]
+      - generic [ref=e36]:
+        - generic [ref=e37]: Quick examples
+        - generic [ref=e38]:
+          - button "Sorted with duplicates" [ref=e39] [cursor=pointer]
+          - button "Heights (container)" [ref=e40] [cursor=pointer]
+          - button "Pair-sum example" [ref=e41] [cursor=pointer]
+      - generic [ref=e42]:
+        - strong [ref=e43]: "Two pointers patterns:"
+        - list [ref=e44]:
+          - listitem [ref=e45]: "Opposite ends: left/right moving toward each other (pair-sum, max area)."
+          - listitem [ref=e46]: "Fast/slow: one pointer moves faster (find middle or detect cycles)."
+          - listitem [ref=e47]: "Sliding window: expand/contract window using two indices (subarray sums)."
+      - generic [ref=e48]: "Tip: enter small arrays (6–12 elements) for clearer visuals. Use the Step button to walk the algorithm manually."
+    - generic [ref=e49]:
+      - generic [ref=e50]:
+        - generic [ref=e51]: Pair Sum (sorted array)
+        - generic [ref=e52]: "Time: O(n) • Space: O(1)"
+      - generic [ref=e55]: Array is empty — enter numbers and press Start.
+      - generic [ref=e56]: Problem changed. Enter inputs and press Start.
+```

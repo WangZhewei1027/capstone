@@ -1,0 +1,78 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Floyd-Warshall Algorithm Demonstration" [level=1] [ref=e2]
+  - paragraph [ref=e4]:
+    - text: Enter the number of vertices and fill the adjacency matrix with weights. Use
+    - code [ref=e5]: ∞
+    - text: or
+    - code [ref=e6]: "9999"
+    - text: to represent no direct edge.
+  - generic [ref=e7]:
+    - text: "Number of vertices (max 10):"
+    - spinbutton "Number of vertices (max 10):" [ref=e8]: "4"
+    - button "Generate Matrix" [ref=e9] [cursor=pointer]
+  - generic [ref=e10]:
+    - table [ref=e12]:
+      - row "V0 V1 V2 V3" [ref=e13]:
+        - cell [ref=e14]
+        - cell "V0" [ref=e15]
+        - cell "V1" [ref=e16]
+        - cell "V2" [ref=e17]
+        - cell "V3" [ref=e18]
+      - row "V0 9999 9999 9999" [ref=e19]:
+        - cell "V0" [ref=e20]
+        - cell [ref=e21]:
+          - spinbutton [ref=e22]: "0"
+        - cell "9999" [ref=e23]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e24]: "9999"
+        - cell "9999" [ref=e25]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e26]: "9999"
+        - cell "9999" [ref=e27]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e28]: "9999"
+      - row "V1 9999 9999 9999" [ref=e29]:
+        - cell "V1" [ref=e30]
+        - cell "9999" [ref=e31]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e32]: "9999"
+        - cell [ref=e33]:
+          - spinbutton [ref=e34]: "0"
+        - cell "9999" [ref=e35]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e36]: "9999"
+        - cell "9999" [ref=e37]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e38]: "9999"
+      - row "V2 9999 9999 9999" [ref=e39]:
+        - cell "V2" [ref=e40]
+        - cell "9999" [ref=e41]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e42]: "9999"
+        - cell "9999" [ref=e43]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e44]: "9999"
+        - cell [ref=e45]:
+          - spinbutton [ref=e46]: "0"
+        - cell "9999" [ref=e47]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e48]: "9999"
+      - row "V3 9999 9999 9999" [ref=e49]:
+        - cell "V3" [ref=e50]
+        - cell "9999" [ref=e51]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e52]: "9999"
+        - cell "9999" [ref=e53]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e54]: "9999"
+        - cell "9999" [ref=e55]:
+          - textbox "Enter edge weight or ∞ for no direct edge" [ref=e56]: "9999"
+        - cell [ref=e57]:
+          - spinbutton [ref=e58]: "0"
+    - generic [ref=e59]:
+      - button "Run Floyd-Warshall" [ref=e60] [cursor=pointer]
+      - button "Reset" [ref=e61] [cursor=pointer]
+  - generic [ref=e63]:
+    - paragraph [ref=e64]:
+      - strong [ref=e65]: "Legend:"
+    - list [ref=e66]:
+      - listitem [ref=e67]:
+        - code [ref=e68]: ∞
+        - text: or
+        - code [ref=e69]: "9999"
+        - text: means no path / infinity distance
+      - listitem [ref=e70]: The matrix displayed after each iteration shows shortest distances so far
+      - listitem [ref=e71]: The path matrix shows the next vertex on the shortest path between nodes
+```

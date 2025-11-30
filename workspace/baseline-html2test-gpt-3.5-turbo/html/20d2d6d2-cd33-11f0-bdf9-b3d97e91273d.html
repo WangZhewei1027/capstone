@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>K-Nearest Neighbors (KNN) Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f7f9fc;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 5px;
+  }
+  #canvasContainer {
+    text-align: center;
+    margin: 20px auto;
+    max-width: 800px;
+  }
+  canvas {
+    border: 1px solid #ddd;
+    background: white;
+    cursor: crosshair;
+  }
+  #controls {
+    max-width: 800px;
+    margin: 0 auto 20px auto;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+  label {
+    font-weight: bold;
+  }
+  input[type=number] {
+    width: 60px;
+    padding: 5px;
+  }
+  button {
+    padding: 6px 12px;
+    font-size: 1em;
+    cursor: pointer;
+  }
+  #info {
+    max-width: 800px;
+    margin: 10px auto;
+    padding: 10px;
+    background: #eef6ff;
+    border-radius: 5px;
+    min-height: 24px;
+  }
+  #legend {
+    max-width: 800px;
+    margin: 10px auto;
+    font-size: 14px;
+  }
+  .point {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    vertical-align: middle;
+    border-radius: 50%;
+  }
+  .classA { background: #E24A4A; }
+  .classB { background: #4A90E2; }
+  .classUnknown { background: #777777; }
+</style>
+</head>
+<body>
+<h1>K-Nearest Neighbors (KNN) Demonstration</h1>
+<div id="controls">
+  <label for="kInput">Choose k:</label>
+  <input type="number" id="kInput" min="1" max="15" value="3" />
+  <button id="clearDataBtn">Clear Data Points</button>
+  <button id="clearQueryBtn">Clear Query Points</button>
+  <button id="resetAllBtn">Reset All</button>
+  <span style="flex-grow: 1;"></span>
+  <label><input type="radio" name="classSelect" value="A" checked /> Class A (red)</label>
+  <label><input type="radio" name="classSelect" value="B" /> Class B (blue)</label>
+</div>
+<div id="canvasContainer">
+  <canvas id="knnCanvas" width="700" height="500" aria-label="KNN plot area"></canvas>
+</div>
+<div id="info">Click on canvas to add data points or query points.<br>
+- Left Click: add point for selected class<br>
+- Shift + Click: add query point (unlabeled)<br>
+Query points will be classified using KNN with chosen k.</div>
+<div id="legend">
+  <span class="point classA"></span> Class A points &nbsp;&nbsp;
+  <span class="point classB"></span> Class B points &nbsp;&nbsp;
+  <span class="point classUnknown"></span> Query (unlabeled) points<br>
+  When clicking query points, colored circle shows predicted class and its neighbors are highlighted.
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('knnCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let dataPoints = [];  // {x, y, class: 'A' or 'B'}
+  let queryPoints = []; // {x, y, predictedClass, neighbors: [...]}
+
+  // Colors and styles
+  const colors = {
+    A: '#E24A4A', // Red-ish
+    B: '#4A90E2', // Blue-ish
+    queryFill: '#777777',
+    neighborLine: 'rgba(100,100,100,0.5)',
+    neighborFill: 'rgba(255, 165, 0, 0.4)',
+  };
+
+  // Get selected class for data point adding
+  function getSelectedClass() {
+    const radios = document.getElementsByName('classSelect');
+    for (const r of radios) {
+      if (r.checked) return r.value;
+    }
+    return 'A';
+  }
+
+  // Euclidean distance between two points
+  function dist(p1, p2) {
+    return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+  }
+
+  // Find K nearest neighbors of point p among dataPoints
+  function findKNearestNeighbors(p, k) {
+    // Sort dataPoints by distance to p
+    const sorted = dataPoints
+      .map(dp => ({...dp, distance: dist(p, dp)}))
+      .sort((a, b) => a.distance - b.distance);
+    return sorted.slice(0, k);
+  }
+
+  // Classify a query point with KNN
+  function classifyPoint(p, k) {
+    if (!dataPoints.length) return null;
+    const neighbors = findKNearestNeighbors(p, k);
+    // Count votes
+    const votes = {};
+    neighbors.forEach(n => {
+      votes[n.class] = (votes[n.class] || 0) + 1;
+    });
+    // Find class with max votes (break ties by nearest neighbor)
+    let maxVotes = -1;
+    let candidates = [];
+    for (const cls in votes) {
+      if (votes[cls] > maxVotes) {
+        maxVotes = votes[cls];
+        candidates = [cls];
+      } else if (votes[cls] === maxVotes) {
+        candidates.push(cls);
+      }
+    }
+    if (candidates.length === 1) {
+      return {predictedClass: candidates[0], neighbors};
+    } else {
+      // Tie-break: choose closest neighbor's class among candidates
+      for (const n of neighbors) {
+        if (candidates.includes(n.class)) {
+          return {predictedClass: n.class, neighbors};
+        }
+      }
+    }
+    return {predictedClass: candidates[0], neighbors};
+  }
+
+  // Draw all points and query predictions
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw data points
+    for (const p of dataPoints) {
+      drawPoint(p.x, p.y, colors[p.class], 8, 'black');
+    }
+
+    // Draw all query points first with neutral color
+    for (const qp of queryPoints) {
+      if (!qp.predictedClass) {
+        drawPoint(qp.x, qp.y, colors.queryFill, 8, 'black', true);
+      }
+    }
+
+    // Then draw classified query points with predicted class and neighbors lines
+    for (const qp of queryPoints) {
+      if (qp.predictedClass && qp.neighbors) {
+        // Draw lines to neighbors
+        for (const n of qp.neighbors) {
+          ctx.strokeStyle = colors.neighborLine;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(qp.x, qp.y);
+          ctx.lineTo(n.x, n.y);
+          ctx.stroke();
+          // Draw neighbor highlight circle
+          ctx.fillStyle = colors.neighborFill;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, 12, 0, Math.PI*2);
+          ctx.fill();
+          // Draw neighbor center point
+          drawPoint(n.x, n.y, colors[n.class], 8, 'black');
+        }
+        // Draw query point with predicted class color
+        drawPoint(qp.x, qp.y, colors[qp.predictedClass], 10, 'black', false, 2);
+      }
+    }
+  }
+
+  // Draw a point with fill and stroke
+  // If hollow=true, just draw circle outline
+  function drawPoint(x, y, fillColor, radius=6, strokeColor='black', hollow=false, strokeWidth=1) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI*2);
+    if(hollow) {
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
+      ctx.stroke();
+    }
+  }
+
+  // Update all query points classification
+  function updateQueryClassifications() {
+    const k = parseInt(document.getElementById('kInput').value) || 3;
+    if (!dataPoints.length) {
+      queryPoints.forEach(qp => {
+        qp.predictedClass = null;
+        qp.neighbors = null;
+      });
+      return;
+    }
+    queryPoints.forEach(qp => {
+      const res = classifyPoint(qp, k);
+      if (res) {
+        qp.predictedClass = res.predictedClass;
+        qp.neighbors = res.neighbors;
+      } else {
+        qp.predictedClass = null;
+        qp.neighbors = null;
+      }
+    });
+  }
+
+  // Convert mouse event coords to canvas coords
+  function getMousePos(evt) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: evt.clientX - rect.left,
+      y: evt.clientY - rect.top
+    };
+  }
+
+  // Handle canvas clicks:
+  // - Shift+Click => add query point (unlabeled)
+  // - Click => add data point with selected class
+  canvas.addEventListener('click', evt => {
+    const pos = getMousePos(evt);
+    if (evt.shiftKey) {
+      // Add query point (unlabeled)
+      queryPoints.push({x: pos.x, y: pos.y});
+      updateQueryClassifications();
+      draw();
+      updateInfo(`Added QUERY point at (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}).`);
+    } else {
+      // Add data point
+      const cls = getSelectedClass();
+      dataPoints.push({x: pos.x, y: pos.y, class: cls});
+      updateQueryClassifications();
+      draw();
+      updateInfo(`Added DATA point for class ${cls} at (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}).`);
+    }
+  });
+
+  // Update info text
+  const infoBox = document.getElementById('info');
+  function updateInfo(text) {
+    infoBox.innerHTML = text;
+  }
+
+  // Handle k input changes
+  document.getElementById('kInput').addEventListener('input', () => {
+    const k = parseInt(document.getElementById('kInput').value);
+    const maxK = Math.max(1, Math.min(15, dataPoints.length));
+    if (k > maxK) {
+      document.getElementById('kInput').value = maxK;
+    }
+    updateQueryClassifications();
+    draw();
+    updateInfo(`Changed k to ${document.getElementById('kInput').value}.`);
+  });
+
+  // Buttons to clear data or query points
+  document.getElementById('clearDataBtn').addEventListener('click', () => {
+    dataPoints = [];
+    updateQueryClassifications();
+    draw();
+    updateInfo("Cleared all data points.");
+  });
+
+  document.getElementById('clearQueryBtn').addEventListener('click', () => {
+    queryPoints = [];
+    draw();
+    updateInfo("Cleared all query points.");
+  });
+
+  document.getElementById('resetAllBtn').addEventListener('click', () => {
+    dataPoints = [];
+    queryPoints = [];
+    document.getElementById('kInput').value = 3;
+    draw();
+    updateInfo("Reset all points and k.");
+  });
+
+  // Initial draw
+  draw();
+  updateInfo("Click on canvas to add data points or query points.<br>- Left Click: add point for selected class<br>- Shift + Click: add query point (unlabeled)<br>Query points will be classified using KNN with chosen k.");
+
+})();
+</script>
+</body>
+</html>

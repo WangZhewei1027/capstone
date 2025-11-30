@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Huffman Coding Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 2rem;
+    max-width: 800px;
+  }
+  h1 {
+    text-align: center;
+  }
+  label {
+    font-weight: bold;
+    display: block;
+    margin-top: 1rem;
+  }
+  textarea {
+    width: 100%;
+    height: 100px;
+    font-family: monospace;
+    font-size: 14px;
+  }
+  pre {
+    background: #fafafa;
+    border: 1px solid #ddd;
+    padding: 1rem;
+    white-space: pre-wrap;
+  }
+  button {
+    margin-top: 0.5rem;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+  }
+  .flexrow {
+    display: flex;
+    gap: 1rem;
+  }
+  .flexcol {
+    flex: 1;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 1rem;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 0.25rem 0.5rem;
+    text-align: center;
+  }
+  .code-bit {
+    font-weight: bold;
+    color: #007bff;
+    user-select: all;
+  }
+</style>
+</head>
+<body>
+
+<h1>Huffman Coding Demo</h1>
+
+<label for="input-text">Enter text to encode:</label>
+<textarea id="input-text" placeholder="Enter text here...">this is an example for huffman encoding</textarea>
+<button id="build-btn">Build Huffman Tree & Encode</button>
+
+<div id="results" style="display:none; margin-top:2rem;">
+
+  <h2>Step 1: Frequency Table</h2>
+  <table id="freq-table" aria-label="Character frequency table">
+    <thead>
+      <tr><th>Character</th><th>Frequency</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Step 2: Huffman Codes</h2>
+  <table id="code-table" aria-label="Character Huffman codes table">
+    <thead>
+      <tr><th>Character</th><th>Code</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Step 3: Encoded Output</h2>
+  <pre id="encoded-output" aria-label="Encoded binary string"></pre>
+
+  <h2>Step 4: Decode Input</h2>
+  <button id="decode-btn">Decode the encoded binary string</button>
+  <pre id="decoded-output" aria-live="polite" aria-atomic="true" aria-label="Decoded text output" style="margin-top:0.5rem; font-weight:bold;"></pre>
+
+</div>
+
+<script>
+  // Huffman coding implementation
+
+  // Node class for Huffman tree
+  class Node {
+    constructor(char, freq, left=null, right=null) {
+      this.char = char;
+      this.freq = freq;
+      this.left = left;
+      this.right = right;
+    }
+  }
+
+  // Priority queue implemented as min heap for nodes
+  class PriorityQueue {
+    constructor() {
+      this.data = [];
+    }
+    push(node) {
+      this.data.push(node);
+      this._bubbleUp(this.data.length - 1);
+    }
+    pop() {
+      if (this.data.length === 0) return null;
+      const top = this.data[0];
+      const end = this.data.pop();
+      if(this.data.length > 0){
+        this.data[0] = end;
+        this._bubbleDown(0);
+      }
+      return top;
+    }
+    size() {
+      return this.data.length;
+    }
+    _bubbleUp(idx) {
+      while(idx > 0){
+        let parent = Math.floor((idx-1)/2);
+        if(this.data[parent].freq <= this.data[idx].freq) break;
+        [this.data[parent], this.data[idx]] = [this.data[idx], this.data[parent]];
+        idx = parent;
+      }
+    }
+    _bubbleDown(idx) {
+      let leftChild, rightChild, smallest;
+      while(true){
+        smallest = idx;
+        leftChild = 2*idx + 1;
+        rightChild = 2*idx + 2;
+        if(leftChild < this.data.length && this.data[leftChild].freq < this.data[smallest].freq){
+          smallest = leftChild;
+        }
+        if(rightChild < this.data.length && this.data[rightChild].freq < this.data[smallest].freq){
+          smallest = rightChild;
+        }
+        if(smallest === idx) break;
+        [this.data[smallest], this.data[idx]] = [this.data[idx], this.data[smallest]];
+        idx = smallest;
+      }
+    }
+  }
+
+  // Compute frequency of each character in the text
+  function computeFrequency(text) {
+    const freq = new Map();
+    for(const ch of text){
+      freq.set(ch, (freq.get(ch) || 0) + 1);
+    }
+    return freq;
+  }
+
+  // Build Huffman tree from frequency map
+  function buildHuffmanTree(freqMap) {
+    const pq = new PriorityQueue();
+    for(const [ch, freq] of freqMap.entries()){
+      pq.push(new Node(ch, freq));
+    }
+    // Edge case: If only one character, make a tree with two nodes
+    if(pq.size() === 1){
+      const onlyNode = pq.pop();
+      // Add a dummy node with 0 freq as sibling
+      pq.push(new Node(null, 0));
+      pq.push(onlyNode);
+    }
+    while(pq.size() > 1){
+      const left = pq.pop();
+      const right = pq.pop();
+      const merged = new Node(null, left.freq + right.freq, left, right);
+      pq.push(merged);
+    }
+    return pq.pop();
+  }
+
+  // Generate Huffman codes by traversing the tree
+  function generateCodes(node, prefix = '', codeMap = new Map()){
+    if(!node) return;
+    if(node.char !== null){
+      codeMap.set(node.char, prefix || '0'); // handle single node tree by assigning '0'
+    }
+    generateCodes(node.left, prefix + '0', codeMap);
+    generateCodes(node.right, prefix + '1', codeMap);
+    return codeMap;
+  }
+
+  // Encode text using code map
+  function encodeText(text, codeMap){
+    let encoded = '';
+    for(const ch of text){
+      encoded += codeMap.get(ch);
+    }
+    return encoded;
+  }
+
+  // Decode binary string using Huffman tree
+  function decodeBinary(encodedStr, huffmanTree){
+    let node = huffmanTree;
+    let decoded = '';
+    for(let bit of encodedStr){
+      if(bit === '0'){
+        node = node.left;
+      } else if(bit === '1'){
+        node = node.right;
+      } else {
+        // ignore invalid bits
+        continue;
+      }
+      if(node.char !== null){
+        decoded += node.char;
+        node = huffmanTree;
+      }
+    }
+    return decoded;
+  }
+
+  // UI Elements
+  const inputText = document.getElementById('input-text');
+  const buildBtn = document.getElementById('build-btn');
+  const freqTableBody = document.querySelector('#freq-table tbody');
+  const codeTableBody = document.querySelector('#code-table tbody');
+  const encodedOutput = document.getElementById('encoded-output');
+  const resultsDiv = document.getElementById('results');
+  const decodeBtn = document.getElementById('decode-btn');
+  const decodedOutput = document.getElementById('decoded-output');
+
+  let currentHuffmanTree = null;
+  let currentEncodedStr = '';
+  let currentCodeMap = null;
+
+  function clearTables(){
+    freqTableBody.innerHTML = '';
+    codeTableBody.innerHTML = '';
+    encodedOutput.textContent = '';
+    decodedOutput.textContent = '';
+    resultsDiv.style.display = 'none';
+  }
+
+  buildBtn.addEventListener('click', () => {
+    const text = inputText.value;
+    if(!text || text.length === 0){
+      alert("Please enter some text to encode.");
+      return;
+    }
+
+    // Clear previous results
+    clearTables();
+
+    // Step 1: Frequency Table
+    const freqMap = computeFrequency(text);
+    // Sort frequency by descending freq, then char
+    const freqArray = Array.from(freqMap.entries())
+      .sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    for(const [ch, freq] of freqArray){
+      const tr = document.createElement('tr');
+      const charTd = document.createElement('td');
+      charTd.textContent = ch === ' ' ? 'space' : ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : ch;
+      const freqTd = document.createElement('td');
+      freqTd.textContent = freq;
+      tr.appendChild(charTd);
+      tr.appendChild(freqTd);
+      freqTableBody.appendChild(tr);
+    }
+
+    // Step 2: Build Huffman Tree
+    currentHuffmanTree = buildHuffmanTree(freqMap);
+
+    // Step 3: Generate Codes
+    currentCodeMap = generateCodes(currentHuffmanTree);
+
+    // Display codes sorted by character ascending
+    const codeArray = Array.from(currentCodeMap.entries())
+      .sort((a,b) => a[0].localeCompare(b[0]));
+    for(const [ch, code] of codeArray){
+      const tr = document.createElement('tr');
+      const charTd = document.createElement('td');
+      charTd.textContent = ch === ' ' ? 'space' : ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : ch;
+      const codeTd = document.createElement('td');
+      codeTd.innerHTML = code.split('').map(bit => `<span class="code-bit">${bit}</span>`).join('');
+      tr.appendChild(charTd);
+      tr.appendChild(codeTd);
+      codeTableBody.appendChild(tr);
+    }
+
+    // Step 4: Encode text
+    currentEncodedStr = encodeText(text, currentCodeMap);
+    // Format encoded string with spaces every 8 bits for readability
+    let formattedEncoded = currentEncodedStr.match(/.{1,8}/g)?.join(' ') || '';
+    encodedOutput.textContent = formattedEncoded;
+
+    resultsDiv.style.display = 'block';
+    decodedOutput.textContent = ''; // clear decode output
+  });
+
+  decodeBtn.addEventListener('click', () => {
+    if(!currentEncodedStr || !currentHuffmanTree){
+      alert("Please encode text first.");
+      return;
+    }
+    const decoded = decodeBinary(currentEncodedStr, currentHuffmanTree);
+    decodedOutput.textContent = decoded;
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,92 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - heading "Kruskal's Algorithm Demo" [level=2] [ref=e7]
+    - generic [ref=e8]: Step-by-step MST using Union-Find
+  - generic [ref=e9]:
+    - generic [ref=e10] [cursor=pointer]: Add Node
+    - generic [ref=e11] [cursor=pointer]: "Edge Mode: OFF"
+    - generic [ref=e12] [cursor=pointer]: Clear Graph
+  - generic [ref=e13]:
+    - generic [ref=e14]: Random Graph
+    - generic [ref=e15]:
+      - spinbutton [ref=e16]: "8"
+      - slider [ref=e17]: "40"
+    - generic [ref=e18]:
+      - generic [ref=e19] [cursor=pointer]: Generate
+      - generic [ref=e20] [cursor=pointer]: Ensure Connected
+    - generic [ref=e21]: "Density: 40%"
+  - generic [ref=e22]:
+    - generic [ref=e23]: Algorithm Controls
+    - generic [ref=e24]:
+      - generic [ref=e25] [cursor=pointer]: Reset Algorithm
+      - generic [ref=e26] [cursor=pointer]: Step
+      - generic [ref=e27] [cursor=pointer]: Auto Run
+    - generic [ref=e28]: Click Step to process one edge (sorted by weight). Auto Run animates steps.
+  - generic [ref=e29]:
+    - generic [ref=e30]: Edges (sorted)
+    - generic [ref=e31]:
+      - generic "Edge 0 - 5" [ref=e32]:
+        - generic [ref=e35]: 0 — 5
+        - generic [ref=e36]:
+          - generic [ref=e37]: "2"
+          - generic [ref=e38] [cursor=pointer]: Edit
+      - generic "Edge 1 - 4" [ref=e39]:
+        - generic [ref=e42]: 1 — 4
+        - generic [ref=e43]:
+          - generic [ref=e44]: "47"
+          - generic [ref=e45] [cursor=pointer]: Edit
+      - generic "Edge 0 - 2" [ref=e46]:
+        - generic [ref=e49]: 0 — 2
+        - generic [ref=e50]:
+          - generic [ref=e51]: "54"
+          - generic [ref=e52] [cursor=pointer]: Edit
+  - generic [ref=e53]:
+    - generic [ref=e54]: MST Total Weight
+    - generic [ref=e55]:
+      - generic [ref=e56]: "0"
+      - generic [ref=e57]: "edges selected: 0 / 5"
+  - generic [ref=e58]:
+    - generic [ref=e59]: Union-Find (parents & ranks)
+    - table [ref=e60]:
+      - rowgroup [ref=e61]:
+        - row "Node Parent Rank" [ref=e62]:
+          - cell "Node" [ref=e63]
+          - cell "Parent" [ref=e64]
+          - cell "Rank" [ref=e65]
+      - rowgroup [ref=e66]:
+        - row "0 0 0" [ref=e67]:
+          - cell "0" [ref=e68]
+          - cell "0" [ref=e69]
+          - cell "0" [ref=e70]
+        - row "1 1 0" [ref=e71]:
+          - cell "1" [ref=e72]
+          - cell "1" [ref=e73]
+          - cell "0" [ref=e74]
+        - row "2 2 0" [ref=e75]:
+          - cell "2" [ref=e76]
+          - cell "2" [ref=e77]
+          - cell "0" [ref=e78]
+        - row "3 3 0" [ref=e79]:
+          - cell "3" [ref=e80]
+          - cell "3" [ref=e81]
+          - cell "0" [ref=e82]
+        - row "4 4 0" [ref=e83]:
+          - cell "4" [ref=e84]
+          - cell "4" [ref=e85]
+          - cell "0" [ref=e86]
+        - row "5 5 0" [ref=e87]:
+          - cell "5" [ref=e88]
+          - cell "5" [ref=e89]
+          - cell "0" [ref=e90]
+  - generic [ref=e91]:
+    - generic [ref=e92]: Tips
+    - generic [ref=e93]:
+      - text: "- Click \"Add Node\" and then click canvas to add at mouse. Drag nodes to reposition."
+      - text: "- Toggle \"Edge Mode\" then click two nodes to create an edge (you'll be prompted for a weight)."
+      - text: "- You can also generate random graphs."
+      - text: "- Run Kruskal step-by-step to see selection or rejection of edges."
+  - generic [ref=e94]: "Implementation notes: edges colored green=selected (MST), red=rejected (would form cycle), yellow=current; gray=pending."
+```

@@ -1,0 +1,114 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Adjacency Matrix Visualizer" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]: Explore graphs by editing the adjacency matrix. Click cells to toggle edges (or enter weights).
+    - generic [ref=e5]:
+      - button "Export JSON" [ref=e6] [cursor=pointer]
+      - button "Copy JSON" [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - text: "# nodes:"
+          - spinbutton "# nodes:" [ref=e12]: "6"
+        - generic [ref=e13]:
+          - checkbox "Directed" [ref=e14]
+          - text: Directed
+        - generic [ref=e15]:
+          - checkbox "Weighted" [ref=e16]
+          - text: Weighted
+        - generic [ref=e17]:
+          - checkbox "Allow self-loops" [checked] [ref=e18]
+          - text: Allow self-loops
+        - button "Resize" [ref=e19] [cursor=pointer]
+        - button "Randomize" [ref=e20] [cursor=pointer]
+        - button "Clear" [ref=e21] [cursor=pointer]
+        - button "Enforce Symmetry" [ref=e22] [cursor=pointer]
+      - generic "Adjacency matrix" [ref=e23]:
+        - table [ref=e24]:
+          - rowgroup [ref=e25]:
+            - row "\\ 0 1 2 3 4 5" [ref=e26]:
+              - cell "\\" [ref=e27]
+              - cell "0" [ref=e28]
+              - cell "1" [ref=e29]
+              - cell "2" [ref=e30]
+              - cell "3" [ref=e31]
+              - cell "4" [ref=e32]
+              - cell "5" [ref=e33]
+          - rowgroup [ref=e34]:
+            - row "0 Click to toggle edge 0 → 0 Click to toggle edge 0 → 1 Click to toggle edge 0 → 2 Click to toggle edge 0 → 3 Click to toggle edge 0 → 4 Click to toggle edge 0 → 5" [ref=e35]:
+              - cell "0" [ref=e36]
+              - cell "Click to toggle edge 0 → 0" [ref=e37] [cursor=pointer]
+              - cell "Click to toggle edge 0 → 1" [ref=e38] [cursor=pointer]
+              - cell "Click to toggle edge 0 → 2" [ref=e39] [cursor=pointer]
+              - cell "Click to toggle edge 0 → 3" [ref=e40] [cursor=pointer]
+              - cell "Click to toggle edge 0 → 4" [ref=e41] [cursor=pointer]
+              - cell "Click to toggle edge 0 → 5" [ref=e42] [cursor=pointer]
+            - row "1 Click to toggle edge 1 → 0 Click to toggle edge 1 → 1 Click to toggle edge 1 → 2 Click to toggle edge 1 → 3 Click to toggle edge 1 → 4 Click to toggle edge 1 → 5" [ref=e43]:
+              - cell "1" [ref=e44]
+              - cell "Click to toggle edge 1 → 0" [ref=e45] [cursor=pointer]
+              - cell "Click to toggle edge 1 → 1" [ref=e46] [cursor=pointer]
+              - cell "Click to toggle edge 1 → 2" [ref=e47] [cursor=pointer]
+              - cell "Click to toggle edge 1 → 3" [ref=e48] [cursor=pointer]
+              - cell "Click to toggle edge 1 → 4" [ref=e49] [cursor=pointer]
+              - cell "Click to toggle edge 1 → 5" [ref=e50] [cursor=pointer]
+            - row "2 Click to toggle edge 2 → 0 Click to toggle edge 2 → 1 Click to toggle edge 2 → 2 Click to toggle edge 2 → 3 Click to toggle edge 2 → 4 Click to toggle edge 2 → 5" [ref=e51]:
+              - cell "2" [ref=e52]
+              - cell "Click to toggle edge 2 → 0" [ref=e53] [cursor=pointer]
+              - cell "Click to toggle edge 2 → 1" [ref=e54] [cursor=pointer]
+              - cell "Click to toggle edge 2 → 2" [ref=e55] [cursor=pointer]
+              - cell "Click to toggle edge 2 → 3" [ref=e56] [cursor=pointer]
+              - cell "Click to toggle edge 2 → 4" [ref=e57] [cursor=pointer]
+              - cell "Click to toggle edge 2 → 5" [ref=e58] [cursor=pointer]
+            - row "3 Click to toggle edge 3 → 0 Click to toggle edge 3 → 1 Click to toggle edge 3 → 2 Click to toggle edge 3 → 3 Click to toggle edge 3 → 4 Click to toggle edge 3 → 5" [ref=e59]:
+              - cell "3" [ref=e60]
+              - cell "Click to toggle edge 3 → 0" [ref=e61] [cursor=pointer]
+              - cell "Click to toggle edge 3 → 1" [ref=e62] [cursor=pointer]
+              - cell "Click to toggle edge 3 → 2" [ref=e63] [cursor=pointer]
+              - cell "Click to toggle edge 3 → 3" [ref=e64] [cursor=pointer]
+              - cell "Click to toggle edge 3 → 4" [ref=e65] [cursor=pointer]
+              - cell "Click to toggle edge 3 → 5" [ref=e66] [cursor=pointer]
+            - row "4 Click to toggle edge 4 → 0 Click to toggle edge 4 → 1 Click to toggle edge 4 → 2 Click to toggle edge 4 → 3 Click to toggle edge 4 → 4 Click to toggle edge 4 → 5" [ref=e67]:
+              - cell "4" [ref=e68]
+              - cell "Click to toggle edge 4 → 0" [ref=e69] [cursor=pointer]
+              - cell "Click to toggle edge 4 → 1" [ref=e70] [cursor=pointer]
+              - cell "Click to toggle edge 4 → 2" [ref=e71] [cursor=pointer]
+              - cell "Click to toggle edge 4 → 3" [ref=e72] [cursor=pointer]
+              - cell "Click to toggle edge 4 → 4" [ref=e73] [cursor=pointer]
+              - cell "Click to toggle edge 4 → 5" [ref=e74] [cursor=pointer]
+            - row "5 Click to toggle edge 5 → 0 Click to toggle edge 5 → 1 Click to toggle edge 5 → 2 Click to toggle edge 5 → 3 Click to toggle edge 5 → 4 Click to toggle edge 5 → 5" [ref=e75]:
+              - cell "5" [ref=e76]
+              - cell "Click to toggle edge 5 → 0" [ref=e77] [cursor=pointer]
+              - cell "Click to toggle edge 5 → 1" [ref=e78] [cursor=pointer]
+              - cell "Click to toggle edge 5 → 2" [ref=e79] [cursor=pointer]
+              - cell "Click to toggle edge 5 → 3" [ref=e80] [cursor=pointer]
+              - cell "Click to toggle edge 5 → 4" [ref=e81] [cursor=pointer]
+              - cell "Click to toggle edge 5 → 5" [ref=e82] [cursor=pointer]
+      - generic [ref=e83]:
+        - button "Import JSON" [ref=e84] [cursor=pointer]
+        - button "From Adjacency List" [ref=e85] [cursor=pointer]
+      - 'textbox "Paste exported JSON here or an adjacency list like: 0: 1 2 1: 2" [ref=e86]':
+        - /placeholder: "Paste exported JSON here or an adjacency list like:\n0: 1 2\n1: 2\n"
+      - generic [ref=e87]: "0: 1 1: 0 2 2: 1 3 3: 2 4 4: 3 5 5: 0 4"
+    - generic [ref=e88]:
+      - img [ref=e90]:
+        - generic [ref=e105]:
+          - generic: "0"
+        - generic [ref=e107]:
+          - generic: "1"
+        - generic [ref=e109]:
+          - generic: "2"
+        - generic [ref=e111]:
+          - generic: "3"
+        - generic [ref=e113]:
+          - generic: "4"
+        - generic [ref=e115]:
+          - generic: "5"
+      - generic [ref=e117]:
+        - text: Edge present (unweighted)
+        - text: Self-loop
+  - generic [ref=e120]: "Tip: Toggle \"Weighted\" to enter numbers in matrix cells. For undirected graphs, toggle \"Enforce Symmetry\" to keep matrix symmetric when editing."
+```

@@ -1,0 +1,106 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - button "Add Node" [ref=e6] [cursor=pointer]
+        - button "Add Edge" [ref=e7] [cursor=pointer]
+        - button "Move" [ref=e8] [cursor=pointer]
+        - button "Delete" [ref=e9] [cursor=pointer]
+        - generic [ref=e10]:
+          - checkbox "Directed graph" [ref=e11]
+          - text: Directed graph
+        - button "Clear" [ref=e12] [cursor=pointer]
+        - button "Random" [ref=e13] [cursor=pointer]
+      - generic [ref=e15]: "Mode: Add Node"
+    - generic [ref=e17]: "Nodes: 5 Edges: 5"
+  - generic [ref=e18]:
+    - heading "Graph Controls & Tools" [level=3] [ref=e19]
+    - generic [ref=e20]: Interactively build and explore directed or undirected graphs. Use modes to add, connect, move, or remove elements.
+    - generic [ref=e21]:
+      - text: "Selected node (for traversals):"
+      - combobox "Selected node (for traversals):" [ref=e22] [cursor=pointer]:
+        - option "— pick node —" [selected]
+        - option "1 (1)"
+        - option "2 (2)"
+        - option "3 (3)"
+        - option "4 (4)"
+        - option "5 (5)"
+    - generic [ref=e23]:
+      - button "Run BFS" [ref=e24] [cursor=pointer]
+      - button "Run DFS" [ref=e25] [cursor=pointer]
+      - button "Stop" [ref=e26] [cursor=pointer]
+    - generic [ref=e27]: Traversal animations highlight nodes/edges in order. Click a node then press BFS/DFS, or pick from the dropdown.
+    - heading "Adjacency List" [level=3] [ref=e28]
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - strong [ref=e31]: 1 (1)
+        - text: ": 2 (2), 4 (4)"
+      - generic [ref=e32]:
+        - strong [ref=e33]: 2 (2)
+        - text: ": 1 (1), 3 (3), 4 (4)"
+      - generic [ref=e34]:
+        - strong [ref=e35]: 3 (3)
+        - text: ": 2 (2)"
+      - generic [ref=e36]:
+        - strong [ref=e37]: 4 (4)
+        - text: ": 1 (1), 2 (2), 5 (5)"
+      - generic [ref=e38]:
+        - strong [ref=e39]: 5 (5)
+        - text: ": 4 (4)"
+    - heading "Adjacency Matrix" [level=3] [ref=e40]
+    - table [ref=e42]:
+      - rowgroup [ref=e43]:
+        - row "1 2 3 4 5" [ref=e44]:
+          - cell [ref=e45]
+          - cell "1" [ref=e46]
+          - cell "2" [ref=e47]
+          - cell "3" [ref=e48]
+          - cell "4" [ref=e49]
+          - cell "5" [ref=e50]
+      - rowgroup [ref=e51]:
+        - row "1 0 1 0 1 0" [ref=e52]:
+          - cell "1" [ref=e53]
+          - cell "0" [ref=e54]
+          - cell "1" [ref=e55]
+          - cell "0" [ref=e56]
+          - cell "1" [ref=e57]
+          - cell "0" [ref=e58]
+        - row "2 1 0 1 1 0" [ref=e59]:
+          - cell "2" [ref=e60]
+          - cell "1" [ref=e61]
+          - cell "0" [ref=e62]
+          - cell "1" [ref=e63]
+          - cell "1" [ref=e64]
+          - cell "0" [ref=e65]
+        - row "3 0 1 0 0 0" [ref=e66]:
+          - cell "3" [ref=e67]
+          - cell "0" [ref=e68]
+          - cell "1" [ref=e69]
+          - cell "0" [ref=e70]
+          - cell "0" [ref=e71]
+          - cell "0" [ref=e72]
+        - row "4 1 1 0 0 1" [ref=e73]:
+          - cell "4" [ref=e74]
+          - cell "1" [ref=e75]
+          - cell "1" [ref=e76]
+          - cell "0" [ref=e77]
+          - cell "0" [ref=e78]
+          - cell "1" [ref=e79]
+        - row "5 0 0 0 1 0" [ref=e80]:
+          - cell "5" [ref=e81]
+          - cell "0" [ref=e82]
+          - cell "0" [ref=e83]
+          - cell "0" [ref=e84]
+          - cell "1" [ref=e85]
+          - cell "0" [ref=e86]
+    - heading "Examples and Hints" [level=3] [ref=e87]
+    - generic [ref=e88]:
+      - text: "- Click canvas to add nodes."
+      - text: "- Switch to \"Add Edge\" then click a node and then another to connect. Toggle \"Directed graph\" to create directed edges."
+      - text: "- Use Move to drag; Delete to remove nodes or edges."
+      - text: "- Self-loop is created by connecting a node to itself."
+    - generic [ref=e89]: Built-in demo • Interactive HTML + JavaScript • Designed for learning graph concepts
+```

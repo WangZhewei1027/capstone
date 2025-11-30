@@ -1,0 +1,104 @@
+# Page snapshot
+
+```yaml
+- application "Merge Sort Visualizer" [ref=e2]:
+  - heading "Merge Sort Visualizer" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - toolbar [ref=e5]:
+      - button "Generate" [ref=e6] [cursor=pointer]
+      - button "Shuffle" [ref=e7] [cursor=pointer]
+      - button "Start" [ref=e8] [cursor=pointer]
+      - button "Pause" [disabled] [ref=e9] [cursor=pointer]
+      - button "Step" [ref=e10] [cursor=pointer]
+      - button "Reset" [ref=e11] [cursor=pointer]
+      - generic [ref=e12]:
+        - generic [ref=e13]: Size
+        - slider "Size" [ref=e14]: "48"
+      - generic [ref=e15]:
+        - generic [ref=e16]: Speed
+        - slider "Speed" [ref=e17]: "48"
+      - generic [ref=e19]:
+        - checkbox "Descending" [ref=e20]
+        - generic [ref=e21]: Descending
+    - generic [ref=e23]:
+      - generic [ref=e26]: Compare
+      - generic [ref=e29]: Write
+      - generic [ref=e32]: Sorted Range
+  - region "Sort visualization" [ref=e33]:
+    - generic [ref=e34]:
+      - generic "53"
+      - generic "24"
+      - generic "81"
+      - generic "32"
+      - generic "37"
+      - generic "70"
+      - generic "35"
+      - generic "15"
+      - generic "70"
+      - generic "85"
+      - generic "69"
+      - generic "87"
+      - generic "65"
+      - generic "71"
+      - generic "32"
+      - generic "14"
+      - generic "100"
+      - generic "65"
+      - generic "45"
+      - generic "21"
+      - generic "47"
+      - generic "19"
+      - generic "40"
+      - generic "23"
+      - generic "32"
+      - generic "16"
+      - generic "86"
+      - generic "99"
+      - generic "63"
+      - generic "97"
+      - generic "34"
+      - generic "20"
+      - generic "66"
+      - generic "5"
+      - generic "57"
+      - generic "86"
+      - generic "39"
+      - generic "87"
+      - generic "72"
+      - generic "5"
+      - generic "15"
+      - generic "94"
+      - generic "60"
+      - generic "20"
+      - generic "66"
+      - generic "65"
+      - generic "49"
+      - generic "49"
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]: "Comparisons: 0"
+          - generic [ref=e39]: "Writes: 0"
+          - generic [ref=e40]: "Actions queued: 0"
+        - generic [ref=e41]: "Tip: Use Step to advance one recorded action while paused. Increase Speed to animate faster."
+      - generic [ref=e42]:
+        - generic [ref=e43]: Pseudocode (merge sort)
+        - generic [ref=e44]:
+          - generic [ref=e45]: "1 function mergeSort(arr, l, r):"
+          - generic [ref=e46]: "2 if l >= r: return"
+          - generic [ref=e47]: 3 mid = (l + r) // 2
+          - generic [ref=e48]: 4 mergeSort(arr, l, mid)
+          - generic [ref=e49]: 5 mergeSort(arr, mid+1, r)
+          - generic [ref=e50]: 6 merge(arr, l, mid, r)
+          - generic [ref=e51]: "7 function merge(arr, l, mid, r):"
+          - generic [ref=e52]: 8 i = l; j = mid+1; k = l
+          - generic [ref=e53]: "9 while i <= mid and j <= r:"
+          - generic [ref=e54]: "10 if arr[i] <= arr[j]: temp[k++] = arr[i++]"
+          - generic [ref=e55]: "11 else: temp[k++] = arr[j++]"
+          - generic [ref=e56]: "12 while i <= mid: temp[k++] = arr[i++]"
+          - generic [ref=e57]: "13 while j <= r: temp[k++] = arr[j++]"
+          - generic [ref=e58]: 14 copy temp[l..r] back into arr[l..r]
+  - generic [ref=e59]:
+    - generic [ref=e60]: "Stable sort • Time: O(n log n) average/worst • Space: O(n)"
+    - generic [ref=e61]: Visualization by Merge Sort algorithm — interactive and step-through
+```

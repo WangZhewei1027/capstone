@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Union-Find (Disjoint Set) Interactive Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --accent:#4f46e5;
+      --muted:#9aa4bf;
+      --good:#10b981;
+      --danger:#ef4444;
+      --card:#0b1220aa;
+      --glass: linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.005));
+      --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%; margin:0; font-family:var(--font-sans); background: radial-gradient(1200px 600px at 10% 10%, rgba(79,70,229,0.12), transparent), radial-gradient(900px 400px at 90% 90%, rgba(16,185,129,0.04), transparent), var(--bg); color:#e6eef8;}
+    .app{display:flex; height:100vh; gap:16px; padding:18px; box-sizing:border-box;}
+    .left{width:720px; min-width:420px; background:var(--panel); border-radius:12px; padding:12px; box-shadow:0 8px 30px rgba(2,6,23,0.7); display:flex; flex-direction:column; gap:12px;}
+    .right{flex:1; min-width:280px; background:var(--panel); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:12px;}
+    .toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+    .btn{background:transparent; border:1px solid rgba(255,255,255,0.06); padding:8px 10px; border-radius:8px; color:var(--muted); cursor:pointer;}
+    .btn.primary{background:linear-gradient(90deg,var(--accent),#06b6d4); color:white; border:none; box-shadow:0 6px 18px rgba(79,70,229,0.12);}
+    .btn.warn{background:linear-gradient(90deg,#ef4444,#fb923c); color:white;}
+    .btn.ghost{background:transparent; border:1px dashed rgba(255,255,255,0.04);}
+    .small{font-size:13px; padding:6px 8px;}
+    .svg-wrap{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02)); border-radius:10px; padding:8px; flex:1; display:flex; align-items:center; justify-content:center;}
+    svg{width:100%; height:520px; border-radius:10px; overflow:visible;}
+    .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+    .panel{background:var(--card); border-radius:10px; padding:10px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);}
+    .muted{color:var(--muted); font-size:13px;}
+    .log{flex:1; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border-radius:8px; padding:10px; overflow:auto; max-height:260px; font-size:13px;}
+    .row{display:flex; gap:8px; align-items:center;}
+    .switch{display:flex; gap:6px; align-items:center;}
+    .node{cursor:pointer;}
+    .legend{display:flex; gap:8px; flex-wrap:wrap;}
+    .chip{padding:6px 8px; border-radius:999px; background:rgba(255,255,255,0.02); font-size:13px;}
+    .code{background:rgba(0,0,0,0.25); padding:8px; border-radius:8px; font-family:monospace; font-size:12px; color:#dce7ff;}
+    footer{font-size:12px; color:var(--muted); text-align:center; margin-top:6px;}
+    /* node visuals */
+    .node-circle{transition:transform 160ms ease, filter 160ms ease;}
+    .node-label{font-size:12px; pointer-events:none;}
+    .parent-line{stroke:#9aa4bf; stroke-opacity:0.28; stroke-width:2; marker-end:url(#arrow);} 
+    .highlight-line{stroke: #60a5fa; stroke-width:3; stroke-opacity:0.95;}
+    .root-circle{stroke:#fde68a; stroke-width:2;}
+    .set-color-legend{width:14px;height:14px;border-radius:4px;display:inline-block;margin-right:6px;}
+    /* tooltip */
+    .tooltip{position:fixed;background:#020617; padding:8px 10px;border-radius:6px; box-shadow:0 6px 20px rgba(2,6,23,0.7); color:#cfe8ff; font-size:13px; pointer-events:none; z-index:9999; opacity:0.98;}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="left">
+      <div class="toolbar">
+        <div class="controls">
+          <button class="btn primary" id="addNode">Add node</button>
+          <button class="btn" id="addMany">Add 5</button>
+          <button class="btn" id="randomExample">Random example</button>
+          <button class="btn ghost" id="reset">Reset</button>
+          <label class="panel small" title="Click two nodes to union; click one to find">
+            <input type="checkbox" id="autoAdd" /> Auto place nodes
+          </label>
+        </div>
+        <div style="flex:1"></div>
+        <div class="controls">
+          <label class="panel small muted">Union method</label>
+          <select id="unionMethod" class="btn small">
+            <option value="rank">Union by rank</option>
+            <option value="size">Union by size</option>
+            <option value="naive">Naive (no balancing)</option>
+          </select>
+          <label class="panel small" title="Path compression flattens the tree during find">
+            <input type="checkbox" id="pathCompression" checked /> Path compression
+          </label>
+        </div>
+      </div>
+
+      <div class="svg-wrap panel" id="canvasWrap">
+        <svg id="svgCanvas" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4bf" fill-opacity="0.9" />
+            </marker>
+            <marker id="arrowBright" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#60a5fa" />
+            </marker>
+          </defs>
+          <g id="edges"></g>
+          <g id="nodes"></g>
+        </svg>
+      </div>
+
+      <div class="row">
+        <div style="flex:1" class="panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+            <div>
+              <strong>Operations</strong>
+              <div class="muted" style="margin-top:4px">Click nodes to perform actions. Use log to follow steps.</div>
+            </div>
+            <div class="legend">
+              <div class="chip"><span class="set-color-legend" style="background:#60a5fa"></span> Root / Highlight</div>
+              <div class="chip"><span class="set-color-legend" style="background:#f97316"></span> Compressed pointer</div>
+              <div class="chip"><span class="set-color-legend" style="background:#9aa4bf"></span> Parent pointer</div>
+            </div>
+          </div>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn" id="selectMode">Select (Union)</button>
+            <button class="btn" id="findMode">Find</button>
+            <button class="btn" id="autoFindRoots">Show roots</button>
+            <button class="btn primary" id="runAllFinds">Find all (compress)</button>
+            <button class="btn warn" id="shuffleLayout">Shuffle layout</button>
+          </div>
+        </div>
+
+        <div style="width:340px" class="panel">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>DSU State</strong>
+            <div class="muted">n = <span id="nCount">0</span></div>
+          </div>
+          <div style="margin-top:8px;">
+            <div class="muted">Parent array (index: parent)</div>
+            <pre class="code" id="parentView">[]</pre>
+            <div class="muted">Rank / Size</div>
+            <pre class="code" id="rankView">[]</pre>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px;">
+        <div style="flex:1" class="panel">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>Execution log</strong>
+            <div class="muted">step by step</div>
+          </div>
+          <div class="log" id="log"></div>
+        </div>
+
+        <div style="width:320px" class="panel">
+          <strong>Notes & Complexity</strong>
+          <div class="muted" style="margin-top:8px; font-size:13px;">
+            - Union by rank/size + path compression results in nearly constant amortized time per operation: α(n) (inverse Ackermann).
+            - Use path compression to flatten trees during find. Use union by rank/size to attach smaller tree under larger.
+            - Click two nodes in Select (Union) mode to union them; click one node in Find mode to trace find.
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        Interactive demo of Union-Find (Disjoint Set Union). Click nodes to operate. Visualizes parent pointers, finds and path compression.
+      </footer>
+    </div>
+
+    <div class="right">
+      <div class="panel">
+        <strong>Tutorial</strong>
+        <ol style="margin-top:8px; color:var(--muted); font-size:13px;">
+          <li>Create nodes (Add node / Add 5)</li>
+          <li>Click "Select (Union)" then click two nodes to union them</li>
+          <li>Use "Find" mode to see which root a node belongs to (animated traversal)</li>
+          <li>Toggle path compression or union method and hit "Find all (compress)" to see effects</li>
+        </ol>
+      </div>
+
+      <div class="panel">
+        <strong>Code (conceptual)</strong>
+        <pre class="code">
+class DSU {
+  constructor(n){
+    parent = Array(n).fill().map((_,i)=>i);
+    rank = Array(n).fill(0);
+  }
+  find(x){
+    if(parent[x] !== x) parent[x] = find(parent[x]); // path compression
+    return parent[x];
+  }
+  union(a,b){
+    ra = find(a); rb = find(b);
+    if(ra===rb) return;
+    if(rank[ra] &gt; rank[rb]) parent[rb]=ra;
+    else if(rank[ra] &lt; rank[rb]) parent[ra]=rb;
+    else parent[rb]=ra, rank[ra]++;
+  }
+}
+        </pre>
+      </div>
+
+      <div class="panel" style="flex:1; overflow:auto;">
+        <strong>Quick tips</strong>
+        <ul style="color:var(--muted); font-size:13px; margin-top:8px;">
+          <li>Path compression flattens paths by setting every visited node's parent to the root.</li>
+          <li>Union by size attaches smaller tree under larger (keeps height small).</li>
+          <li>Combining both gives effectively constant time for millions of operations in practice.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ---- Interactive Union-Find Demo ----
+  (function(){
+    const svg = document.getElementById('svgCanvas');
+    const nodesG = document.getElementById('nodes');
+    const edgesG = document.getElementById('edges');
+    const logEl = document.getElementById('log');
+    const parentView = document.getElementById('parentView');
+    const rankView = document.getElementById('rankView');
+    const nCountEl = document.getElementById('nCount');
+
+    // Controls
+    const addNodeBtn = document.getElementById('addNode');
+    const addManyBtn = document.getElementById('addMany');
+    const resetBtn = document.getElementById('reset');
+    const randomExampleBtn = document.getElementById('randomExample');
+    const unionMethodSel = document.getElementById('unionMethod');
+    const pathCompressionCb = document.getElementById('pathCompression');
+    const selectModeBtn = document.getElementById('selectMode');
+    const findModeBtn = document.getElementById('findMode');
+    const autoFindRootsBtn = document.getElementById('autoFindRoots');
+    const runAllFindsBtn = document.getElementById('runAllFinds');
+    const shuffleLayoutBtn = document.getElementById('shuffleLayout');
+    const addManyAuto = document.getElementById('autoAdd');
+
+    let mode = 'select'; // 'select' or 'find'
+    let lastSelected = null;
+    let autoPlace = false;
+
+    // Colors for sets
+    const palette = ['#60a5fa','#f97316','#fb7185','#34d399','#a78bfa','#f59e0b','#06b6d4','#ef4444','#f472b6','#7c3aed'];
+
+    function log(msg, kind='info'){
+      const el = document.createElement('div');
+      el.innerHTML = msg;
+      el.style.marginBottom='6px';
+      if(kind==='step') el.style.color='#cfe8ff';
+      logEl.prepend(el);
+    }
+
+    // DSU implementation with step tracing for animation
+    class DSU {
+      constructor(){
+        this.parent = [];
+        this.rank = []; // or size depends on method
+      }
+      makeSet(){
+        const i = this.parent.length;
+        this.parent.push(i);
+        this.rank.push(1);
+        return i;
+      }
+      size(){return this.parent.length;}
+      // find with optional recording of path visited; does NOT compress automatically unless compress=true
+      findWithPath(x, compress){
+        const visited = [];
+        let cur = x;
+        while(this.parent[cur] !== cur){
+          visited.push(cur);
+          cur = this.parent[cur];
+        }
+        const root = cur;
+        if(compress){
+          for(const v of visited) this.parent[v] = root;
+        }
+        return {root, visited};
+      }
+      union(a,b, method='rank'){
+        const fa = this.findWithPath(a,false).root;
+        const fb = this.findWithPath(b,false).root;
+        if(fa===fb) return {merged:false, root:fa, other:fb};
+        if(method==='rank'){
+          // rank[] stores rank in conceptual sense (height)
+          if(this.rank[fa] > this.rank[fb]) {
+            this.parent[fb] = fa;
+            return {merged:true, parent:fa, child:fb};
+          } else if(this.rank[fa] < this.rank[fb]) {
+            this.parent[fa] = fb;
+            return {merged:true, parent:fb, child:fa};
+          } else {
+            this.parent[fb] = fa;
+            this.rank[fa] = this.rank[fa] + 1;
+            return {merged:true, parent:fa, child:fb, rankInc:fa};
+          }
+        } else if(method==='size'){
+          // treat rank as size
+          if(this.rank[fa] >= this.rank[fb]){
+            this.parent[fb] = fa;
+            this.rank[fa] += this.rank[fb];
+            return {merged:true, parent:fa, child:fb};
+          } else {
+            this.parent[fa] = fb;
+            this.rank[fb] += this.rank[fa];
+            return {merged:true, parent:fb, child:fa};
+          }
+        } else {
+          // naive
+          this.parent[fb] = fa;
+          return {merged:true, parent:fa, child:fb};
+        }
+      }
+    }
+
+    const dsu = new DSU();
+    let nodes = []; // {id,x,y,elGroup}
+    let layoutSeed = 1;
+
+    function updateStateViews(){
+      parentView.textContent = JSON.stringify(dsu.parent);
+      rankView.textContent = JSON.stringify(dsu.rank);
+      nCountEl.textContent = dsu.size();
+    }
+
+    function clearSVG(){
+      nodesG.innerHTML = '';
+      edgesG.innerHTML = '';
+      nodes = [];
+    }
+
+    function placeNode(id, x=null, y=null){
+      const W = 1000, H = 520;
+      if(x===null || y===null){
+        // auto layout: grid-like with jitter
+        const cols = Math.max(1, Math.round(Math.sqrt(dsu.size())));
+        const row = Math.floor(id/cols);
+        const col = id%cols;
+        const gapX = W / (cols+1);
+        const gapY = 80;
+        x = (col+1) * gapX + (Math.sin((id+layoutSeed)*1.3)*20);
+        y = 80 + row*gapY + (Math.cos((id+layoutSeed)*0.9)*14);
+      }
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.classList.add('node');
+      g.setAttribute('data-id', id);
+
+      // circle
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('cx', x);
+      circle.setAttribute('cy', y);
+      circle.setAttribute('r', 20);
+      circle.setAttribute('fill', '#071129');
+      circle.setAttribute('stroke', '#1f2937');
+      circle.setAttribute('class', 'node-circle');
+      circle.style.filter = 'drop-shadow(0 6px 18px rgba(2,6,23,0.6))';
+      g.appendChild(circle);
+
+      // id label
+      const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+      label.setAttribute('x', x);
+      label.setAttribute('y', y+5);
+      label.setAttribute('text-anchor','middle');
+      label.setAttribute('class','node-label');
+      label.textContent = id;
+      g.appendChild(label);
+
+      // mini rank/size indicator
+      const sub = document.createElementNS('http://www.w3.org/2000/svg','text');
+      sub.setAttribute('x', x+28);
+      sub.setAttribute('y', y-18);
+      sub.setAttribute('class','node-label');
+      sub.setAttribute('font-size','10');
+      sub.style.fill='#9aa4bf';
+      sub.textContent = '';
+      sub.setAttribute('data-sub','1');
+      g.appendChild(sub);
+
+      // attach
+      nodesG.appendChild(g);
+
+      // events
+      g.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const id = Number(g.getAttribute('data-id'));
+        onNodeClick(id, g);
+      });
+
+      nodes.push({id,x,y,g, circle, label, sub});
+    }
+
+    function redrawEdges(){
+      edgesG.innerHTML = '';
+      // draw parent pointers for every node except roots
+      for(const node of nodes){
+        const id = node.id;
+        const p = dsu.parent[id];
+        if(p === undefined) continue;
+        if(p === id) continue;
+        const from = {x: node.x, y: node.y};
+        const parentNode = nodes.find(n=>n.id===p);
+        if(!parentNode) continue;
+        const to = {x: parentNode.x, y: parentNode.y};
+        // draw curved line
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const mx = (from.x + to.x)/2;
+        const my = (from.y + to.y)/2;
+        const cx = mx - dy*0.1;
+        const cy = my + dx*0.08;
+        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        const d = `M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`;
+        path.setAttribute('d', d);
+        path.setAttribute('class','parent-line');
+        path.setAttribute('data-from', id);
+        path.setAttribute('data-to', p);
+        edgesG.appendChild(path);
+      }
+    }
+
+    function refreshAllVisuals(){
+      // update subs (rank/size) and colors
+      for(const node of nodes){
+        const id = node.id;
+        const p = dsu.parent[id];
+        const r = dsu.rank[id];
+        node.sub.textContent = `p:${p} r:${r}`;
+        node.label.textContent = id;
+        node.circle.setAttribute('stroke', id===p ? '#fde68a' : '#1f2937');
+      }
+      redrawEdges();
+      updateStateViews();
+    }
+
+    function addNode(){
+      const id = dsu.makeSet();
+      if(addManyAuto.checked){
+        // automatic layout; we'll place automatically
+        placeNode(id, null, null);
+      } else {
+        // place near center with slight jitter
+        const x = 200 + (Math.random()*600);
+        const y = 60 + (Math.random()*420);
+        placeNode(id,x,y);
+      }
+      refreshAllVisuals();
+      log(`makeSet: created node ${id}`, 'step');
+    }
+
+    function resetAll(){
+      dsu.parent = [];
+      dsu.rank = [];
+      layoutSeed++;
+      clearSVG();
+      log('Reset all nodes', 'info');
+      updateStateViews();
+      lastSelected = null;
+    }
+
+    function onNodeClick(id, g){
+      if(mode==='select'){
+        if(lastSelected === null){
+          lastSelected = id;
+          highlightNode(id);
+          log(`Selected node ${id} (first) — choose another to union`, 'info');
+        } else if(lastSelected === id){
+          unhighlightAll();
+          lastSelected = null;
+          log(`Deselected node ${id}`, 'info');
+        } else {
+          // perform union
+          const a = lastSelected, b = id;
+          unhighlightAll();
+          lastSelected = null;
+          animateUnion(a,b);
+        }
+      } else if(mode==='find'){
+        animateFind(id);
+      }
+    }
+
+    function highlightNode(id, color='#60a5fa'){
+      for(const node of nodes){
+        if(node.id===id){
+          node.circle.setAttribute('transform','scale(1.06)');
+          node.circle.setAttribute('stroke', color);
+          node.circle.setAttribute('stroke-width','2.5');
+        } else {
+          node.circle.setAttribute('transform','');
+          node.circle.setAttribute('stroke-width','1.2');
+          node.circle.setAttribute('stroke', dsu.parent[node.id]===node.id ? '#fde68a' : '#1f2937');
+        }
+      }
+    }
+
+    function unhighlightAll(){
+      for(const node of nodes){
+        node.circle.setAttribute('transform','');
+        node.circle.setAttribute('stroke-width','1.2');
+        node.circle.setAttribute('stroke', dsu.parent[node.id]===node.id ? '#fde68a' : '#1f2937');
+      }
+      // restore edge styles
+      for(const e of edgesG.querySelectorAll('path')) e.classList.remove('highlight-line');
+    }
+
+    // animate find with optional path compression
+    async function animateFind(start){
+      const compress = pathCompressionCb.checked;
+      log(`Find(${start}) — traversing...`, 'step');
+      // highlight path sequentially
+      const visited = [];
+      let cur = start;
+      while(dsu.parent[cur] !== cur){
+        visited.push(cur);
+        const nxt = dsu.parent[cur];
+        // highlight arrow from cur -> nxt
+        const pathEl = edgesG.querySelector(`path[data-from="${cur}"][data-to="${nxt}"]`);
+        if(pathEl) pathEl.classList.add('highlight-line');
+        highlightNode(cur, '#60a5fa');
+        await sleep(350);
+        cur = nxt;
+      }
+      // root reached
+      highlightNode(cur, '#fde68a');
+      log(`Root of ${start} is ${cur}`, 'info');
+      if(compress && visited.length){
+        // animate compression: set each visited node's parent to root visually
+        for(const v of visited){
+          // change style of edge
+          const prevParent = dsu.parent[v];
+          dsu.parent[v] = cur;
+          refreshAllVisuals();
+          const pathEl = edgesG.querySelector(`path[data-from="${v}"][data-to="${cur}"]`);
+          if(pathEl) pathEl.classList.add('highlight-line');
+          // temporarily color compressed arrow
+          await sleep(250);
+        }
+        log(`Path compression applied: all nodes on path now point to ${cur}`, 'info');
+      }
+      refreshAllVisuals();
+      await sleep(300);
+      unhighlightAll();
+    }
+
+    async function animateUnion(a,b){
+      const method = unionMethodSel.value;
+      log(`Union(${a}, ${b}) — method: ${method}`, 'step');
+      // show finds for both
+      highlightNode(a,'#60a5fa'); await sleep(300);
+      await animateFind(a);
+      highlightNode(b,'#60a5fa'); await sleep(300);
+      await animateFind(b);
+      // perform union with animated effect
+      const fa = dsu.findWithPath(a,false).root;
+      const fb = dsu.findWithPath(b,false).root;
+      if(fa===fb){
+        log(`They already share the same root ${fa}`, 'info');
+        return;
+      }
+      // show roots before union
+      highlightNode(fa,'#fde68a'); highlightNode(fb,'#fde68a');
+      await sleep(300);
+      // perform union in DSU, record what happens
+      const beforeRanks = dsu.rank.slice();
+      const res = dsu.union(a,b,method);
+      refreshAllVisuals();
+      // visualize connecting child->parent and flashing
+      if(res.merged){
+        const child = res.child, parent = res.parent;
+        log(`Attach root ${child} -> root ${parent}`, 'info');
+        // find the edge element just created and highlight it
+        await sleep(200);
+        const pathEl = edgesG.querySelector(`path[data-from="${child}"][data-to="${parent}"]`);
+        if(pathEl){
+          pathEl.classList.add('highlight-line');
+        }
+        // if rank changed, show
+        if(res.rankInc !== undefined){
+          log(`Rank of ${res.rankInc} increased (tie-breaker)`, 'info');
+        }
+      }
+      refreshAllVisuals();
+      await sleep(350);
+      unhighlightAll();
+    }
+
+    // utility
+    function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+    // initial wiring
+    addNodeBtn.addEventListener('click', ()=>{ addNode(); });
+    addManyBtn.addEventListener('click', ()=>{ for(let i=0;i<5;i++) addNode(); });
+    resetBtn.addEventListener('click', ()=>{ resetAll(); });
+    randomExampleBtn.addEventListener('click', ()=>{ randomExample(); });
+    unionMethodSel.addEventListener('change', ()=>{ log('Union method: '+unionMethodSel.value,'info'); });
+    pathCompressionCb.addEventListener('change', ()=>{ log('Path compression: '+(pathCompressionCb.checked?'ON':'OFF'),'info'); });
+
+    selectModeBtn.addEventListener('click', ()=>{ mode='select'; selectModeBtn.classList.add('primary'); findModeBtn.classList.remove('primary'); log('Mode: Select (Union)','info'); });
+    findModeBtn.addEventListener('click', ()=>{ mode='find'; findModeBtn.classList.add('primary'); selectModeBtn.classList.remove('primary'); log('Mode: Find','info'); });
+    autoFindRootsBtn.addEventListener('click', ()=>{ revealRoots(); });
+    runAllFindsBtn.addEventListener('click', async ()=>{ await findAllCompress(); });
+    shuffleLayoutBtn.addEventListener('click', ()=>{ shuffleLayout(); });
+
+    // initial mode visuals
+    selectModeBtn.classList.add('primary');
+
+    // create some random example unions
+    function randomExample(){
+      resetAll();
+      for(let i=0;i<10;i++) addNode();
+      const pairs = [];
+      for(let i=0;i<7;i++){
+        const a = Math.floor(Math.random()*10);
+        const b = Math.floor(Math.random()*10);
+        if(a!==b) pairs.push([a,b]);
+      }
+      (async ()=>{
+        for(const [a,b] of pairs){
+          await sleep(400);
+          await animateUnion(a,b);
+        }
+      })();
+    }
+
+    // Show which nodes are roots by coloring them
+    function revealRoots(){
+      for(const node of nodes){
+        const id=node.id;
+        if(dsu.parent[id]===id){
+          node.circle.setAttribute('stroke','#fde68a');
+          node.circle.setAttribute('stroke-width','2.5');
+        } else {
+          node.circle.setAttribute('stroke','#1f2937');
+          node.circle.setAttribute('stroke-width','1.2');
+        }
+      }
+      log('Roots highlighted', 'info');
+    }
+
+    // Run find for every node (compress optionally)
+    async function findAllCompress(){
+      const compress = pathCompressionCb.checked;
+      log('Find all nodes (this may apply path compression)', 'step');
+      for(let id=0; id<dsu.size(); id++){
+        await animateFind(id);
+      }
+      if(compress) log('After find-all with compression, trees are flattened.', 'info');
+    }
+
+    // Shuffle layout positions randomly and re-place nodes; keeps logical structure
+    function shuffleLayout(){
+      layoutSeed++;
+      for(const n of nodes){
+        const jitterX = (Math.random()*700)+120;
+        const jitterY = (Math.random()*420)+60;
+        n.x = jitterX;
+        n.y = jitterY;
+        // move circle and labels
+        const circle = n.circle;
+        circle.setAttribute('cx', n.x);
+        circle.setAttribute('cy', n.y);
+        n.label.setAttribute('x', n.x);
+        n.label.setAttribute('y', n.y+5);
+        n.sub.setAttribute('x', n.x+28);
+        n.sub.setAttribute('y', n.y-18);
+      }
+      refreshAllVisuals();
+      log('Shuffled layout', 'info');
+    }
+
+    // click on empty canvas to deselect
+    svg.addEventListener('click', (ev)=>{
+      lastSelected = null;
+      unhighlightAll();
+    });
+
+    // initialize some nodes for convenience
+    for(let i=0;i<6;i++) addNode();
+    updateStateViews();
+
+    // expose nothing to window (self-contained)
+  })();
+  </script>
+</body>
+</html>

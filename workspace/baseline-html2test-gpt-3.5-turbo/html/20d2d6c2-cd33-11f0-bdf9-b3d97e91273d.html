@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Breadth-First Search (BFS) Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f5f5f5;
+  }
+  h1 {
+    text-align: center;
+  }
+  #graph-container {
+    margin: 20px auto;
+    width: 600px;
+    height: 400px;
+    border: 2px solid #444;
+    border-radius: 8px;
+    background: white;
+    position: relative;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  circle.node {
+    fill: #ddd;
+    stroke: #666;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: fill 0.3s, stroke 0.3s;
+  }
+  circle.node.visited {
+    fill: #7bc8a4;
+    stroke: #3a7d44;
+  }
+  circle.node.current {
+    fill: #f9d71c;
+    stroke: #b38b00;
+  }
+  circle.node.start {
+    fill: #4a90e2;
+    stroke: #0d47a1;
+  }
+  circle.node.end {
+    fill: #e94e77;
+    stroke: #7a2033;
+  }
+  text.label {
+    pointer-events: none;
+    font-weight: bold;
+    user-select: none;
+    fill: #333;
+  }
+  line.edge {
+    stroke: #bbb;
+    stroke-width: 2px;
+  }
+  line.edge.visited {
+    stroke: #7bc8a4;
+    stroke-width: 4px;
+  }
+  #controls {
+    text-align: center;
+    margin-top: 10px;
+  }
+  button, select {
+    font-size: 16px;
+    padding: 8px 16px;
+    margin: 5px;
+  }
+  #queue-display {
+    margin-top: 15px;
+    font-family: monospace;
+    text-align: center;
+    background: #fff;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #instructions {
+    max-width: 600px;
+    margin: 10px auto 0 auto;
+    font-size: 14px;
+    background: #eef6f9;
+    padding: 10px 15px;
+    border-radius: 6px;
+    border: 1px solid #a0c4d1;
+  }
+  #start-label, #end-label {
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+
+<h1>Breadth-First Search (BFS) Visualization</h1>
+
+<div id="graph-container" aria-label="Graph visualization area" role="img"></div>
+
+<div id="controls" aria-label="Controls for BFS visualization">
+  <label for="startNode">Start Node:</label>
+  <select id="startNode" aria-describedby="start-label">
+  </select>
+
+  <button id="startBtn" aria-pressed="false">Start BFS</button>
+  <button id="stepBtn" disabled>Step</button>
+  <button id="autoBtn" disabled>Auto Run</button>
+  <button id="resetBtn">Reset</button>
+  <div id="speedControl" style="display:inline-block; margin-left: 15px;">
+    <label for="speedRange">Speed:</label>
+    <input type="range" id="speedRange" min="200" max="2000" step="100" value="800" aria-valuemin="200" aria-valuemax="2000" aria-valuenow="800" />
+    <span id="speedValue">800ms</span>
+  </div>
+</div>
+
+<div id="queue-display" aria-live="polite" aria-atomic="true" aria-relevant="additions" role="region">
+  <strong>Queue:</strong> (empty)
+</div>
+
+<div id="instructions">
+  <p><b>Instructions:</b> Select a start node and press "Start BFS" to visualize the BFS algorithm on the graph. Use "Step" to advance one step at a time, or "Auto Run" for automatic step advancement. "Reset" clears the visualization.</p>
+  <p>The graph is undirected. Nodes visited will turn green. The current node being explored is yellow. Edges used in BFS are highlighted.</p>
+</div>
+
+<script>
+(() => {
+  // Graph Data: nodes with positions, edges undirected
+  const nodes = [
+    { id: 'A', x: 100, y: 80 },
+    { id: 'B', x: 250, y: 50 },
+    { id: 'C', x: 250, y: 150 },
+    { id: 'D', x: 400, y: 80 },
+    { id: 'E', x: 100, y: 220 },
+    { id: 'F', x: 400, y: 220 },
+    { id: 'G', x: 550, y: 200 },
+    { id: 'H', x: 550, y: 80 },
+  ];
+
+  const edges = [
+    ['A', 'B'],
+    ['A', 'C'],
+    ['B', 'D'],
+    ['B', 'C'],
+    ['C', 'E'],
+    ['D', 'F'],
+    ['E', 'F'],
+    ['F', 'G'],
+    ['D', 'H'],
+    ['H', 'G'],
+  ];
+
+  // Build adjacency list
+  const adjList = {};
+  for (const node of nodes) adjList[node.id] = [];
+  for (const [u, v] of edges) {
+    adjList[u].push(v);
+    adjList[v].push(u);
+  }
+
+  // Colors & classes defined in CSS
+  // Setup the SVG and elements
+  const graphContainer = document.getElementById('graph-container');
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  graphContainer.appendChild(svg);
+
+  // Store svg elements for quick access
+  const nodeElems = {};
+  const edgeElems = {};
+
+  // Draw edges as lines
+  for (const [u, v] of edges) {
+    const line = document.createElementNS(SVG_NS, 'line');
+    const nodeU = nodes.find(n => n.id === u);
+    const nodeV = nodes.find(n => n.id === v);
+    line.setAttribute('x1', nodeU.x);
+    line.setAttribute('y1', nodeU.y);
+    line.setAttribute('x2', nodeV.x);
+    line.setAttribute('y2', nodeV.y);
+    line.setAttribute('class', 'edge');
+    svg.appendChild(line);
+    edgeElems[`${u}-${v}`] = line;
+    edgeElems[`${v}-${u}`] = line; // for easy lookup both ways
+  }
+
+  // Draw nodes as circles with labels
+  for (const node of nodes) {
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('tabindex', '0');
+    g.setAttribute('role', 'button');
+    g.setAttribute('aria-label', `Node ${node.id}, click to select as start node`);
+    g.style.cursor = 'pointer';
+
+    const circle = document.createElementNS(SVG_NS, 'circle');
+    circle.setAttribute('cx', node.x);
+    circle.setAttribute('cy', node.y);
+    circle.setAttribute('r', 20);
+    circle.setAttribute('class', 'node');
+    circle.dataset.id = node.id;
+
+    const text = document.createElementNS(SVG_NS, 'text');
+    text.setAttribute('x', node.x);
+    text.setAttribute('y', node.y + 6);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('class', 'label');
+    text.textContent = node.id;
+
+    g.appendChild(circle);
+    g.appendChild(text);
+    svg.appendChild(g);
+
+    nodeElems[node.id] = circle;
+  }
+
+  // UI elements
+  const startNodeSelect = document.getElementById('startNode');
+  const startBtn = document.getElementById('startBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const autoBtn = document.getElementById('autoBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const queueDisplay = document.getElementById('queue-display');
+  const speedRange = document.getElementById('speedRange');
+  const speedValue = document.getElementById('speedValue');
+
+  // Populate startNodeSelect options
+  for (const node of nodes) {
+    const option = document.createElement('option');
+    option.value = node.id;
+    option.textContent = node.id;
+    startNodeSelect.appendChild(option);
+  }
+
+  // Clicking nodes selects start node
+  svg.addEventListener('click', (e) => {
+    if (e.target.classList.contains('node')) {
+      const id = e.target.dataset.id;
+      startNodeSelect.value = id;
+      highlightStartNode(id);
+    }
+  });
+
+  startNodeSelect.addEventListener('change', e => {
+    highlightStartNode(e.target.value);
+  });
+
+  function highlightStartNode(id) {
+    // Reset all nodes from start class
+    for (const nid in nodeElems) {
+      nodeElems[nid].classList.remove('start');
+    }
+    if (id && nodeElems[id]) {
+      nodeElems[id].classList.add('start');
+    }
+  }
+
+  // BFS state
+  let visited = new Set();
+  let queue = [];
+  let bfsStarted = false;
+  let bfsFinished = false;
+  let currentNode = null;
+  let parents = {}; // To track edges used
+  let autoInterval = null;
+
+  function reset() {
+    visited.clear();
+    queue = [];
+    currentNode = null;
+    bfsStarted = false;
+    bfsFinished = false;
+    parents = {};
+    if(autoInterval) {
+      clearInterval(autoInterval);
+      autoInterval = null;
+      autoBtn.textContent = 'Auto Run';
+      autoBtn.disabled = true;
+    }
+
+    // Reset all styles
+    for (const nid in nodeElems) {
+      nodeElems[nid].classList.remove('visited', 'current', 'start');
+    }
+    for (const key in edgeElems) {
+      edgeElems[key].classList.remove('visited');
+    }
+
+    updateQueueDisplay();
+    stepBtn.disabled = true;
+    autoBtn.disabled = true;
+    startBtn.disabled = false;
+    highlightStartNode(startNodeSelect.value);
+  }
+
+  function updateQueueDisplay() {
+    if(queue.length === 0) {
+      queueDisplay.innerHTML = `<strong>Queue:</strong> (empty)`;
+    } else {
+      queueDisplay.innerHTML = `<strong>Queue:</strong> ${queue.join(' → ')}`;
+    }
+  }
+
+  // Highlight edge between two nodes
+  function highlightEdge(u, v) {
+    const e = edgeElems[`${u}-${v}`];
+    if(e) {
+      e.classList.add('visited');
+    }
+  }
+
+  // One step of BFS
+  function bfsStep() {
+    if(queue.length === 0) {
+      currentNode = null;
+      bfsFinished = true;
+      stepBtn.disabled = true;
+      autoBtn.disabled = true;
+      startBtn.disabled = false;
+      alert('BFS complete! All reachable nodes visited.');
+      return;
+    }
+
+    // Remove current highlight of previous currentNode
+    if(currentNode && nodeElems[currentNode]) {
+      nodeElems[currentNode].classList.remove('current');
+      nodeElems[currentNode].classList.add('visited');
+    }
+
+    currentNode = queue.shift();
+
+    // Highlight current node
+    nodeElems[currentNode].classList.add('current');
+
+    // Enqueue all unvisited neighbors
+    for (const neighbor of adjList[currentNode]) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push(neighbor);
+        parents[neighbor] = currentNode;
+        highlightEdge(currentNode, neighbor);
+      }
+    }
+    updateQueueDisplay();
+  }
+
+  // Event handlers
+  startBtn.addEventListener('click', () => {
+    if(bfsStarted) return;
+    const start = startNodeSelect.value;
+    if (!start) {
+      alert('Please select a start node.');
+      return;
+    }
+    reset();
+    bfsStarted = true;
+    visited.add(start);
+    queue.push(start);
+    updateQueueDisplay();
+
+    nodeElems[start].classList.add('start');
+
+    startBtn.disabled = true;
+    stepBtn.disabled = false;
+    autoBtn.disabled = false;
+
+    // Kick off first step
+    bfsStep();
+  });
+
+  stepBtn.addEventListener('click', () => {
+    if(!bfsStarted || bfsFinished) return;
+    bfsStep();
+  });
+
+  autoBtn.addEventListener('click', () => {
+    if(!bfsStarted || bfsFinished) return;
+    if(autoInterval) {
+      clearInterval(autoInterval);
+      autoInterval = null;
+      autoBtn.textContent = 'Auto Run';
+      stepBtn.disabled = false;
+      startBtn.disabled = true;
+      resetBtn.disabled = false;
+    } else {
+      const speed = Number(speedRange.value);
+      autoBtn.textContent = 'Pause';
+      stepBtn.disabled = true;
+      startBtn.disabled = true;
+      resetBtn.disabled = true;
+      autoInterval = setInterval(() => {
+        bfsStep();
+        if(bfsFinished) {
+          clearInterval(autoInterval);
+          autoInterval = null;
+          autoBtn.textContent = 'Auto Run';
+          stepBtn.disabled = true;
+          startBtn.disabled = false;
+          resetBtn.disabled = false;
+        }
+      }, speed);
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    reset();
+  });
+
+  speedRange.addEventListener('input', () => {
+    speedValue.textContent = speedRange.value + 'ms';
+    speedRange.setAttribute('aria-valuenow', speedRange.value);
+    if(autoInterval){
+      clearInterval(autoInterval);
+      autoInterval = null;
+      autoBtn.textContent = 'Auto Run';
+      stepBtn.disabled = false;
+      startBtn.disabled = true;
+      resetBtn.disabled = false;
+    }
+  });
+
+  // Initialize
+  reset();
+  highlightStartNode(startNodeSelect.value);
+})();
+</script>
+
+</body>
+</html>

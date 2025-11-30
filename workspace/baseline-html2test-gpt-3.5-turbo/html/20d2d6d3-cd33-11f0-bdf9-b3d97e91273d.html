@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>K-Means Clustering Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 1em;
+    text-align: center;
+  }
+  canvas {
+    border: 1px solid #ccc;
+    cursor: crosshair;
+    margin-bottom: 1em;
+  }
+  #controls {
+    margin-bottom: 1em;
+  }
+  button, input[type=number] {
+    font-size: 1em;
+    padding: 0.3em 0.6em;
+  }
+  #info {
+    max-width: 600px;
+    margin: 0 auto;
+    color: #333;
+    font-size: 0.9em;
+    line-height: 1.3em;
+  }
+  #resetPoints {
+    margin-left: 1em;
+  }
+</style>
+</head>
+<body>
+<h1>K-Means Clustering Interactive Demo</h1>
+<p>Click on the canvas to add points. Choose number of clusters (k) and click "Run K-Means".</p>
+<div id="controls">
+  <label for="kInput">Number of clusters (k): </label>
+  <input type="number" id="kInput" min="1" max="10" value="3" />
+  <button id="runBtn">Run K-Means</button>
+  <button id="resetBtn">Reset Clusters</button>
+  <button id="resetPoints">Clear Points</button>
+</div>
+<canvas id="canvas" width="600" height="400" aria-label="K-means clustering canvas"></canvas>
+
+<div id="info">
+  <p><strong>Instructions:</strong></p>
+  <ul style="list-style: inside disc; max-width: 600px; margin: 0 auto; text-align: left;">
+    <li>Click on the canvas area to add points (data).</li>
+    <li>Set the number of clusters (k) you want to group points into.</li>
+    <li>Click "Run K-Means" to perform clustering.</li>
+    <li>Clusters show colored circles; centroids marked with larger star shapes.</li>
+    <li>You can "Reset Clusters" to assign new initial centroids and run again on same points.</li>
+    <li>"Clear Points" erases all points and clusters for a fresh start.</li>
+  </ul>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const runBtn = document.getElementById("runBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const resetPointsBtn = document.getElementById("resetPoints");
+  const kInput = document.getElementById("kInput");
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  let points = [];
+  let clusters = [];
+  let centroids = [];
+  let assignments = [];
+
+  // Colors for clusters (max 10 distinct colors for k ≤ 10)
+  const colors = [
+    "#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231",
+    "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe"
+  ];
+
+  // Add point on canvas click
+  canvas.addEventListener("click", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    points.push({ x, y });
+    assignments = []; // clear previous assignments
+    centroids = [];
+    clusters = [];
+    draw();
+  });
+
+  // Reset everything
+  resetPointsBtn.onclick = () => {
+    points = [];
+    centroids = [];
+    clusters = [];
+    assignments = [];
+    draw();
+  };
+
+  // Run K-means clustering main steps
+  runBtn.onclick = () => {
+    const k = parseInt(kInput.value);
+    if (!points.length) {
+      alert("Please add some points by clicking on the canvas first.");
+      return;
+    }
+    if (k < 1 || k > 10) {
+      alert("Please choose a number of clusters (k) between 1 and 10.");
+      return;
+    }
+    if (k > points.length) {
+      alert("Number of clusters can't exceed number of points.");
+      return;
+    }
+    kMeans(points, k);
+  };
+
+  // Reset centroids and clusters without removing points (to re-run)
+  resetBtn.onclick = () => {
+    const k = parseInt(kInput.value);
+    if (!points.length) {
+      alert("Please add some points first.");
+      return;
+    }
+    if (k < 1 || k > 10) {
+      alert("Please choose a number of clusters (k) between 1 and 10.");
+      return;
+    }
+    if (k > points.length) {
+      alert("Number of clusters can't exceed number of points.");
+      return;
+    }
+    // Just reset clusters, assign new centroids randomly, no iterations yet
+    initCentroidsAndAssign(points, k);
+    draw();
+  };
+
+  // Draw points and clusters
+  function draw() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Cluster coloring if assignments exist
+    if (assignments.length === points.length && centroids.length > 0) {
+      // Draw points colored by cluster
+      points.forEach((pt, i) => {
+        const clusterIndex = assignments[i];
+        ctx.fillStyle = colors[clusterIndex];
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 5, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.strokeStyle = "#333";
+        ctx.stroke();
+      });
+
+      // Draw centroids
+      centroids.forEach((c, i) => {
+        drawStar(ctx, c.x, c.y, 10, 5, colors[i], "#000");
+      });
+
+    } else {
+      // No cluster assignments yet - draw points as black dots
+      points.forEach(pt => {
+        ctx.fillStyle = "#000";
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 5, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+    }
+  }
+
+  // Draw a star shape (for centroids)
+  // x,y: center; radius: outer radius; points: number of star points
+  // fillStyle: fill color, strokeStyle: outline color
+  function drawStar(ctx, x, y, radius, points, fillStyle, strokeStyle) {
+    const step = Math.PI / points;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    for (let i = 0; i < 2 * points; i++) {
+      const r = (i % 2) === 0 ? radius : radius / 2;
+      const a = i * step;
+      ctx.lineTo(x + r * Math.cos(a), y + r * Math.sin(a));
+    }
+    ctx.closePath();
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Initialize centroids randomly from points and assign points to clusters
+  function initCentroidsAndAssign(points, k) {
+    centroids = [];
+    // Pick k unique random points as initial centroids
+    const shuffled = points.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    centroids = shuffled.slice(0, k).map(p => ({ x: p.x, y: p.y }));
+
+    assignments = new Array(points.length).fill(-1);
+    assignPointsToClusters(points, centroids, assignments);
+  }
+
+  // Assign each point to the nearest centroid
+  function assignPointsToClusters(points, centroids, assignments) {
+    points.forEach((pt, i) => {
+      let minDist = Infinity;
+      let clusterIndex = -1;
+      centroids.forEach((c, ci) => {
+        const d = dist(pt, c);
+        if (d < minDist) {
+          minDist = d;
+          clusterIndex = ci;
+        }
+      });
+      assignments[i] = clusterIndex;
+    });
+  }
+
+  // Update centroid positions as mean of assigned points
+  // Returns true if centroids moved more than a tiny threshold
+  function updateCentroids(points, centroids, assignments, k) {
+    const newCentroids = new Array(k).fill(null).map(() => ({ x: 0, y: 0, count: 0 }));
+    
+    points.forEach((pt, i) => {
+      const cluster = assignments[i];
+      if(cluster >= 0) {
+        newCentroids[cluster].x += pt.x;
+        newCentroids[cluster].y += pt.y;
+        newCentroids[cluster].count++;
+      }
+    });
+
+    let moved = false;
+    for(let i=0; i<k; i++) {
+      if (newCentroids[i].count === 0) {
+        // no points assigned to this centroid; don't move it
+        continue;
+      }
+      const avgX = newCentroids[i].x / newCentroids[i].count;
+      const avgY = newCentroids[i].y / newCentroids[i].count;
+      if (dist({x: avgX, y: avgY}, centroids[i]) > 1e-4) {
+        moved = true;
+        centroids[i].x = avgX;
+        centroids[i].y = avgY;
+      }
+    }
+    return moved;
+  }
+
+  // Euclidean distance between two points
+  function dist(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  // K-Means iterative algorithm
+  function kMeans(points, k) {
+    initCentroidsAndAssign(points, k);
+    draw();
+
+    let iterations = 0;
+    const maxIterations = 100;
+    let moved = true;
+
+    // Animate the iterations with a slight delay
+    function step() {
+      if (!moved || iterations >= maxIterations) {
+        // Finished
+        return;
+      }
+      iterations++;
+      moved = updateCentroids(points, centroids, assignments, k);
+      assignPointsToClusters(points, centroids, assignments);
+      draw();
+      if(moved) {
+        setTimeout(step, 300);
+      }
+    }
+
+    setTimeout(step, 300);
+  }
+
+  // Initial draw to show empty canvas
+  draw();
+})();
+</script>
+</body>
+</html>

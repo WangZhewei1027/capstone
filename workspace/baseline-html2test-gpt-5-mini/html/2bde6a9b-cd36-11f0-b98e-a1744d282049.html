@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Interactive Linear Regression Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 16px; color:#111; }
+    h1 { margin: 0 0 8px 0; font-size: 20px; }
+    .container { display: flex; gap:16px; flex-wrap:wrap; }
+    .panel { background:#fff; border:1px solid #ddd; padding:10px; border-radius:8px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .left { flex: 1 1 640px; min-width:320px; }
+    .right { width:320px; min-width:260px; }
+    canvas { background: #f8f9fb; border-radius:6px; width:100%; height:420px; display:block; }
+    label { display:block; margin-top:8px; font-size:13px; }
+    input[type="range"] { width:100%; }
+    .row { display:flex; gap:8px; align-items:center; margin-top:8px; }
+    button { padding:6px 10px; border-radius:6px; border:1px solid #bbb; background:#f4f6f8; cursor:pointer; }
+    button.primary { background:#2b7cff; color:white; border-color:#1f63d6; }
+    small { color:#555; display:block; margin-top:6px; }
+    .stats { font-size:14px; line-height:1.4; }
+    .muted { color:#666; font-size:12px; margin-top:6px; }
+    input[type="number"] { width:100%; padding:6px; border-radius:6px; border:1px solid #ccc; }
+    .inline { display:flex; gap:8px; align-items:center; }
+    .legend { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
+    .legend-item { display:flex; gap:6px; align-items:center; font-size:13px; color:#444; }
+    .swatch { width:12px; height:12px; border-radius:3px; display:inline-block; }
+    footer { margin-top:12px; font-size:12px; color:#666; }
+  </style>
+</head>
+<body>
+  <h1>Interactive Linear Regression</h1>
+  <div class="container">
+    <div class="panel left">
+      <canvas id="plot" width="800" height="420"></canvas>
+      <div class="legend">
+        <div class="legend-item"><span class="swatch" style="background:#2b7cff"></span> Fit (Gradient Descent)</div>
+        <div class="legend-item"><span class="swatch" style="background:#ff5c5c"></span> Closed-form (Normal Eq.)</div>
+        <div class="legend-item"><span class="swatch" style="background:#333"></span> Data points</div>
+      </div>
+      <small class="muted">Click on the plot to add points. Drag vertically while holding Shift to adjust noise when generating synthetic data.</small>
+    </div>
+
+    <div class="panel right">
+      <div>
+        <label>Data controls</label>
+        <div class="row">
+          <button id="randBtn">Generate Random Data</button>
+          <button id="clearBtn">Clear</button>
+        </div>
+        <div class="row">
+          <label style="flex:1">Number of points: <span id="nPtsLabel">30</span></label>
+        </div>
+        <input id="nPts" type="range" min="5" max="200" value="30" />
+        <label>True slope (for synthetic): <span id="trueSlopeLabel">1.2</span></label>
+        <input id="trueSlope" type="range" min="-3" max="3" step="0.1" value="1.2" />
+        <label>True intercept: <span id="trueIntLabel">0.0</span></label>
+        <input id="trueInt" type="range" min="-5" max="5" step="0.1" value="0" />
+        <label>Noise std (σ): <span id="noiseLabel">1.0</span></label>
+        <input id="noise" type="range" min="0" max="4" step="0.1" value="1" />
+      </div>
+
+      <hr />
+
+      <div>
+        <label>Gradient Descent</label>
+        <label>Learning rate α: <span id="lrLabel">0.01</span></label>
+        <input id="lr" type="range" min="0.0001" max="0.5" step="0.0001" value="0.01" />
+        <label>Iterations per second: <span id="iterLabel">200</span></label>
+        <input id="itersPerSec" type="range" min="10" max="2000" step="10" value="200" />
+        <div class="row">
+          <button id="startBtn" class="primary">Start GD</button>
+          <button id="stopBtn">Stop</button>
+          <button id="resetGD">Reset params</button>
+        </div>
+        <small class="muted">Gradient descent uses batch updates minimizing mean squared error.</small>
+      </div>
+
+      <hr />
+
+      <div class="stats">
+        <div><strong>Parameters</strong></div>
+        <div>Gradient Descent: m = <span id="mGD">—</span>, b = <span id="bGD">—</span></div>
+        <div>Closed-form: m = <span id="mCF">—</span>, b = <span id="bCF">—</span></div>
+        <div>Loss (MSE) GD: <span id="lossGD">—</span></div>
+        <div>Loss (MSE) CF: <span id="lossCF">—</span></div>
+        <div>RMSE GD: <span id="rmseGD">—</span>, RMSE CF: <span id="rmseCF">—</span></div>
+      </div>
+
+      <hr />
+
+      <div>
+        <label>Predict</label>
+        <div class="row">
+          <input id="xPred" type="number" placeholder="x value" />
+          <button id="predBtn">Predict</button>
+        </div>
+        <div id="predResult" class="muted"></div>
+      </div>
+      <footer>
+        Demo: closed-form (normal equation) vs. gradient descent. Click to add points; generate synthetic linear data; watch the fit update.
+      </footer>
+    </div>
+  </div>
+
+<script>
+/*
+Interactive Linear Regression demo
+- Click the canvas to add points
+- Generate synthetic data with a true slope/intercept and Gaussian noise
+- Fit using closed-form (ordinary least squares) and using batch gradient descent
+- Visualize data points and fitted lines; show metrics
+*/
+
+// Canvas & coordinate helpers
+const canvas = document.getElementById('plot');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+const padding = 40;
+
+// Data storage
+let points = []; // array of {x,y} in data coordinates (x,y in range chosen below)
+
+// Default data coordinate ranges
+let xMin = -10, xMax = 10, yMin = -10, yMax = 10;
+
+// Parameters for gradient descent
+let mGD = 0.0, bGD = 0.0;
+let learningRate = parseFloat(document.getElementById('lr').value);
+let gdRunning = false;
+let gdTimer = null;
+let itersPerSec = parseInt(document.getElementById('itersPerSec').value);
+
+// DOM elements
+const randBtn = document.getElementById('randBtn');
+const clearBtn = document.getElementById('clearBtn');
+const nPtsInput = document.getElementById('nPts');
+const nPtsLabel = document.getElementById('nPtsLabel');
+const trueSlopeInput = document.getElementById('trueSlope');
+const trueIntInput = document.getElementById('trueInt');
+const noiseInput = document.getElementById('noise');
+const trueSlopeLabel = document.getElementById('trueSlopeLabel');
+const trueIntLabel = document.getElementById('trueIntLabel');
+const noiseLabel = document.getElementById('noiseLabel');
+
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const resetGDBtn = document.getElementById('resetGD');
+
+const lrInput = document.getElementById('lr');
+const lrLabel = document.getElementById('lrLabel');
+const itersPerSecInput = document.getElementById('itersPerSec');
+const iterLabel = document.getElementById('iterLabel');
+
+const mGDSpan = document.getElementById('mGD');
+const bGDSpan = document.getElementById('bGD');
+const mCFSpan = document.getElementById('mCF');
+const bCFSpan = document.getElementById('bCF');
+const lossGDSpan = document.getElementById('lossGD');
+const lossCFSpan = document.getElementById('lossCF');
+const rmseGDSpan = document.getElementById('rmseGD');
+const rmseCFSpan = document.getElementById('rmseCF');
+
+const xPredInput = document.getElementById('xPred');
+const predBtn = document.getElementById('predBtn');
+const predResult = document.getElementById('predResult');
+
+// Utils: map data coord -> pixel and vice versa
+function xToPixel(x) {
+  return padding + ((x - xMin) / (xMax - xMin)) * (W - 2 * padding);
+}
+function yToPixel(y) {
+  // canvas y increases downward
+  return H - padding - ((y - yMin) / (yMax - yMin)) * (H - 2 * padding);
+}
+function pixelToX(px) {
+  return xMin + ((px - padding) / (W - 2 * padding)) * (xMax - xMin);
+}
+function pixelToY(py) {
+  return yMin + ((H - padding - py) / (H - 2 * padding)) * (yMax - yMin);
+}
+
+// Draw axes, grid, points, and lines
+function draw() {
+  ctx.clearRect(0,0,W,H);
+  drawGrid();
+  drawAxes();
+  drawPoints();
+  drawFitLines();
+}
+
+// draw axes and tick labels
+function drawAxes() {
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  // x axis
+  let y0 = yToPixel(0);
+  ctx.moveTo(padding, y0);
+  ctx.lineTo(W - padding, y0);
+  ctx.stroke();
+  // y axis
+  let x0 = xToPixel(0);
+  ctx.beginPath();
+  ctx.moveTo(x0, padding);
+  ctx.lineTo(x0, H - padding);
+  ctx.stroke();
+
+  // ticks
+  ctx.fillStyle = '#333';
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  for (let i = Math.ceil(xMin); i <= Math.floor(xMax); i++) {
+    let px = xToPixel(i);
+    ctx.beginPath();
+    ctx.moveTo(px, y0 - 4);
+    ctx.lineTo(px, y0 + 4);
+    ctx.stroke();
+    ctx.fillText(i.toString(), px, y0 + 16);
+  }
+  ctx.textAlign = 'right';
+  for (let j = Math.ceil(yMin); j <= Math.floor(yMax); j++) {
+    let py = yToPixel(j);
+    ctx.beginPath();
+    ctx.moveTo(x0 - 4, py);
+    ctx.lineTo(x0 + 4, py);
+    ctx.stroke();
+    ctx.fillText(j.toString(), x0 - 8, py + 4);
+  }
+}
+
+// soft grid
+function drawGrid() {
+  ctx.fillStyle = '#f8f9fb';
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = '#eee';
+  ctx.lineWidth = 1;
+  for (let i = Math.ceil(xMin); i <= Math.floor(xMax); i++) {
+    let px = xToPixel(i);
+    ctx.beginPath();
+    ctx.moveTo(px, padding);
+    ctx.lineTo(px, H-padding);
+    ctx.stroke();
+  }
+  for (let j = Math.ceil(yMin); j <= Math.floor(yMax); j++) {
+    let py = yToPixel(j);
+    ctx.beginPath();
+    ctx.moveTo(padding, py);
+    ctx.lineTo(W-padding, py);
+    ctx.stroke();
+  }
+}
+
+// draw points
+function drawPoints() {
+  for (let p of points) {
+    let px = xToPixel(p.x);
+    let py = yToPixel(p.y);
+    ctx.beginPath();
+    ctx.fillStyle = '#222';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.arc(px, py, 5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+// draw fitted lines: GD in blue, closed-form in red
+function drawFitLines() {
+  // helper to draw line from xMin to xMax
+  function drawLine(m, b, color, width=2, dash=null) {
+    if (!isFinite(m) || !isFinite(b)) return;
+    const x1 = xMin, y1 = m * x1 + b;
+    const x2 = xMax, y2 = m * x2 + b;
+    const p1x = xToPixel(x1), p1y = yToPixel(y1);
+    const p2x = xToPixel(x2), p2y = yToPixel(y2);
+    ctx.beginPath();
+    ctx.moveTo(p1x, p1y);
+    ctx.lineTo(p2x, p2y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    if (dash) ctx.setLineDash(dash); else ctx.setLineDash([]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // gradient descent line (blue)
+  drawLine(mGD, bGD, '#2b7cff', 3, null);
+  // closed-form line (red, dashed)
+  const cf = closedFormFit(points);
+  if (cf) drawLine(cf.m, cf.b, '#ff5c5c', 2, [6,6]);
+}
+
+// Compute closed-form least squares for simple linear regression
+function closedFormFit(pts) {
+  if (!pts || pts.length === 0) return null;
+  const n = pts.length;
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  for (let p of pts) {
+    sumX += p.x;
+    sumY += p.y;
+    sumXY += p.x * p.y;
+    sumXX += p.x * p.x;
+  }
+  const xBar = sumX / n;
+  const yBar = sumY / n;
+  const denom = (sumXX - n * xBar * xBar);
+  if (Math.abs(denom) < 1e-12) {
+    return {m: NaN, b: NaN};
+  }
+  const m = (sumXY - n * xBar * yBar) / denom;
+  const b = yBar - m * xBar;
+  return {m, b};
+}
+
+// Loss (MSE) and RMSE for given params
+function mseLoss(pts, m, b) {
+  if (!pts || pts.length === 0) return NaN;
+  let sum = 0;
+  for (let p of pts) {
+    const err = (m * p.x + b) - p.y;
+    sum += err * err;
+  }
+  return sum / pts.length;
+}
+function rmse(pts, m, b) {
+  const ms = mseLoss(pts, m, b);
+  return isFinite(ms) ? Math.sqrt(ms) : NaN;
+}
+
+// Gradient descent step (batch)
+function gradientDescentStep(pts, m, b, lr) {
+  const n = pts.length;
+  if (n === 0) return {m,b};
+  let dm = 0, db = 0;
+  for (let p of pts) {
+    const pred = m * p.x + b;
+    const err = pred - p.y;
+    dm += (2 / n) * err * p.x;
+    db += (2 / n) * err;
+  }
+  return { m: m - lr * dm, b: b - lr * db };
+}
+
+// Hooks and UI wiring
+canvas.addEventListener('click', (ev) => {
+  const rect = canvas.getBoundingClientRect();
+  const px = (ev.clientX - rect.left) * (canvas.width / rect.width);
+  const py = (ev.clientY - rect.top) * (canvas.height / rect.height);
+  const x = pixelToX(px);
+  const y = pixelToY(py);
+  points.push({x,y});
+  // update axes scale dynamically to keep points visible (optional)
+  adjustBoundsToPoints();
+  recomputeAndRender();
+});
+
+// adjust plot bounds to include all points with margin
+function adjustBoundsToPoints() {
+  if (points.length === 0) {
+    xMin = -10; xMax = 10; yMin = -10; yMax = 10;
+    return;
+  }
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const marginX = Math.max(1, (maxX - minX) * 0.2);
+  const marginY = Math.max(1, (maxY - minY) * 0.2);
+  xMin = minX - marginX; xMax = maxX + marginX;
+  yMin = minY - marginY; yMax = maxY + marginY;
+}
+
+// generate synthetic data
+function generateRandomData() {
+  const n = parseInt(nPtsInput.value);
+  const trueM = parseFloat(trueSlopeInput.value);
+  const trueB = parseFloat(trueIntInput.value);
+  const noiseStd = parseFloat(noiseInput.value);
+  points = [];
+  // sample x uniformly in [-8,8]
+  for (let i = 0; i < n; i++) {
+    const x = (Math.random() * 16) - 8;
+    // gaussian noise via Box-Muller
+    const u1 = Math.random(), u2 = Math.random();
+    const z = Math.sqrt(-2 * Math.log(Math.max(u1,1e-12))) * Math.cos(2*Math.PI*u2);
+    const y = trueM * x + trueB + z * noiseStd;
+    points.push({x,y});
+  }
+  adjustBoundsToPoints();
+  // initialize GD params near closed-form to speed convergence (optional)
+  const cf = closedFormFit(points);
+  if (cf) { mGD = cf.m + (Math.random()-0.5)*0.5; bGD = cf.b + (Math.random()-0.5)*0.5; }
+  recomputeAndRender();
+}
+
+// recompute closed-form and losses, update display, and draw
+function recomputeAndRender() {
+  // closed-form
+  const cf = closedFormFit(points);
+  if (cf) {
+    mCFSpan.textContent = isFinite(cf.m) ? cf.m.toFixed(4) : '—';
+    bCFSpan.textContent = isFinite(cf.b) ? cf.b.toFixed(4) : '—';
+    const lossCF = mseLoss(points, cf.m, cf.b);
+    lossCFSpan.textContent = isFinite(lossCF) ? lossCF.toFixed(4) : '—';
+    rmseCFSpan.textContent = isFinite(lossCF) ? Math.sqrt(lossCF).toFixed(4) : '—';
+  } else {
+    mCFSpan.textContent = '—'; bCFSpan.textContent = '—'; lossCFSpan.textContent = '—'; rmseCFSpan.textContent = '—';
+  }
+  const lossGD = mseLoss(points, mGD, bGD);
+  mGDSpan.textContent = isFinite(mGD) ? mGD.toFixed(4) : '—';
+  bGDSpan.textContent = isFinite(bGD) ? bGD.toFixed(4) : '—';
+  lossGDSpan.textContent = isFinite(lossGD) ? lossGD.toFixed(4) : '—';
+  rmseGDSpan.textContent = isFinite(lossGD) ? Math.sqrt(lossGD).toFixed(4) : '—';
+  draw();
+}
+
+// gradient descent loop
+function startGD() {
+  if (gdRunning) return;
+  gdRunning = true;
+  const intervalMs = 1000 / itersPerSec;
+  // we will perform multiple GD steps per timer callback to accommodate high iters/sec with smooth visuals
+  gdTimer = setInterval(() => {
+    // apply one batch step
+    const step = gradientDescentStep(points, mGD, bGD, learningRate);
+    mGD = step.m; bGD = step.b;
+    recomputeAndRender();
+  }, intervalMs);
+}
+
+function stopGD() {
+  if (!gdRunning) return;
+  clearInterval(gdTimer);
+  gdTimer = null;
+  gdRunning = false;
+}
+
+// restore params
+function resetGD() {
+  mGD = 0; bGD = 0;
+  recomputeAndRender();
+}
+
+// UI event wiring
+randBtn.addEventListener('click', generateRandomData);
+clearBtn.addEventListener('click', () => { points = []; adjustBoundsToPoints(); recomputeAndRender(); });
+
+nPtsInput.addEventListener('input', () => { nPtsLabel.textContent = nPtsInput.value; });
+trueSlopeInput.addEventListener('input', () => { trueSlopeLabel.textContent = trueSlopeInput.value; });
+trueIntInput.addEventListener('input', () => { trueIntLabel.textContent = trueIntInput.value; });
+noiseInput.addEventListener('input', () => { noiseLabel.textContent = noiseInput.value; });
+
+startBtn.addEventListener('click', () => { startGD(); });
+stopBtn.addEventListener('click', () => { stopGD(); });
+resetGDBtn.addEventListener('click', () => { resetGD(); });
+
+lrInput.addEventListener('input', () => {
+  learningRate = parseFloat(lrInput.value);
+  lrLabel.textContent = learningRate.toFixed(4);
+});
+iterLabel.textContent = itersPerSecInput.value;
+itersPerSecInput.addEventListener('input', () => {
+  itersPerSec = parseInt(itersPerSecInput.value);
+  iterLabel.textContent = itersPerSec;
+  if (gdRunning) { stopGD(); startGD(); }
+});
+
+// prediction
+predBtn.addEventListener('click', () => {
+  const xVal = parseFloat(xPredInput.value);
+  if (!isFinite(xVal)) { predResult.textContent = 'Enter a valid x value'; return; }
+  let out = '';
+  if (isFinite(mGD) && isFinite(bGD)) {
+    out += `GD: y = ${ (mGD * xVal + bGD).toFixed(4) } `;
+  }
+  const cf = closedFormFit(points);
+  if (cf && isFinite(cf.m) && isFinite(cf.b)) {
+    out += `(CF: y = ${(cf.m * xVal + cf.b).toFixed(4)})`;
+  }
+  predResult.textContent = out;
+});
+
+// keyboard: space toggles GD
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (gdRunning) stopGD(); else startGD();
+  }
+});
+
+// initial set up
+(function init(){
+  // set default labels
+  nPtsLabel.textContent = nPtsInput.value;
+  trueSlopeLabel.textContent = trueSlopeInput.value;
+  trueIntLabel.textContent = trueIntInput.value;
+  noiseLabel.textContent = noiseInput.value;
+  lrLabel.textContent = lrInput.value;
+  iterLabel.textContent = itersPerSecInput.value;
+  // generate an initial dataset
+  generateRandomData();
+})();
+
+// small performance: animate continuous GD smoothly with requestAnimationFrame (optional enhancement)
+// We'll not do it here because the setInterval steps update and call draw() each step.
+
+</script>
+</body>
+</html>
