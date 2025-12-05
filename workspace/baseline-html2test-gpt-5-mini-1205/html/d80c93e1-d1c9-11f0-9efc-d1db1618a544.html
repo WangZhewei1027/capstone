@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Interactive Linear Regression Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --bg: #111827; --panel: #0f1724; --accent: #60a5fa; --muted: #9ca3af; --text: #e6eef8; }
+    html,body { height:100%; margin:0; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: linear-gradient(180deg,#071129 0%, #071228 55%, #061126 100%); color:var(--text); }
+    .container { display:flex; gap:18px; padding:18px; box-sizing:border-box; height:100%; }
+    .left { width:320px; min-width:280px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:12px; padding:14px; box-shadow: 0 6px 20px rgba(2,6,23,0.6); overflow:auto; }
+    .right { flex:1; display:flex; flex-direction:column; gap:12px; }
+    h1 { font-size:18px; margin:4px 0 10px 0; color:var(--text); }
+    p.lead { margin:6px 0 14px 0; color:var(--muted); font-size:13px; line-height:1.35; }
+    .control-group { margin-bottom:12px; }
+    label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+    input[type="range"] { width:100%; }
+    .row { display:flex; gap:8px; align-items:center; }
+    button { background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--text); padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px; }
+    button.primary { background:linear-gradient(90deg,var(--accent),#7dd3fc20); border:1px solid rgba(96,165,250,0.18); }
+    .small { font-size:12px; color:var(--muted); }
+    .stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px; }
+    .stat { background:rgba(255,255,255,0.02); padding:8px; border-radius:8px; font-size:13px; }
+    canvas { background:linear-gradient(180deg,#071735 0%, #05203a 100%); border-radius:12px; box-shadow: 0 8px 30px rgba(2,6,23,0.55); display:block; }
+    .legend { display:flex; gap:10px; align-items:center; margin-top:8px; color:var(--muted); font-size:13px; }
+    .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+    .dot.points { background:#34d399; box-shadow:0 0 10px rgba(52,211,153,0.15); }
+    .dot.line { width:30px; height:3px; border-radius:3px; background:#60a5fa; display:inline-block; vertical-align:middle; box-shadow:0 0 10px rgba(96,165,250,0.12); }
+    .muted { color:var(--muted); font-size:13px; }
+    .hint { font-size:12px; color:var(--muted); margin-top:8px; }
+    .small-grid { display:flex; gap:6px; flex-wrap:wrap; }
+    .chip { background:rgba(255,255,255,0.02); padding:6px 8px; border-radius:8px; font-size:13px; border:1px solid rgba(255,255,255,0.03); }
+    .footer { margin-top:8px; font-size:12px; color:var(--muted); }
+    input[type="number"] { width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); background:transparent; color:var(--text); }
+    .btn-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .toggle { display:inline-flex; gap:6px; align-items:center; font-size:13px; color:var(--muted); }
+    .linklike { text-decoration:underline; cursor:pointer; color:var(--accent); }
+    .credits { font-size:12px; color:var(--muted); margin-top:10px; }
+    @media (max-width:900px) {
+      .container { flex-direction:column; padding:12px; }
+      .left { width:100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="left">
+      <h1>Linear Regression — Interactive Demo</h1>
+      <p class="lead">Add points by clicking the plot. Drag to move them. Fit a line using the closed‑form solution (least squares) or gradient descent, visualize residuals and watch the loss.</p>
+
+      <div class="control-group">
+        <label>Data: generate random points</label>
+        <div class="row" style="gap:8px;">
+          <input id="numPoints" type="range" min="3" max="80" value="25" />
+          <div class="chip small" id="numPointsVal">25</div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div style="flex:1">
+            <label class="small">True slope</label>
+            <input id="trueSlope" type="range" min="-3" max="3" step="0.1" value="0.8" />
+          </div>
+          <div style="width:90px; display:flex; align-items:center;">
+            <div class="chip" id="trueSlopeVal">0.8</div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:8px;">
+          <div style="flex:1">
+            <label class="small">True intercept</label>
+            <input id="trueIntercept" type="range" min="-40" max="40" step="1" value="10" />
+          </div>
+          <div style="width:90px; display:flex; align-items:center;">
+            <div class="chip" id="trueInterceptVal">10</div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:8px;">
+          <div style="flex:1">
+            <label class="small">Noise (std dev)</label>
+            <input id="noise" type="range" min="0" max="30" step="0.5" value="8" />
+          </div>
+          <div style="width:90px; display:flex; align-items:center;">
+            <div class="chip" id="noiseVal">8</div>
+          </div>
+        </div>
+
+        <div class="btn-row" style="margin-top:10px;">
+          <button id="randBtn" class="primary">Generate Random Data</button>
+          <button id="clearBtn">Clear Points</button>
+          <button id="undoBtn">Undo</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Fitting</label>
+        <div class="btn-row">
+          <button id="fitClosed">Fit (Closed form)</button>
+          <button id="fitGD">Fit (Gradient Descent)</button>
+          <button id="startStopGD">Start GD</button>
+          <button id="stepGD">Step GD</button>
+        </div>
+
+        <div style="margin-top:10px;">
+          <label class="small">Gradient descent settings</label>
+          <div class="row">
+            <div style="flex:1">
+              <input id="lr" type="range" min="0.0005" max="0.5" step="0.0005" value="0.02" />
+            </div>
+            <div style="width:100px;">
+              <div class="chip" id="lrVal">0.020</div>
+            </div>
+          </div>
+
+          <div style="margin-top:8px;" class="row">
+            <div style="flex:1">
+              <label class="small">Epochs per "fit GD" run</label>
+              <input id="epochs" type="range" min="1" max="1000" step="1" value="200" />
+            </div>
+            <div style="width:80px;">
+              <div class="chip" id="epochsVal">200</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;" class="row">
+          <label class="toggle"><input id="showResiduals" type="checkbox" checked /> <span style="margin-left:6px;">Show residual lines</span></label>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Statistics</label>
+        <div class="stats">
+          <div class="stat"><div class="small muted">Slope (m)</div><div id="statSlope">—</div></div>
+          <div class="stat"><div class="small muted">Intercept (b)</div><div id="statIntercept">—</div></div>
+          <div class="stat"><div class="small muted">MSE</div><div id="statMSE">—</div></div>
+          <div class="stat"><div class="small muted">R²</div><div id="statR2">—</div></div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="muted">How to use:</div>
+        <ol style="padding-left:18px; margin:6px 0 0 0; color:var(--muted); font-size:13px;">
+          <li>Click the plot to add points. Drag points to modify them.</li>
+          <li>Use "Generate Random Data" to make a noisy linear dataset.</li>
+          <li>"Fit (Closed form)" computes the exact least-squares line.</li>
+          <li>"Fit (Gradient Descent)" runs iterative fitting; start/stop to animate.</li>
+        </ol>
+        <div class="credits">Built-in demo — no external libraries.</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <canvas id="plot" width="900" height="520"></canvas>
+      <div style="display:flex; gap:12px; align-items:center; justify-content:space-between;">
+        <div class="legend">
+          <span class="dot points"></span><span class="muted">Points</span>
+          <span style="width:16px"></span>
+          <span class="dot line"></span><span class="muted">Fitted line</span>
+        </div>
+        <div class="muted">Click points to add, drag to move. Zoom/pan not supported.</div>
+      </div>
+      <canvas id="loss" width="900" height="150"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // Data and model
+    const plot = document.getElementById('plot');
+    const lossCanvas = document.getElementById('loss');
+    const ctx = plot.getContext('2d');
+    const lctx = lossCanvas.getContext('2d');
+
+    let points = []; // {x,y} in data coords
+    let history = []; // for undo
+    let m = 0, b = 0; // model: y = m*x + b
+    let lossHistory = [];
+    let gdRunning = false;
+    let gdAnimationId = null;
+    let gdIteration = 0;
+
+    // Data coordinate window
+    const dataXMin = 0, dataXMax = 100;
+    const dataYMin = -60, dataYMax = 140;
+
+    // UI elements
+    const numPoints = document.getElementById('numPoints');
+    const numPointsVal = document.getElementById('numPointsVal');
+    const trueSlope = document.getElementById('trueSlope');
+    const trueSlopeVal = document.getElementById('trueSlopeVal');
+    const trueIntercept = document.getElementById('trueIntercept');
+    const trueInterceptVal = document.getElementById('trueInterceptVal');
+    const noise = document.getElementById('noise');
+    const noiseVal = document.getElementById('noiseVal');
+    const randBtn = document.getElementById('randBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const undoBtn = document.getElementById('undoBtn');
+    const fitClosed = document.getElementById('fitClosed');
+    const fitGD = document.getElementById('fitGD');
+    const startStopGD = document.getElementById('startStopGD');
+    const stepGD = document.getElementById('stepGD');
+    const lr = document.getElementById('lr');
+    const lrVal = document.getElementById('lrVal');
+    const epochs = document.getElementById('epochs');
+    const epochsVal = document.getElementById('epochsVal');
+    const showResiduals = document.getElementById('showResiduals');
+
+    const statSlope = document.getElementById('statSlope');
+    const statIntercept = document.getElementById('statIntercept');
+    const statMSE = document.getElementById('statMSE');
+    const statR2 = document.getElementById('statR2');
+
+    // Helpers: data<->canvas transforms
+    function xToCanvas(x) {
+      const pad = 40;
+      const w = plot.width - pad*2;
+      return pad + ((x - dataXMin) / (dataXMax - dataXMin)) * w;
+    }
+    function yToCanvas(y) {
+      const pad = 40;
+      const h = plot.height - pad*2;
+      // y increases downwards on canvas, but data y increases upwards
+      return pad + (1 - (y - dataYMin) / (dataYMax - dataYMin)) * h;
+    }
+    function canvasToData(cx, cy) {
+      const pad = 40;
+      const w = plot.width - pad*2;
+      const h = plot.height - pad*2;
+      const x = dataXMin + ((cx - pad) / w) * (dataXMax - dataXMin);
+      const y = dataYMin + (1 - ((cy - pad) / h)) * (dataYMax - dataYMin);
+      return {x,y};
+    }
+
+    // Drawing
+    function clearPlot() {
+      ctx.clearRect(0,0,plot.width,plot.height);
+      // background gradient (already CSS) - we still draw axes grid
+      // draw grid lines
+      ctx.save();
+      ctx.globalAlpha = 0.15;
+      ctx.strokeStyle = '#8ab4ff';
+      ctx.lineWidth = 1;
+      // vertical ticks at 0,20,40,60,80,100
+      for (let gx = 0; gx <= 100; gx += 20) {
+        const cx = xToCanvas(gx);
+        ctx.beginPath();
+        ctx.moveTo(cx, 20);
+        ctx.lineTo(cx, plot.height - 20);
+        ctx.stroke();
+      }
+      // horizontal ticks at -40,-20,0,20,40,60,80,100,120
+      for (let gy = -40; gy <= 120; gy += 20) {
+        const cy = yToCanvas(gy);
+        ctx.beginPath();
+        ctx.moveTo(20, cy);
+        ctx.lineTo(plot.width - 20, cy);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // axes labels
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '12px system-ui, Arial';
+      ctx.textAlign = 'center';
+      for (let gx = 0; gx <= 100; gx += 20) {
+        const cx = xToCanvas(gx);
+        ctx.fillText(gx.toString(), cx, plot.height - 18);
+      }
+      ctx.textAlign = 'right';
+      for (let gy = -40; gy <= 120; gy += 20) {
+        const cy = yToCanvas(gy);
+        ctx.fillText(gy.toString(), 36, cy + 4);
+      }
+    }
+
+    function drawPointsAndLine() {
+      clearPlot();
+
+      // Draw residuals first if enabled
+      if (showResiduals.checked && points.length >= 1) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1.6;
+        for (const p of points) {
+          const xC = xToCanvas(p.x), yC = yToCanvas(p.y);
+          const predY = m * p.x + b;
+          const yPC = yToCanvas(predY);
+          ctx.beginPath();
+          ctx.moveTo(xC, yC);
+          ctx.lineTo(xC, yPC);
+          ctx.stroke();
+        }
+      }
+
+      // Draw line (fitted)
+      if (points.length >= 2) {
+        const xA = dataXMin, xB = dataXMax;
+        const yA = m * xA + b;
+        const yB = m * xB + b;
+        const cAx = xToCanvas(xA), cAy = yToCanvas(yA);
+        const cBx = xToCanvas(xB), cBy = yToCanvas(yB);
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.moveTo(cAx, cAy);
+        ctx.lineTo(cBx, cBy);
+        ctx.stroke();
+      }
+
+      // Draw points
+      for (const p of points) {
+        const x = xToCanvas(p.x);
+        const y = yToCanvas(p.y);
+        ctx.beginPath();
+        ctx.fillStyle = '#10b981';
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        ctx.arc(x, y, 6, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    // Compute stats
+    function computeClosedForm() {
+      const n = points.length;
+      if (n < 2) return null;
+      const xs = points.map(p=>p.x);
+      const ys = points.map(p=>p.y);
+      const meanX = xs.reduce((a,b)=>a+b,0)/n;
+      const meanY = ys.reduce((a,b)=>a+b,0)/n;
+      let num = 0, den = 0;
+      for (let i=0;i<n;i++){
+        num += (xs[i]-meanX)*(ys[i]-meanY);
+        den += (xs[i]-meanX)*(xs[i]-meanX);
+      }
+      const mm = den === 0 ? 0 : num/den;
+      const bb = meanY - mm*meanX;
+      return {m:mm,b:bb};
+    }
+
+    function computeMSE(m_, b_) {
+      if (points.length === 0) return Infinity;
+      let sse = 0;
+      for (const p of points) {
+        const e = p.y - (m_ * p.x + b_);
+        sse += e*e;
+      }
+      return sse / points.length;
+    }
+
+    function computeR2(m_, b_) {
+      if (points.length === 0) return NaN;
+      const ys = points.map(p=>p.y);
+      const meanY = ys.reduce((a,b)=>a+b,0)/ys.length;
+      let sst = 0, sse = 0;
+      for (const p of points) {
+        sst += (p.y - meanY)**2;
+        sse += (p.y - (m_*p.x + b_))**2;
+      }
+      return 1 - (sse / sst || 1);
+    }
+
+    // Fit closed form
+    function fitClosedForm() {
+      const res = computeClosedForm();
+      if (!res) return;
+      m = res.m;
+      b = res.b;
+      lossHistory = [];
+      updateStats();
+      drawPointsAndLine();
+      drawLoss();
+    }
+
+    // Gradient descent functions
+    function gdStep(lrate) {
+      const n = points.length;
+      if (n === 0) return;
+      // compute gradients
+      let dM = 0, dB = 0;
+      for (const p of points) {
+        const pred = m * p.x + b;
+        const err = pred - p.y; // derivative of mse wrt pred is 2*(pred - y)/n but we can absorb 2 into lr
+        dM += err * p.x;
+        dB += err;
+      }
+      // average gradients, multiply by 2/n to match MSE gradient (we'll use that scale)
+      dM = (2/n) * dM;
+      dB = (2/n) * dB;
+      m = m - lrate * dM;
+      b = b - lrate * dB;
+      const mse = computeMSE(m,b);
+      lossHistory.push(mse);
+      gdIteration++;
+    }
+
+    function fitGD(epochsCount, lrate, animate=false) {
+      if (points.length === 0) return;
+      // If no initialization yet, start near closed form for faster convergence
+      const cf = computeClosedForm();
+      if (cf) { m = cf.m; b = cf.b; }
+      if (!animate) {
+        for (let e=0;e<epochsCount;e++) gdStep(lrate);
+        updateStats();
+        drawPointsAndLine();
+        drawLoss();
+      } else {
+        // animated: spawn iterative loop handled by startStopGD
+        gdRunning = true;
+        startStopGD.innerText = "Stop GD";
+        // ensure we have loss history and iteration
+        for (let i=0;i<epochsCount;i++) {
+          if (!gdRunning) break;
+          gdStep(lrate);
+        }
+        updateStats();
+        drawPointsAndLine();
+        drawLoss();
+      }
+    }
+
+    // Draw loss curve
+    function drawLoss() {
+      lctx.clearRect(0,0,lossCanvas.width,lossCanvas.height);
+      lctx.fillStyle = '#0b1220';
+      lctx.fillRect(0,0,lossCanvas.width,lossCanvas.height);
+      if (lossHistory.length === 0) {
+        lctx.fillStyle = '#93c5fd';
+        lctx.font = '12px system-ui';
+        lctx.fillText('No loss history yet (run gradient descent or press "Fit (Gradient Descent)")', 12, 24);
+        return;
+      }
+      const pad = 30;
+      // axes
+      lctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      lctx.lineWidth = 1;
+      lctx.beginPath();
+      lctx.moveTo(pad, pad);
+      lctx.lineTo(pad, lossCanvas.height - pad);
+      lctx.lineTo(lossCanvas.width - pad, lossCanvas.height - pad);
+      lctx.stroke();
+
+      const maxLoss = Math.max(...lossHistory);
+      const minLoss = Math.min(...lossHistory);
+      const range = Math.max(1e-8, maxLoss - minLoss);
+      const w = lossCanvas.width - pad*2;
+      const h = lossCanvas.height - pad*2;
+
+      // draw curve
+      lctx.beginPath();
+      lctx.strokeStyle = '#60a5fa';
+      lctx.lineWidth = 2;
+      for (let i=0;i<lossHistory.length;i++){
+        const x = pad + (i / (lossHistory.length-1 || 1)) * w;
+        const y = pad + (1 - (lossHistory[i] - minLoss)/range) * h;
+        if (i===0) lctx.moveTo(x,y); else lctx.lineTo(x,y);
+      }
+      lctx.stroke();
+
+      lctx.fillStyle = '#9ca3af';
+      lctx.font = '12px system-ui';
+      lctx.textAlign = 'left';
+      lctx.fillText('Loss (MSE) over iterations', pad, 14);
+
+      // latest value
+      lctx.textAlign = 'right';
+      lctx.fillStyle = '#c7d2fe';
+      lctx.fillText('Latest: ' + (lossHistory[lossHistory.length-1]).toFixed(3), lossCanvas.width - pad, 14);
+    }
+
+    // Update stats UI
+    function updateStats() {
+      if (points.length < 1) {
+        statSlope.innerText = '—';
+        statIntercept.innerText = '—';
+        statMSE.innerText = '—';
+        statR2.innerText = '—';
+        return;
+      }
+      statSlope.innerText = m.toFixed(4);
+      statIntercept.innerText = b.toFixed(4);
+      const mse = computeMSE(m,b);
+      statMSE.innerText = mse.toFixed(4);
+      const r2 = computeR2(m,b);
+      statR2.innerText = (isFinite(r2) ? r2.toFixed(4) : '—');
+    }
+
+    // UI wiring
+    numPoints.addEventListener('input', ()=>{ numPointsVal.innerText = numPoints.value; });
+    trueSlope.addEventListener('input', ()=>{ trueSlopeVal.innerText = trueSlope.value; });
+    trueIntercept.addEventListener('input', ()=>{ trueInterceptVal.innerText = trueIntercept.value; });
+    noise.addEventListener('input', ()=>{ noiseVal.innerText = noise.value; });
+    lr.addEventListener('input', ()=>{ lrVal.innerText = Number(lr.value).toFixed(3); });
+    epochs.addEventListener('input', ()=>{ epochsVal.innerText = epochs.value; });
+
+    randBtn.addEventListener('click', ()=>{
+      history.push(JSON.stringify(points));
+      generateRandomData(Number(numPoints.value), Number(trueSlope.value), Number(trueIntercept.value), Number(noise.value));
+      lossHistory = [];
+      updateStats();
+      drawPointsAndLine();
+      drawLoss();
+    });
+
+    clearBtn.addEventListener('click', ()=>{
+      history.push(JSON.stringify(points));
+      points = [];
+      lossHistory = [];
+      updateStats();
+      drawPointsAndLine();
+      drawLoss();
+    });
+
+    undoBtn.addEventListener('click', ()=>{
+      if (history.length === 0) return;
+      const prev = history.pop();
+      points = JSON.parse(prev);
+      lossHistory = [];
+      updateStats();
+      drawPointsAndLine();
+      drawLoss();
+    });
+
+    fitClosed.addEventListener('click', ()=>{
+      if (points.length < 2) return;
+      history.push(JSON.stringify(points));
+      fitClosedForm();
+    });
+
+    fitGD.addEventListener('click', ()=>{
+      if (points.length < 1) return;
+      history.push(JSON.stringify(points));
+      const ep = Number(epochs.value);
+      const lrate = Number(lr.value);
+      // If too many epochs, run in short chunks to keep UI responsive
+      if (ep > 1000) {
+        fitGD(ep, lrate, false);
+      } else {
+        fitGD(ep, lrate, false);
+      }
+    });
+
+    startStopGD.addEventListener('click', ()=>{
+      if (gdRunning) {
+        gdRunning = false;
+        startStopGD.innerText = "Start GD";
+        if (gdAnimationId) cancelAnimationFrame(gdAnimationId);
+      } else {
+        if (points.length < 1) return;
+        gdRunning = true;
+        startStopGD.innerText = "Stop GD";
+        // initialize near closed form for better start
+        const cf = computeClosedForm();
+        if (cf) { m = cf.m; b = cf.b; }
+        animateGD();
+      }
+    });
+
+    stepGD.addEventListener('click', ()=>{
+      if (points.length < 1) return;
+      history.push(JSON.stringify(points));
+      gdRunning = false;
+      startStopGD.innerText = "Start GD";
+      const lrate = Number(lr.value);
+      gdStep(lrate);
+      updateStats();
+      drawPointsAndLine();
+      drawLoss();
+    });
+
+    function animateGD() {
+      if (!gdRunning) return;
+      // perform a small number of steps per frame to speed things up slightly
+      const stepsPerFrame = 3;
+      const lrate = Number(lr.value);
+      for (let i=0;i<stepsPerFrame;i++){
+        gdStep(lrate);
+      }
+      updateStats();
+      drawPointsAndLine();
+      drawLoss();
+      gdAnimationId = requestAnimationFrame(animateGD);
+    }
+
+    // Generate synthetic data
+    function generateRandomData(n, slope, intercept, noiseStd) {
+      points = [];
+      for (let i=0;i<n;i++){
+        const x = Math.random() * (dataXMax - dataXMin) + dataXMin;
+        const ideal = slope * x + intercept;
+        const y = ideal + gaussianRandom()*noiseStd;
+        points.push({x,y});
+      }
+      // shuffle a bit
+      points.sort(()=>Math.random()-0.5);
+    }
+
+    // Gaussian random using Box-Muller
+    function gaussianRandom() {
+      let u = 0, v = 0;
+      while(u === 0) u = Math.random();
+      while(v === 0) v = Math.random();
+      return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+
+    // Mouse interactions: add, drag points
+    let draggingIndex = -1;
+    let dragOffset = {dx:0, dy:0};
+
+    plot.addEventListener('mousedown', (e)=>{
+      const rect = plot.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      // check if clicking near an existing point
+      let foundIndex = -1;
+      for (let i=0;i<points.length;i++){
+        const px = xToCanvas(points[i].x), py = yToCanvas(points[i].y);
+        const dx = px - cx, dy = py - cy;
+        if (Math.sqrt(dx*dx + dy*dy) < 10) { foundIndex = i; break; }
+      }
+      if (foundIndex >= 0) {
+        // start dragging
+        draggingIndex = foundIndex;
+        dragOffset.dx = xToCanvas(points[foundIndex].x) - cx;
+        dragOffset.dy = yToCanvas(points[foundIndex].y) - cy;
+      } else {
+        // add new point
+        history.push(JSON.stringify(points));
+        const d = canvasToData(cx, cy);
+        points.push({x:d.x, y:d.y});
+        updateStats();
+        drawPointsAndLine();
+        drawLoss();
+      }
+    });
+
+    window.addEventListener('mousemove', (e)=>{
+      if (draggingIndex === -1) return;
+      const rect = plot.getBoundingClientRect();
+      const cx = e.clientX - rect.left + dragOffset.dx;
+      const cy = e.clientY - rect.top + dragOffset.dy;
+      const d = canvasToData(cx, cy);
+      points[draggingIndex].x = Math.min(dataXMax, Math.max(dataXMin, d.x));
+      points[draggingIndex].y = Math.min(dataYMax, Math.max(dataYMin, d.y));
+      updateStats();
+      drawPointsAndLine();
+      drawLoss();
+    });
+
+    window.addEventListener('mouseup', ()=>{ draggingIndex = -1; });
+
+    // Initial render
+    generateRandomData(25, Number(trueSlope.value), Number(trueIntercept.value), Number(noise.value));
+    fitClosedForm(); // initialize line
+    drawPointsAndLine();
+    drawLoss();
+    updateStats();
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+        if (history.length) {
+          const prev = history.pop();
+          points = JSON.parse(prev);
+          updateStats();
+          drawPointsAndLine();
+          drawLoss();
+        }
+      }
+    });
+
+    // Resize handling for crispness on high-DPI screens
+    function resizeCanvases() {
+      [plot, lossCanvas].forEach(c => {
+        const ratio = window.devicePixelRatio || 1;
+        const styleW = parseInt(getComputedStyle(c).width, 10) || c.width;
+        const styleH = parseInt(getComputedStyle(c).height, 10) || c.height;
+        c.width = Math.max(300, Math.floor(styleW * ratio));
+        c.height = Math.max(150, Math.floor(styleH * ratio));
+        const ctx2 = c.getContext('2d');
+        ctx2.setTransform(ratio,0,0,ratio,0,0);
+      });
+      drawPointsAndLine();
+      drawLoss();
+    }
+    // initial size set to CSS pixel sizes
+    plot.style.width = '100%';
+    plot.style.height = '520px';
+    lossCanvas.style.width = '100%';
+    lossCanvas.style.height = '150px';
+    window.addEventListener('resize', resizeCanvases);
+    resizeCanvases();
+
+    // Small precaution: stop GD when leaving page
+    window.addEventListener('beforeunload', ()=>{ gdRunning = false; });
+
+  </script>
+</body>
+</html>

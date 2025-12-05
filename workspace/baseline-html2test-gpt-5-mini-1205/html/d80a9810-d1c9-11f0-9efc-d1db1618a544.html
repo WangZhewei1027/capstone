@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<!doctype html>
+<title>Priority Queue Demo — Binary Heap vs Naive Array</title>
+<meta charset="utf-8">
+<style>
+  body { font-family: system-ui, -apple-system, Roboto, "Helvetica Neue", Arial; margin: 18px; color:#111; background:#f7f9fc;}
+  h1 { margin:0 0 6px 0; font-size:20px;}
+  .container { display:flex; gap:18px; align-items:flex-start; }
+  .panel { background:white; padding:12px; border-radius:8px; box-shadow:0 2px 8px rgba(20,30,40,0.06); width:520px; }
+  label { display:block; margin:8px 0 4px; font-size:13px; color:#333;}
+  input[type="text"], input[type="number"] { width:140px; padding:6px 8px; border-radius:6px; border:1px solid #d7dbe8; }
+  button { padding:8px 10px; margin-right:6px; border-radius:6px; border:1px solid #c9d1e6; background:linear-gradient(#fff,#f3f6fb); cursor:pointer; }
+  button:active { transform:translateY(1px); }
+  .controls { margin-bottom:10px; }
+  .small { font-size:13px; color:#445; }
+  .log { background:#071025; color:#cfe9ff; padding:8px; border-radius:6px; height:120px; overflow:auto; font-family:monospace; font-size:12px; }
+  .heap-vis { margin-top:8px; }
+  .node { display:inline-block; min-width:48px; height:36px; border-radius:6px; margin:6px; background:#eef6ff; border:1px solid #cfe1ff; text-align:center; line-height:36px; font-weight:600; color:#123; }
+  .node.highlight { background:#ffeac8; border-color:#ffd39a; }
+  .array-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .meta { font-size:13px; color:#445; margin-top:8px; }
+  .tabs { display:flex; gap:6px; margin-bottom:8px; }
+  .tab { padding:6px 8px; border-radius:6px; cursor:pointer; background:#eef3ff; border:1px solid #d7e0ff; }
+  .tab.active { background:#cfe4ff; font-weight:700; }
+  .bench { margin-top:8px; }
+  .footer { margin-top:12px; font-size:13px; color:#445; }
+  .tree { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; }
+  .level { width:100%; display:flex; justify-content:center; gap:6px; }
+  .info { background:#fff9e6; border:1px solid #ffecb8; padding:8px; border-radius:6px; color:#6a4b00; margin-top:8px; }
+</style>
+
+<div style="max-width:1140px;margin:auto;">
+  <h1>Priority Queue Demo — Binary Heap vs Naive Array</h1>
+  <div class="small">Interactive demo shows a min-priority queue (smaller priority = higher priority). Tie-breaker: insertion order (stable).</div>
+
+  <div style="height:12px;"></div>
+
+  <div class="container">
+    <div class="panel" id="heapPanel">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <strong>Binary Heap (array-backed min-heap)</strong>
+          <div class="small">Typical operations: O(log n) insert/pop, O(1) peek.</div>
+        </div>
+        <div style="text-align:right">
+          <div class="small" id="heapMeta">size: 0</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <label>Insert item</label>
+        <input id="hValue" type="text" placeholder="value (string)" />
+        <input id="hPriority" type="number" placeholder="priority (number)" />
+        <button id="hInsert">Insert</button>
+        <button id="hInsertRand">Insert random</button>
+        <button id="hPop">Pop (extractMin)</button>
+        <button id="hPeek">Peek</button>
+        <label style="display:inline-block;margin-left:10px;"><input id="hAnimate" type="checkbox" checked /> Animate</label>
+      </div>
+
+      <div class="heap-vis">
+        <div class="small">Heap as array (index: value:priority)</div>
+        <div id="heapArray" class="array-row"></div>
+        <div class="small" style="margin-top:8px;">Heap tree view</div>
+        <div id="heapTree" class="tree"></div>
+      </div>
+
+      <div class="meta">
+        Comparison: <strong>Binary Heap</strong> uses array representing a complete binary tree; parent at i, children at 2i+1,2i+2.
+      </div>
+
+      <div class="log" id="heapLog"></div>
+    </div>
+
+    <div class="panel" id="arrPanel">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <strong>Naive Array-based Priority Queue</strong>
+          <div class="small">Insert: O(1). Pop: O(n) scan to find best.</div>
+        </div>
+        <div style="text-align:right">
+          <div class="small" id="arrMeta">size: 0</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <label>Insert item</label>
+        <input id="aValue" type="text" placeholder="value (string)" />
+        <input id="aPriority" type="number" placeholder="priority (number)" />
+        <button id="aInsert">Insert</button>
+        <button id="aInsertRand">Insert random</button>
+        <button id="aPop">Pop (extractMin)</button>
+        <button id="aPeek">Peek</button>
+      </div>
+
+      <div class="heap-vis">
+        <div class="small">Underlying array order (insertion order shown)</div>
+        <div id="arrArray" class="array-row"></div>
+      </div>
+
+      <div class="meta">Use this to compare simplicity vs performance.</div>
+
+      <div class="log" id="arrLog"></div>
+
+      <div class="bench">
+        <label>Benchmark</label><br/>
+        <input id="benchN" type="number" value="50000" style="width:120px;" /> items
+        <button id="benchRun">Run benchmark (both)</button>
+        <div class="small" id="benchResult"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:12px;">
+    <strong>Notes & Complexity</strong>
+    <ul>
+      <li>Binary heap (implemented here): insert O(log n), extract-min O(log n), peek O(1). Space O(n).</li>
+      <li>Array-based naive: insert O(1), extract-min O(n) (scan). Useful when pops are rare.</li>
+      <li>We use a stable tie-breaker (insertion counter) so items with equal priority preserve FIFO order.</li>
+    </ul>
+    <div class="info">
+      Example uses: Dijkstra's shortest path, A* search, scheduling tasks, event simulation, median-of-stream (with two heaps).
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  Priority Queue implementations and interactive UI.
+
+  BinaryHeapPriorityQueue:
+    - min-heap by priority
+    - stable tie-breaker using insertion index
+    - supports insert(value, priority), peek(), pop(), size(), clear()
+*/
+
+class BinaryHeapPriorityQueue {
+  constructor() {
+    this._arr = []; // elements: {value, priority, idx}
+    this._counter = 0; // for stability tie-breaker
+  }
+
+  size() { return this._arr.length; }
+  isEmpty() { return this._arr.length === 0; }
+
+  peek() {
+    return this.isEmpty() ? null : this._arr[0];
+  }
+
+  insert(value, priority) {
+    const node = { value, priority: Number(priority), idx: this._counter++ };
+    this._arr.push(node);
+    this._bubbleUp(this._arr.length - 1);
+    return node;
+  }
+
+  pop() {
+    if (this.isEmpty()) return null;
+    const root = this._arr[0];
+    const last = this._arr.pop();
+    if (!this.isEmpty()) {
+      this._arr[0] = last;
+      this._bubbleDown(0);
+    }
+    return root;
+  }
+
+  clear() {
+    this._arr = [];
+    this._counter = 0;
+  }
+
+  // comparator: smaller priority is higher; tie-breaker by insertion idx
+  _less(i, j) {
+    const a = this._arr[i], b = this._arr[j];
+    if (a.priority !== b.priority) return a.priority < b.priority;
+    return a.idx < b.idx;
+  }
+
+  _swap(i, j) {
+    const t = this._arr[i];
+    this._arr[i] = this._arr[j];
+    this._arr[j] = t;
+  }
+
+  _bubbleUp(pos) {
+    while (pos > 0) {
+      const parent = Math.floor((pos - 1) / 2);
+      if (this._less(pos, parent)) {
+        this._swap(pos, parent);
+        pos = parent;
+      } else break;
+    }
+  }
+
+  _bubbleDown(pos) {
+    const n = this._arr.length;
+    while (true) {
+      const l = 2 * pos + 1;
+      const r = 2 * pos + 2;
+      let smallest = pos;
+      if (l < n && this._less(l, smallest)) smallest = l;
+      if (r < n && this._less(r, smallest)) smallest = r;
+      if (smallest === pos) break;
+      this._swap(pos, smallest);
+      pos = smallest;
+    }
+  }
+
+  // expose internal array (read-only)
+  internalArray() { return this._arr.slice(); }
+}
+
+/* Naive array-based priority queue */
+class ArrayPriorityQueue {
+  constructor() {
+    this._arr = []; // elements: {value, priority, idx}
+    this._counter = 0;
+  }
+
+  size() { return this._arr.length; }
+  isEmpty() { return this._arr.length === 0; }
+
+  insert(value, priority) {
+    const node = { value, priority: Number(priority), idx: this._counter++ };
+    this._arr.push(node);
+    return node;
+  }
+
+  peek() {
+    if (this.isEmpty()) return null;
+    // find min by priority then idx
+    let best = 0;
+    for (let i = 1; i < this._arr.length; i++) {
+      if (this._arr[i].priority < this._arr[best].priority ||
+         (this._arr[i].priority === this._arr[best].priority && this._arr[i].idx < this._arr[best].idx)) {
+        best = i;
+      }
+    }
+    return this._arr[best];
+  }
+
+  pop() {
+    if (this.isEmpty()) return null;
+    let best = 0;
+    for (let i = 1; i < this._arr.length; i++) {
+      if (this._arr[i].priority < this._arr[best].priority ||
+         (this._arr[i].priority === this._arr[best].priority && this._arr[i].idx < this._arr[best].idx)) {
+        best = i;
+      }
+    }
+    const [node] = this._arr.splice(best, 1);
+    return node;
+  }
+
+  clear() { this._arr = []; this._counter = 0; }
+  internalArray() { return this._arr.slice(); }
+}
+
+/* UI wiring and visualization */
+
+const heapPQ = new BinaryHeapPriorityQueue();
+const arrPQ = new ArrayPriorityQueue();
+
+const heapArrayEl = document.getElementById('heapArray');
+const heapTreeEl = document.getElementById('heapTree');
+const heapLog = document.getElementById('heapLog');
+const heapMeta = document.getElementById('heapMeta');
+
+const arrArrayEl = document.getElementById('arrArray');
+const arrLog = document.getElementById('arrLog');
+const arrMeta = document.getElementById('arrMeta');
+
+function renderHeap(animateHighlights = []) {
+  const arr = heapPQ.internalArray();
+  heapArrayEl.innerHTML = "";
+  arr.forEach((node, i) => {
+    const div = document.createElement('div');
+    div.className = 'node' + (animateHighlights.includes(i) ? ' highlight' : '');
+    div.textContent = `${i}: ${node.value}:${node.priority}`;
+    heapArrayEl.appendChild(div);
+  });
+  renderHeapTree(arr, animateHighlights);
+  heapMeta.textContent = `size: ${arr.length}`;
+}
+
+function renderHeapTree(arr, highlights = []) {
+  heapTreeEl.innerHTML = "";
+  if (arr.length === 0) return;
+  // compute levels
+  let levelStart = 0;
+  let levelSize = 1;
+  while (levelStart < arr.length) {
+    const level = document.createElement('div');
+    level.className = 'level';
+    for (let i = levelStart; i < Math.min(arr.length, levelStart + levelSize); i++) {
+      const n = document.createElement('div');
+      n.className = 'node' + (highlights.includes(i) ? ' highlight' : '');
+      n.style.minWidth = (80 / Math.max(1, levelSize)) + 'px';
+      n.textContent = `${arr[i].value}:${arr[i].priority}`;
+      level.appendChild(n);
+    }
+    heapTreeEl.appendChild(level);
+    levelStart += levelSize;
+    levelSize *= 2;
+  }
+}
+
+function log(el, ...texts) {
+  const t = texts.join(' ');
+  const now = new Date().toLocaleTimeString();
+  el.innerText = `[${now}] ${t}\n` + el.innerText;
+}
+
+/* animate bubble up/down to show swaps (for binary heap) */
+function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+async function animatedInsert(value, priority) {
+  const animate = document.getElementById('hAnimate').checked;
+  // We'll perform insert while capturing swaps: to animate we re-implement bubbleUp exposing indices
+  const node = { value, priority: Number(priority), idx: heapPQ._counter++ };
+  heapPQ._arr.push(node);
+  let pos = heapPQ._arr.length - 1;
+  if (!animate) {
+    heapPQ._bubbleUp(pos);
+    renderHeap();
+    log(heapLog, `Inserted ${value}:${priority}`);
+    return;
+  }
+  // animation: step-by-step swaps
+  while (pos > 0) {
+    const parent = Math.floor((pos - 1) / 2);
+    if (heapPQ._less(pos, parent)) {
+      heapPQ._swap(pos, parent);
+      renderHeap([pos, parent]);
+      await delay(260);
+      pos = parent;
+    } else break;
+  }
+  renderHeap();
+  log(heapLog, `Inserted ${value}:${priority} (animated)`);
+}
+
+async function animatedPop() {
+  if (heapPQ.isEmpty()) { log(heapLog, 'Pop: empty'); return; }
+  const animate = document.getElementById('hAnimate').checked;
+  const root = heapPQ._arr[0];
+  if (!animate) {
+    const r = heapPQ.pop();
+    renderHeap();
+    log(heapLog, `Popped ${r.value}:${r.priority}`);
+    return;
+  }
+  // animation: swap root with last, pop, then bubble down with steps
+  const lastIndex = heapPQ._arr.length - 1;
+  heapPQ._swap(0, lastIndex);
+  renderHeap([0, lastIndex]);
+  await delay(260);
+  const popped = heapPQ._arr.pop();
+  renderHeap([0]); await delay(260);
+
+  let pos = 0;
+  const n = heapPQ._arr.length;
+  while (true) {
+    const l = 2 * pos + 1, r = 2 * pos + 2;
+    let smallest = pos;
+    if (l < n && heapPQ._less(l, smallest)) smallest = l;
+    if (r < n && heapPQ._less(r, smallest)) smallest = r;
+    if (smallest === pos) break;
+    heapPQ._swap(pos, smallest);
+    renderHeap([pos, smallest]);
+    await delay(260);
+    pos = smallest;
+  }
+  renderHeap();
+  log(heapLog, `Popped ${popped.value}:${popped.priority} (animated)`);
+}
+
+/* Wire up controls */
+
+document.getElementById('hInsert').addEventListener('click', async () => {
+  const v = document.getElementById('hValue').value || randomValue();
+  const p = document.getElementById('hPriority').value;
+  if (p === '') { alert('Enter priority (number)'); return; }
+  await animatedInsert(v, Number(p));
+});
+
+document.getElementById('hInsertRand').addEventListener('click', async () => {
+  const v = randomValue();
+  const p = Math.floor(Math.random() * 100);
+  await animatedInsert(v, p);
+});
+
+document.getElementById('hPop').addEventListener('click', async () => {
+  await animatedPop();
+});
+
+document.getElementById('hPeek').addEventListener('click', () => {
+  const p = heapPQ.peek();
+  if (!p) { log(heapLog, 'Peek: empty'); }
+  else log(heapLog, `Peek -> ${p.value}:${p.priority}`);
+});
+
+/* array controls */
+document.getElementById('aInsert').addEventListener('click', () => {
+  const v = document.getElementById('aValue').value || randomValue();
+  const p = document.getElementById('aPriority').value;
+  if (p === '') { alert('Enter priority (number)'); return; }
+  const n = arrPQ.insert(v, Number(p));
+  renderArray();
+  log(arrLog, `Inserted ${n.value}:${n.priority}`);
+});
+
+document.getElementById('aInsertRand').addEventListener('click', () => {
+  const v = randomValue();
+  const p = Math.floor(Math.random() * 100);
+  const n = arrPQ.insert(v, p);
+  renderArray();
+  log(arrLog, `Inserted ${n.value}:${n.priority}`);
+});
+
+document.getElementById('aPop').addEventListener('click', () => {
+  const r = arrPQ.pop();
+  if (!r) log(arrLog, 'Pop: empty');
+  else {
+    renderArray();
+    log(arrLog, `Popped ${r.value}:${r.priority}`);
+  }
+});
+
+document.getElementById('aPeek').addEventListener('click', () => {
+  const p = arrPQ.peek();
+  if (!p) log(arrLog, 'Peek: empty');
+  else log(arrLog, `Peek -> ${p.value}:${p.priority}`);
+});
+
+/* benchmark: insert N random, then pop N, measure time for both implementations */
+document.getElementById('benchRun').addEventListener('click', async () => {
+  const n = Number(document.getElementById('benchN').value) || 10000;
+  document.getElementById('benchResult').innerText = 'Running benchmark...';
+  await delay(20);
+
+  // prepare random data to ensure equal inputs
+  const data = [];
+  for (let i = 0; i < n; i++) data.push({ v: 'x'+i, p: Math.floor(Math.random()*10000) });
+
+  // Binary heap benchmark
+  heapPQ.clear(); renderHeap();
+  await delay(20);
+  const t0 = performance.now();
+  for (let i=0;i<n;i++) heapPQ.insert(data[i].v, data[i].p);
+  for (let i=0;i<n;i++) heapPQ.pop();
+  const t1 = performance.now();
+
+  // Array PQ benchmark
+  arrPQ.clear(); renderArray();
+  const t2 = performance.now();
+  for (let i=0;i<n;i++) arrPQ.insert(data[i].v, data[i].p);
+  for (let i=0;i<n;i++) arrPQ.pop();
+  const t3 = performance.now();
+
+  const heapTime = (t1 - t0).toFixed(2);
+  const arrTime = (t3 - t2).toFixed(2);
+  document.getElementById('benchResult').innerText =
+    `n=${n} → BinaryHeap: ${heapTime}ms | NaiveArray: ${arrTime}ms`;
+  log(heapLog, `Benchmark n=${n}, heap ${heapTime}ms`);
+  log(arrLog, `Benchmark n=${n}, array ${arrTime}ms`);
+});
+
+/* helper renders */
+function renderArray() {
+  const arr = arrPQ.internalArray();
+  arrArrayEl.innerHTML = '';
+  arr.forEach((node, i) => {
+    const div = document.createElement('div');
+    div.className = 'node';
+    div.textContent = `${i}: ${node.value}:${node.priority}`;
+    arrArrayEl.appendChild(div);
+  });
+  arrMeta.textContent = `size: ${arr.length}`;
+}
+
+/* misc */
+function randomValue() {
+  return Math.random().toString(36).slice(2,7);
+}
+
+/* Initialize with some items for demo */
+(async function seedDemo() {
+  const initial = [
+    ['taskA', 25],
+    ['taskB', 5],
+    ['taskC', 40],
+    ['taskD', 5], // same priority as B to show stability
+    ['taskE', 12]
+  ];
+  for (const [v,p] of initial) {
+    heapPQ.insert(v,p);
+    arrPQ.insert(v,p);
+  }
+  renderHeap();
+  renderArray();
+  log(heapLog, 'Seeded demo heap with sample items.');
+  log(arrLog, 'Seeded demo array with sample items.');
+})();
+</script>

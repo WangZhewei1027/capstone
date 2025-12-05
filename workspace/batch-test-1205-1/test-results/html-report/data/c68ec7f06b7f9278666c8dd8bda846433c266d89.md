@@ -1,0 +1,52 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Binary Search Tree (BST)" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Interactive visualizer — insert, delete, search, and traverse
+    - generic [ref=e8]:
+      - generic [ref=e9]: Click node to auto-fill value. Drag canvas to pan. Use mouse wheel or pinch to zoom.
+      - generic [ref=e10]:
+        - generic [ref=e11]: "Size: 0"
+        - generic [ref=e12]: "Height: 0"
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]: Value (integer)
+      - generic [ref=e16]:
+        - spinbutton "Value (integer)" [ref=e17]
+        - button "Insert" [ref=e18] [cursor=pointer]
+        - button "Delete" [ref=e19] [cursor=pointer]
+      - generic [ref=e20]:
+        - button "Search" [ref=e21] [cursor=pointer]
+        - button "Clear" [ref=e22] [cursor=pointer]
+      - generic [ref=e23]: Duplicates are ignored. Values are compared as numbers.
+    - generic [ref=e24]:
+      - generic [ref=e25]: Build / Randomize
+      - generic [ref=e26]:
+        - spinbutton [ref=e27]: "8"
+        - button "Random Tree" [ref=e28] [cursor=pointer]
+        - button "Balanced from Sorted" [active] [ref=e29] [cursor=pointer]
+      - generic [ref=e30]: "Random: inserts random integers. Balanced: create a balanced BST from sorted unique values (keeps current values if empty)."
+    - generic [ref=e31]:
+      - generic [ref=e32]: Traversals & Animations
+      - generic [ref=e33]:
+        - button "Inorder" [ref=e34] [cursor=pointer]
+        - button "Preorder" [ref=e35] [cursor=pointer]
+        - button "Postorder" [ref=e36] [cursor=pointer]
+        - button "Level-order" [ref=e37] [cursor=pointer]
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]: Speed
+          - slider [ref=e41]: "400"
+          - generic [ref=e42]: 400ms
+        - button "Stop" [ref=e43] [cursor=pointer]
+    - generic [ref=e44]:
+      - generic [ref=e45]: Traversal Output
+      - generic [ref=e46]: "[]"
+    - generic [ref=e47]:
+      - button "Export Values (JSON)" [ref=e48] [cursor=pointer]
+      - button "Import JSON" [ref=e49] [cursor=pointer]
+    - contentinfo [ref=e50]: "Tip: Insert numbers in any order. Deleting a node follows standard BST rules (replace with in-order successor when needed)."
+```

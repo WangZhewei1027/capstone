@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Queue Demonstration</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --accent:#06b6d4;
+      --muted:#94a3b8;
+      --card:#0f1724;
+      --good:#0ea5a4;
+      --bad:#f97316;
+      --glass: rgba(255,255,255,0.02);
+    }
+    *{box-sizing:border-box;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+    body{
+      margin:0;
+      min-height:100vh;
+      background:
+        radial-gradient(1000px 400px at 10% 10%, rgba(6,182,212,0.06), transparent 10%),
+        radial-gradient(800px 300px at 90% 90%, rgba(99,102,241,0.04), transparent 10%),
+        var(--bg);
+      color:#e6eef6;
+      padding:28px;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    header{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    p.lead{margin:0;color:var(--muted);font-size:13px}
+    .layout{display:grid;grid-template-columns:360px 1fr;gap:20px;align-items:start}
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.03);
+      padding:14px;border-radius:10px;
+      box-shadow: 0 6px 20px rgba(2,6,23,0.6);
+    }
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input[type="text"], input[type="number"], select{
+      width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);
+      background:transparent;color:inherit;font-size:14px;
+    }
+    .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    button{
+      background:linear-gradient(180deg,var(--accent),#028289);border:none;padding:8px 12px;border-radius:8px;color:#052024;font-weight:600;
+      cursor:pointer;font-size:13px;
+    }
+    button.secondary{
+      background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600;
+    }
+    button.ghost{background:transparent;border:1px dashed rgba(255,255,255,0.04);color:var(--muted)}
+    .small{padding:6px 8px;font-size:13px;border-radius:7px}
+    .visual{
+      display:flex;flex-direction:column;gap:12px;
+    }
+    .queue-row{
+      display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+      min-height:86px;padding:12px;border-radius:10px;background:var(--glass);border:1px solid rgba(255,255,255,0.02)
+    }
+    .slot{
+      height:64px;min-width:64px;display:flex;align-items:center;justify-content:center;
+      border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.03);position:relative;color:var(--muted);font-weight:700;
+      transition:transform 260ms ease, box-shadow 220ms ease, background 220ms;
+      user-select:none;
+    }
+    .slot.value{color:#031421;background:linear-gradient(180deg,#9beef5,#06b6d4);box-shadow:0 6px 18px rgba(6,182,212,0.12)}
+    .slot.empty{opacity:0.6}
+    .idx{
+      position:absolute;left:6px;bottom:6px;font-size:11px;color:rgba(2,6,23,0.6);
+      background:rgba(255,255,255,0.6);padding:2px 6px;border-radius:6px;font-weight:700;
+    }
+    .marker{
+      position:absolute;top:-18px;font-size:12px;padding:4px 6px;border-radius:6px;background:rgba(255,255,255,0.06);
+      color:var(--muted);font-weight:700;
+    }
+    .marker.head{left:8px}
+    .marker.tail{right:8px}
+    .info{
+      display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted);
+    }
+    .badge{
+      background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.02);
+      color:var(--muted);
+    }
+    .log{
+      max-height:180px;overflow:auto;margin-top:10px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.01);border:1px solid rgba(255,255,255,0.02);
+      color:var(--muted);font-size:13px;
+    }
+    .log p{margin:6px 0}
+    .status{font-size:13px;margin-top:8px}
+    .status .ok{color:var(--good);font-weight:700}
+    .status .err{color:var(--bad);font-weight:700}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    .row{display:flex;gap:8px;align-items:center}
+    .flex{flex:1}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    /* small screen */
+    @media (max-width:880px){
+      .layout{grid-template-columns:1fr;gap:12px}
+      header{flex-direction:column;align-items:flex-start;gap:6px}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Queue — interactive demo</h1>
+      <p class="lead">Explore queue operations visually (enqueue, dequeue, peek, size, clear). Toggle array / circular buffer modes.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- Controls -->
+    <div class="card">
+      <label for="mode">Implementation mode</label>
+      <select id="mode">
+        <option value="array">Simple Array-based (unbounded)</option>
+        <option value="circular">Fixed-size Circular Buffer</option>
+      </select>
+
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <div style="flex:1">
+          <label for="capacity">Capacity (for circular):</label>
+          <input id="capacity" type="number" min="1" value="8"/>
+        </div>
+        <div style="width:96px">
+          <label>&nbsp;</label>
+          <button id="applyCap" class="small secondary">Apply</button>
+        </div>
+      </div>
+
+      <hr style="border:0;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0" />
+
+      <label for="value">Value to enqueue</label>
+      <input id="value" type="text" placeholder="text or number" />
+
+      <div class="controls" style="margin-top:8px">
+        <button id="enqueue">Enqueue</button>
+        <button id="dequeue" class="secondary">Dequeue</button>
+        <button id="peek" class="ghost">Peek</button>
+        <button id="clear" class="secondary">Clear</button>
+      </div>
+
+      <div style="margin-top:10px">
+        <label for="bulk">Bulk / random</label>
+        <div style="display:flex;gap:8px">
+          <input id="bulk" type="number" min="1" max="20" value="5" />
+          <button id="random" class="small">Enqueue Random</button>
+        </div>
+        <div class="hint">Generate N random numbers and enqueue them. Useful to see wrap-around with circular mode.</div>
+      </div>
+
+      <hr style="border:0;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0" />
+
+      <div class="info">
+        <div class="badge">Size: <span id="size">0</span></div>
+        <div class="badge">Empty: <span id="empty">true</span></div>
+        <div class="badge">Front: <span id="frontVal">—</span></div>
+        <div class="badge">Rear: <span id="rearVal">—</span></div>
+      </div>
+
+      <div class="status" id="status"></div>
+
+      <div class="log" id="log" aria-live="polite"></div>
+    </div>
+
+    <!-- Visualization -->
+    <div class="card visual">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700">Queue Visualization</div>
+        <div class="hint">Click slots to highlight / inspect (in circular mode indexes shown).</div>
+      </div>
+
+      <div class="queue-row" id="queueRow" aria-hidden="false"></div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+        <div class="hint">Representation: blue boxes are occupied slots</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="stepEnq" class="small">Step Enqueue</button>
+          <button id="stepDeq" class="small secondary">Step Dequeue</button>
+        </div>
+      </div>
+
+      <footer>
+        Implementation notes:
+        <ul style="margin:6px 0 0 18px;color:var(--muted)">
+          <li>Array mode uses JavaScript array push/shift (unbounded).</li>
+          <li>Circular mode uses a fixed-size backing array with head/tail indices to demonstrate wrap-around.</li>
+        </ul>
+      </footer>
+    </div>
+  </div>
+
+<script>
+/*
+  Queue demo script
+  - Supports two modes:
+    1. Array-based (unbounded): enqueue -> push, dequeue -> shift
+    2. Circular buffer (fixed-size): backing array, head/tail indices, size tracking
+  - Visualizes the internal slots and shows head/tail markers for circular mode
+  - Logs operations and shows front/rear values
+*/
+
+(() => {
+  // DOM references
+  const modeSelect = document.getElementById('mode');
+  const capacityInput = document.getElementById('capacity');
+  const applyCapBtn = document.getElementById('applyCap');
+  const valueInput = document.getElementById('value');
+  const enqueueBtn = document.getElementById('enqueue');
+  const dequeueBtn = document.getElementById('dequeue');
+  const peekBtn = document.getElementById('peek');
+  const clearBtn = document.getElementById('clear');
+  const randomBtn = document.getElementById('random');
+  const bulkInput = document.getElementById('bulk');
+  const queueRow = document.getElementById('queueRow');
+  const sizeEl = document.getElementById('size');
+  const emptyEl = document.getElementById('empty');
+  const frontValEl = document.getElementById('frontVal');
+  const rearValEl = document.getElementById('rearVal');
+  const logEl = document.getElementById('log');
+  const statusEl = document.getElementById('status');
+  const stepEnqBtn = document.getElementById('stepEnq');
+  const stepDeqBtn = document.getElementById('stepDeq');
+
+  // Utility: append log
+  function log(text, level = 'info') {
+    const p = document.createElement('p');
+    p.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+    if (level === 'err') p.style.color = 'var(--bad)';
+    logEl.prepend(p);
+  }
+
+  // Queue implementations
+  class ArrayQueue {
+    constructor(){
+      this.arr = [];
+    }
+    enqueue(v){
+      this.arr.push(v);
+    }
+    dequeue(){
+      return this.arr.length ? this.arr.shift() : undefined;
+    }
+    peek(){
+      return this.arr.length ? this.arr[0] : undefined;
+    }
+    size(){ return this.arr.length; }
+    isEmpty(){ return this.arr.length===0; }
+    clear(){ this.arr = []; }
+    getState(){ return { backing: Array.from(this.arr) }; }
+  }
+
+  class CircularQueue {
+    constructor(capacity = 8){
+      if (!Number.isInteger(capacity) || capacity <= 0) capacity = 8;
+      this.capacity = capacity;
+      this.arr = new Array(capacity).fill(undefined);
+      this.head = 0; // points to current front
+      this.tail = 0; // points to next insertion position
+      this.count = 0;
+    }
+    enqueue(v){
+      if (this.count === this.capacity) throw new Error('Queue full');
+      this.arr[this.tail] = v;
+      this.tail = (this.tail + 1) % this.capacity;
+      this.count++;
+    }
+    dequeue(){
+      if (this.count === 0) return undefined;
+      const val = this.arr[this.head];
+      this.arr[this.head] = undefined;
+      this.head = (this.head + 1) % this.capacity;
+      this.count--;
+      return val;
+    }
+    peek(){
+      return this.count === 0 ? undefined : this.arr[this.head];
+    }
+    size(){ return this.count; }
+    isEmpty(){ return this.count === 0; }
+    clear(){
+      this.arr = new Array(this.capacity).fill(undefined);
+      this.head = this.tail = this.count = 0;
+    }
+    getState(){
+      return {
+        backing: Array.from(this.arr),
+        head: this.head,
+        tail: this.tail,
+        capacity: this.capacity,
+        count: this.count
+      };
+    }
+    setCapacity(n){
+      if (!Number.isInteger(n) || n <= 0) return;
+      // When changing capacity, we'll attempt to preserve elements in logical order.
+      const elems = [];
+      while (this.count) elems.push(this.dequeue());
+      this.capacity = n;
+      this.arr = new Array(n).fill(undefined);
+      this.head = this.tail = this.count = 0;
+      for (const e of elems){
+        if (this.count < this.capacity) this.enqueue(e);
+        else break;
+      }
+    }
+  }
+
+  // App state
+  let queue = new ArrayQueue();
+  let mode = modeSelect.value; // 'array' or 'circular'
+  let circularCapacity = Math.max(1, parseInt(capacityInput.value || "8", 10));
+
+  function createQueueInstance() {
+    if (mode === 'array') return new ArrayQueue();
+    const q = new CircularQueue(circularCapacity);
+    return q;
+  }
+
+  // Initialize
+  function resetQueue() {
+    queue = createQueueInstance();
+    updateAll();
+    log(`Initialized ${mode === 'array' ? 'Array-based' : `Circular (cap=${circularCapacity})`} queue.`);
+  }
+  resetQueue();
+
+  // UI update functions
+  function updateAll() {
+    const state = queue.getState();
+    renderQueue(state);
+    updateInfo(state);
+  }
+
+  function renderQueue(state) {
+    // Clear
+    queueRow.innerHTML = '';
+
+    if (mode === 'array') {
+      const backing = state.backing;
+      if (backing.length === 0) {
+        const hint = document.createElement('div');
+        hint.textContent = 'Queue is empty';
+        hint.className = 'hint';
+        queueRow.appendChild(hint);
+        return;
+      }
+      // Show each element as a slot (no fixed capacity)
+      backing.forEach((v, idx) => {
+        const slot = document.createElement('div');
+        slot.className = 'slot value';
+        slot.textContent = String(v);
+        const idxBox = document.createElement('div');
+        idxBox.className = 'idx';
+        idxBox.textContent = idx;
+        slot.appendChild(idxBox);
+        // head marker on first, tail marker on last
+        if (idx === 0) {
+          const mk = document.createElement('div'); mk.className='marker head'; mk.textContent='HEAD';
+          slot.appendChild(mk);
+        }
+        if (idx === backing.length - 1) {
+          const mk = document.createElement('div'); mk.className='marker tail'; mk.textContent='TAIL';
+          slot.appendChild(mk);
+        }
+        queueRow.appendChild(slot);
+      });
+    } else {
+      // Circular: show fixed number of slots
+      const backing = state.backing;
+      const cap = backing.length;
+      for (let i = 0; i < cap; i++) {
+        const v = backing[i];
+        const slot = document.createElement('div');
+        slot.className = 'slot ' + (v===undefined ? 'empty' : 'value');
+        slot.textContent = v===undefined ? '' : String(v);
+        const idxBox = document.createElement('div'); idxBox.className = 'idx'; idxBox.textContent = i;
+        slot.appendChild(idxBox);
+        // Markers for head/tail — tail is next insertion position; to show last element we compute last index
+        if (state.head !== undefined && i === state.head && state.count>0) {
+          const mk = document.createElement('div'); mk.className='marker head'; mk.textContent='HEAD';
+          slot.appendChild(mk);
+        }
+        // TAIL marker: place at (tail-1) if count>0 or at tail with 'TAIL (insert)' when empty?
+        if (state.count>0 && i === ((state.tail - 1 + cap) % cap)) {
+          const mk = document.createElement('div'); mk.className='marker tail'; mk.textContent='TAIL';
+          slot.appendChild(mk);
+        } else if (state.count===0 && i===state.tail) {
+          const mk = document.createElement('div'); mk.className='marker tail'; mk.textContent='TAIL (insert)';
+          slot.appendChild(mk);
+        }
+        // Click to inspect
+        slot.addEventListener('click', () => {
+          statusEl.innerHTML = `Slot ${i}: ${v===undefined ? '<span class="err">empty</span>' : `<span class="ok">${escapeHtml(String(v))}</span>`} (head=${state.head}, tail=${state.tail}, count=${state.count})`;
+        });
+        queueRow.appendChild(slot);
+      }
+    }
+  }
+
+  function updateInfo(state) {
+    const s = queue.size();
+    sizeEl.textContent = s;
+    emptyEl.textContent = queue.isEmpty();
+    const front = queue.peek();
+    frontValEl.textContent = front === undefined ? '—' : String(front);
+    // rear value: depends on implementation
+    let rear = undefined;
+    if (mode === 'array') {
+      const b = state.backing;
+      rear = b.length ? b[b.length-1] : undefined;
+    } else {
+      // circular: the last element index is (tail-1+cap)%cap when count>0
+      if (state.count > 0) {
+        const idx = (state.tail - 1 + state.capacity) % state.capacity;
+        rear = state.backing[idx];
+      } else {
+        rear = undefined;
+      }
+    }
+    rearValEl.textContent = rear === undefined ? '—' : String(rear);
+  }
+
+  // Escape HTML helper
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  // Operation handlers
+  enqueueBtn.addEventListener('click', () => {
+    const raw = valueInput.value.trim();
+    if (raw === '') {
+      statusEl.innerHTML = '<span class="err">Enter a value to enqueue.</span>';
+      return;
+    }
+    try {
+      queue.enqueue(raw);
+      updateAll();
+      log(`Enqueued: ${raw}`);
+      statusEl.innerHTML = `<span class="ok">Enqueued “${escapeHtml(raw)}”</span>`;
+      valueInput.value = '';
+    } catch (err) {
+      statusEl.innerHTML = `<span class="err">${escapeHtml(err.message)}</span>`;
+      log(`Failed enqueue: ${err.message}`, 'err');
+    }
+  });
+
+  dequeueBtn.addEventListener('click', () => {
+    try {
+      const val = queue.dequeue();
+      if (val === undefined) {
+        statusEl.innerHTML = '<span class="err">Queue is empty — cannot dequeue.</span>';
+        log('Dequeue attempted on empty queue', 'err');
+      } else {
+        updateAll();
+        statusEl.innerHTML = `<span class="ok">Dequeued “${escapeHtml(String(val))}”</span>`;
+        log(`Dequeued: ${String(val)}`);
+      }
+    } catch (err) {
+      statusEl.innerHTML = `<span class="err">${escapeHtml(err.message)}</span>`;
+      log(`Dequeue error: ${err.message}`, 'err');
+    }
+  });
+
+  peekBtn.addEventListener('click', () => {
+    const val = queue.peek();
+    if (val === undefined) {
+      statusEl.innerHTML = '<span class="err">Queue is empty.</span>';
+      log('Peek: queue empty');
+    } else {
+      statusEl.innerHTML = `<span class="ok">Front value: “${escapeHtml(String(val))}”</span>`;
+      log(`Peek: ${String(val)}`);
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    queue.clear();
+    updateAll();
+    statusEl.innerHTML = '<span class="ok">Queue cleared.</span>';
+    log('Cleared queue');
+  });
+
+  randomBtn.addEventListener('click', () => {
+    const n = Math.max(1, Math.min(50, parseInt(bulkInput.value || '5', 10)));
+    let added = 0;
+    for (let i = 0; i < n; i++) {
+      const v = Math.floor(Math.random() * 99) + 1;
+      try {
+        queue.enqueue(v);
+        added++;
+      } catch (err) {
+        log(`Stopped after ${added} enqueues: ${err.message}`, 'err');
+        statusEl.innerHTML = `<span class="err">Stopped: ${escapeHtml(err.message)}</span>`;
+        break;
+      }
+    }
+    updateAll();
+    log(`Enqueued ${added} random value(s)`);
+    statusEl.innerHTML = `<span class="ok">Enqueued ${added} random value(s)</span>`;
+  });
+
+  // Mode switch and capacity handling
+  modeSelect.addEventListener('change', (e) => {
+    mode = e.target.value;
+    // show/hide capacity input styling not necessary but we can update behavior
+    resetQueue();
+  });
+
+  applyCapBtn.addEventListener('click', () => {
+    const n = Math.max(1, parseInt(capacityInput.value || '8', 10));
+    circularCapacity = n;
+    if (mode === 'circular') {
+      // adjust current queue if circular
+      if (queue instanceof CircularQueue) queue.setCapacity(n);
+      else queue = createQueueInstance();
+    }
+    resetQueue();
+  });
+
+  // Step buttons: small demo step operations for learning
+  stepEnqBtn.addEventListener('click', () => {
+    // Ask for a value via prompt quickly to step
+    const val = prompt('Value to enqueue (step):', String(Math.floor(Math.random()*100)));
+    if (val === null) return;
+    try {
+      queue.enqueue(val);
+      updateAll();
+      log(`(step) Enqueued ${val}`);
+    } catch (err) {
+      statusEl.innerHTML = `<span class="err">${escapeHtml(err.message)}</span>`;
+      log(`(step) enqueue error: ${err.message}`, 'err');
+    }
+  });
+
+  stepDeqBtn.addEventListener('click', () => {
+    try {
+      const v = queue.dequeue();
+      if (v === undefined) {
+        statusEl.innerHTML = '<span class="err">Queue empty (step).</span>';
+        log('(step) dequeue attempted on empty queue', 'err');
+      } else {
+        updateAll();
+        log(`(step) Dequeued ${v}`);
+      }
+    } catch (err) {
+      statusEl.innerHTML = `<span class="err">${escapeHtml(err.message)}</span>`;
+      log(`(step) dequeue error: ${err.message}`, 'err');
+    }
+  });
+
+  // Keyboard shortcuts for convenience: Enter to enqueue
+  valueInput.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      enqueueBtn.click();
+    }
+  });
+
+  // Initialize UI
+  updateAll();
+  log('Ready.');
+})();
+</script>
+</body>
+</html>

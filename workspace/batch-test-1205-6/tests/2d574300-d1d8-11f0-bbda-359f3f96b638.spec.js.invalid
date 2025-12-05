@@ -1,0 +1,151 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL = 'http://127.0.0.1:5500/workspace/batch-test-1205-6/html/2d574300-d1d8-11f0-bbda-359f3f96b638.html';
+
+test.describe('BFS Visualization FSM: Idle -> BFS Started -> Node Visited', () => {
+
+  // Navigate to the page before each test to get a fresh environment
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+  });
+
+  // Test the initial Idle state: start button should be present and graph container empty
+  test('S0_Idle: page initially renders with Start BFS button and empty graph', async ({ page }) => {
+    // Capture console errors for this test
+    const consoleErrors = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    const pageErrors = [];
+    page.on('pageerror', err => pageErrors.push(err));
+
+    // Assert Start button exists
+    const startBtn = await page.$('#startBtn');
+    expect(startBtn).not.toBeNull();
+    const startText = await startBtn?.innerText();
+    expect(startText).toBe('Start BFS');
+
+    // Graph container should initially be empty (no nodes)
+    const nodes = await page.$$('#graph .node');
+    expect(nodes.length).toBe(0);
+
+    // Ensure no uncaught page errors occurred on initial load
+    expect(pageErrors.length).toBe(0);
+    expect(consoleErrors.length).toBe(0);
+  });
+
+  // Test the StartBFS event and transition to BFS Started and then Node Visited
+  test('StartBFS transition: clicking Start BFS creates graph nodes and BFS begins (S1 -> S2)', async ({ page }) => {
+    // Capture console errors and page errors for the operation
+    const consoleErrors1 = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    const pageErrors1 = [];
+    page.on('pageerror', err => pageErrors.push(err));
+
+    // Click the Start BFS button to trigger createGraphNodes() and bfs('A')
+    await page.click('#startBtn');
+
+    // After clicking, graph nodes should be created. The implementation defines 6 nodes: A-F
+    // We wait for the nodes to be appended to the DOM.
+    await page.waitForSelector('#graph .node', { timeout: 2000 });
+    const nodes1 = await page.$$('#graph .node');
+    expect(nodes.length).toBe(6);
+
+    // Verify the expected node ids exist
+    const expectedIds = ['A', 'B', 'C', 'D', 'E', 'F'];
+    for (const id of expectedIds) {
+      const el = await page.$(`#${id}`);
+      expect(el).not.toBeNull();
+      const text = await el!.innerText();
+      expect(text).toBe(id);
+    }
+
+    // Verify BFS begins by checking that the start node 'A' is marked visited immediately
+    // (the code marks the start node synchronously before scheduling later visits)
+    await page.waitForSelector('#A.visited', { timeout: 1000 });
+
+    // Now assert subsequent nodes become visited in BFS order. BFS uses a 1 second delay between visits.
+    // Wait for B to be visited (should happen ~1s after A)
+    await page.waitForSelector('#B.visited', { timeout: 3000 });
+
+    // Wait for C to be visited (B is visited, C should also be visited shortly thereafter)
+    await page.waitForSelector('#C.visited', { timeout: 4000 });
+
+    // At this point at least nodes A, B, C should have the 'visited' class
+    const visitedA = await page.$('#A.visited');
+    const visitedB = await page.$('#B.visited');
+    const visitedC = await page.$('#C.visited');
+    expect(visitedA).not.toBeNull();
+    expect(visitedB).not.toBeNull();
+    expect(visitedC).not.toBeNull();
+
+    // Ensure there were no unexpected console errors during normal operation
+    expect(pageErrors.length).toBe(0);
+    expect(consoleErrors.length).toBe(0);
+  });
+
+  // Edge case: calling bfs('A') without creating nodes should cause a runtime error
+  test('Edge case / Error scenario: calling bfs without creating nodes produces a TypeError (expected page error)', async ({ page }) => {
+    // Listen for pageerror event which indicates an uncaught exception in the page context
+    const pageErrorPromise = page.waitForEvent('pageerror');
+
+    // Call bfs asynchronously (via setTimeout) without creating nodes to cause nodeElement to be null
+    // We intentionally do NOT call createGraphNodes() to reproduce the error scenario.
+    // Using setTimeout ensures the exception is uncaught in the page context and will emit a pageerror.
+    await page.evaluate(() => {
+      // schedule the call so it runs outside of the evaluate call stack
+      setTimeout(() => {
+        // This call is expected to throw because #A does not exist yet
+        // We do NOT catch here because we want an uncaught exception to be raised in the page.
+        // eslint-disable-next-line no-undef
+        bfs('A');
+      }, 0);
+    });
+
+    // Wait for the pageerror event and validate it is a TypeError related to reading classList
+    const error = await pageErrorPromise;
+    // The exact message can vary across engines, but we expect a TypeError and mention of classList or null
+    expect(error).toBeTruthy();
+    // Check name if available
+    if (error.name) {
+      // Prefer checking error type name when present
+      expect(['TypeError', 'Error']).toContain(error.name);
+    }
+    // Message should indicate problem accessing 'classList' or reading property of null/undefined
+    const msg = error.message || '';
+    const hasClassListMention = /classList/.test(msg);
+    const hasCannotRead = /(Cannot read properties of null|Cannot read property 'classList'|reading 'classList')/.test(msg);
+    expect(hasClassListMention || hasCannotRead).toBeTruthy();
+  });
+
+  // Edge case: clicking Start BFS multiple times should append duplicate nodes (DOM duplication)
+  test('Edge case: clicking Start BFS multiple times appends duplicate nodes', async ({ page }) => {
+    // No special error expectations here; we assert DOM duplication behavior
+    await page.click('#startBtn');
+    // Wait for first creation
+    await page.waitForSelector('#graph .node', { timeout: 2000 });
+
+    // Click again to create duplicate nodes (implementation appends without clearing)
+    await page.click('#startBtn');
+
+    // Expect twice the nodes now (2 * 6 = 12)
+    // Give the DOM a moment to update
+    await page.waitForTimeout(200);
+    const nodes2 = await page.$$('#graph .node');
+    expect(nodes.length).toBe(12);
+
+    // Because duplicate ids may exist in the DOM, ensure getElementById still finds an element with id A
+    const foundA = await page.$('#A');
+    expect(foundA).not.toBeNull();
+
+    // There should be more than one element in the DOM with innerText 'A' if duplicates were appended
+    const allAs = await page.$$eval('#graph .node', els => els.map(e => e.textContent));
+    const countA = allAs.filter(Boolean).filter(txt => txt.trim() === 'A').length;
+    expect(countA).toBeGreaterThanOrEqual(1);
+    // When clicked twice, at least one 'A' should exist and likely two (depending on ordering); we accept >=1
+  });
+
+  // Clean up note: no teardown required beyond Playwright's automatic page/context cleanup per test
+});

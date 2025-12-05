@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Union-Find (Disjoint Set) Interactive Demo</title>
+<style>
+  :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color: #111; }
+  body { margin: 0; padding: 16px; background: #fafafa; }
+  h1 { margin: 0 0 8px 0; font-size: 20px; }
+  .container { display:flex; gap:16px; }
+  .left { width: 640px; }
+  .right { flex: 1; min-width: 280px; }
+  .card { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 12px; }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button { padding:6px 10px; border-radius:6px; border:1px solid #ddd; background:#fff; cursor:pointer; }
+  button.primary { background: linear-gradient(#0ea5a4, #038f8b); color:white; border:none; }
+  button.warn { background: linear-gradient(#f97316,#ef6b00); color:white; border:none; }
+  label { font-size:13px; display:flex; gap:6px; align-items:center; }
+  input[type=number] { width:72px; padding:6px; border-radius:6px; border:1px solid #ddd; }
+  small { color:#555; }
+  #svgCanvas { width:100%; height:420px; border-radius:6px; background: linear-gradient(180deg,#ffffff,#f7f9fb); display:block; }
+  .arrays { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { text-align:center; padding:6px 8px; border-bottom:1px solid #eee; font-size:13px; }
+  th { background:#fafafa; font-weight:600; }
+  .nodeBox { fill: #fff; stroke: #2b6cb0; stroke-width:2; rx:10; }
+  .nodeLabel { font-size:12px; pointer-events:none; }
+  .nodeSmall { font-size:11px; fill:#444; }
+  .arrow { stroke:#666; stroke-width:2; marker-end: url(#arrowhead); fill:none; }
+  .arrow.highlight { stroke:#f97316; stroke-width:3; }
+  .arrow.compressed { stroke:#059669; stroke-width:3; stroke-dasharray:4 3; }
+  .nodeSelected { stroke:#ff0066; stroke-width:3; }
+  .log { max-height:220px; overflow:auto; font-size:13px; background:#fbfbfb; padding:8px; border-radius:6px; border:1px solid #eee; }
+  .footer { font-size:13px; color:#444; }
+  .badge { display:inline-block; background:#eef2ff; color:#2b6cb0; padding:2px 8px; border-radius:999px; font-size:12px; margin-left:8px; }
+  .muted { color:#666; font-size:13px; }
+</style>
+</head>
+<body>
+  <h1>Union-Find (Disjoint Set) — Interactive Demo</h1>
+  <div class="muted">Visualize sets, unions, finds, path compression and union by rank. Click nodes to select them for operations.</div>
+
+  <div class="container" style="margin-top:12px;">
+    <div class="left">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div><strong>Universe Visualization</strong> <span class="badge" id="componentsCount">0 components</span></div>
+          <div class="muted">Click nodes to select one or two</div>
+        </div>
+        <svg id="svgCanvas" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+          <div class="controls">
+            <label>Size:
+              <input type="number" id="initN" min="1" value="10">
+            </label>
+            <button id="initBtn" class="primary">Initialize</button>
+            <button id="resetBtn">Reset</button>
+            <button id="randomUnionBtn">Random Unions</button>
+            <button id="autoUnionBtn">Auto-connect to form k sets</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+          <label><input type="checkbox" id="byRank" checked> Union by rank</label>
+          <label><input type="checkbox" id="pathCompress" checked> Path compression on Find</label>
+          <label><input type="checkbox" id="animate" checked> Animate changes</label>
+          <label style="margin-left:8px;">Step duration
+            <input type="number" id="stepMs" min="10" value="600" style="width:80px;">
+            ms
+          </label>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-bottom:6px; align-items:center;">
+          <button id="unionBtn">Union selected (2)</button>
+          <button id="findBtn">Find selected (1)</button>
+          <button id="clearSelectionBtn">Clear selection</button>
+          <button id="randomSelectBtn">Select random</button>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:8px;">
+          <div style="flex:1;">
+            <small>Parent array (parent[i] = parent's index)</small>
+            <div id="parentTable" class="arrays"></div>
+          </div>
+          <div style="width:140px;">
+            <small>Rank array</small>
+            <div id="rankTable" class="arrays" style="margin-top:6px;"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="right">
+      <div class="card">
+        <strong>Controls & Info</strong>
+        <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+          <label style="display:flex; gap:6px; align-items:center;">Node A:
+            <input type="number" id="nodeA" min="0" value="0" style="width:70px;">
+          </label>
+          <label style="display:flex; gap:6px; align-items:center;">Node B:
+            <input type="number" id="nodeB" min="0" value="1" style="width:70px;">
+          </label>
+          <button id="unionManual">Union A,B</button>
+          <button id="findManual">Find A</button>
+        </div>
+
+        <div style="margin-top:10px;">
+          <small>Quick actions</small>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button id="connectLine">Connect in line</button>
+            <button id="connectPairs">Connect pairs</button>
+            <button id="shuffleBtn">Shuffle & Randomize</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <strong>Log</strong>
+        <div id="log" class="log" aria-live="polite"></div>
+      </div>
+
+      <div class="card">
+        <strong>How to use</strong>
+        <ol style="padding-left:18px; margin:8px 0 0 0;">
+          <li>Initialize a universe size (default 10).</li>
+          <li>Click nodes in visualization to select them (1 or 2). Use Union or Find.</li>
+          <li>Toggle "Union by rank" or "Path compression" to see different strategies.</li>
+          <li>Watch the arrays and arrows update. Path compression will rewire pointers to the root.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* Union-Find interactive demo
+   - parent[]: parent pointers (root points to itself)
+   - rank[]: rank heuristic
+   - visual: nodes arranged horizontally; arrows point to parent
+   - supports find with animation and optional path compression
+   - supports union with optional union by rank
+*/
+
+(() => {
+  // DOM elements
+  const svg = document.getElementById('svgCanvas');
+  const initN = document.getElementById('initN');
+  const initBtn = document.getElementById('initBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const randomUnionBtn = document.getElementById('randomUnionBtn');
+  const autoUnionBtn = document.getElementById('autoUnionBtn');
+  const byRankBox = document.getElementById('byRank');
+  const pathCompressBox = document.getElementById('pathCompress');
+  const animateBox = document.getElementById('animate');
+  const stepMsBox = document.getElementById('stepMs');
+  const unionBtn = document.getElementById('unionBtn');
+  const findBtn = document.getElementById('findBtn');
+  const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+  const randomSelectBtn = document.getElementById('randomSelectBtn');
+  const parentTable = document.getElementById('parentTable');
+  const rankTable = document.getElementById('rankTable');
+  const logBox = document.getElementById('log');
+  const componentsCount = document.getElementById('componentsCount');
+  const nodeAinput = document.getElementById('nodeA');
+  const nodeBinput = document.getElementById('nodeB');
+  const unionManual = document.getElementById('unionManual');
+  const findManual = document.getElementById('findManual');
+  const connectLine = document.getElementById('connectLine');
+  const connectPairs = document.getElementById('connectPairs');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const randomSelect = document.getElementById('randomSelectBtn');
+
+  // state
+  let n = 10;
+  let parent = [];
+  let rankArr = [];
+  let nodes = []; // position info for each node
+  let selected = new Set();
+  let animating = false;
+
+  // SVG elements bookkeeping
+  let svgNodes = []; // group elements for nodes
+  let svgArrows = []; // line elements for arrows
+
+  // helper: append log
+  function log(msg) {
+    const time = new Date().toLocaleTimeString();
+    const li = document.createElement('div');
+    li.textContent = `[${time}] ${msg}`;
+    logBox.prepend(li);
+  }
+
+  // Initialize arrays
+  function init(size) {
+    n = Math.max(1, Math.floor(size) || 1);
+    parent = new Array(n);
+    rankArr = new Array(n);
+    for (let i = 0; i < n; i++) {
+      parent[i] = i;
+      rankArr[i] = 0;
+    }
+    selected.clear();
+    animating = false;
+    resizeSVG();
+    render();
+    log(`Initialized with ${n} elements.`);
+  }
+
+  function reset() {
+    init(n);
+    log('Reset to all separate sets.');
+  }
+
+  // Utility: count components
+  function countComponents() {
+    const roots = new Set();
+    for (let i = 0; i < n; i++) roots.add(findNoCompress(i));
+    return roots.size;
+  }
+
+  // Non-logging simple find used for counting/visualization
+  function findNoCompress(x) {
+    while (parent[x] !== x) x = parent[x];
+    return x;
+  }
+
+  // Find with optional path compression (non-animated variant)
+  function find(x, doCompress) {
+    if (doCompress) {
+      const root = findNoCompress(x);
+      // compress path
+      let cur = x;
+      while (parent[cur] !== root) {
+        const next = parent[cur];
+        parent[cur] = root;
+        cur = next;
+      }
+      return root;
+    } else {
+      return findNoCompress(x);
+    }
+  }
+
+  // Union operation
+  function union(x, y, options = { animate: true }) {
+    if (animating) return Promise.resolve();
+    const rootX = findNoCompress(x);
+    const rootY = findNoCompress(y);
+    if (rootX === rootY) {
+      log(`Union(${x}, ${y}): already in same set (root ${rootX}).`);
+      return Promise.resolve();
+    }
+    // Decide which root becomes parent
+    let attachAtoB = false;
+    if (byRankBox.checked) {
+      if (rankArr[rootX] > rankArr[rootY]) {
+        attachAtoB = false; // attach Y to X
+      } else if (rankArr[rootX] < rankArr[rootY]) {
+        attachAtoB = true; // attach X to Y
+      } else {
+        // equal ranks: attach Y to X and increase X rank
+        attachAtoB = false;
+      }
+    } else {
+      // simple: attach rootY to rootX
+      attachAtoB = false;
+    }
+
+    // Decide final action
+    let newParent, child;
+    if (attachAtoB) {
+      newParent = rootY; child = rootX;
+    } else {
+      newParent = rootX; child = rootY;
+    }
+
+    const doAnimate = animateBox.checked && options.animate;
+    if (!doAnimate) {
+      parent[child] = newParent;
+      if (byRankBox.checked && !attachAtoB && rankArr[rootX] === rankArr[rootY]) {
+        rankArr[newParent]++;
+      } else if (byRankBox.checked && attachAtoB && rankArr[rootX] === rankArr[rootY]) {
+        rankArr[newParent]++; // symmetrical case (rare because attachAtoB picks)
+      }
+      render();
+      log(`Union(${x}, ${y}): made ${newParent} the parent of ${child}.`);
+      return Promise.resolve();
+    } else {
+      // Animated: highlight roots, animate arrow update
+      animating = true;
+      const duration = Math.max(80, Number(stepMsBox.value) || 500);
+      return animateUnion(child, newParent, duration).then(() => {
+        // update arrays
+        parent[child] = newParent;
+        if (byRankBox.checked && rankArr[rootX] === rankArr[rootY]) {
+          // only increment the chosen newParent's rank when ranks equal and we attached one to another
+          rankArr[newParent]++;
+        }
+        animating = false;
+        render();
+        log(`Union(${x}, ${y}): attached ${child} -> ${newParent}${byRankBox.checked ? ' (union by rank applied)' : ''}.`);
+      });
+    }
+  }
+
+  // Animated pointer movement by temporarily drawing a highlighted arrow and then updating parent
+  function animateUnion(childIdx, parentIdx, ms) {
+    return new Promise(resolve => {
+      // flash the two nodes and arrow
+      highlightNode(childIdx, 'nodeSelected');
+      highlightNode(parentIdx, 'nodeSelected');
+      // draw a temporary highlighted arrow from child to new parent (over existing)
+      const from = nodes[childIdx];
+      const to = nodes[parentIdx];
+      const tmp = document.createElementNS('http://www.w3.org/2000/svg','path');
+      tmp.setAttribute('d', pointerPath(from.cx, from.cy, to.cx, to.cy));
+      tmp.setAttribute('class','arrow highlight');
+      tmp.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(tmp);
+
+      // animate (simple fade)
+      tmp.style.opacity = 0;
+      tmp.getBoundingClientRect(); // force style
+      tmp.style.transition = `opacity ${ms/1000}s ease`;
+      tmp.style.opacity = 1;
+      setTimeout(() => {
+        tmp.style.opacity = 0.2;
+        setTimeout(() => {
+          tmp.remove();
+          unhighlightAll();
+          resolve();
+        }, Math.max(80, ms/4));
+      }, ms);
+    });
+  }
+
+  // Highlight helpers
+  function highlightNode(i, cls) {
+    const g = svgNodes[i];
+    if (!g) return;
+    const rect = g.querySelector('rect');
+    rect.classList.add(cls);
+  }
+  function unhighlightAll() {
+    svgNodes.forEach(g => {
+      if (!g) return;
+      const rect = g.querySelector('rect');
+      rect.classList.remove('nodeSelected');
+    });
+  }
+
+  // Find operation with optional animated path compression
+  function doFindQuery(x) {
+    if (animating) return Promise.resolve();
+    const doCompress = pathCompressBox.checked;
+    if (!animateBox.checked || !doCompress) {
+      const root = find(x, doCompress);
+      render();
+      log(`Find(${x}) -> root ${root}${doCompress ? ' (compressed)' : ''}.`);
+      return Promise.resolve(root);
+    } else {
+      // Animated find with path observation and compression
+      animating = true;
+      return animateFindCompress(x).then(root => {
+        animating = false;
+        render();
+        log(`Find(${x}) -> root ${root} (path compressed).`);
+        return root;
+      });
+    }
+  }
+
+  function animateFindCompress(x) {
+    return new Promise(async (resolve) => {
+      // gather path
+      const path = [];
+      let cur = x;
+      while (parent[cur] !== cur) {
+        path.push(cur);
+        cur = parent[cur];
+      }
+      path.push(cur); // include root
+      const root = cur;
+
+      // animate walking along path
+      const duration = Math.max(60, Number(stepMsBox.value) || 400);
+      for (let idx = 0; idx < path.length - 1; idx++) {
+        const u = path[idx];
+        const v = path[idx+1];
+        // animate a small pulse along arrow u->v
+        await animatePulseAlongEdge(u, v, duration);
+      }
+
+      // now compress: set parent of all path nodes to root (except root)
+      for (let i = 0; i < path.length - 1; i++) {
+        const node = path[i];
+        // temporary change arrow style to 'compressed' to show rewiring
+        const line = svgArrows[node];
+        if (line) line.classList.add('compressed');
+        // update data model
+        parent[node] = root;
+        // small pause for each pointer update
+        await new Promise(r => setTimeout(r, Math.max(30, duration/2)));
+        if (line) line.classList.remove('compressed');
+      }
+
+      resolve(root);
+    });
+  }
+
+  function animatePulseAlongEdge(u, v, ms) {
+    return new Promise(resolve => {
+      const from = nodes[u];
+      const to = nodes[v];
+      const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute('r', 6);
+      dot.setAttribute('fill', '#f97316');
+      dot.setAttribute('opacity', 0.95);
+      svg.appendChild(dot);
+
+      const steps = 30;
+      let i = 0;
+      const id = setInterval(() => {
+        const t = i / steps;
+        const x = from.cx + (to.cx - from.cx) * t;
+        const y = from.cy + (to.cy - from.cy) * t;
+        dot.setAttribute('cx', x);
+        dot.setAttribute('cy', y);
+        i++;
+        if (i > steps) {
+          clearInterval(id);
+          dot.remove();
+          resolve();
+        }
+      }, Math.max(6, Math.floor(ms/steps)));
+    });
+  }
+
+  // Render the visualization
+  function render() {
+    // update components count
+    const compCnt = countComponents();
+    componentsCount.textContent = `${compCnt} component${compCnt !== 1 ? 's' : ''}`;
+
+    // compute node positions: simple horizontal distribution
+    computePositions();
+
+    // clear svg content, but keep marker definitions
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    addDefinitions();
+
+    svgNodes = new Array(n);
+    svgArrows = new Array(n);
+
+    // draw arrows first so they are under nodes
+    for (let i = 0; i < n; i++) {
+      const from = nodes[i];
+      const to = nodes[parent[i]];
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg','path');
+      pathEl.setAttribute('d', pointerPath(from.cx, from.cy, to.cx, to.cy));
+      pathEl.setAttribute('class','arrow');
+      pathEl.setAttribute('data-from', i);
+      pathEl.setAttribute('data-to', parent[i]);
+      svg.appendChild(pathEl);
+      svgArrows[i] = pathEl;
+    }
+
+    // draw nodes on top
+    for (let i = 0; i < n; i++) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('transform', `translate(${nodes[i].cx}, ${nodes[i].cy})`);
+      g.style.cursor = 'pointer';
+      g.dataset.index = i;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x', -30);
+      rect.setAttribute('y', -18);
+      rect.setAttribute('width', 60);
+      rect.setAttribute('height', 36);
+      rect.setAttribute('class', 'nodeBox');
+      rect.setAttribute('rx','8');
+      g.appendChild(rect);
+
+      const idxText = document.createElementNS('http://www.w3.org/2000/svg','text');
+      idxText.setAttribute('y', -2);
+      idxText.setAttribute('class','nodeLabel');
+      idxText.setAttribute('text-anchor','middle');
+      idxText.textContent = i;
+      g.appendChild(idxText);
+
+      const subText = document.createElementNS('http://www.w3.org/2000/svg','text');
+      subText.setAttribute('y', 14);
+      subText.setAttribute('class','nodeSmall');
+      subText.setAttribute('text-anchor','middle');
+      subText.textContent = `p=${parent[i]} r=${rankArr[i]}`;
+      g.appendChild(subText);
+
+      // selection overlay
+      if (selected.has(i)) {
+        rect.classList.add('nodeSelected');
+      }
+
+      // click handler
+      g.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        onNodeClick(i);
+      });
+
+      svg.appendChild(g);
+      svgNodes[i] = g;
+    }
+
+    // update arrays display
+    renderArrays();
+  }
+
+  function addDefinitions() {
+    // arrowhead marker
+    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg','marker');
+    marker.setAttribute('id','arrowhead');
+    marker.setAttribute('markerWidth','8');
+    marker.setAttribute('markerHeight','8');
+    marker.setAttribute('refX','6');
+    marker.setAttribute('refY','3');
+    marker.setAttribute('orient','auto');
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d','M0,0 L6,3 L0,6 z');
+    path.setAttribute('fill','#666');
+    marker.appendChild(path);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+  }
+
+  // compute node positions grouped by root for nicer visuals
+  function computePositions() {
+    // cluster nodes by root
+    const groups = {};
+    for (let i = 0; i < n; i++) {
+      const r = findNoCompress(i);
+      if (!groups[r]) groups[r] = [];
+      groups[r].push(i);
+    }
+    const roots = Object.keys(groups).map(s => parseInt(s)).sort((a,b)=>a-b);
+
+    nodes = new Array(n);
+    const margin = 70;
+    const width = Math.max(800, (n*90));
+    const left = 40;
+    let curX = left;
+    // each group occupies a block
+    for (const r of roots) {
+      const members = groups[r];
+      const blockW = Math.max(120, members.length * 80);
+      // arrange members horizontally within block at two vertical levels to reduce overlap
+      const centerX = curX + blockW / 2;
+      const baseY = 100;
+      for (let i = 0; i < members.length; i++) {
+        const idx = members[i];
+        const x = curX + 40 + (i * ((blockW - 80) / Math.max(1, members.length - 1)));
+        const depth = getDepth(idx);
+        const y = baseY + depth * 60; // deeper nodes lower
+        nodes[idx] = { cx: x, cy: y };
+      }
+      curX += blockW + margin;
+    }
+
+    // fallback: ensure every node has position
+    for (let i = 0; i < n; i++) {
+      if (!nodes[i]) nodes[i] = { cx: 50 + i*60, cy: 120 };
+    }
+  }
+
+  function getDepth(i) {
+    let d = 0;
+    let cur = i;
+    while (parent[cur] !== cur) {
+      d++;
+      cur = parent[cur];
+      if (d > n) break;
+    }
+    return d;
+  }
+
+  // clickable node handling
+  function onNodeClick(i) {
+    // toggle selection (max 2 selections)
+    if (selected.has(i)) {
+      selected.delete(i);
+    } else {
+      if (selected.size >= 2) {
+        // remove oldest selection
+        const first = selected.values().next().value;
+        selected.delete(first);
+      }
+      selected.add(i);
+    }
+    // synchronize numeric inputs
+    const arr = Array.from(selected);
+    if (arr.length >= 1) nodeAinput.value = arr[0];
+    if (arr.length >= 2) nodeBinput.value = arr[1];
+    render();
+  }
+
+  // pointer path (curved) from (x1,y1) to (x2,y2)
+  function pointerPath(x1,y1,x2,y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const mx = x1 + dx * 0.5;
+    const my = y1 + dy * 0.5;
+    const curve = 20 + Math.min(80, Math.abs(dx)/3);
+    // create a slight arc; using quadratic curve
+    return `M ${x1} ${y1} Q ${mx} ${my - curve} ${x2} ${y2}`;
+  }
+
+  // Render the arrays (parent, rank)
+  function renderArrays() {
+    parentTable.innerHTML = '';
+    rankTable.innerHTML = '';
+    // parent indices header
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.gap = '6px';
+    header.style.flexWrap = 'wrap';
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement('div');
+      d.style.minWidth = '36px';
+      d.style.padding = '6px';
+      d.style.border = '1px solid #eee';
+      d.style.borderRadius = '6px';
+      d.style.background = '#fff';
+      d.style.fontSize = '13px';
+      d.style.textAlign = 'center';
+      d.textContent = parent[i];
+      if (selected.has(i)) d.style.boxShadow = 'inset 0 0 0 2px rgba(255,0,102,0.08)';
+      header.appendChild(d);
+    }
+    parentTable.appendChild(header);
+
+    // ranks
+    const rankdiv = document.createElement('div');
+    rankdiv.style.display = 'flex';
+    rankdiv.style.gap = '6px';
+    rankdiv.style.flexWrap = 'wrap';
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement('div');
+      d.style.minWidth = '36px';
+      d.style.padding = '6px';
+      d.style.border = '1px solid #eee';
+      d.style.borderRadius = '6px';
+      d.style.background = '#fff';
+      d.style.fontSize = '13px';
+      d.style.textAlign = 'center';
+      d.textContent = rankArr[i];
+      rankdiv.appendChild(d);
+    }
+    rankTable.appendChild(rankdiv);
+  }
+
+  // UI actions
+  initBtn.addEventListener('click', () => init(Number(initN.value) || 1));
+  resetBtn.addEventListener('click', reset);
+  randomUnionBtn.addEventListener('click', () => {
+    // perform random unions until ~sqrt(n) sets (random)
+    const target = Math.max(1, Math.floor(Math.sqrt(n)));
+    const doAnimate = animateBox.checked;
+    const promises = [];
+    while (countComponents() > target) {
+      const a = Math.floor(Math.random() * n);
+      const b = Math.floor(Math.random() * n);
+      if (findNoCompress(a) === findNoCompress(b)) continue;
+      promises.push(union(a,b,{animate: doAnimate}));
+    }
+    Promise.all(promises).then(() => render());
+  });
+
+  autoUnionBtn.addEventListener('click', () => {
+    // Ask user for k via prompt - but to keep single-file, a quick prompt:
+    const k = Math.max(1, Math.min(n, parseInt(prompt('Make how many components (k)?', '3')) || 3));
+    // Connect nodes into k components: split into k groups and union inside each group
+    const block = Math.ceil(n / k);
+    const ops = [];
+    for (let g = 0; g < k; g++) {
+      const start = g * block;
+      const end = Math.min(n, start + block);
+      for (let i = start; i + 1 < end; i++) {
+        ops.push([i, i+1]);
+      }
+    }
+    // execute sequentially with animation
+    (async () => {
+      for (const [a,b] of ops) {
+        await union(a,b,{animate: true});
+        await new Promise(r => setTimeout(r, 60));
+      }
+      render();
+    })();
+  });
+
+  unionBtn.addEventListener('click', () => {
+    const sel = Array.from(selected);
+    if (sel.length !== 2) { alert('Select exactly 2 nodes (click nodes) or use manual inputs.'); return; }
+    union(sel[0], sel[1]);
+  });
+
+  findBtn.addEventListener('click', () => {
+    const sel = Array.from(selected);
+    if (sel.length === 0) { alert('Select 1 node to find its root.'); return; }
+    doFindQuery(sel[0]);
+  });
+
+  clearSelectionBtn.addEventListener('click', () => { selected.clear(); render(); });
+  randomSelectBtn.addEventListener('click', () => {
+    selected.clear();
+    selected.add(Math.floor(Math.random()*n));
+    selected.add(Math.floor(Math.random()*n));
+    render();
+  });
+
+  // manual A,B buttons
+  unionManual.addEventListener('click', () => {
+    const a = clampNum(Number(nodeAinput.value), 0, n-1);
+    const b = clampNum(Number(nodeBinput.value), 0, n-1);
+    union(a,b);
+    selected.clear(); selected.add(a); selected.add(b); render();
+  });
+  findManual.addEventListener('click', () => {
+    const a = clampNum(Number(nodeAinput.value), 0, n-1);
+    doFindQuery(a);
+    selected.clear(); selected.add(a); render();
+  });
+
+  // quick actions
+  connectLine.addEventListener('click', async () => {
+    for (let i = 0; i+1 < n; i++) {
+      await union(i, i+1, {animate: true});
+    }
+    render();
+    log('Connected all nodes in a line.');
+  });
+
+  connectPairs.addEventListener('click', async () => {
+    for (let i = 0; i+1 < n; i += 2) {
+      await union(i, i+1, {animate: true});
+    }
+    render();
+    log('Connected nodes in pairs.');
+  });
+
+  shuffleBtn.addEventListener('click', () => {
+    // randomize parents and ranks then rerender
+    for (let i = 0; i < n; i++) {
+      parent[i] = i;
+      rankArr[i] = 0;
+    }
+    // perform a number of random unions
+    const times = Math.max(1, Math.floor(n * 0.6));
+    for (let t = 0; t < times; t++) {
+      const a = Math.floor(Math.random()*n);
+      const b = Math.floor(Math.random()*n);
+      if (findNoCompress(a) !== findNoCompress(b)) {
+        // attach b to a w/o animation
+        parent[findNoCompress(b)] = findNoCompress(a);
+      }
+    }
+    render();
+    log('Shuffled: random unions applied (no animation).');
+  });
+
+  // small helpers
+  function clampNum(v, lo, hi) {
+    if (isNaN(v)) return lo;
+    return Math.max(lo, Math.min(hi, Math.floor(v)));
+  }
+
+  // initial render
+  function resizeSVG() {
+    // adjust viewbox width based on n
+    const w = Math.max(900, n*90 + 200);
+    svg.setAttribute('viewBox', `0 0 ${w} 600`);
+  }
+
+  // set up click-away to clear selection
+  svg.addEventListener('click', () => { /* ignore */ });
+
+  // init default
+  init(Number(initN.value) || 10);
+
+  // Expose some functions for console (helpful)
+  window.uf = {
+    parent, rankArr, findNoCompress, find, union
+  };
+
+})();
+</script>
+</body>
+</html>

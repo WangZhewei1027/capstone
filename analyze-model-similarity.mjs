@@ -51,7 +51,7 @@ async function analyzeSimilarityByModel(workspaceName) {
       const fileId = result.fsmFileName.replace(".json", "");
       const dataFilePath = path.join(dataDir, `${fileId}.json`);
 
-      // 读取对应的数据文件获取模型信息
+      // 读取对应的数据文件获取模型信息 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       const dataContent = await fs.readFile(dataFilePath, "utf-8");
       const dataFile = JSON.parse(dataContent);
 

@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Floyd–Warshall Algorithm Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 0; display: flex; height: 100vh; }
+    #left { width: 48%; border-right: 1px solid #ddd; padding: 12px; box-sizing: border-box; overflow: auto; }
+    #right { flex: 1; padding: 12px; box-sizing: border-box; overflow: auto; }
+    h1 { margin: 0 0 8px 0; font-size: 20px; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 8px; }
+    button, select, input[type="range"] { padding:6px 8px; font-size:14px; }
+    #canvasWrap { border:1px solid #ccc; height:480px; background:#fafafa; position:relative; }
+    svg { width:100%; height:100%; display:block; }
+    .node { cursor: pointer; }
+    .node circle { fill:#1e90ff; stroke:#0b61c6; stroke-width:2px; }
+    .node text { fill:white; font-weight:700; pointer-events:none; font-size:12px; }
+    .edge { stroke:#333; stroke-width:2px; fill:none; }
+    .edgeLabel { font-size:12px; fill:#111; background:rgba(255,255,255,.8); }
+    .selected circle { fill:#ff9800; stroke:#c76b00; }
+    .hover circle { stroke:#22a; stroke-width:3px; }
+    .arrowhead { fill:#333; }
+    .highlightEdge { stroke:#e91e63; stroke-width:3px; }
+    .updatedEdge { stroke:#4caf50; stroke-width:4px; }
+    .tableWrap { display:flex; gap:12px; margin-top:12px; flex-wrap:wrap; }
+    table { border-collapse: collapse; font-size:13px; }
+    th, td { border:1px solid #ddd; padding:6px 8px; text-align:center; min-width:36px; }
+    th { background:#f5f5f5; font-weight:600; }
+    .inf { color:#999; }
+    .cell-highlight { background: #fff3cd; }
+    .cell-updated { background: #d4edda; }
+    #snapshotInfo { margin-top:8px; }
+    .legend { margin-top:10px; font-size:13px; color:#444; }
+    .small { font-size:13px; color:#666; }
+    label { font-size:13px; }
+    .footer { margin-top:12px; color:#666; font-size:13px; }
+    #speed { width:120px; }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <h1>Floyd–Warshall Visualizer</h1>
+    <div class="controls">
+      <button id="addNodeBtn">Add Node</button>
+      <button id="clearBtn">Clear</button>
+      <button id="randomBtn">Random Graph</button>
+      <label><input type="checkbox" id="directed" checked> Directed</label>
+      <label style="margin-left:8px;">Nodes: <span id="nodeCount">0</span></label>
+    </div>
+
+    <div id="canvasWrap">
+      <svg id="svg"></svg>
+    </div>
+
+    <div style="margin-top:12px;">
+      <div class="controls">
+        <button id="runBtn">Compute (all)</button>
+        <button id="stepBackBtn">◀ Step Back</button>
+        <button id="stepForwardBtn">Step ▶</button>
+        <button id="playBtn">Play</button>
+        <button id="pauseBtn" disabled>Pause</button>
+        <label>Speed <input id="speed" type="range" min="200" max="2000" step="100" value="800"></label>
+        <button id="resetPositions">Reset Positions</button>
+      </div>
+
+      <div class="controls small">
+        <label>Current snapshot: <span id="snapIndex">0</span>/<span id="snapTotal">0</span></label>
+        <label id="snapshotInfo"></label>
+        <label id="negCycle" style="color:#b71c1c;"></label>
+      </div>
+
+      <div class="tableWrap">
+        <div>
+          <div class="small">Distance matrix (D)</div>
+          <div id="distTableWrap"></div>
+        </div>
+        <div>
+          <div class="small">Next matrix (next)</div>
+          <div id="nextTableWrap"></div>
+        </div>
+        <div style="min-width:220px;">
+          <div class="small">Path between nodes</div>
+          <select id="fromSelect"></select>
+          <select id="toSelect"></select>
+          <button id="showPathBtn">Show Path</button>
+          <div class="small" id="pathDisplay"></div>
+          <div class="legend">
+            Click a node once to select (for adding edge), click second to create edge.<br>
+            Drag nodes to reposition. Click an edge to edit weight.
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        Implementation notes: this visualizer computes Floyd–Warshall snapshots at each (k,i,j) comparison and records matrix updates and path reconstruction (next matrix). Negative cycle detection shown if any diagonal becomes negative.
+      </div>
+    </div>
+  </div>
+
+  <div id="right">
+    <h1>How it works</h1>
+    <p class="small">Floyd–Warshall finds shortest paths between all pairs of nodes. It maintains:
+    - D[i][j]: current shortest distance from i to j
+    - next[i][j]: the next vertex after i on the shortest path to j (used to reconstruct path)</p>
+
+    <p class="small">Algorithm (conceptual):
+    for k from 0..n-1:
+      for i from 0..n-1:
+        for j from 0..n-1:
+          if D[i][k] + D[k][j] < D[i][j]:
+            D[i][j] = D[i][k] + D[k][j]
+            next[i][j] = next[i][k]</p>
+
+    <p class="small">Use the controls on the left to build a graph, run the algorithm step-by-step, watch the matrices and paths update.</p>
+
+    <h2 style="margin-top:8px;">Tips</h2>
+    <ul class="small">
+      <li>Start by creating a few nodes (Add Node) or generating a random graph.</li>
+      <li>To add an edge, click a node (it becomes selected), then click another node and enter a weight. For undirected graphs the edge will be added both ways.</li>
+      <li>To edit an edge, click the edge's line and enter a new weight (or leave blank to delete).</li>
+      <li>Select two nodes and press Show Path to highlight the current shortest path according to the displayed snapshot.</li>
+    </ul>
+  </div>
+
+  <script>
+(function(){
+  // Basic graph model
+  let nodes = []; // {id, x, y}
+  let edges = []; // {from,to,weight, id}
+  let directed = true;
+  let nodeIdCounter = 0;
+
+  // UI elements
+  const svg = document.getElementById('svg');
+  const addNodeBtn = document.getElementById('addNodeBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const randomBtn = document.getElementById('randomBtn');
+  const nodeCountSpan = document.getElementById('nodeCount');
+  const directedCheckbox = document.getElementById('directed');
+  const runBtn = document.getElementById('runBtn');
+  const stepForwardBtn = document.getElementById('stepForwardBtn');
+  const stepBackBtn = document.getElementById('stepBackBtn');
+  const playBtn = document.getElementById('playBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const speedInput = document.getElementById('speed');
+  const snapIndexSpan = document.getElementById('snapIndex');
+  const snapTotalSpan = document.getElementById('snapTotal');
+  const distTableWrap = document.getElementById('distTableWrap');
+  const nextTableWrap = document.getElementById('nextTableWrap');
+  const fromSelect = document.getElementById('fromSelect');
+  const toSelect = document.getElementById('toSelect');
+  const showPathBtn = document.getElementById('showPathBtn');
+  const pathDisplay = document.getElementById('pathDisplay');
+  const snapshotInfo = document.getElementById('snapshotInfo');
+  const snapTotalLabel = snapTotalSpan;
+  const negCycleLabel = document.getElementById('negCycle');
+  const resetPositionsBtn = document.getElementById('resetPositions');
+
+  let selectedNode = null;
+  let hoverNode = null;
+  let dragNode = null;
+  let dragOffset = {x:0,y:0};
+
+  // Matrices and snapshots
+  let snapshots = []; // each snapshot: {D, next, k,i,j, updated: {i,j,old,new}, negCycle}
+  let currentSnapIndex = 0;
+  let playing = false;
+  let playTimer = null;
+
+  // SVG elements maps
+  const edgeGroup = document.createElementNS("http://www.w3.org/2000/svg","g");
+  const nodeGroup = document.createElementNS("http://www.w3.org/2000/svg","g");
+  svg.appendChild(edgeGroup);
+  svg.appendChild(nodeGroup);
+
+  // Arrow marker
+  const defs = document.createElementNS("http://www.w3.org/2000/svg","defs");
+  svg.appendChild(defs);
+  const marker = document.createElementNS("http://www.w3.org/2000/svg","marker");
+  marker.setAttribute("id","arrow");
+  marker.setAttribute("markerWidth","10");
+  marker.setAttribute("markerHeight","10");
+  marker.setAttribute("refX","10");
+  marker.setAttribute("refY","5");
+  marker.setAttribute("orient","auto");
+  marker.setAttribute("markerUnits","strokeWidth");
+  const arrowPath = document.createElementNS("http://www.w3.org/2000/svg","path");
+  arrowPath.setAttribute("d","M0,0 L10,5 L0,10 z");
+  arrowPath.setAttribute("class","arrowhead");
+  marker.appendChild(arrowPath);
+  defs.appendChild(marker);
+
+  function updateNodeCount(){ nodeCountSpan.textContent = nodes.length; }
+
+  // Add node centered at random position or specified
+  function addNode(x,y){
+    const rect = svg.getBoundingClientRect();
+    const px = (x==null) ? (50 + Math.random() * (rect.width-100)) : x;
+    const py = (y==null) ? (50 + Math.random() * (rect.height-100)) : y;
+    const node = { id: nodeIdCounter++, x: px, y: py };
+    nodes.push(node);
+    draw();
+    updateNodeCount();
+    updateSelects();
+  }
+
+  function clearGraph(){
+    nodes = [];
+    edges = [];
+    nodeIdCounter = 0;
+    snapshots = [];
+    currentSnapIndex = 0;
+    playing = false;
+    if (playTimer) { clearInterval(playTimer); playTimer = null; }
+    draw();
+    updateNodeCount();
+    updateSelects();
+    renderMatricesEmpty();
+    updateSnapshotInfo();
+  }
+
+  function randomGraph(n=5, density=0.4, minW=-3, maxW=10){
+    clearGraph();
+    for(let i=0;i<n;i++) addNode();
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        if (i===j) continue;
+        if (Math.random() < density){
+          const w = Math.floor(minW + Math.random()*(maxW-minW+1));
+          addEdge(nodes[i].id, nodes[j].id, w);
+        }
+      }
+    }
+    draw();
+  }
+
+  function addEdge(fromId, toId, weight){
+    // Remove existing if present
+    const existing = edges.find(e => e.from===fromId && e.to===toId);
+    if(existing){ existing.weight = weight; draw(); return existing; }
+    const e = { id: 'e' + Math.random().toString(36).slice(2,9), from: fromId, to: toId, weight: Number(weight) };
+    edges.push(e);
+    if(!directed && fromId !== toId){
+      // also add reverse
+      const existing2 = edges.find(x => x.from===toId && x.to===fromId);
+      if(!existing2) edges.push({ id: 'e' + Math.random().toString(36).slice(2,9), from: toId, to: fromId, weight: Number(weight) });
+    }
+    draw();
+    return e;
+  }
+
+  function removeEdge(edgeId){
+    edges = edges.filter(e => e.id !== edgeId);
+    draw();
+  }
+
+  function findNodeById(id){ return nodes.find(n => n.id === id); }
+  function findEdgeById(id){ return edges.find(e => e.id === id); }
+
+  // Drawing functions
+  function draw(){
+    // Clear
+    while(edgeGroup.firstChild) edgeGroup.removeChild(edgeGroup.firstChild);
+    while(nodeGroup.firstChild) nodeGroup.removeChild(nodeGroup.firstChild);
+
+    // Draw edges
+    edges.forEach(e => {
+      const n1 = findNodeById(e.from);
+      const n2 = findNodeById(e.to);
+      if(!n1 || !n2) return;
+      const line = document.createElementNS("http://www.w3.org/2000/svg","path");
+      line.setAttribute("class","edge");
+      line.setAttribute("data-edgeid", e.id);
+      const dx = n2.x - n1.x, dy = n2.y - n1.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      // offset so lines don't touch circles
+      const r = 18;
+      const ux = dx / dist, uy = dy / dist;
+      const startX = n1.x + ux * r;
+      const startY = n1.y + uy * r;
+      const endX = n2.x - ux * r;
+      const endY = n2.y - uy * r;
+
+      const midX = (startX + endX)/2 + (-uy)*10; // slight offset for visibility
+      const midY = (startY + endY)/2 + (ux)*10;
+      const d = `M ${startX} ${startY} Q ${midX} ${midY} ${endX} ${endY}`;
+      line.setAttribute("d", d);
+      if (directed) line.setAttribute("marker-end", "url(#arrow)");
+      edgeGroup.appendChild(line);
+
+      // label
+      const label = document.createElementNS("http://www.w3.org/2000/svg","text");
+      label.setAttribute("class","edgeLabel");
+      // place approx at mid of path
+      label.setAttribute("x", (startX + endX)/2 + (-uy)*8);
+      label.setAttribute("y", (startY + endY)/2 + (ux)*8 + 4);
+      label.setAttribute("text-anchor","middle");
+      label.textContent = String(e.weight);
+      edgeGroup.appendChild(label);
+
+      // click to edit
+      line.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const val = prompt("Enter weight (empty to delete):", String(e.weight));
+        if(val === null) return;
+        if(val.trim() === "") { removeEdge(e.id); computeAndSnapshotIfNeeded(); return; }
+        const num = Number(val);
+        if(Number.isFinite(num)){
+          e.weight = num;
+          draw();
+          computeAndSnapshotIfNeeded();
+        } else alert("Invalid number");
+      });
+
+    });
+
+    // Draw nodes
+    nodes.forEach(n => {
+      const g = document.createElementNS("http://www.w3.org/2000/svg","g");
+      g.setAttribute("class","node");
+      g.setAttribute("data-nodeid", n.id);
+      g.setAttribute("transform", `translate(${n.x},${n.y})`);
+      const circle = document.createElementNS("http://www.w3.org/2000/svg","circle");
+      circle.setAttribute("r", 18);
+      const text = document.createElementNS("http://www.w3.org/2000/svg","text");
+      text.setAttribute("y", 5);
+      text.setAttribute("text-anchor","middle");
+      text.textContent = String(n.id);
+      g.appendChild(circle); g.appendChild(text);
+      nodeGroup.appendChild(g);
+
+      // Events
+      g.addEventListener('mousedown', (ev) => {
+        ev.stopPropagation();
+        dragNode = n;
+        const rect = svg.getBoundingClientRect();
+        dragOffset.x = ev.clientX - rect.left - n.x;
+        dragOffset.y = ev.clientY - rect.top - n.y;
+      });
+      g.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if(selectedNode == null){
+          selectedNode = n;
+          updateSelectionVisual();
+        } else if(selectedNode.id === n.id){
+          selectedNode = null;
+          updateSelectionVisual();
+        } else {
+          // create edge from selectedNode to n
+          const w = prompt(`Weight from ${selectedNode.id} → ${n.id}:`, "1");
+          if(w!==null && w.trim()!==""){
+            const num = Number(w);
+            if(Number.isFinite(num)){
+              addEdge(selectedNode.id, n.id, num);
+              computeAndSnapshotIfNeeded();
+            } else alert("Invalid number");
+          }
+          selectedNode = null;
+          updateSelectionVisual();
+        }
+      });
+      g.addEventListener('mouseenter', ()=>{ hoverNode = n; updateHoverVisual(); });
+      g.addEventListener('mouseleave', ()=>{ hoverNode = null; updateHoverVisual(); });
+    });
+
+    updateSelectionVisual();
+    updateHoverVisual();
+  }
+
+  // Visual updates
+  function updateSelectionVisual(){
+    Array.from(nodeGroup.children).forEach(g => {
+      const id = Number(g.getAttribute('data-nodeid'));
+      g.classList.toggle('selected', selectedNode && selectedNode.id === id);
+    });
+  }
+  function updateHoverVisual(){
+    Array.from(nodeGroup.children).forEach(g => {
+      const id = Number(g.getAttribute('data-nodeid'));
+      g.classList.toggle('hover', hoverNode && hoverNode.id === id);
+    });
+  }
+
+  // Dragging
+  window.addEventListener('mousemove', (ev) => {
+    if(!dragNode) return;
+    const rect = svg.getBoundingClientRect();
+    dragNode.x = Math.max(20, Math.min(rect.width-20, ev.clientX - rect.left - dragOffset.x));
+    dragNode.y = Math.max(20, Math.min(rect.height-20, ev.clientY - rect.top - dragOffset.y));
+    draw();
+  });
+  window.addEventListener('mouseup', ()=> { dragNode = null; });
+
+  // Canvas click to add node when Add Node selected
+  addNodeBtn.addEventListener('click', ()=>{
+    svg.style.cursor = 'crosshair';
+    const onClick = (ev) => {
+      const rect = svg.getBoundingClientRect();
+      addNode(ev.clientX - rect.left, ev.clientY - rect.top);
+      svg.style.cursor = '';
+      svg.removeEventListener('click', onClick);
+    };
+    svg.addEventListener('click', onClick);
+  });
+
+  clearBtn.addEventListener('click', clearGraph);
+  randomBtn.addEventListener('click', ()=> randomGraph(6, 0.5));
+
+  directedCheckbox.addEventListener('change', ()=>{
+    directed = directedCheckbox.checked;
+    draw();
+  });
+
+  resetPositionsBtn.addEventListener('click', ()=>{
+    // reposition in grid
+    const w = svg.getBoundingClientRect().width, h = svg.getBoundingClientRect().height;
+    const cols = Math.ceil(Math.sqrt(nodes.length));
+    nodes.forEach((n,i) => {
+      const cx = (i % cols) / (cols) * (w-100) + 50;
+      const cy = Math.floor(i/cols) / (cols) * (h-100) + 50;
+      n.x = cx; n.y = cy;
+    });
+    draw();
+  });
+
+  // Matrices helpers
+  function initMatrices(){
+    const idxMap = nodes.map(n=>n.id);
+    const n = nodes.length;
+    const D = Array.from({length:n}, ()=>Array(n).fill(Infinity));
+    const next = Array.from({length:n}, ()=>Array(n).fill(null));
+    for(let i=0;i<n;i++){ D[i][i]=0; next[i][i]=nodes[i].id; }
+    // add edges
+    edges.forEach(e=>{
+      const i = indexOfNodeId(e.from);
+      const j = indexOfNodeId(e.to);
+      if(i>=0 && j>=0){
+        D[i][j] = Number(e.weight);
+        next[i][j] = nodes[i].id === nodes[j].id ? nodes[i].id : nodes[j].id;
+      }
+    });
+    return {D, next};
+  }
+
+  function indexOfNodeId(id){
+    return nodes.findIndex(n => n.id === id);
+  }
+
+  function deepCopyMatrix(mat){
+    return mat.map(row => row.map(v => (v===Infinity?Infinity:(v===null?null: (typeof v==='number'?v:v)))));
+  }
+
+  // Compute snapshots of Floyd-Warshall
+  function computeSnapshots(){
+    snapshots = [];
+    if(nodes.length===0){ updateSnapshotInfo(); return; }
+    const n = nodes.length;
+    const {D: D0, next: next0} = initMatrices();
+    // snapshot initial
+    snapshots.push({
+      D: deepCopyMatrix(D0),
+      next: deepCopyMatrix(next0),
+      k: null, i:null, j:null, updated: null, negCycle: false,
+      info: 'initial'
+    });
+    // algorithm
+    const D = deepCopyMatrix(D0);
+    const next = deepCopyMatrix(next0);
+    let negativeDetectedAt = null;
+    for(let k=0;k<n;k++){
+      for(let i=0;i<n;i++){
+        for(let j=0;j<n;j++){
+          const Dik = D[i][k], Dkj = D[k][j], Dij = D[i][j];
+          const sum = (Dik===Infinity || Dkj===Infinity) ? Infinity : Dik + Dkj;
+          let updated = null;
+          if(sum < Dij){
+            updated = {i, j, old: Dij, ne: sum, via: k};
+            D[i][j] = sum;
+            // next[i][j] = next[i][k]
+            next[i][j] = next[i][k];
+          }
+          const neg = D.some((row,ii) => row[ii] < 0);
+          snapshots.push({
+            D: deepCopyMatrix(D),
+            next: deepCopyMatrix(next),
+            k, i, j, updated, negCycle: neg,
+            info: updated ? `Updated D[${i}][${j}] via ${k}` : (sum===Infinity ? `Checked D[${i}][${j}] via ${k}` : `No change for D[${i}][${j}] via ${k}`)
+          });
+          if(neg && negativeDetectedAt==null) negativeDetectedAt = snapshots.length-1;
+        }
+      }
+    }
+    if(negativeDetectedAt!=null){
+      snapshots[negativeDetectedAt].info += ' — negative cycle detected';
+    }
+    currentSnapIndex = 0;
+    updateSnapshotInfo();
+  }
+
+  function computeAndSnapshotIfNeeded(){
+    // If snapshots exist, we should recompute
+    if(nodes.length>0) computeSnapshots();
+    renderSnapshot(0);
+  }
+
+  // Rendering matrices
+  function renderMatricesEmpty(){
+    distTableWrap.innerHTML = '';
+    nextTableWrap.innerHTML = '';
+    snapIndexSpan.textContent = '0';
+    snapTotalSpan.textContent = '0';
+    pathDisplay.textContent = '';
+  }
+
+  function renderSnapshot(index){
+    if(snapshots.length===0){ renderMatricesEmpty(); return; }
+    currentSnapIndex = Math.max(0, Math.min(index, snapshots.length-1));
+    const snap = snapshots[currentSnapIndex];
+    const D = snap.D;
+    const next = snap.next;
+    const n = nodes.length;
+    // build tables
+    const createTable = (matrix, isNext) => {
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      headerRow.appendChild(document.createElement('th'));
+      for(let j=0;j<n;j++){
+        const th = document.createElement('th'); th.textContent = String(nodes[j].id); headerRow.appendChild(th);
+      }
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      for(let i=0;i<n;i++){
+        const tr = document.createElement('tr');
+        const th = document.createElement('th'); th.textContent = String(nodes[i].id); tr.appendChild(th);
+        for(let j=0;j<n;j++){
+          const td = document.createElement('td');
+          const val = matrix[i][j];
+          if(val===Infinity) { td.textContent = '∞'; td.classList.add('inf'); }
+          else if(val===null) { td.textContent = '-'; td.classList.add('inf'); }
+          else td.textContent = String(val);
+          // highlight current k,i,j
+          if(snap.k !== null && snap.k !== undefined){
+            if(i === snap.i && j === snap.j) td.classList.add('cell-highlight');
+            if(snap.updated && snap.updated.i === i && snap.updated.j === j) td.classList.add('cell-updated');
+          }
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      return table;
+    };
+
+    distTableWrap.innerHTML = '';
+    nextTableWrap.innerHTML = '';
+    distTableWrap.appendChild(createTable(D, false));
+    nextTableWrap.appendChild(createTable(next, true));
+
+    snapIndexSpan.textContent = String(currentSnapIndex);
+    snapTotalSpan.textContent = String(snapshots.length-1);
+    snapshotInfo.textContent = snap.info || '';
+    negCycleLabel.textContent = snap.negCycle ? "Negative cycle detected (diagonal < 0)." : "";
+
+    // highlight edges along the selected pair path if shown
+    draw(); // redraw to clear previous highlights
+    // mark updated edge if any
+    if(snap.updated){
+      const ui = snap.updated.i, uj = snap.updated.j;
+      const fromId = nodes[ui].id, toId = nodes[uj].id;
+      highlightEdgeBetween(fromId, toId, 'updatedEdge');
+    }
+
+    // highlight currently considered k,i,j nodes
+    if(snap.k !== null && snap.k !== undefined){
+      const ids = [snap.k, snap.i, snap.j].map(x => nodes[x] ? nodes[x].id : null);
+      highlightNodesById(ids);
+    }
+  }
+
+  function highlightEdgeBetween(fromId, toId, cls){
+    Array.from(edgeGroup.children).forEach(el=>{
+      if(el.getAttribute('data-edgeid')){
+        const edge = findEdgeById(el.getAttribute('data-edgeid'));
+        if(edge && edge.from===fromId && edge.to===toId){
+          el.classList.add(cls);
+        }
+      }
+    });
+  }
+
+  function highlightNodesById(ids){
+    Array.from(nodeGroup.children).forEach(g=>{
+      const id = Number(g.getAttribute('data-nodeid'));
+      g.classList.toggle('cell-highlight', ids.includes(id));
+    });
+  }
+
+  // Snapshot navigation
+  stepForwardBtn.addEventListener('click', ()=>{
+    if(snapshots.length === 0) return;
+    if(currentSnapIndex < snapshots.length-1){
+      currentSnapIndex++;
+      renderSnapshot(currentSnapIndex);
+    }
+  });
+  stepBackBtn.addEventListener('click', ()=>{
+    if(snapshots.length === 0) return;
+    if(currentSnapIndex > 0){
+      currentSnapIndex--;
+      renderSnapshot(currentSnapIndex);
+    }
+  });
+
+  playBtn.addEventListener('click', ()=>{
+    if(snapshots.length === 0) return;
+    playing = true;
+    playBtn.disabled = true; pauseBtn.disabled = false;
+    const speed = Number(speedInput.value);
+    playTimer = setInterval(()=>{
+      if(currentSnapIndex < snapshots.length-1){
+        currentSnapIndex++;
+        renderSnapshot(currentSnapIndex);
+      } else {
+        clearInterval(playTimer); playTimer = null; playing = false; playBtn.disabled = false; pauseBtn.disabled = true;
+      }
+    }, speed);
+  });
+  pauseBtn.addEventListener('click', ()=>{
+    if(playTimer) clearInterval(playTimer);
+    playTimer = null; playing = false; playBtn.disabled = false; pauseBtn.disabled = true;
+  });
+
+  runBtn.addEventListener('click', ()=>{
+    computeSnapshots();
+    renderSnapshot(0);
+  });
+
+  // update selects
+  function updateSelects(){
+    fromSelect.innerHTML = '';
+    toSelect.innerHTML = '';
+    nodes.forEach(n => {
+      const o1 = document.createElement('option'); o1.value = String(n.id); o1.textContent = String(n.id);
+      const o2 = o1.cloneNode(true);
+      fromSelect.appendChild(o1);
+      toSelect.appendChild(o2);
+    });
+  }
+
+  showPathBtn.addEventListener('click', ()=>{
+    if(nodes.length===0) return;
+    const fromId = Number(fromSelect.value);
+    const toId = Number(toSelect.value);
+    const snap = snapshots[currentSnapIndex];
+    if(!snap){ pathDisplay.textContent = 'No snapshot available'; return; }
+    const idxFrom = indexOfNodeId(fromId);
+    const idxTo = indexOfNodeId(toId);
+    if(idxFrom < 0 || idxTo < 0) { pathDisplay.textContent = 'Invalid nodes'; return; }
+    const path = reconstructPathFromSnapshot(idxFrom, idxTo, snap.next);
+    if(!path){ pathDisplay.textContent = 'No path (∞)'; } else {
+      pathDisplay.textContent = 'Path: ' + path.map(i=>nodes[i].id).join(' → ') + ' (cost: ' + (snap.D[idxFrom][idxTo]===Infinity ? '∞' : snap.D[idxFrom][idxTo]) + ')';
+      // highlight edges along path
+      draw();
+      for(let p=0;p<path.length-1;p++){
+        const a = nodes[path[p]].id, b = nodes[path[p+1]].id;
+        highlightEdgeBetween(a,b,'highlightEdge');
+      }
+    }
+  });
+
+  function reconstructPathFromSnapshot(i,j,next){
+    if(next[i][j] === null) return null;
+    const path = [i];
+    while(i !== j){
+      const nid = next[i][j];
+      if(nid === null) return null;
+      const ni = indexOfNodeId(nid);
+      if(ni === -1) return null;
+      if(path.includes(ni)){ // cycle detected -> break
+        path.push(ni); break;
+      }
+      path.push(ni);
+      i = ni;
+      if(path.length > nodes.length + 5) break;
+    }
+    return path;
+  }
+
+  // When nodes/edges change, recompute if snapshots already existed
+  function computeAndSnapshotIfNeeded(){
+    if(snapshots.length > 0) {
+      computeSnapshots();
+      renderSnapshot(0);
+    } else {
+      draw();
+      renderMatricesEmpty();
+    }
+  }
+
+  // Initialize
+  clearGraph();
+  randomGraph(5, 0.45);
+
+  // Clicking on blank SVG deselects
+  svg.addEventListener('click', (ev) => {
+    selectedNode = null;
+    updateSelectionVisual();
+  });
+
+  // Edge clicks to edit are handled in draw()
+
+  // Prevent text selection on double-click drag
+  document.addEventListener('dragstart', (e)=> e.preventDefault());
+
+  // Initial render
+  computeSnapshots();
+  renderSnapshot(0);
+
+  // Expose for console debugging (optional)
+  window._fw = { nodes, edges, snapshots, computeSnapshots, renderSnapshot, addNode, addEdge };
+
+})();
+  </script>
+</body>
+</html>

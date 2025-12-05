@@ -1,0 +1,98 @@
+# Page snapshot
+
+```yaml
+- main [ref=e2]:
+  - generic "Visualization panel" [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Bubble Sort" [level=2] [ref=e6]
+        - generic [ref=e7]: Visual step-by-step demonstration of Bubble Sort (stable, comparison sort)
+      - generic [ref=e8]:
+        - generic [ref=e11]: Unsorted
+        - generic [ref=e14]: Comparing
+        - generic [ref=e17]: Swapping
+        - generic [ref=e20]: Sorted
+    - generic [ref=e21]:
+      - generic [ref=e23]: "45"
+      - generic [ref=e25]: "59"
+      - generic [ref=e27]: "93"
+      - generic [ref=e29]: "6"
+      - generic [ref=e31]: "82"
+      - generic [ref=e33]: "43"
+      - generic [ref=e35]: "9"
+      - generic [ref=e37]: "92"
+      - generic [ref=e39]: "102"
+      - generic [ref=e41]: "60"
+      - generic [ref=e43]: "45"
+      - generic [ref=e45]: "56"
+      - generic [ref=e47]: "96"
+      - generic [ref=e49]: "45"
+      - generic [ref=e51]: "55"
+      - generic [ref=e53]: "104"
+      - generic [ref=e55]: "101"
+      - generic [ref=e57]: "94"
+      - generic [ref=e59]: "66"
+      - generic [ref=e61]: "16"
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - button "Pause" [active] [ref=e64] [cursor=pointer]
+        - button "Step" [ref=e65] [cursor=pointer]
+        - button "Reset" [ref=e66] [cursor=pointer]
+        - button "Randomize" [ref=e67] [cursor=pointer]
+      - generic [ref=e68]:
+        - generic [ref=e69]: Speed
+        - slider [ref=e70]: "300"
+    - generic [ref=e71]:
+      - generic [ref=e72]:
+        - generic [ref=e73]: Array size
+        - slider [ref=e74]: "20"
+      - generic [ref=e75]:
+        - generic [ref=e76]: Order
+        - combobox [ref=e77]:
+          - option "Ascending" [selected]
+          - option "Descending"
+      - generic [ref=e78]:
+        - generic [ref=e79]: Optimized
+        - checkbox [checked] [ref=e80]
+  - generic "Controls and explanation" [ref=e81]:
+    - generic [ref=e82]:
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - textbox "Enter custom array" [ref=e86]:
+            - /placeholder: e.g. 5,1,4,2,8
+          - button "Load" [ref=e87] [cursor=pointer]
+        - generic [ref=e88]: You can type comma-separated numbers. Click Load to use them.
+      - generic [ref=e89]:
+        - generic [ref=e90]:
+          - generic [ref=e91]: Comparisons
+          - generic [ref=e92]: "9"
+        - generic [ref=e93]:
+          - generic [ref=e94]: Swaps
+          - generic [ref=e95]: "3"
+        - generic [ref=e96]:
+          - generic [ref=e97]: Pass
+          - generic [ref=e98]: "1"
+        - generic [ref=e99]:
+          - generic [ref=e100]: Status
+          - generic [ref=e101]: Comparing indices 8 & 9
+      - generic "Bubble sort code" [ref=e102]:
+        - generic [ref=e103]:
+          - generic [ref=e104]: "function bubbleSort(arr) {"
+          - generic [ref=e105]: let n = arr.length;
+          - generic [ref=e106]: "for (let i = 0; i < n - 1; i++) {"
+          - generic [ref=e107]: let swapped = false;
+          - generic [ref=e108]: "for (let j = 0; j < n - 1 - i; j++) {"
+          - generic [ref=e109]: // compare arr[j] and arr[j+1]
+          - generic [ref=e110]: "if (arr[j] > arr[j+1]) {"
+          - generic [ref=e111]: // swap
+          - generic [ref=e112]: "[arr[j], arr[j+1]] = [arr[j+1], arr[j]];"
+          - generic [ref=e113]: swapped = true;
+          - generic [ref=e114]: "}"
+          - generic [ref=e115]: "}"
+          - generic [ref=e116]: if (!swapped) break; // optimization
+          - generic [ref=e117]: "}"
+          - generic [ref=e118]: return arr;
+          - generic [ref=e119]: "}"
+      - generic [ref=e120]: Bubble Sort repeatedly steps through the list, compares adjacent elements and swaps them if they are in the wrong order. Best case O(n) with optimization (already sorted), Average/Worst O(n^2). Stable and in-place.
+      - generic [ref=e121]: Interactive demo — highlight shows comparisons and swaps. Use Step to advance one operation at a time.
+```

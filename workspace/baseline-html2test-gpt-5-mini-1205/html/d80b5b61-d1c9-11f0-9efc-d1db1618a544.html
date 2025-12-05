@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Bellman-Ford Algorithm Interactive Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; display: flex; height: 100vh; }
+    #left { flex: 1; background: #f7f9fc; display:flex; flex-direction:column; }
+    #canvasWrap { flex: 1; position: relative; }
+    canvas { width:100%; height:100%; background: linear-gradient(#fff,#eef); display:block; cursor: crosshair; }
+    #controls { width: 360px; background: #fff; border-left: 1px solid #ddd; padding: 12px; box-sizing: border-box; overflow:auto; }
+    h2 { margin:8px 0; font-size:16px; }
+    .btn { display:inline-block; margin:4px 4px 4px 0; padding:8px 10px; background:#007bff; color:#fff; border-radius:4px; cursor:pointer; user-select:none; }
+    .btn.secondary { background:#6c757d; }
+    .btn.warn { background:#dc3545; }
+    .btn.small { padding:6px 8px; font-size:13px; }
+    .info { margin:8px 0; padding:8px; background:#f1f7ff; border-radius:6px; font-size:13px; }
+    label { display:block; margin-top:8px; font-size:13px; }
+    input[type=number], select { width:100%; padding:6px; box-sizing:border-box; margin-top:6px; }
+    table { width:100%; border-collapse: collapse; margin-top:8px; font-size:13px; }
+    th, td { border:1px solid #ddd; padding:6px; text-align:center; }
+    .status { margin-top:8px; font-size:13px; }
+    .muted { color:#666; font-size:13px; }
+    .small-note { font-size:12px; color:#444; margin-top:6px; }
+    .edgeList { max-height:160px; overflow:auto; border:1px solid #eee; padding:6px; background:#fafafa; margin-top:8px; }
+    .edgeItem { padding:6px; border-bottom:1px dashed #eee; font-size:13px; }
+    .active-mode { background:#28a745 !important; }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <div id="canvasWrap">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <div id="controls">
+    <h2>Bellman-Ford Algorithm Demo</h2>
+
+    <div class="info">
+      Click on the canvas to add nodes. Use "Add Edge" then pick source and target to create directed edges with weights (negative allowed). Set a source node and run Bellman-Ford step-by-step or full-run. Negative cycles (reachable from source) will be detected.
+    </div>
+
+    <div style="margin-top:8px;">
+      <span class="btn" id="addNodeBtn">Add Node</span>
+      <span class="btn secondary" id="addEdgeBtn">Add Edge</span>
+      <span class="btn secondary" id="setSourceBtn">Set Source</span>
+      <span class="btn small" id="clearBtn">Clear</span>
+      <span class="btn warn small" id="resetAlgoBtn">Reset Algo</span>
+    </div>
+
+    <label>Current Mode: <span id="modeLabel" class="muted">Add Node (click canvas)</span></label>
+
+    <label>Nodes / Edges</label>
+    <div class="small-note">Click a node to drag it. While in Add Edge or Set Source mode, click nodes to pick them.</div>
+
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <div style="flex:1">
+        <label>Source node for algorithm</label>
+        <select id="sourceSelect"><option value="">(none)</option></select>
+      </div>
+      <div style="width:120px; display:flex; align-items:flex-end;">
+        <button class="btn small" id="applySourceBtn">Apply</button>
+      </div>
+    </div>
+
+    <h3 style="margin-top:12px; font-size:14px;">Algorithm Controls</h3>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <span class="btn" id="stepBtn">Step</span>
+      <span class="btn" id="runBtn">Run Full</span>
+      <span class="btn secondary" id="pauseBtn">Pause</span>
+    </div>
+
+    <div class="status" id="algoStatus">Iteration: 0, Edge: 0 / 0</div>
+
+    <div style="margin-top:8px;">
+      <label>Animation Speed (ms per relaxation)</label>
+      <input id="speedInput" type="number" value="400" min="0" />
+    </div>
+
+    <h3 style="margin-top:12px; font-size:14px;">Nodes / Distances</h3>
+    <div id="tableWrap"></div>
+
+    <h3 style="margin-top:12px; font-size:14px;">Edges</h3>
+    <div class="edgeList" id="edgeList"></div>
+
+    <div style="margin-top:12px;">
+      <label>Result / Messages</label>
+      <div id="message" class="info">Ready.</div>
+    </div>
+
+    <div style="margin-top:12px; font-size:12px; color:#666;">
+      Tip: Create a negative cycle by adding edges that reduce distance (e.g., a cycle with total weight &lt; 0). Bellman-Ford detects if reachable from the chosen source.
+    </div>
+  </div>
+
+<script>
+(() => {
+  // Canvas and UI setup
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  function resize() {
+    canvas.width = canvas.clientWidth * devicePixelRatio;
+    canvas.height = canvas.clientHeight * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+    draw();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Graph data structures
+  let nodes = []; // {id, x, y}
+  let edges = []; // {id, u: nodeId, v: nodeId, w}
+  let nodeIdCounter = 0;
+  let edgeIdCounter = 0;
+
+  // Interaction state
+  let mode = 'addNode'; // addNode, addEdge, setSource, none/drag
+  const modeLabel = document.getElementById('modeLabel');
+  const addNodeBtn = document.getElementById('addNodeBtn');
+  const addEdgeBtn = document.getElementById('addEdgeBtn');
+  const setSourceBtn = document.getElementById('setSourceBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const resetAlgoBtn = document.getElementById('resetAlgoBtn');
+  const sourceSelect = document.getElementById('sourceSelect');
+  const applySourceBtn = document.getElementById('applySourceBtn');
+  const edgeListDiv = document.getElementById('edgeList');
+  const tableWrap = document.getElementById('tableWrap');
+  const messageDiv = document.getElementById('message');
+  const stepBtn = document.getElementById('stepBtn');
+  const runBtn = document.getElementById('runBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const speedInput = document.getElementById('speedInput');
+
+  function setMode(m) {
+    mode = m;
+    modeLabel.textContent = {
+      addNode: 'Add Node (click canvas)',
+      addEdge: 'Add Edge (pick source then target)',
+      setSource: 'Set Source (click a node)',
+      none: 'Normal (drag nodes)'
+    }[m] || '';
+    // button highlighting
+    addNodeBtn.classList.toggle('active-mode', m === 'addNode');
+    addEdgeBtn.classList.toggle('active-mode', m === 'addEdge');
+    setSourceBtn.classList.toggle('active-mode', m === 'setSource');
+  }
+  setMode('addNode');
+
+  addNodeBtn.addEventListener('click', () => setMode('addNode'));
+  addEdgeBtn.addEventListener('click', () => setMode('addEdge'));
+  setSourceBtn.addEventListener('click', () => setMode('setSource'));
+  clearBtn.addEventListener('click', () => {
+    if (!confirm('Clear all nodes and edges?')) return;
+    nodes = []; edges = []; nodeIdCounter = 0; edgeIdCounter = 0;
+    bfReset();
+    rebuildSourceSelect();
+    draw();
+    message('Cleared graph.');
+  });
+
+  resetAlgoBtn.addEventListener('click', () => {
+    bfReset();
+    draw();
+    message('Algorithm reset.');
+  });
+
+  // Canvas interactions: add node, select node for edges, drag nodes
+  let draggingNode = null;
+  let dragOffset = {x:0,y:0};
+  let edgeFirstNode = null; // for addEdge
+  canvas.addEventListener('pointerdown', (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left);
+    const y = (ev.clientY - rect.top);
+    const clicked = findNodeAt(x, y);
+
+    if (mode === 'addNode') {
+      addNode(x, y);
+      draw();
+      return;
+    } else if (mode === 'addEdge') {
+      if (!clicked) {
+        message('Click on a node to choose source/target for the edge.');
+        return;
+      }
+      if (!edgeFirstNode) {
+        edgeFirstNode = clicked;
+        message('Picked source node ' + clicked.id + '. Now click target node.');
+      } else {
+        if (clicked.id === edgeFirstNode.id) {
+          message('Self-edge allowed. Creating self-loop.');
+        }
+        const wStr = prompt('Enter weight for edge ' + edgeFirstNode.id + ' → ' + clicked.id + ' (number):', '0');
+        if (wStr === null) { edgeFirstNode = null; message('Edge creation cancelled.'); return; }
+        const w = Number(wStr);
+        if (isNaN(w)) { message('Invalid weight. Edge cancelled.'); edgeFirstNode = null; return; }
+        addEdge(edgeFirstNode.id, clicked.id, w);
+        message('Edge added: ' + edgeFirstNode.id + ' → ' + clicked.id + ' (w=' + w + ')');
+        edgeFirstNode = null;
+        draw();
+      }
+      return;
+    } else if (mode === 'setSource') {
+      if (!clicked) { message('Click on a node to set source.'); return; }
+      setAlgorithmSource(clicked.id);
+      setMode('none');
+      return;
+    } else {
+      // drag mode: if clicked a node, start dragging
+      if (clicked) {
+        draggingNode = clicked;
+        dragOffset.x = x - clicked.x;
+        dragOffset.y = y - clicked.y;
+      } else {
+        draggingNode = null;
+      }
+    }
+  });
+
+  canvas.addEventListener('pointermove', (ev) => {
+    if (!draggingNode) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left);
+    const y = (ev.clientY - rect.top);
+    draggingNode.x = x - dragOffset.x;
+    draggingNode.y = y - dragOffset.y;
+    draw();
+  });
+
+  canvas.addEventListener('pointerup', () => draggingNode = null);
+  canvas.addEventListener('pointerleave', () => draggingNode = null);
+
+  function addNode(x,y) {
+    const id = 'N' + (++nodeIdCounter);
+    nodes.push({id, x, y});
+    rebuildSourceSelect();
+  }
+  function addEdge(u,v,w) {
+    edges.push({id: 'E' + (++edgeIdCounter), u, v, w});
+    rebuildEdgeList();
+    bfReset();
+  }
+  function findNodeAt(x,y) {
+    for (let i = nodes.length-1; i >= 0; i--) {
+      const n = nodes[i];
+      const dx = x - n.x, dy = y - n.y;
+      if (dx*dx + dy*dy <= 20*20) return n;
+    }
+    return null;
+  }
+  function rebuildSourceSelect() {
+    const cur = sourceSelect.value;
+    sourceSelect.innerHTML = '<option value="">(none)</option>';
+    nodes.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n.id; opt.textContent = n.id;
+      sourceSelect.appendChild(opt);
+    });
+    if (cur) sourceSelect.value = cur;
+  }
+  function rebuildEdgeList() {
+    edgeListDiv.innerHTML = '';
+    edges.forEach(e => {
+      const div = document.createElement('div');
+      div.className = 'edgeItem';
+      div.textContent = e.id + ': ' + e.u + ' → ' + e.v + '  (w=' + e.w + ')';
+      div.addEventListener('click', () => {
+        if (!confirm('Delete ' + e.id + '?')) return;
+        edges = edges.filter(x => x.id !== e.id);
+        rebuildEdgeList();
+        bfReset();
+        draw();
+      });
+      edgeListDiv.appendChild(div);
+    });
+  }
+
+  // Drawing functions
+  function draw(highlight = {}) {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // draw edges
+    edges.forEach(e => {
+      const u = nodes.find(n => n.id === e.u);
+      const v = nodes.find(n => n.id === e.v);
+      if (!u || !v) return;
+      drawArrow(u.x, u.y, v.x, v.y, e, highlight.edge === e.id ? highlight.color : '#333');
+    });
+    // draw nodes
+    nodes.forEach(n => {
+      drawNode(n);
+    });
+
+    // draw selection for edge creation
+    if (edgeFirstNode) {
+      ctx.beginPath();
+      ctx.strokeStyle = '#28a745';
+      ctx.lineWidth = 2;
+      ctx.arc(edgeFirstNode.x, edgeFirstNode.y, 24, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    // draw source marker
+    if (algorithmState.source) {
+      const s = nodes.find(x => x.id === algorithmState.source);
+      if (s) {
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(255,255,0,0.25)';
+        ctx.arc(s.x, s.y, 26, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawNode(n) {
+    ctx.beginPath();
+    ctx.fillStyle = '#007bff';
+    ctx.strokeStyle = '#003f88';
+    ctx.lineWidth = 2;
+    ctx.arc(n.x, n.y, 20, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+
+    // label
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.id, n.x, n.y - 2);
+
+    // distance shown below
+    if (algorithmState.distances && algorithmState.distances[n.id] !== undefined) {
+      const d = algorithmState.distances[n.id];
+      const txt = (d === Infinity) ? '∞' : d.toFixed(2).replace(/\.00$/,'');
+      ctx.fillStyle = '#000';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(txt, n.x, n.y + 16);
+    }
+  }
+
+  function drawArrow(x1,y1,x2,y2, edge, color='#333') {
+    const ang = Math.atan2(y2-y1, x2-x1);
+    const startOffset = 22;
+    const endOffset = 26;
+    const sx = x1 + Math.cos(ang) * startOffset;
+    const sy = y1 + Math.sin(ang) * startOffset;
+    const ex = x2 - Math.cos(ang) * endOffset;
+    const ey = y2 - Math.sin(ang) * endOffset;
+
+    ctx.beginPath();
+    ctx.strokeStyle = color || '#333';
+    ctx.lineWidth = 3;
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    // arrowhead
+    ctx.beginPath();
+    ctx.fillStyle = color || '#333';
+    ctx.moveTo(ex, ey);
+    const ah1 = ex - 8 * Math.cos(ang - Math.PI/6);
+    const ah1y = ey - 8 * Math.sin(ang - Math.PI/6);
+    const ah2 = ex - 8 * Math.cos(ang + Math.PI/6);
+    const ah2y = ey - 8 * Math.sin(ang + Math.PI/6);
+    ctx.lineTo(ah1, ah1y);
+    ctx.lineTo(ah2, ah2y);
+    ctx.closePath();
+    ctx.fill();
+
+    // weight label at midpoint
+    const mx = (sx + ex) / 2;
+    const my = (sy + ey) / 2;
+    ctx.fillStyle = '#000';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(edge.w, mx, my - 10);
+  }
+
+  // Bellman-Ford algorithm state and logic
+  const algorithmState = {
+    source: null,
+    distances: null,
+    pred: null,
+    iter: 0,
+    edgeIndex: 0,
+    running: false,
+    mode: 'stopped', // stopped, stepping, running, paused, finished
+    highlight: null // {edge: id, color}
+  };
+
+  function setAlgorithmSource(id) {
+    if (!nodes.find(n => n.id === id)) return message('Invalid source.');
+    algorithmState.source = id;
+    sourceSelect.value = id;
+    message('Source set to ' + id);
+    bfReset();
+    draw();
+  }
+  applySourceBtn.addEventListener('click', () => {
+    const v = sourceSelect.value;
+    if (!v) { message('No source selected.'); return; }
+    setAlgorithmSource(v);
+  });
+
+  function bfReset() {
+    algorithmState.distances = {};
+    algorithmState.pred = {};
+    nodes.forEach(n => {
+      algorithmState.distances[n.id] = Infinity;
+      algorithmState.pred[n.id] = null;
+    });
+    algorithmState.iter = 0;
+    algorithmState.edgeIndex = 0;
+    algorithmState.running = false;
+    algorithmState.mode = 'stopped';
+    algorithmState.highlight = null;
+    if (algorithmState.source) algorithmState.distances[algorithmState.source] = 0;
+    updateTable();
+    updateAlgoStatus();
+  }
+
+  // initialize
+  bfReset();
+
+  function message(txt, type='info') {
+    messageDiv.textContent = txt;
+    if (type === 'error') messageDiv.style.background = '#ffe8e8';
+    else messageDiv.style.background = '#f1f7ff';
+  }
+
+  function updateEdgeCountInfo() {
+    rebuildEdgeList(); // keep in sync
+  }
+
+  function updateAlgoStatus() {
+    const E = edges.length, V = nodes.length;
+    document.getElementById('algoStatus').textContent = 'Iteration: ' + algorithmState.iter + ' / ' + Math.max(0, V-1) + ', Edge: ' + algorithmState.edgeIndex + ' / ' + E;
+  }
+
+  function updateTable() {
+    let html = '<table><tr><th>Node</th><th>Distance</th><th>Predecessor</th></tr>';
+    nodes.forEach(n => {
+      const d = algorithmState.distances[n.id];
+      const pd = algorithmState.pred[n.id];
+      html += '<tr><td>' + n.id + '</td><td>' + ((d === Infinity) ? '∞' : d) + '</td><td>' + (pd || '-') + '</td></tr>';
+    });
+    html += '</table>';
+    tableWrap.innerHTML = html;
+    updateEdgeCountInfo();
+  }
+
+  // Stepwise relaxation logic
+  function stepOnce() {
+    if (!algorithmState.source) { message('Set a source node first.'); return; }
+    const V = nodes.length;
+    const E = edges.length;
+    if (V === 0) return;
+
+    // If finished, final negative cycle check
+    if (algorithmState.iter >= Math.max(0, V-1)) {
+      // perform extra pass to detect negative cycle
+      algorithmState.highlight = null;
+      draw();
+      const neg = detectNegativeCycle();
+      if (neg) {
+        message('Negative cycle detected reachable from source: ' + neg.join(' → '));
+        algorithmState.mode = 'finished';
+      } else {
+        message('No negative cycles detected. Algorithm finished.');
+        algorithmState.mode = 'finished';
+      }
+      updateTable();
+      updateAlgoStatus();
+      return;
+    }
+
+    if (E === 0) {
+      algorithmState.iter = Math.max(0, V-1);
+      updateAlgoStatus();
+      updateTable();
+      draw();
+      message('No edges to relax.');
+      return;
+    }
+
+    // If we've completed the edge loop for current iter, advance iter
+    if (algorithmState.edgeIndex >= E) {
+      algorithmState.iter++;
+      algorithmState.edgeIndex = 0;
+      updateAlgoStatus();
+      // if reached V-1 iterations, continue to detection on next step
+      if (algorithmState.iter >= Math.max(0, V-1)) {
+        message('Done iterations. Next step will check for negative cycles.');
+        updateTable();
+        draw();
+        return;
+      }
+    }
+
+    // Relax edge at current index
+    const e = edges[algorithmState.edgeIndex];
+    algorithmState.highlight = {edge: e.id, color: '#17a2b8'};
+    draw(algorithmState.highlight);
+    const u = e.u, v = e.v, w = e.w;
+    const du = algorithmState.distances[u];
+    const dv = algorithmState.distances[v];
+    let relaxed = false;
+    if (du !== Infinity && du + w < dv) {
+      algorithmState.distances[v] = du + w;
+      algorithmState.pred[v] = u;
+      relaxed = true;
+      algorithmState.highlight.color = '#28a745';
+      message('Relaxed edge ' + e.id + ': improved ' + v + ' to ' + algorithmState.distances[v]);
+    } else {
+      algorithmState.highlight.color = '#e0a800';
+      message('Tried edge ' + e.id + ': no improvement.');
+    }
+
+    algorithmState.edgeIndex++;
+    updateTable();
+    updateAlgoStatus();
+  }
+
+  // Run full with animation or instant
+  let runTimer = null;
+  runBtn.addEventListener('click', () => {
+    if (!algorithmState.source) { message('Set a source node first.'); return; }
+    if (algorithmState.mode === 'running') return;
+    algorithmState.mode = 'running';
+    algorithmState.running = true;
+    message('Running algorithm...');
+    const speed = Math.max(0, Number(speedInput.value) || 0);
+    if (speed === 0) {
+      // compute instantly, not animate
+      runInstantly();
+      return;
+    }
+    runTimer = setInterval(() => {
+      stepOnce();
+      draw(algorithmState.highlight);
+      if (algorithmState.mode === 'finished') {
+        clearInterval(runTimer);
+        algorithmState.running = false;
+        runTimer = null;
+      }
+    }, speed);
+  });
+  pauseBtn.addEventListener('click', () => {
+    if (runTimer) { clearInterval(runTimer); runTimer = null; algorithmState.running = false; algorithmState.mode = 'paused'; message('Paused.'); }
+  });
+
+  function runInstantly() {
+    // run algorithm without animation, but still update state
+    const V = nodes.length;
+    const E = edges.length;
+    if (V === 0) return;
+    for (let i = algorithmState.iter; i < Math.max(0, V-1); i++) {
+      for (let j = 0; j < E; j++) {
+        const e = edges[j];
+        const u = e.u, v = e.v, w = e.w;
+        const du = algorithmState.distances[u];
+        if (du !== Infinity && du + w < algorithmState.distances[v]) {
+          algorithmState.distances[v] = du + w;
+          algorithmState.pred[v] = u;
+        }
+      }
+    }
+    algorithmState.iter = Math.max(0, V-1);
+    // detect negative cycle
+    const neg = detectNegativeCycle();
+    if (neg) {
+      message('Negative cycle detected reachable from source: ' + neg.join(' → '));
+    } else {
+      message('Completed: no negative cycle detected.');
+    }
+    algorithmState.mode = 'finished';
+    updateTable();
+    draw();
+  }
+
+  stepBtn.addEventListener('click', () => {
+    if (!algorithmState.source) { message('Set a source node first.'); return; }
+    algorithmState.mode = 'stepping';
+    stepOnce();
+    draw(algorithmState.highlight);
+  });
+
+  // Negative cycle detection: after V-1 iterations, check if any edge can be relaxed. If so, find a cycle.
+  function detectNegativeCycle() {
+    // find an edge (u,v) such that dist[u] + w < dist[v]
+    for (const e of edges) {
+      const u = e.u, v = e.v, w = e.w;
+      if (algorithmState.distances[u] !== Infinity && algorithmState.distances[u] + w < algorithmState.distances[v]) {
+        // there is a negative cycle reachable; recover cycle by following predecessors
+        // start from v and go back up to V steps to ensure inside cycle
+        let x = v;
+        for (let i = 0; i < nodes.length; i++) {
+          if (algorithmState.pred[x]) x = algorithmState.pred[x]; else break;
+        }
+        // now collect cycle
+        const cycle = [];
+        const start = x;
+        do {
+          cycle.push(x);
+          x = algorithmState.pred[x];
+        } while (x && x !== start && cycle.length < nodes.length + 5);
+        cycle.reverse();
+        return cycle;
+      }
+    }
+    return null;
+  }
+
+  // Utility: find node by id
+  function findNodeById(id) { return nodes.find(n => n.id === id); }
+
+  // Initial sample graph to illustrate
+  function createSample() {
+    nodes = [];
+    edges = [];
+    nodeIdCounter = 0; edgeIdCounter = 0;
+    addNode(120, 120); // N1
+    addNode(320, 100); // N2
+    addNode(520, 160); // N3
+    addNode(220, 300); // N4
+    addNode(420, 300); // N5
+    // edges
+    addEdge('N1','N2', 6);
+    addEdge('N1','N4', 7);
+    addEdge('N2','N3', 5);
+    addEdge('N2','N5', -4);
+    addEdge('N2','N4', 8);
+    addEdge('N3','N2', -2);
+    addEdge('N4','N3', -3);
+    addEdge('N4','N5', 9);
+    addEdge('N5','N1', 2);
+    rebuildSourceSelect();
+    bfReset();
+    draw();
+    message('Sample graph created. Set source and run algorithm.');
+  }
+
+  // add sample button via double-click on blank left area (not UI) or just create sample on load
+  createSample();
+
+  // Start with some helpful keyboard shortcuts
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'n') setMode('addNode');
+    if (e.key === 'e') setMode('addEdge');
+    if (e.key === 's') setMode('setSource');
+    if (e.key === ' ') { e.preventDefault(); stepBtn.click(); }
+  });
+
+  // On load draw
+  draw();
+
+  // Expose for debug
+  window.__demo = { nodes, edges, addNode, addEdge };
+})();
+</script>
+</body>
+</html>

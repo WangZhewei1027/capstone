@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>JavaScript Set — Interactive Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 20px; color:#111; }
+    h1 { margin: 0 0 8px 0; font-size: 20px; }
+    p.lead { margin: 0 0 18px 0; color: #444; }
+    .container { display: grid; grid-template-columns: 360px 1fr; gap:16px; align-items:start; }
+    .card { background:#f9f9fb; border:1px solid #e3e6ea; padding:12px; border-radius:8px; box-shadow: 0 1px 0 rgba(0,0,0,0.02);}
+    label { display:block; margin:8px 0 4px; font-size:13px; color:#333;}
+    input[type="text"], select, textarea { width:100%; padding:8px; border-radius:6px; border:1px solid #d8dbe0; box-sizing:border-box; }
+    button { padding:8px 10px; border-radius:6px; border:1px solid #cbd2da; background: white; cursor:pointer; margin-right:6px; }
+    button.primary { background: linear-gradient(#2774ff,#0b5ed7); color: white; border:0; }
+    .controls { margin-top:10px; }
+    .log { white-space:pre-wrap; font-family: SFMono-Regular, Menlo, Monaco, "Courier New", monospace; font-size:13px; background: #fff; border:1px solid #e6e9ef; padding:10px; border-radius:6px; max-height:420px; overflow:auto; }
+    .row { display:flex; gap:8px; align-items:center; }
+    .small { font-size:12px; color:#555; }
+    .badge { background:#eef6ff; color:#0b5ed7; padding:2px 6px; border-radius:999px; font-size:12px; margin-left:6px;}
+    .examples button { margin-bottom:6px; display:block; text-align:left; width:100%; }
+    .muted { color:#666; font-size:13px;}
+    .result-list { margin:8px 0 0 0; padding:8px; border-radius:6px; background:#fff; border:1px dashed #e0e6ef; font-family: monospace; white-space:pre; max-height:180px; overflow:auto;}
+  </style>
+</head>
+<body>
+  <h1>JavaScript Set — Interactive Demo</h1>
+  <p class="lead">Explore ES6 Set basics, uniqueness rules, iteration, conversions, and common set operations (union / intersection / difference). Add values, run examples, and inspect results live.</p>
+
+  <div class="container">
+    <div class="card">
+      <h2 style="margin:0 0 8px 0; font-size:16px;">Set controls</h2>
+
+      <label>Value to add
+        <input id="valueInput" type="text" placeholder='Type: "hello", 42, {"a":1}, [1,2] — for objects/arrays use valid JSON'/>
+      </label>
+
+      <label>Interpret as
+        <select id="typeSelect">
+          <option value="string">String (default)</option>
+          <option value="number">Number</option>
+          <option value="json">Parse JSON (object/array/number/string)</option>
+        </select>
+      </label>
+
+      <div class="controls">
+        <button id="addBtn" class="primary">Add to Set</button>
+        <button id="hasBtn">Has?</button>
+        <button id="deleteBtn">Delete</button>
+        <button id="clearBtn">Clear Set</button>
+      </div>
+
+      <label style="margin-top:12px;">Live Set state <span class="small muted">(size shown)</span></label>
+      <div id="setInfo" class="result-list">Empty set</div>
+
+      <label style="margin-top:10px;">Actions</label>
+      <div class="controls">
+        <button id="iterateBtn">Show iteration (for..of & forEach)</button>
+        <button id="toArrayBtn">Convert to Array (dedupe example)</button>
+        <button id="dedupeBtn">Dedupe CSV input</button>
+      </div>
+
+      <label style="margin-top:12px;">Dedupe input (comma separated)</label>
+      <input id="csvInput" type="text" placeholder="apple, banana, apple, orange"/>
+
+      <div style="margin-top:12px;">
+        <label class="small">Quick demos</label>
+        <div class="examples">
+          <button id="demoUnion">Union of two sets</button>
+          <button id="demoIntersection">Intersection of two sets</button>
+          <button id="demoDifference">Difference (A \\ B)</button>
+          <button id="demoObjects">Objects in Set (by reference)</button>
+          <button id="demoWeakSet">WeakSet note & simple demo</button>
+          <button id="demoFromArray">Create Set from Array (dedupe values)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 8px 0; font-size:16px;">Console & explanations</h2>
+      <div id="log" class="log"></div>
+
+      <h3 style="margin-top:12px; font-size:15px;">Short reference</h3>
+      <ul class="muted" style="padding-left:18px;">
+        <li>new Set(iterable) — create a set. Set.prototype.add(value), .has(value), .delete(value), .clear().</li>
+        <li>Sets store unique values using SameValueZero (like ===, but +0 and -0 treated equal and NaN equals NaN).</li>
+        <li>Objects are unique by reference (two identical-looking objects are different).</li>
+        <li>Convert: Array.from(mySet) or [...mySet]. To make union/intersection/diff use Set + spread/filter.</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Simple helper to pretty-print JS values
+    function pretty(v) {
+      try {
+        return JSON.stringify(v, replacer, 2);
+      } catch (e) {
+        return String(v);
+      }
+      function replacer(k, val) {
+        if (typeof val === 'function') return '<Function>';
+        return val;
+      }
+    }
+
+    // App state: a single Set we operate on
+    const mySet = new Set();
+
+    // Elements
+    const valueInput = document.getElementById('valueInput');
+    const typeSelect = document.getElementById('typeSelect');
+    const addBtn = document.getElementById('addBtn');
+    const hasBtn = document.getElementById('hasBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const setInfo = document.getElementById('setInfo');
+    const logEl = document.getElementById('log');
+    const iterateBtn = document.getElementById('iterateBtn');
+    const toArrayBtn = document.getElementById('toArrayBtn');
+    const dedupeBtn = document.getElementById('dedupeBtn');
+    const csvInput = document.getElementById('csvInput');
+
+    // Demo buttons
+    const demoUnion = document.getElementById('demoUnion');
+    const demoIntersection = document.getElementById('demoIntersection');
+    const demoDifference = document.getElementById('demoDifference');
+    const demoObjects = document.getElementById('demoObjects');
+    const demoWeakSet = document.getElementById('demoWeakSet');
+    const demoFromArray = document.getElementById('demoFromArray');
+
+    // Utility: parse input according to selected type
+    function parseInput(text, type) {
+      if (type === 'string') return text;
+      if (type === 'number') {
+        const n = Number(text);
+        if (Number.isNaN(n)) throw new Error('Not a valid number');
+        return n;
+      }
+      if (type === 'json') {
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          throw new Error('Invalid JSON');
+        }
+      }
+      return text;
+    }
+
+    function log(msg) {
+      const time = new Date().toLocaleTimeString();
+      logEl.textContent = `[${time}] ${msg}\n\n` + logEl.textContent;
+    }
+
+    function updateSetInfo() {
+      if (mySet.size === 0) {
+        setInfo.textContent = 'Empty set';
+        return;
+      }
+      // display elements in insertion order
+      const items = [];
+      for (const v of mySet) {
+        items.push(pretty(v));
+      }
+      setInfo.textContent = `size = ${mySet.size}\n\n` + items.map((it, i) => `${i+1}. ${it}`).join('\n\n');
+    }
+
+    addBtn.addEventListener('click', () => {
+      const txt = valueInput.value.trim();
+      const type = typeSelect.value;
+      try {
+        const val = parseInput(txt, type);
+        mySet.add(val);
+        log(`Added value to Set: ${pretty(val)} (type: ${typeof val})`);
+        updateSetInfo();
+      } catch (e) {
+        log('Error: ' + e.message);
+        alert('Error: ' + e.message);
+      }
+    });
+
+    hasBtn.addEventListener('click', () => {
+      const txt = valueInput.value.trim();
+      const type = typeSelect.value;
+      try {
+        const val = parseInput(txt, type);
+        const exists = mySet.has(val);
+        log(`Has? ${pretty(val)} => ${exists}`);
+      } catch (e) {
+        log('Error: ' + e.message);
+        alert('Error: ' + e.message);
+      }
+    });
+
+    deleteBtn.addEventListener('click', () => {
+      const txt = valueInput.value.trim();
+      const type = typeSelect.value;
+      try {
+        const val = parseInput(txt, type);
+        const removed = mySet.delete(val);
+        log(`Delete ${pretty(val)} => ${removed}`);
+        updateSetInfo();
+      } catch (e) {
+        log('Error: ' + e.message);
+        alert('Error: ' + e.message);
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      mySet.clear();
+      log('Cleared Set');
+      updateSetInfo();
+    });
+
+    iterateBtn.addEventListener('click', () => {
+      if (mySet.size === 0) {
+        log('Set is empty — nothing to iterate.');
+        return;
+      }
+      // for..of
+      let s = 'Iterating with for..of:\n';
+      for (const v of mySet) {
+        s += ' - ' + pretty(v) + '\n';
+      }
+      s += '\nIterating with forEach (same order):\n';
+      mySet.forEach((value, value2, setRef) => {
+        s += ' - ' + pretty(value) + '\n';
+      });
+      log(s);
+    });
+
+    toArrayBtn.addEventListener('click', () => {
+      const arr = Array.from(mySet);
+      log('Converted Set to Array: ' + pretty(arr));
+    });
+
+    dedupeBtn.addEventListener('click', () => {
+      const csv = csvInput.value;
+      if (!csv) { alert('Enter comma-separated values to dedupe'); return; }
+      const parts = csv.split(',').map(s => s.trim()).filter(Boolean);
+      const deduped = [...new Set(parts)];
+      log(`Input: ${pretty(parts)}\nDedupe result: ${pretty(deduped)}`);
+    });
+
+    // Demo helpers for operations
+    function union(a, b) {
+      return new Set([...a, ...b]);
+    }
+    function intersection(a, b) {
+      return new Set([...a].filter(x => b.has(x)));
+    }
+    function difference(a, b) {
+      return new Set([...a].filter(x => !b.has(x)));
+    }
+
+    demoUnion.addEventListener('click', () => {
+      const A = new Set([1,2,3,'a']);
+      const B = new Set([3,4,'a','b']);
+      const U = union(A,B);
+      log(`Union demo:\nA = ${pretty([...A])}\nB = ${pretty([...B])}\nA ∪ B = ${pretty([...U])}`);
+    });
+
+    demoIntersection.addEventListener('click', () => {
+      const A = new Set(['apple','orange','banana']);
+      const B = new Set(['banana','kiwi','apple']);
+      const I = intersection(A,B);
+      log(`Intersection demo:\nA = ${pretty([...A])}\nB = ${pretty([...B])}\nA ∩ B = ${pretty([...I])}`);
+    });
+
+    demoDifference.addEventListener('click', () => {
+      const A = new Set([1,2,3,4]);
+      const B = new Set([3,4,5]);
+      const D = difference(A,B);
+      log(`Difference demo (A \\ B):\nA = ${pretty([...A])}\nB = ${pretty([...B])}\nA \\ B = ${pretty([...D])}`);
+    });
+
+    demoFromArray.addEventListener('click', () => {
+      const arr = ['red','blue','red','green','blue'];
+      const s = new Set(arr);
+      log(`From Array demo:\nArray: ${pretty(arr)}\nnew Set(array) => ${pretty([...s])}`);
+    });
+
+    demoObjects.addEventListener('click', () => {
+      // Show that objects are unique by reference
+      const obj1 = {x:1};
+      const obj2 = {x:1}; // same shape, different reference
+      const s = new Set();
+      s.add(obj1);
+      s.add(obj2);
+      s.add(obj1); // adding same reference twice doesn't change set
+      log(`Objects in Set (by reference):\nobj1 = ${pretty(obj1)}\nobj2 = ${pretty(obj2)}\nAdded obj1, obj2, obj1 again.\nSet contents (size=${s.size}): ${pretty([...s])}\nNote: obj1 and obj2 are distinct because they are different objects (different references).`);
+    });
+
+    demoWeakSet.addEventListener('click', () => {
+      // WeakSet accepts only objects and holds weak references; can't inspect size or iterate.
+      const ws = new WeakSet();
+      const a = {name:'a'};
+      ws.add(a);
+      log('WeakSet demo: You added an object reference to a WeakSet. WeakSets only accept objects and are not iterable (no size property). The object may be garbage-collected if there are no other strong references.');
+      // We show that primitives cannot be added:
+      try {
+        ws.add(1);
+      } catch (e) {
+        log('WeakSet cannot hold primitives (attempt to add 1 throws): ' + e.message);
+      }
+    });
+
+    // Initialize log
+    log('Welcome! Use the controls on the left to experiment with Set.');
+
+    // Initial update
+    updateSetInfo();
+
+    // Extra: show SameValueZero behavior (NaN === NaN scenario)
+    (function showNaNBehavior() {
+      const s = new Set();
+      s.add(NaN);
+      s.add(NaN);
+      // Size is 1 because NaN is treated equal to NaN in sets
+      log('Note on NaN: new Set().add(NaN).add(NaN) => size = ' + s.size + ' (NaN === NaN for Set uniqueness using SameValueZero).');
+    })();
+
+    // Make ENTER key add
+    valueInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        addBtn.click();
+        e.preventDefault();
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Counting Sort Visualization</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial; margin: 16px; color:#111;}
+  h1 { margin: 0 0 8px 0; font-size: 20px; }
+  .top { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;}
+  .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  input[type="text"] { width:260px; padding:6px; border-radius:6px; border:1px solid #ccc;}
+  button { padding:8px 10px; border-radius:6px; border:1px solid #888; background:#f4f4f4; cursor:pointer;}
+  button:active { transform:translateY(1px); }
+  label { font-size:13px; color:#333; }
+  .panel { border:1px solid #e0e0e0; padding:12px; border-radius:8px; background:#fafafa; margin-bottom:12px;}
+  .viz { display:flex; gap:20px; align-items:flex-end; min-height:160px; padding:8px 4px;}
+  .array { display:flex; gap:6px; align-items:flex-end; }
+  .bar { width:28px; height:40px; background:#b3d4fc; display:flex; align-items:flex-end; justify-content:center; border-radius:6px 6px 0 0; box-shadow: inset 0 -3px rgba(0,0,0,0.05); position:relative; transition: transform 300ms ease, background 200ms; }
+  .bar.hidden { background:transparent; box-shadow:none; }
+  .bar .lbl { font-size:12px; padding:4px; color:#042a4f; }
+  .bar.small { width:22px; font-size:11px; }
+  .bar.highlight { background:#ffda7b; transform:translateY(-8px); }
+  .bar.target { background:#9be7b7; transform:translateY(-8px); }
+  .counts { display:flex; gap:6px; align-items:flex-end; padding:6px; background:#fff; border-radius:6px; border:1px solid #eee; }
+  .countBox { width:48px; min-height:42px; background:#fff; border-radius:6px; border:1px solid #ddd; text-align:center; padding:6px; box-sizing:border-box; transition: transform 200ms, background 200ms, border-color 200ms; }
+  .countBox .idx { font-size:11px; color:#666; }
+  .countBox .ct { font-weight:700; font-size:16px; color:#0b3b2f; }
+  .countBox.active { background:#fff7e6; border-color:#ffcf66; transform:translateY(-6px); }
+  .countBox.cum { background:#eaf6ff; border-color:#88c0ff; transform:translateY(-6px); }
+  .output { display:flex; gap:6px; align-items:flex-end; padding:6px; }
+  .desc { margin-top:6px; font-size:13px; color:#222; }
+  .status { margin-left:8px; font-size:13px; color:#444; }
+  .small { font-size:13px; color:#555; }
+  .controls-row { display:flex; gap:8px; align-items:center; margin-top:8px;}
+  .slider { width:160px; }
+  .footer { font-size:13px; color:#444; margin-top:10px; }
+  .warning { color:#8a2300; font-weight:600; }
+  .flexcol { display:flex; flex-direction:column; gap:8px; }
+  .muted { color:#666; font-size:13px; }
+  @media (max-width:720px){ .bar { width:22px; } .countBox{ width:40px; } }
+</style>
+</head>
+<body>
+  <h1>Counting Sort — Interactive Visualization</h1>
+  <div class="top">
+    <div class="panel">
+      <div class="controls">
+        <label>Array (comma-separated):</label>
+        <input id="inputArray" type="text" value="4, 2, -1, 3, 2, 0, -1">
+        <button id="loadBtn">Load</button>
+        <button id="randBtn">Random</button>
+        <label class="small">Size:
+          <input id="randSize" type="number" min="1" max="60" value="10" style="width:60px; margin-left:6px;">
+        </label>
+        <label class="small">Min:
+          <input id="randMin" type="number" value="-5" style="width:60px; margin-left:6px;">
+        </label>
+        <label class="small">Max:
+          <input id="randMax" type="number" value="8" style="width:60px; margin-left:6px;">
+        </label>
+      </div>
+      <div class="controls-row">
+        <button id="startBtn">Start</button>
+        <button id="pauseBtn" disabled>Pause</button>
+        <button id="stepBtn">Step</button>
+        <button id="resetBtn">Reset</button>
+        <label class="small">Speed:
+          <input id="speed" class="slider" type="range" min="50" max="1200" value="300">
+        </label>
+        <span class="status" id="status">Idle</span>
+      </div>
+      <div class="muted">Note: Counting Sort works best when range (max-min+1) is reasonably small. Visualization limits range to 70 for clarity.</div>
+    </div>
+
+    <div style="min-width:320px; flex:1;">
+      <div class="panel flexcol">
+        <div><strong>Current Phase:</strong> <span id="phase">Not started</span></div>
+        <div id="message" class="muted">Load or generate an array, then press Start.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+      <div style="flex:1; min-width:220px;">
+        <div><strong>Input Array</strong></div>
+        <div class="viz" id="inputViz"></div>
+      </div>
+
+      <div style="flex:1; min-width:240px;">
+        <div><strong>Counts Array (Indexes shown are actual values)</strong></div>
+        <div style="overflow:auto; padding-top:8px;">
+          <div id="countsViz" class="counts"></div>
+        </div>
+      </div>
+
+      <div style="flex:1; min-width:220px;">
+        <div><strong>Output Array</strong></div>
+        <div id="outputViz" class="viz"></div>
+      </div>
+    </div>
+
+    <div class="desc" id="explain">Explanation: Counting sort tallies how often each distinct value appears, computes cumulative counts, and then places each element into the correct output position (processing input from right to left to keep the sort stable).</div>
+  </div>
+
+  <div class="footer">This demo supports negative values by offsetting counts using the minimum value. Range limited to 70 for visualization clarity.</div>
+
+<script>
+/*
+  Counting Sort Visualization
+  - Uses a generator to yield atomic actions so the UI can step/animate.
+  - Supports negative numbers by offsetting by min value.
+  - Limits the range to avoid too-large visualizations.
+*/
+
+// DOM refs
+const inputEl = document.getElementById('inputArray');
+const loadBtn = document.getElementById('loadBtn');
+const randBtn = document.getElementById('randBtn');
+const randSize = document.getElementById('randSize');
+const randMin = document.getElementById('randMin');
+const randMax = document.getElementById('randMax');
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const stepBtn = document.getElementById('stepBtn');
+const resetBtn = document.getElementById('resetBtn');
+const speedEl = document.getElementById('speed');
+const statusEl = document.getElementById('status');
+const phaseEl = document.getElementById('phase');
+const messageEl = document.getElementById('message');
+
+const inputViz = document.getElementById('inputViz');
+const countsViz = document.getElementById('countsViz');
+const outputViz = document.getElementById('outputViz');
+const explainEl = document.getElementById('explain');
+
+let arr = [];
+let minVal = 0, maxVal = 0, range = 0;
+let counts = [];
+let output = [];
+let gen = null;
+let playing = false;
+let timer = null;
+let lastAction = null;
+const RANGE_LIMIT = 70; // visualization limit
+
+// Utility: parse user array input
+function parseInput(s) {
+  if (!s.trim()) return [];
+  const parts = s.split(',').map(x=>x.trim()).filter(x=>x!=='');
+  const nums = parts.map(x=> {
+    const n = Number(x);
+    if (Number.isNaN(n)) throw new Error('Invalid number: ' + x);
+    return Math.trunc(n);
+  });
+  return nums;
+}
+
+// Create random array
+function makeRandom(size, mn, mx) {
+  const res = [];
+  for (let i=0;i<size;i++){
+    res.push(Math.floor(Math.random()*(mx-mn+1))+mn);
+  }
+  return res;
+}
+
+// UI render helpers
+function clearElement(el) { el.innerHTML = ''; }
+
+function renderInput() {
+  clearElement(inputViz);
+  if (!arr.length) {
+    inputViz.textContent = '(empty)';
+    return;
+  }
+  const maxAbs = Math.max(...arr.map(x=>Math.abs(x)), 1);
+  for (let i=0;i<arr.length;i++){
+    const v = arr[i];
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.height = (40 + Math.round((Math.abs(v)/maxAbs)*120)) + 'px';
+    bar.dataset.index = i;
+    bar.dataset.value = v;
+    const lbl = document.createElement('div');
+    lbl.className = 'lbl';
+    lbl.textContent = v;
+    bar.appendChild(lbl);
+    inputViz.appendChild(bar);
+  }
+}
+
+function renderCounts() {
+  clearElement(countsViz);
+  countsViz.style.minWidth = (range * 54) + 'px';
+  for (let i=0;i<range;i++){
+    const cv = document.createElement('div');
+    cv.className = 'countBox';
+    cv.dataset.idx = i;
+    const idx = document.createElement('div');
+    idx.className = 'idx';
+    idx.textContent = (i+minVal); // actual value label
+    const ct = document.createElement('div');
+    ct.className = 'ct';
+    ct.textContent = counts[i] ?? 0;
+    cv.appendChild(idx);
+    cv.appendChild(ct);
+    countsViz.appendChild(cv);
+  }
+}
+
+function renderOutput() {
+  clearElement(outputViz);
+  if (!output.length) {
+    outputViz.textContent = '(empty)';
+    return;
+  }
+  const maxAbs = Math.max(...arr.map(x=>Math.abs(x)), 1);
+  for (let i=0;i<output.length;i++){
+    const v = output[i];
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    if (v === null || v === undefined) {
+      bar.classList.add('hidden');
+      bar.style.height = '38px';
+      bar.innerHTML = '<div class="lbl"></div>';
+    } else {
+      bar.style.height = (40 + Math.round((Math.abs(v)/maxAbs)*120)) + 'px';
+      const lbl = document.createElement('div');
+      lbl.className = 'lbl';
+      lbl.textContent = v;
+      bar.appendChild(lbl);
+    }
+    outputViz.appendChild(bar);
+  }
+}
+
+// Update a single count box value and highlight classes
+function updateCountBox(i, highlightClass) {
+  const node = countsViz.querySelector(`.countBox[data-idx="${i}"]`);
+  if (!node) return;
+  node.querySelector('.ct').textContent = counts[i];
+  node.classList.remove('active','cum');
+  if (highlightClass) node.classList.add(highlightClass);
+}
+
+// Highlight input bar at index i
+function highlightInput(i, cls) {
+  Array.from(inputViz.children).forEach(el=> el.classList.remove('highlight','target'));
+  if (i==null) return;
+  const node = inputViz.querySelector(`.bar[data-index="${i}"]`);
+  if (node) node.classList.add(cls);
+}
+
+// Highlight output slot at index j
+function highlightOutput(j, cls) {
+  Array.from(outputViz.children).forEach(el=> el.classList.remove('highlight','target'));
+  if (j==null) return;
+  const node = outputViz.children[j];
+  if (node) node.classList.add(cls);
+}
+
+// Set value in output at pos
+function setOutputAt(pos, val) {
+  output[pos] = val;
+  const node = outputViz.children[pos];
+  if (node) {
+    node.classList.remove('hidden');
+    node.innerHTML = '';
+    const lbl = document.createElement('div');
+    lbl.className = 'lbl';
+    lbl.textContent = val;
+    node.appendChild(lbl);
+    // set height proportional (approx)
+    const maxAbs = Math.max(...arr.map(x=>Math.abs(x)), 1);
+    node.style.height = (40 + Math.round((Math.abs(val)/maxAbs)*120)) + 'px';
+  }
+}
+
+// Main generator performing counting sort and yielding steps
+function* countingSortGenerator(a) {
+  // prepare
+  const n = a.length;
+  if (n===0) {
+    yield {type:'done', msg:'Empty array'};
+    return;
+  }
+  minVal = Math.min(...a);
+  maxVal = Math.max(...a);
+  range = maxVal - minVal + 1;
+  if (range > RANGE_LIMIT) {
+    yield {type:'error', msg:`Range too large for visualization (${range} > ${RANGE_LIMIT}).`};
+    return;
+  }
+
+  counts = new Array(range).fill(0);
+  output = new Array(n).fill(null);
+
+  // initial render state
+  yield {type:'init', counts:counts.slice(), min:minVal, max:maxVal, range, output:output.slice()};
+
+  // Counting phase
+  for (let i=0;i<n;i++){
+    const val = a[i];
+    const idx = val - minVal;
+    yield {type:'counting:visit', i, val, idx, counts:counts.slice()};
+    counts[idx] += 1;
+    yield {type:'counting:update', i, val, idx, counts:counts.slice()};
+  }
+
+  // Prefix sum (cumulative)
+  yield {type:'prefix:start', counts:counts.slice()};
+  for (let k=0;k<range;k++){
+    const before = counts[k];
+    if (k>0) counts[k] += counts[k-1];
+    // yield cumulative update for each index
+    yield {type:'prefix:update', k, before, after:counts[k], counts:counts.slice()};
+  }
+
+  // Placing phase (right-to-left for stability)
+  for (let i = n-1; i>=0; i--){
+    const val = a[i];
+    const idx = val - minVal;
+    const pos = counts[idx] - 1;
+    yield {type:'placing:select', i, val, idx, pos, counts:counts.slice(), output:output.slice()};
+    // place
+    output[pos] = val;
+    yield {type:'placing:placed', i, val, idx, pos, counts:counts.slice(), output:output.slice()};
+    counts[idx] -= 1;
+    yield {type:'placing:countdec', i, val, idx, pos, counts:counts.slice(), output:output.slice()};
+  }
+
+  yield {type:'done', counts:counts.slice(), output:output.slice()};
+}
+
+// Driver to process one yielded action
+function processAction(action) {
+  lastAction = action;
+  phaseEl.textContent = action.type;
+  statusEl.textContent = '';
+  if (action.type === 'error') {
+    messageEl.innerHTML = '<span class="warning">'+action.msg+'</span>';
+    stopPlaying();
+    return;
+  }
+  messageEl.textContent = '';
+
+  switch(action.type) {
+    case 'init':
+      renderInput();
+      renderCounts();
+      renderOutput();
+      explainEl.textContent = `Counting sort will operate on values from ${action.min} to ${action.max} (range ${action.range}). First we count occurrences, then compute cumulative counts, then place elements to output array (from right to left for stability).`;
+      break;
+
+    case 'counting:visit':
+      phaseEl.textContent = 'Counting: scanning input';
+      highlightInput(action.i, 'highlight');
+      updateCountsDisplay(action.counts);
+      messageEl.textContent = `Visiting input[${action.i}] = ${action.val} — increment count for value ${action.val}.`;
+      break;
+
+    case 'counting:update':
+      updateCountsDisplay(action.counts);
+      highlightInput(action.i, 'highlight');
+      // also highlight the specific count box briefly
+      highlightCountBox(action.idx, 'active');
+      break;
+
+    case 'prefix:start':
+      phaseEl.textContent = 'Prefix Sum: cumulative counts';
+      messageEl.textContent = 'Compute cumulative counts (prefix sums) so each count indicates the end index for that value in the output.';
+      updateCountsDisplay(action.counts);
+      break;
+
+    case 'prefix:update':
+      phaseEl.textContent = 'Prefix Sum: computing';
+      // mark current box as cumulative
+      updateCountsDisplay(action.counts);
+      highlightCountBox(action.k, 'cum');
+      messageEl.textContent = `Index ${action.k + minVal}: before=${action.before}, after=${action.after}.`;
+      break;
+
+    case 'placing:select':
+      phaseEl.textContent = 'Placing: selecting element';
+      // highlight the input element and target position
+      highlightInput(action.i, 'highlight');
+      highlightOutput(action.pos, 'target');
+      updateCountsDisplay(action.counts);
+      messageEl.textContent = `Select input[${action.i}] = ${action.val}. Place at output[${action.pos}].`;
+      break;
+
+    case 'placing:placed':
+      phaseEl.textContent = 'Placing: placed';
+      // show placed value
+      setOutputAt(action.pos, action.val);
+      highlightInput(action.i, 'highlight');
+      highlightOutput(action.pos, 'target');
+      messageEl.textContent = `Placed ${action.val} at output[${action.pos}].`;
+      break;
+
+    case 'placing:countdec':
+      phaseEl.textContent = 'Placing: decrementing count';
+      updateCountsDisplay(action.counts);
+      highlightCountBox(action.idx, 'active');
+      highlightInput(action.i, null);
+      highlightOutput(action.pos, null);
+      break;
+
+    case 'done':
+      phaseEl.textContent = 'Done';
+      updateCountsDisplay(action.counts || counts);
+      renderOutput();
+      highlightInput(null);
+      highlightCountBox(null);
+      highlightOutput(null);
+      messageEl.textContent = 'Sorting complete.';
+      explainEl.textContent = 'Result: output array is sorted. Counting sort was stable because we processed inputs right-to-left when placing.';
+      stopPlaying();
+      break;
+  }
+}
+
+// Helpers to update visual counts (refresh all boxes)
+function updateCountsDisplay(arrCounts) {
+  for (let i=0;i<range;i++){
+    counts[i] = arrCounts[i];
+    updateCountBox(i, null);
+  }
+}
+
+// Highlight a specific count box index, clearing others
+function highlightCountBox(i, cls) {
+  Array.from(countsViz.children).forEach(el=> el.classList.remove('active','cum'));
+  if (i == null) return;
+  const node = countsViz.querySelector(`.countBox[data-idx="${i}"]`);
+  if (node) node.classList.add(cls);
+}
+
+// Play / step logic
+function startPlaying() {
+  if (!gen) {
+    messageEl.textContent = 'No process to run. Load an array and press Start.';
+    return;
+  }
+  if (playing) return;
+  playing = true;
+  startBtn.disabled = true;
+  pauseBtn.disabled = false;
+  stepBtn.disabled = true;
+  statusEl.textContent = 'Playing';
+  advanceAuto();
+}
+
+function stopPlaying() {
+  playing = false;
+  startBtn.disabled = false;
+  pauseBtn.disabled = true;
+  stepBtn.disabled = false;
+  statusEl.textContent = 'Paused';
+  if (timer) { clearTimeout(timer); timer = null; }
+}
+
+function pausePlaying() {
+  playing = false;
+  startBtn.disabled = false;
+  pauseBtn.disabled = true;
+  stepBtn.disabled = false;
+  statusEl.textContent = 'Paused';
+  if (timer) { clearTimeout(timer); timer = null; }
+}
+
+function advanceAuto() {
+  const delay = Number(speedEl.value);
+  const stepOnce = () => {
+    const next = gen.next();
+    if (next.done) {
+      // generator ended
+      playing = false;
+      startBtn.disabled = false;
+      pauseBtn.disabled = true;
+      stepBtn.disabled = false;
+      statusEl.textContent = 'Finished';
+      return;
+    }
+    processAction(next.value);
+    if (playing) {
+      timer = setTimeout(stepOnce, delay);
+    }
+  };
+  stepOnce();
+}
+
+// Single step
+function stepOnce() {
+  if (!gen) {
+    messageEl.textContent = 'No process loaded. Load an array and press Start.';
+    return;
+  }
+  // if currently auto-playing, ignore step
+  if (playing) return;
+  const next = gen.next();
+  if (next.done) {
+    statusEl.textContent = 'Finished';
+    return;
+  }
+  processAction(next.value);
+}
+
+// Initialize process generator from current arr
+function prepareGenerator() {
+  gen = countingSortGenerator(arr.slice());
+  // advance to init to set up visuals
+  const init = gen.next();
+  if (!init.done) processAction(init.value);
+}
+
+// Event handlers
+loadBtn.addEventListener('click', ()=>{
+  try {
+    const parsed = parseInput(inputEl.value);
+    if (parsed.length > 200) { messageEl.textContent = 'Array too large (max 200)'; return; }
+    arr = parsed.slice();
+    // enforce reasonable visualization constraints
+    minVal = Math.min(...arr);
+    maxVal = Math.max(...arr);
+    if (maxVal - minVal + 1 > RANGE_LIMIT) {
+      messageEl.innerHTML = `<span class="warning">Range too large (${maxVal - minVal + 1}). Choose values closer together for visualization.</span>`;
+    }
+    prepareGenerator();
+    statusEl.textContent = 'Ready';
+    phaseEl.textContent = 'Initialized';
+  } catch (e) {
+    messageEl.textContent = 'Error: ' + e.message;
+  }
+});
+
+randBtn.addEventListener('click', ()=>{
+  const s = Number(randSize.value) || 10;
+  const mn = Number(randMin.value) || 0;
+  const mx = Number(randMax.value) || 10;
+  if (mx < mn) { messageEl.textContent = 'Max must be >= Min'; return; }
+  arr = makeRandom(Math.max(1, Math.min(60, Math.trunc(s))), mn, mx);
+  inputEl.value = arr.join(', ');
+  prepareGenerator();
+  statusEl.textContent = 'Ready';
+  phaseEl.textContent = 'Initialized';
+  messageEl.textContent = `Random array of ${arr.length} values generated.`;
+});
+
+startBtn.addEventListener('click', ()=>{
+  if (!gen) {
+    // try to parse input automatically
+    try {
+      arr = parseInput(inputEl.value);
+      prepareGenerator();
+    } catch (e) {
+      messageEl.textContent = 'Error: ' + e.message;
+      return;
+    }
+  }
+  startPlaying();
+});
+
+pauseBtn.addEventListener('click', ()=> {
+  pausePlaying();
+});
+
+stepBtn.addEventListener('click', ()=> {
+  // if no gen, prepare
+  if (!gen) {
+    try {
+      arr = parseInput(inputEl.value);
+      prepareGenerator();
+    } catch (e) {
+      messageEl.textContent = 'Error: ' + e.message;
+      return;
+    }
+  }
+  stepOnce();
+});
+
+resetBtn.addEventListener('click', ()=> {
+  if (timer) { clearTimeout(timer); timer = null; }
+  gen = null;
+  playing = false;
+  startBtn.disabled = false;
+  pauseBtn.disabled = true;
+  stepBtn.disabled = false;
+  statusEl.textContent = 'Idle';
+  phaseEl.textContent = 'Not started';
+  messageEl.textContent = '';
+  minVal = maxVal = range = 0;
+  counts = [];
+  output = [];
+  renderInput();
+  clearElement(countsViz);
+  clearElement(outputViz);
+  explainEl.textContent = 'Explanation: Counting sort tallies how often each distinct value appears, computes cumulative counts, and then places each element into the correct output position (processing input from right to left to keep the sort stable).';
+});
+
+// initialize with default sample
+(function init() {
+  try {
+    arr = parseInput(inputEl.value);
+  } catch(e) { arr = []; }
+  prepareGenerator();
+  statusEl.textContent = 'Ready';
+})();
+
+</script>
+</body>
+</html>

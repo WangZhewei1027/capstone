@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Topological Sort Interactive Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial; margin: 0; padding: 0; display: flex; height: 100vh; }
+  #left { width: 340px; border-right: 1px solid #ddd; padding: 12px; box-sizing: border-box; background: #fafafa; overflow:auto; }
+  #left h2 { margin: 6px 0 8px; font-size: 18px; }
+  #controls { display: flex; flex-wrap: wrap; gap:6px; margin-bottom:10px; }
+  button { padding:6px 8px; font-size: 13px; }
+  .mode { display:flex; gap:6px; margin:8px 0; align-items:center; }
+  .info { font-size:13px; color:#333; margin:8px 0; }
+  #adj, #indeg, #log { font-family: monospace; font-size:13px; background:#fff; padding:8px; border:1px solid #eee; max-height:160px; overflow:auto; }
+  label { font-size:13px; }
+  #canvasWrap { flex:1; position:relative; background: linear-gradient(180deg,#fff,#f7fbff); }
+  svg { width:100%; height:100%; display:block; }
+  .node { cursor: pointer; }
+  .node circle { fill:#4da6ff; stroke:#0a5aa1; stroke-width:1.5px; }
+  .node text { fill:white; font-weight:700; pointer-events:none; }
+  .edge { stroke:#444; stroke-width:2px; fill:none; marker-end: url(#arrow); }
+  .edge.cycle { stroke: #e03e3e; }
+  .node.removed circle { fill:#bfbfbf; stroke:#8c8c8c; }
+  .node.highlight circle { fill:#28a745; stroke:#19692b; }
+  .node.cycle circle { fill:#e03e3e; stroke:#7a1212; }
+  .badge { display:inline-block; background:#eee; padding:3px 6px; border-radius:10px; font-size:12px; margin-left:6px; }
+  #status { font-size:13px; margin-top:8px; }
+  .small { font-size:12px; color:#555; }
+  .control-group { margin-bottom:10px; }
+  input[type=number] { width:60px; padding:4px; }
+  footer { font-size:12px; color:#666; margin-top:10px; }
+</style>
+</head>
+<body>
+  <div id="left">
+    <h2>Topological Sort Demo</h2>
+    <div class="info">
+      Build a directed acyclic graph (DAG) or create cycles. Try Kahn's algorithm and DFS-based topological sort. Click the canvas to add nodes, drag nodes to move, add edges by selecting "Add Edge" and clicking source then target.
+    </div>
+
+    <div class="control-group">
+      <div id="controls">
+        <button id="addNodeBtn">Add Node</button>
+        <button id="addEdgeBtn">Add Edge</button>
+        <button id="deleteBtn">Delete Mode</button>
+        <button id="dragBtn">Drag Mode</button>
+      </div>
+      <div class="small">Modes: Add Node (click canvas) • Add Edge (click source then target) • Delete (click node/edge) • Drag (move nodes)</div>
+    </div>
+
+    <div class="control-group">
+      <button id="randomDAG">Random DAG</button>
+      <button id="randomGraph">Random Graph (may have cycles)</button>
+      <button id="clearBtn">Clear</button>
+      <button id="resetPositions">Reset Positions</button>
+    </div>
+
+    <div class="control-group">
+      <button id="runKahn">Run Kahn's Algorithm</button>
+      <button id="runDFS">Run DFS TopoSort</button>
+      <button id="stepKahn">Step Kahn</button>
+      <button id="stopAnimation">Stop</button>
+    </div>
+
+    <div id="status" class="small">Mode: <span id="modeLabel">Drag</span></div>
+
+    <h3 style="margin-top:10px;">Graph Info</h3>
+    <div style="display:flex;gap:8px;">
+      <div style="flex:1">
+        <div class="small">Adjacency list</div>
+        <pre id="adj">[]</pre>
+      </div>
+      <div style="width:110px">
+        <div class="small">In-degrees</div>
+        <pre id="indeg">[]</pre>
+      </div>
+    </div>
+
+    <h3>Log / Messages</h3>
+    <div id="log">Ready.</div>
+
+    <footer>
+      Implementation: Kahn (BFS in-degree) and DFS (post-order). Detects cycles. SVG-only visualization, no external libraries.
+    </footer>
+  </div>
+
+  <div id="canvasWrap">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#444"></path>
+        </marker>
+        <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#e03e3e"></path>
+        </marker>
+      </defs>
+      <g id="edges"></g>
+      <g id="nodes"></g>
+    </svg>
+  </div>
+
+<script>
+// Data model
+let nodes = []; // {id,label,x,y}
+let edges = []; // {id, from, to}
+let nextNodeId = 0;
+let nextEdgeId = 0;
+
+// Modes: 'drag','addNode','addEdge','delete'
+let mode = 'drag';
+let svg = document.getElementById('svg');
+let nodesG = document.getElementById('nodes');
+let edgesG = document.getElementById('edges');
+let modeLabel = document.getElementById('modeLabel');
+let adjPre = document.getElementById('adj');
+let indegPre = document.getElementById('indeg');
+let logEl = document.getElementById('log');
+
+function log(msg) {
+  logEl.textContent = msg;
+}
+
+// Utilities
+function createNodeAt(x,y) {
+  const id = nextNodeId++;
+  const label = String.fromCharCode(65 + (id % 26)) + (Math.floor(id/26) || '');
+  nodes.push({id, label, x, y});
+  render();
+  updateInfo();
+}
+
+function createEdge(fromId,toId) {
+  // prevent duplicate same directed edge
+  if (edges.some(e => e.from===fromId && e.to===toId)) {
+    log('Edge already exists.');
+    return;
+  }
+  // prevent self-loop?
+  // allow self-loop but it will create cycle.
+  edges.push({id: nextEdgeId++, from: fromId, to: toId});
+  render();
+  updateInfo();
+}
+
+function deleteNode(id) {
+  nodes = nodes.filter(n => n.id !== id);
+  edges = edges.filter(e => e.from !== id && e.to !== id);
+  render();
+  updateInfo();
+}
+
+function deleteEdge(id) {
+  edges = edges.filter(e => e.id !== id);
+  render();
+  updateInfo();
+}
+
+function clearGraph() {
+  nodes = []; edges = []; nextNodeId = 0; nextEdgeId = 0;
+  render(); updateInfo();
+}
+
+// Generate random DAG
+function randomDAG(nodeCount=6, density=0.25) {
+  clearGraph();
+  for (let i=0;i<nodeCount;i++){
+    const x = 80 + Math.random() * (svg.clientWidth-200);
+    const y = 60 + Math.random() * (svg.clientHeight-140);
+    createNodeAt(x,y);
+  }
+  // impose a random topological order by node index
+  for (let i=0;i<nodes.length;i++){
+    for (let j=i+1;j<nodes.length;j++){
+      if (Math.random() < density) createEdge(nodes[i].id, nodes[j].id);
+    }
+  }
+  log('Random DAG generated.');
+}
+
+// Random graph (may have cycles)
+function randomGraph(nodeCount=7, density=0.3) {
+  clearGraph();
+  for (let i=0;i<nodeCount;i++){
+    const x = 80 + Math.random() * (svg.clientWidth-200);
+    const y = 60 + Math.random() * (svg.clientHeight-140);
+    createNodeAt(x,y);
+  }
+  for (let i=0;i<nodes.length;i++){
+    for (let j=0;j<nodes.length;j++){
+      if (i===j) continue;
+      if (Math.random() < density) createEdge(nodes[i].id, nodes[j].id);
+    }
+  }
+  log('Random graph generated (cycles possible).');
+}
+
+// Rendering
+function render() {
+  // clear
+  edgesG.innerHTML = '';
+  nodesG.innerHTML = '';
+
+  // draw edges
+  edges.forEach(e => {
+    const from = nodes.find(n => n.id === e.from);
+    const to = nodes.find(n => n.id === e.to);
+    if (!from || !to) return;
+    const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+    line.setAttribute('class','edge');
+    line.setAttribute('data-edge-id', e.id);
+    line.addEventListener('click', (ev)=> {
+      ev.stopPropagation();
+      if (mode === 'delete') {
+        deleteEdge(e.id);
+        log('Deleted edge.');
+      }
+    });
+    edgesG.appendChild(line);
+    updateEdgePath(line, from, to);
+  });
+
+  // draw nodes
+  nodes.forEach(n => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','node');
+    g.setAttribute('data-node-id', n.id);
+    g.setAttribute('transform', `translate(${n.x},${n.y})`);
+    // circle
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('r', 22);
+    g.appendChild(c);
+    // text
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',0);
+    t.setAttribute('y',6);
+    t.setAttribute('text-anchor','middle');
+    t.textContent = n.label;
+    g.appendChild(t);
+
+    // degree badge
+    const badge = document.createElementNS('http://www.w3.org/2000/svg','text');
+    badge.setAttribute('x',18);
+    badge.setAttribute('y',22);
+    badge.setAttribute('text-anchor','end');
+    badge.setAttribute('fill','#222');
+    badge.setAttribute('font-size','10');
+    badge.setAttribute('pointer-events','none');
+    badge.textContent = '';
+    g.appendChild(badge);
+
+    nodesG.appendChild(g);
+
+    // events
+    g.addEventListener('mousedown', nodeMouseDown);
+    g.addEventListener('mouseup', nodeMouseUp);
+    g.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const nid = n.id;
+      if (mode === 'addEdge') {
+        handleAddEdgeClick(nid);
+      } else if (mode === 'delete') {
+        deleteNode(nid);
+        log('Deleted node ' + n.label);
+      }
+    });
+  });
+
+  // Attach arrow markers depending on edge classes are handled via class; simpler to use same marker
+
+  updateInfo();
+}
+
+// update path coordinates, draw a bezier/straight line with arrow
+function updateEdgePath(pathEl, from, to) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dist = Math.hypot(dx,dy);
+  if (dist < 1) return;
+  // compute start and end offset to circle radius (22)
+  const r = 22;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const sx = from.x + ux * r;
+  const sy = from.y + uy * r;
+  const tx = to.x - ux * r;
+  const ty = to.y - uy * r;
+  // control points for slight curve
+  const mx = (sx + tx)/2 - uy * Math.min(60, dist/2);
+  const my = (sy + ty)/2 + ux * Math.min(60, dist/2);
+  pathEl.setAttribute('d', `M ${sx} ${sy} Q ${mx} ${my} ${tx} ${ty}`);
+  pathEl.setAttribute('marker-end', 'url(#arrow)');
+}
+
+// Interaction: dragging
+let dragState = {dragging:false, id:null, ox:0, oy:0, startX:0, startY:0};
+
+function nodeMouseDown(ev) {
+  if (mode !== 'drag') return;
+  ev.preventDefault();
+  const g = ev.currentTarget;
+  const id = parseInt(g.getAttribute('data-node-id'));
+  dragState.dragging = true;
+  dragState.id = id;
+  dragState.ox = ev.clientX;
+  dragState.oy = ev.clientY;
+  const n = nodes.find(x => x.id === id);
+  dragState.startX = n.x;
+  dragState.startY = n.y;
+  window.addEventListener('mousemove', windowMouseMove);
+  window.addEventListener('mouseup', windowMouseUp);
+}
+function nodeMouseUp(ev) {
+  // required for compatibility; actual end handled by windowMouseUp
+}
+function windowMouseMove(ev) {
+  if (!dragState.dragging) return;
+  const dx = ev.clientX - dragState.ox;
+  const dy = ev.clientY - dragState.oy;
+  const n = nodes.find(x => x.id === dragState.id);
+  n.x = dragState.startX + dx;
+  n.y = dragState.startY + dy;
+  render();
+}
+function windowMouseUp(ev) {
+  if (dragState.dragging) {
+    dragState.dragging = false;
+    dragState.id = null;
+    window.removeEventListener('mousemove', windowMouseMove);
+    window.removeEventListener('mouseup', windowMouseUp);
+  }
+}
+
+// Canvas click for adding node
+svg.addEventListener('click', (ev)=>{
+  if (mode !== 'addNode') return;
+  // compute SVG coordinates
+  const pt = svg.createSVGPoint();
+  pt.x = ev.clientX; pt.y = ev.clientY;
+  const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+  createNodeAt(svgP.x, svgP.y);
+  log('Added node.');
+});
+
+// Add edge via selecting source then target
+let edgePending = null;
+function handleAddEdgeClick(nodeId) {
+  if (edgePending == null) {
+    edgePending = nodeId;
+    highlightNode(nodeId, 'highlight');
+    log('Selected source node. Click target node to complete edge.');
+  } else {
+    if (edgePending === nodeId) {
+      log('Self-loop will be created.');
+    }
+    createEdge(edgePending, nodeId);
+    unhighlightAll();
+    edgePending = null;
+    log('Edge created.');
+  }
+}
+function highlightNode(nodeId, cls) {
+  // add class
+  const g = nodesG.querySelector(`[data-node-id="${nodeId}"]`);
+  if (g) g.classList.add(cls);
+}
+function unhighlightAll() {
+  Array.from(nodesG.children).forEach(g => g.classList.remove('highlight','removed','cycle'));
+  Array.from(edgesG.children).forEach(e => e.classList.remove('cycle'));
+}
+
+// Delete mode: also allow clicking edges (handled earlier)
+
+// Update info displays
+function buildAdjacency() {
+  const adj = {};
+  nodes.forEach(n => adj[n.id] = []);
+  edges.forEach(e => {
+    if (adj[e.from]) adj[e.from].push(e.to);
+  });
+  return adj;
+}
+function computeInDegrees() {
+  const indeg = {};
+  nodes.forEach(n => indeg[n.id] = 0);
+  edges.forEach(e => {
+    if (indeg.hasOwnProperty(e.to)) indeg[e.to]++;
+  });
+  return indeg;
+}
+function updateInfo() {
+  const adj = buildAdjacency();
+  // adjacency list display using labels
+  function labelOf(id){ const n = nodes.find(x=>x.id===id); return n? n.label : '?'; }
+  const entries = nodes.map(n => `${n.label}: [${(adj[n.id]||[]).map(labelOf).join(', ')}]`);
+  adjPre.textContent = entries.join('\n');
+
+  const indeg = computeInDegrees();
+  const indegEntries = nodes.map(n => `${n.label}: ${indeg[n.id] || 0}`);
+  indegPre.textContent = indegEntries.join('\n');
+
+  // update badges on nodes (in-degree)
+  Array.from(nodesG.children).forEach(g => {
+    const nid = parseInt(g.getAttribute('data-node-id'));
+    const badge = g.querySelectorAll('text')[1];
+    if (badge) badge.textContent = indeg[nid] !== undefined ? indeg[nid] : '';
+  });
+
+  // update edge paths (positions might change)
+  Array.from(edgesG.children).forEach(pathEl => {
+    const eid = parseInt(pathEl.getAttribute('data-edge-id'));
+    const e = edges.find(x=>x.id===eid);
+    if (e) {
+      const from = nodes.find(n => n.id === e.from);
+      const to = nodes.find(n => n.id === e.to);
+      if (from && to) updateEdgePath(pathEl, from, to);
+    }
+  });
+}
+
+// UI controls
+document.getElementById('addNodeBtn').addEventListener('click', ()=> setMode('addNode'));
+document.getElementById('addEdgeBtn').addEventListener('click', ()=> setMode('addEdge'));
+document.getElementById('deleteBtn').addEventListener('click', ()=> setMode('delete'));
+document.getElementById('dragBtn').addEventListener('click', ()=> setMode('drag'));
+
+document.getElementById('randomDAG').addEventListener('click', ()=> randomDAG(6, 0.3));
+document.getElementById('randomGraph').addEventListener('click', ()=> randomGraph(7, 0.28));
+document.getElementById('clearBtn').addEventListener('click', ()=> { clearGraph(); log('Cleared graph.'); });
+document.getElementById('resetPositions').addEventListener('click', ()=> {
+  // spread nodes evenly
+  const w = svg.clientWidth, h = svg.clientHeight;
+  const cols = Math.ceil(Math.sqrt(nodes.length));
+  nodes.forEach((n,i)=>{
+    const col = i % cols;
+    const row = Math.floor(i/cols);
+    n.x = 80 + col * Math.min(160, (w-160)/cols);
+    n.y = 80 + row * 100;
+  });
+  render();
+  log('Reset positions.');
+});
+
+function setMode(m) {
+  mode = m;
+  modeLabel.textContent = m.charAt(0).toUpperCase() + m.slice(1);
+  edgePending = null;
+  unhighlightAll();
+}
+
+// Algorithm implementations
+
+// Kahn's algorithm (animated)
+let animationHandle = null;
+let animationPaused = false;
+
+function runKahnStepwise(auto=true, stepDelay=700) {
+  const adj = buildAdjacency();
+  const indeg = computeInDegrees();
+  const q = [];
+  nodes.forEach(n => { if ((indeg[n.id]||0) === 0) q.push(n.id); });
+  const order = [];
+  const visited = new Set();
+  let step = 0;
+
+  function markNodeAsRemoved(id) {
+    const g = nodesG.querySelector(`[data-node-id="${id}"]`);
+    if (g) {
+      g.classList.add('removed');
+      g.classList.remove('highlight','cycle');
+    }
+  }
+  function markNodeHighlight(id) {
+    const g = nodesG.querySelector(`[data-node-id="${id}"]`);
+    if (g) g.classList.add('highlight');
+  }
+
+  function stepFn() {
+    if (animationPaused) return;
+    // update indeg display
+    updateInfo();
+    if (q.length === 0) {
+      // finished or cycle
+      if (order.length === nodes.length) {
+        log('Kahn finished. Topological order: ' + order.map(idToLabel).join(' → '));
+        // highlight order sequentially
+        animateOrder(order);
+      } else {
+        // cycle detected
+        // find nodes not in order
+        const remaining = nodes.filter(n => !order.includes(n.id)).map(n=>n.id);
+        remaining.forEach(id => {
+          const g = nodesG.querySelector(`[data-node-id="${id}"]`);
+          if (g) g.classList.add('cycle');
+        });
+        // mark cycle edges red
+        Array.from(edgesG.children).forEach(pathEl => {
+          const eid = parseInt(pathEl.getAttribute('data-edge-id'));
+          const e = edges.find(x=>x.id===eid);
+          if (e && remaining.includes(e.from) && remaining.includes(e.to)) pathEl.classList.add('cycle');
+        });
+        log('Cycle detected. No topological order exists. Highlighted nodes/edges might be part of cycle.');
+      }
+      animationHandle = null;
+      return;
+    }
+    const cur = q.shift();
+    step++;
+    markNodeHighlight(cur);
+    setTimeout(()=> {
+      // remove node
+      markNodeAsRemoved(cur);
+      order.push(cur);
+      // reduce indegree of neighbors
+      (adj[cur]||[]).forEach(nb => {
+        indeg[nb]--;
+        if (indeg[nb] === 0) q.push(nb);
+      });
+      // continue
+      animationHandle = setTimeout(stepFn, auto ? stepDelay : 0);
+    }, 250);
+  }
+  // start
+  animationPaused = false;
+  stepFn();
+  return {stop: ()=> {animationPaused = true; if (animationHandle) clearTimeout(animationHandle); animationHandle = null;}};
+}
+
+function animateOrder(order) {
+  // briefly highlight each in order green
+  let i = 0;
+  const interval = setInterval(()=>{
+    if (i >= order.length) {
+      clearInterval(interval);
+      log('Final order: ' + order.map(idToLabel).join(' → '));
+      return;
+    }
+    unhighlightAll();
+    const id = order[i++];
+    const g = nodesG.querySelector(`[data-node-id="${id}"]`);
+    if (g) g.classList.add('highlight');
+  }, 600);
+}
+
+// DFS based topo sort
+function runDFS() {
+  unhighlightAll();
+  const adj = buildAdjacency();
+  const color = {}; // 0 white, 1 gray, 2 black
+  const order = [];
+  let hasCycle = false;
+  const cycleNodes = new Set();
+
+  function dfs(u, ancStack) {
+    color[u] = 1;
+    ancStack.push(u);
+    // highlight current
+    const g = nodesG.querySelector(`[data-node-id="${u}"]`);
+    if (g) g.classList.add('highlight');
+    for (const v of (adj[u]||[])) {
+      if (color[v] === 0) {
+        if (dfs(v, ancStack)) return true;
+      } else if (color[v] === 1) {
+        // back edge -> cycle
+        hasCycle = true;
+        // mark cycle nodes (from v to end of ancStack)
+        const idx = ancStack.indexOf(v);
+        if (idx >= 0) {
+          for (let k = idx; k < ancStack.length; k++) cycleNodes.add(ancStack[k]);
+        }
+        cycleNodes.add(v);
+        return true;
+      }
+    }
+    ancStack.pop();
+    color[u] = 2;
+    order.push(u);
+    return false;
+  }
+
+  nodes.forEach(n => color[n.id] = 0);
+  for (const n of nodes) {
+    if (color[n.id] === 0) {
+      const stop = dfs(n.id, []);
+      if (stop) break;
+    }
+  }
+  if (hasCycle) {
+    // highlight cycle
+    cycleNodes.forEach(id => {
+      const g = nodesG.querySelector(`[data-node-id="${id}"]`);
+      if (g) g.classList.add('cycle');
+    });
+    // highlight cycle edges
+    Array.from(edgesG.children).forEach(pathEl => {
+      const eid = parseInt(pathEl.getAttribute('data-edge-id'));
+      const e = edges.find(x=>x.id===eid);
+      if (e && cycleNodes.has(e.from) && cycleNodes.has(e.to)) pathEl.classList.add('cycle');
+    });
+    log('Cycle detected by DFS. Nodes in red may belong to a cycle.');
+  } else {
+    order.reverse();
+    log('DFS topo sort produced order: ' + order.map(idToLabel).join(' → '));
+    animateOrder(order);
+  }
+}
+
+// helpers
+function idToLabel(id) {
+  const n = nodes.find(x=>x.id===id);
+  return n? n.label : '?';
+}
+
+// Buttons for running algorithms
+document.getElementById('runKahn').addEventListener('click', ()=> {
+  unhighlightAll();
+  if (animationHandle) { clearTimeout(animationHandle); animationHandle = null; }
+  runKahnStepwise(true, 700);
+});
+document.getElementById('stepKahn').addEventListener('click', ()=> {
+  unhighlightAll();
+  if (animationHandle) { clearTimeout(animationHandle); animationHandle = null; }
+  // step-by-step non-auto: perform single step at a time
+  // Implement small manual stepper using closure
+  const adj = buildAdjacency();
+  const indeg = computeInDegrees();
+  const q = [];
+  nodes.forEach(n => { if ((indeg[n.id]||0) === 0) q.push(n.id); });
+  const order = [];
+  function singleStep() {
+    updateInfo();
+    if (q.length === 0) {
+      if (order.length === nodes.length) {
+        log('Kahn finished. Topological order: ' + order.map(idToLabel).join(' → '));
+      } else {
+        const remaining = nodes.filter(n => !order.includes(n.id)).map(n=>n.id);
+        remaining.forEach(id => {
+          const g = nodesG.querySelector(`[data-node-id="${id}"]`);
+          if (g) g.classList.add('cycle');
+        });
+        Array.from(edgesG.children).forEach(pathEl => {
+          const eid = parseInt(pathEl.getAttribute('data-edge-id'));
+          const e = edges.find(x=>x.id===eid);
+          if (e && remaining.includes(e.from) && remaining.includes(e.to)) pathEl.classList.add('cycle');
+        });
+        log('Cycle detected. No more steps.');
+      }
+      return;
+    }
+    const cur = q.shift();
+    const g = nodesG.querySelector(`[data-node-id="${cur}"]`);
+    if (g) {
+      g.classList.add('highlight');
+      setTimeout(()=> {
+        g.classList.remove('highlight');
+        g.classList.add('removed');
+      }, 250);
+    }
+    order.push(cur);
+    (adj[cur]||[]).forEach(nb => {
+      indeg[nb]--;
+      if (indeg[nb] === 0) q.push(nb);
+    });
+    log('Removed ' + idToLabel(cur) + '.');
+    updateInfo();
+    // store stepper for next manual step by reassigning stepper state closure variables
+    // To implement manual stepping, we reuse this closure by setting global "manualKahn" to this function bound to current state
+    manualKahn = singleStep;
+  }
+  // initialize manualKahn
+  window.manualKahn = null;
+  // run an initial step so user can press Step again
+  singleStep();
+});
+document.getElementById('runDFS').addEventListener('click', ()=> {
+  if (animationHandle) { clearTimeout(animationHandle); animationHandle = null; }
+  unhighlightAll();
+  runDFS();
+});
+document.getElementById('stopAnimation').addEventListener('click', ()=> {
+  if (animationHandle) { clearTimeout(animationHandle); animationHandle = null; }
+  animationPaused = true;
+  unhighlightAll();
+  updateInfo();
+  log('Stopped animations.');
+});
+
+// allow pressing space or Enter to step manual Kahn
+window.addEventListener('keydown', (ev)=> {
+  if ((ev.key === ' ' || ev.key === 'Enter') && typeof window.manualKahn === 'function') {
+    ev.preventDefault();
+    window.manualKahn();
+  }
+});
+
+// initial demo graph
+(function initDemo(){
+  // place some nodes and edges
+  clearGraph();
+  const w = Math.max(svg.clientWidth, 600);
+  const h = Math.max(svg.clientHeight, 400);
+  const coords = [
+    [120,120],[320,80],[520,140],[220,260],[460,260],[720,180]
+  ];
+  for (let i=0;i<coords.length;i++){
+    createNodeAt(coords[i][0], coords[i][1]);
+  }
+  // edges that form a DAG
+  createEdge(0,1);
+  createEdge(0,3);
+  createEdge(1,2);
+  createEdge(1,4);
+  createEdge(3,4);
+  createEdge(2,5);
+  createEdge(4,5);
+  setMode('drag');
+  log('Demo DAG loaded. Try Kahn or DFS.');
+})();
+
+// Make edges clickable/selectable: clicking empty space should clear edgePending
+svg.addEventListener('click', ()=> {
+  if (mode === 'addEdge') {
+    // clicking on empty space cancels selection
+    if (edgePending != null) {
+      edgePending = null;
+      unhighlightAll();
+      log('Cancelled edge creation.');
+    }
+  }
+});
+</script>
+</body>
+</html>
