@@ -16,6 +16,35 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
+ * Load concept categories mapping
+ */
+let CONCEPT_CATEGORIES = {};
+async function loadConceptCategories() {
+  try {
+    const categoriesPath = path.join(__dirname, "concept-categories.json");
+    const data = await fs.readFile(categoriesPath, "utf-8");
+    const categories = JSON.parse(data);
+
+    // Create reverse mapping: concept -> category
+    for (const [category, concepts] of Object.entries(categories)) {
+      for (const concept of concepts) {
+        CONCEPT_CATEGORIES[concept.toLowerCase()] = category;
+      }
+    }
+  } catch (error) {
+    console.warn("⚠️ 无法加载概念分类映射，将使用默认分类");
+  }
+}
+
+/**
+ * Get category for a concept
+ */
+function getCategoryForConcept(concept) {
+  const normalized = concept.toLowerCase().trim();
+  return CONCEPT_CATEGORIES[normalized] || "Other";
+}
+
+/**
  * 并发限制器 - 控制同时运行的任务数量
  */
 class ConcurrencyLimiter {
@@ -279,6 +308,9 @@ function wordsMatch(str1, str2) {
  * 批量FSM相似度评估主函数
  */
 async function runBatchSimilarityEval(workspaceName) {
+  // Load concept categories first
+  await loadConceptCategories();
+
   const workspacePath = path.join("workspace", workspaceName);
   const fsmDir = path.join(workspacePath, "fsm");
   const idealFsmDir = path.join(workspacePath, "ideal-fsm");
@@ -356,6 +388,24 @@ FSM目录: ${fsmDir}
         const concept = await extractConceptFromFsm(fsmFile.filePath);
         console.log(`   📝 Concept: ${concept}`);
 
+        // 1.5 读取对应的data文件获取model和category信息
+        const dataDir = path.join(workspacePath, "data");
+        const fileId = fsmFile.fileName.replace(".json", "");
+        const dataFilePath = path.join(dataDir, `${fileId}.json`);
+        let model = "unknown";
+        let category = "Unknown";
+
+        try {
+          const dataContent = await fs.readFile(dataFilePath, "utf-8");
+          const dataFile = JSON.parse(dataContent);
+          model = dataFile.model || "unknown";
+          // Get category based on concept
+          category = getCategoryForConcept(concept);
+          console.log(`   🤖 Model: ${model}, Category: ${category}`);
+        } catch (error) {
+          console.warn(`   ⚠️  无法读取data文件，使用默认值`);
+        }
+
         // 2. 查找对应的ideal FSM文件
         const idealFsmPath = await findIdealFsmFile(idealFsmDir, concept);
         const idealFsmFileName = path.basename(idealFsmPath);
@@ -397,6 +447,8 @@ FSM目录: ${fsmDir}
           taskId,
           fsmFileName: fsmFile.fileName,
           concept,
+          model,
+          category,
           idealFsmFileName,
           matched: true,
           success: true,

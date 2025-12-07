@@ -7,16 +7,22 @@
 ```bash
 # =================================== 生成 =========================================
 # 批量生成所有 html-fsm-playwright (注：playwright test统一用5-mini)：
-
-
-
-# 批量生成 baseline 部分 (html-playwright)：
 node batch-workflow.mjs -c 100 --html-model "gpt-4o-mini" --fsm-model "gpt-4o-mini" --playwright-model "gpt-5-mini"  -w "{workspace}" -q "./question-list.json"
 
-# 补充生成:
-1. FSM
-2. Ideal FSM
+node batch-workflow.mjs -c 100 --html-model "gpt-4o-mini" --fsm-model "gpt-4o-mini" --playwright-model "gpt-5-mini"  -w "batch-1207" -q "./question-list.json"
 
+node batch-workflow.mjs -c 100 --html-model "gpt-5-mini" --fsm-model "gpt-4o-mini" --playwright-model "gpt-5-mini"  -w "batch-1207" -q "./question-list.json"
+
+node batch-workflow.mjs -c 100 --html-model "gpt-3.5-turbo" --fsm-model "gpt-4o-mini" --playwright-model "gpt-5-mini"  -w "batch-1207" -q "./question-list.json"
+
+node batch-workflow.mjs -c 100 --html-model "deepseek-chat" --fsm-model "gpt-4o-mini" --playwright-model "gpt-5-mini"  -w "batch-1207" -q "./question-list.json"
+
+node batch-workflow.mjs -c 100 --html-model "Qwen1.5-0.5B-Chat" --fsm-model "gpt-4o-mini" --playwright-model "gpt-5-mini"  -w "batch-1207" -q "./question-list.json"
+
+
+
+# 补充生成 Ideal FSM
+node batch-workflow.mjs --ideal-fsm -w "batch-1207" -q "./question-list.json"
 
 
 
@@ -32,6 +38,44 @@ node analyze-pass-rate.mjs workspace/{workspace}
 
 
 # =================================== FSM Evaluation ==========================================
+# 运行相似度测试：
+node batch-similarity-eval.mjs {workspace}
+
+# 统计FSM相似度:
+node analyze-model-similarity.mjs {workspace}
+
+# 结果示例：
+工作空间: batch-1207
+数据路径: workspace\batch-1207\fsm-similarity-results.json
+
+📊 总体统计: 219 个文件, 219 个成功匹配
+✅ 成功分析的FSM数量: 219
+
+📈 模型性能分析:
+模型                   | 数量     | 平均相似度        | 结构       | 语义       | 同构       | 标准差
+─────────────────────────────────────────────────────────────────────────────────────
+gpt-5-mini           | 46     | 32.1        % | 67.5    % | 12.7    % | 0.0     % | 0.124
+deepseek-chat        | 47     | 30.4        % | 62.1    % | 13.9    % | 0.0     % | 0.084
+gpt-4o-mini          | 47     | 27.5        % | 52.1    % | 16.7    % | 0.0     % | 0.057
+gpt-3.5-turbo        | 46     | 26.3        % | 48.1    % | 17.7    % | 0.0     % | 0.188
+Qwen1.5-0.5B-Chat    | 33     | 23.6        % | 44.0    % | 14.9    % | 0.0     % | 0.051
+
+📊 可视化报告已生成: workspace\batch-1207\model-similarity-analysis.html
+🌐 在浏览器中打开查看详细图表和分析
+
+🎉 AI模型FSM相似度分析完成！
+🏆 模型排名（按平均相似度）:
+1. gpt-5-mini: 32.1% (46 个样本)
+2. deepseek-chat: 30.4% (47 个样本)
+3. gpt-4o-mini: 27.5% (47 个样本)
+4. gpt-3.5-turbo: 26.3% (46 个样本)
+5. Qwen1.5-0.5B-Chat: 23.6% (33 个样本)
+
+
+# # =================================== FSM 提取与分析 ==========================================
+node analyze-fsm-differentiation.mjs workspace/{workspace}
+node analyze-correlation.mjs workspace/{workspace}
+node analyze-fsm-dimension.mjs workspace/{workspace}
 
 
 
