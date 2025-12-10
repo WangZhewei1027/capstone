@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Interactive Stack Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #0ea5ff;
+      --muted: #94a3b8;
+      --card: #0b1220;
+      --good: #16a34a;
+      --bad: #ef4444;
+    }
+    * { box-sizing: border-box; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(180deg,#071027 0%, #071826 60%); color: #e6eef8; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .container { width: 980px; max-width: 100%; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; padding: 18px; box-shadow: 0 10px 30px rgba(2,6,23,0.6); display: grid; grid-template-columns: 360px 1fr; gap: 18px; }
+    h1 { margin: 0 0 8px 0; font-size: 18px; color: var(--accent); }
+    p.lead { margin: 0 0 12px 0; color: var(--muted); font-size: 13px; }
+    .controls { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03); }
+    .controls label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .row { display:flex; gap:8px; align-items:center; }
+    input[type="text"] { flex:1; padding:8px 10px; background: transparent; border:1px solid rgba(255,255,255,0.06); color: #e6eef8; border-radius: 6px; outline: none; font-size: 14px; }
+    button { padding:8px 10px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.05); color: #e6eef8; border-radius: 6px; cursor: pointer; transition: transform .08s ease, box-shadow .08s; }
+    button:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(2,6,23,0.5); }
+    button.primary { background: linear-gradient(180deg, rgba(14,165,255,0.12), rgba(14,165,255,0.06)); border-color: rgba(14,165,255,0.18); color: var(--accent); }
+    button.warn { background: linear-gradient(180deg, rgba(239,68,68,0.08), rgba(239,68,68,0.04)); border-color: rgba(239,68,68,0.12); color: var(--bad); }
+    .stack-area { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; min-height: 360px; display:flex; flex-direction:column; gap:12px; }
+    .visual { display:flex; gap:16px; align-items:flex-start; }
+    .stack-visual { width: 220px; min-height: 260px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00)); border-radius: 8px; border:1px solid rgba(255,255,255,0.03); padding:12px; display:flex; flex-direction:column-reverse; align-items:center; position:relative; overflow:hidden; }
+    .stack-slot { width: 100%; height:44px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; border-radius:6px; background: rgba(255,255,255,0.02); border:1px dashed rgba(255,255,255,0.02); color: var(--muted); font-size:13px; transition: transform .28s cubic-bezier(.2,.9,.2,1), background .18s, box-shadow .18s; }
+    .stack-slot.filled { background: linear-gradient(90deg, rgba(14,165,255,0.08), rgba(16,185,129,0.02)); border:1px solid rgba(14,165,255,0.18); color: #dff6ff; box-shadow: 0 6px 20px rgba(2,6,23,0.5); transform: translateY(0); }
+    .slot-top { position:absolute; top:8px; left:10px; font-size:12px; color:var(--muted); }
+    .stack-info { flex:1; display:flex; flex-direction:column; gap:8px; }
+    .code { background: rgba(2,6,23,0.6); padding:8px; border-radius:6px; font-family: Menlo, monospace; font-size:13px; color:#cfefff; max-height:180px; overflow:auto; border:1px solid rgba(255,255,255,0.02); }
+    .log { background: rgba(255,255,255,0.01); padding:8px; border-radius:6px; min-height:80px; max-height:120px; overflow:auto; font-size:13px; color:var(--muted); border:1px solid rgba(255,255,255,0.02); }
+    .badge { font-size:12px; padding:6px 8px; border-radius:999px; background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); color:var(--muted); }
+    .small { font-size:12px; color:var(--muted); }
+    footer { text-align:center; padding-top:8px; color:var(--muted); font-size:12px; }
+    .muted { color:var(--muted); }
+    .flex-between { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .controls-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:10px; }
+    .animated { transition: transform .28s cubic-bezier(.2,.9,.2,1), opacity .22s; }
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <div>
+      <h1>Stack (LIFO) — Interactive Demo</h1>
+      <p class="lead">A stack is a Last-In-First-Out data structure. Push adds an item to the top, pop removes the top item. Try pushing values and watching the visualization.</p>
+
+      <div class="controls" aria-label="Stack controls">
+        <label for="valueInput">Value to push</label>
+        <div class="row">
+          <input id="valueInput" type="text" placeholder='e.g. 42 or "hello" or {"x":1}' aria-label="Value input" />
+          <button id="pushBtn" class="primary" title="Push">Push</button>
+          <button id="popBtn" class="warn" title="Pop">Pop</button>
+        </div>
+
+        <div class="controls-grid">
+          <button id="peekBtn" title="Peek (view top)">Peek</button>
+          <button id="clearBtn" title="Clear all">Clear</button>
+          <button id="randomBtn" title="Push random">Push Random</button>
+          <button id="fillBtn" title="Fill sample">Fill Sample</button>
+        </div>
+
+        <div style="margin-top:10px;" class="flex-between">
+          <div class="badge" id="sizeBadge">Size: 0</div>
+          <div class="small">Top at the top</div>
+        </div>
+      </div>
+
+      <div style="height:12px;"></div>
+
+      <div class="controls" aria-label="Operations log">
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+          <strong style="color:var(--accent);">Operations</strong>
+          <div class="small muted">Recent actions and results</div>
+        </div>
+        <div id="log" class="log" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div class="stack-area">
+      <div class="visual">
+        <div class="stack-visual" id="stackVisual" aria-label="Stack visualization">
+          <div class="slot-top small muted">Top</div>
+          <!-- slots inserted here -->
+        </div>
+
+        <div class="stack-info">
+          <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
+            <div>
+              <div class="small muted">Internal array representation</div>
+              <div id="arrayView" class="code">[]</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+              <div class="badge" id="peekBadge">Peek: —</div>
+              <div class="badge" id="lastOpBadge">Last: —</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="small muted">Stack implementation (JavaScript)</div>
+            <pre class="code" id="impl">
+class Stack {
+  constructor() { this._data = []; }
+  push(x) { this._data.push(x); }
+  pop() { return this._data.length ? this._data.pop() : undefined; }
+  peek() { return this._data.length ? this._data[this._data.length-1] : undefined; }
+  size() { return this._data.length; }
+}
+            </pre>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        Built for demonstration — interact with buttons to see push/pop animate. Top is shown above slots.
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    // Stack class and visualization logic
+    class Stack {
+      constructor() { this._data = []; }
+      push(x) { this._data.push(x); }
+      pop() { return this._data.length ? this._data.pop() : undefined; }
+      peek() { return this._data.length ? this._data[this._data.length - 1] : undefined; }
+      size() { return this._data.length; }
+      toArray() { return this._data.slice(); }
+    }
+
+    // Utilities
+    const q = sel => document.querySelector(sel);
+    const makeSlot = (value, key) => {
+      const el = document.createElement('div');
+      el.className = 'stack-slot filled animated';
+      el.textContent = value;
+      el.dataset.idx = key;
+      el.style.transform = 'translateY(12px)';
+      el.style.opacity = '0';
+      // animate in
+      requestAnimationFrame(() => {
+        el.style.transform = 'translateY(0)';
+        el.style.opacity = '1';
+      });
+      return el;
+    };
+
+    const makeEmptySlot = () => {
+      const el = document.createElement('div');
+      el.className = 'stack-slot';
+      el.textContent = 'empty';
+      return el;
+    };
+
+    // Elements
+    const stackVisual = q('#stackVisual');
+    const arrayView = q('#arrayView');
+    const sizeBadge = q('#sizeBadge');
+    const logEl = q('#log');
+    const peekBadge = q('#peekBadge');
+    const lastOpBadge = q('#lastOpBadge');
+
+    const valueInput = q('#valueInput');
+    const pushBtn = q('#pushBtn');
+    const popBtn = q('#popBtn');
+    const peekBtn = q('#peekBtn');
+    const clearBtn = q('#clearBtn');
+    const randomBtn = q('#randomBtn');
+    const fillBtn = q('#fillBtn');
+
+    // Stack instance
+    const stack = new Stack();
+    const maxSlots = 8;
+
+    // Initialize empty slots
+    function renderSlots() {
+      // Clear all slots (except .slot-top)
+      Array.from(stackVisual.querySelectorAll('.stack-slot')).forEach(n => n.remove());
+      const arr = stack.toArray();
+      // We'll show up to maxSlots slots. Stack grows from bottom (index 0) to top (last).
+      for (let i = arr.length - 1; i >= 0; i--) {
+        const val = arr[i];
+        const slot = makeSlot(formatValue(val), i);
+        stackVisual.appendChild(slot);
+      }
+      // Add empty placeholders to show capacity visually
+      const emptyCount = Math.max(0, maxSlots - arr.length);
+      for (let i = 0; i < emptyCount; i++) {
+        const es = makeEmptySlot();
+        stackVisual.appendChild(es);
+      }
+      arrayView.textContent = JSON.stringify(stack.toArray());
+      sizeBadge.textContent = 'Size: ' + stack.size();
+      const peekVal = stack.peek();
+      peekBadge.textContent = 'Peek: ' + (peekVal === undefined ? '—' : formatValue(peekVal));
+    }
+
+    function formatValue(v) {
+      // If it's an object, show JSON-like short
+      if (v === null) return 'null';
+      if (v === undefined) return 'undefined';
+      if (typeof v === 'object') {
+        try {
+          return JSON.stringify(v);
+        } catch { return String(v); }
+      }
+      return String(v);
+    }
+
+    function log(msg, kind = 'info') {
+      const d = document.createElement('div');
+      d.style.marginBottom = '6px';
+      if (kind === 'error') d.style.color = 'var(--bad)';
+      else if (kind === 'success') d.style.color = 'var(--good)';
+      else d.style.color = '';
+      const time = new Date().toLocaleTimeString();
+      d.textContent = `[${time}] ${msg}`;
+      logEl.prepend(d);
+      // keep only last 200 messages
+      while (logEl.children.length > 200) logEl.removeChild(logEl.lastChild);
+    }
+
+    // Button handlers
+    pushBtn.addEventListener('click', () => {
+      const raw = valueInput.value.trim();
+      if (raw === '') {
+        log('Push skipped: empty input', 'error');
+        lastOpBadge.textContent = 'Last: push skipped';
+        return;
+      }
+      let parsed = raw;
+      // Try to parse as JSON to allow pushing numbers, objects, arrays
+      try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        // leave as string
+        parsed = raw;
+      }
+      stack.push(parsed);
+      log('push(' + formatValue(parsed) + ')');
+      lastOpBadge.textContent = 'Last: push';
+      renderSlots();
+      valueInput.value = '';
+      focusInput();
+    });
+
+    popBtn.addEventListener('click', () => {
+      const popped = stack.pop();
+      if (popped === undefined) {
+        log('pop() -> undefined (stack empty)', 'error');
+        lastOpBadge.textContent = 'Last: pop (empty)';
+      } else {
+        log('pop() -> ' + formatValue(popped), 'success');
+        lastOpBadge.textContent = 'Last: pop';
+      }
+      renderSlots();
+      focusInput();
+    });
+
+    peekBtn.addEventListener('click', () => {
+      const p = stack.peek();
+      if (p === undefined) {
+        log('peek() -> undefined (stack empty)', 'error');
+        lastOpBadge.textContent = 'Last: peek (empty)';
+      } else {
+        log('peek() -> ' + formatValue(p));
+        lastOpBadge.textContent = 'Last: peek';
+      }
+      renderSlots();
+      focusInput();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      while (stack.size()) stack.pop();
+      log('clear() — stack emptied', 'info');
+      lastOpBadge.textContent = 'Last: clear';
+      renderSlots();
+      focusInput();
+    });
+
+    randomBtn.addEventListener('click', () => {
+      // Push a random value (number, string, object)
+      const r = Math.random();
+      let val;
+      if (r < 0.4) val = Math.round(Math.random() * 100);
+      else if (r < 0.8) val = ['a','b','c','d'][Math.floor(Math.random()*4)] + Math.floor(Math.random()*10);
+      else val = {x: Math.round(Math.random()*10), y: Math.round(Math.random()*10)};
+      stack.push(val);
+      log('push(random -> ' + formatValue(val) + ')');
+      lastOpBadge.textContent = 'Last: push (random)';
+      renderSlots();
+      focusInput();
+    });
+
+    fillBtn.addEventListener('click', () => {
+      const sample = [1, 2, 3, {name:'Alice'}, "hello"];
+      sample.forEach(v => stack.push(v));
+      log('fill sample values: ' + sample.map(formatValue).join(', '));
+      lastOpBadge.textContent = 'Last: fill';
+      renderSlots();
+      focusInput();
+    });
+
+    // Keyboard: Enter to push
+    valueInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        pushBtn.click();
+      }
+    });
+
+    function focusInput() {
+      setTimeout(() => valueInput.focus(), 100);
+    }
+
+    // Initial render with empty slots
+    renderSlots();
+    focusInput();
+
+    // Accessibility: announce changes as they happen
+    const liveRegion = document.createElement('div');
+    liveRegion.setAttribute('aria-live', 'polite');
+    liveRegion.style.position = 'absolute';
+    liveRegion.style.left = '-9999px';
+    document.body.appendChild(liveRegion);
+
+    const originalLog = log;
+    // Wrap log to also update live region
+    const wrappedLog = (msg, kind) => {
+      originalLog(msg, kind);
+      liveRegion.textContent = msg;
+    };
+    // Replace log function used above
+    window.log = wrappedLog;
+
+    // Demonstrate a small animation when popping (remove top smoothly)
+    // We'll observe mutations and apply a quick fade for removed elements.
+    const obs = new MutationObserver((mutations) => {
+      mutations.forEach(m => {
+        if (m.type === 'childList' && m.removedNodes.length) {
+          // If nodes removed, we can't animate removal after it's gone,
+          // but we can briefly flash the new top to indicate change.
+          const topNode = stackVisual.querySelector('.stack-slot.filled');
+          if (topNode) {
+            topNode.style.transform = 'translateY(-6px)';
+            setTimeout(() => topNode.style.transform = 'translateY(0)', 220);
+          }
+        }
+      });
+    });
+    obs.observe(stackVisual, {childList: true});
+  </script>
+</body>
+</html>

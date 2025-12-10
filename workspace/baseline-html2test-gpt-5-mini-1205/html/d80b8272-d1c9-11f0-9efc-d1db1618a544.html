@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Prim's Algorithm — Interactive Demonstration</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; margin: 0; display: flex; height: 100vh; }
+    #left { width: 420px; border-right: 1px solid #ddd; padding: 12px; box-sizing: border-box; overflow: auto; background: #fafafa; }
+    #canvasWrap { flex: 1; position: relative; background: #fff; }
+    svg { width: 100%; height: 100%; display: block; }
+    h1 { font-size: 18px; margin: 6px 0 12px; }
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .controls button, .controls input[type="number"], select { padding: 6px; font-size: 13px; }
+    .wide { grid-column: span 2; }
+    .section { margin-bottom: 12px; }
+    label { display:block; font-size: 13px; margin-bottom: 6px; color: #333; }
+    .small { font-size: 13px; color: #444; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid #eee; padding: 6px; text-align: center; }
+    th { background: #fafafa; }
+    .legend { display:flex; gap:8px; flex-wrap:wrap; font-size:12px; margin-top:8px; }
+    .legend span { display:inline-flex; align-items:center; gap:6px; padding:4px 6px; border-radius:4px; background:#fff; border:1px solid #eee; }
+    .colorbox { width:16px; height:12px; display:inline-block; border-radius:2px; }
+    .note { font-size:12px; color:#666; margin-top:8px; }
+    .mode-buttons { display:flex; gap:6px; margin-top:6px; }
+    button.active { outline: 2px solid #227; color: #227; }
+    .bottom-row { display:flex; gap:8px; align-items:center; margin-top:8px; }
+    #status { font-size:13px; color:#333; margin-left:8px; }
+    footer { position: absolute; right:8px; bottom:8px; font-size: 12px; color:#666; }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <h1>Prim's Algorithm — Interactive Demo</h1>
+
+    <div class="section">
+      <label>Graph generation</label>
+      <div class="controls">
+        <input id="nodeCount" type="number" min="2" max="20" value="8" title="Number of nodes">
+        <input id="density" type="number" min="10" max="100" value="40" title="Edge density (%)">
+        <input id="maxWeight" type="number" min="1" max="50" value="20" title="Max edge weight">
+        <button id="genGraph" class="wide">Generate Random Graph</button>
+      </div>
+      <div class="note">Generates a (connected) random undirected weighted graph. You can also add nodes/edges manually.</div>
+    </div>
+
+    <div class="section">
+      <label>Editing</label>
+      <div class="mode-buttons">
+        <button id="modeSelect" class="active">Pointer</button>
+        <button id="modeAddNode">Add Node</button>
+        <button id="modeAddEdge">Add Edge</button>
+        <button id="modeDelete">Delete</button>
+      </div>
+      <div class="note">Add Node: click canvas to place. Add Edge: click source then target; you'll be prompted for weight. Delete: click node/edge to remove.</div>
+    </div>
+
+    <div class="section">
+      <label>Prim Controls</label>
+      <div class="controls">
+        <select id="startVertex"></select>
+        <button id="initPrim">Init Prim</button>
+        <button id="stepBack">Step ◀</button>
+        <button id="stepForward">Step ▶</button>
+        <button id="play">Play ▶</button>
+        <button id="reset">Reset</button>
+        <input id="speed" type="range" min="150" max="1500" value="600">
+        <div class="small">Speed (ms per step)</div>
+      </div>
+      <div class="bottom-row">
+        <div class="small">Total MST weight: <strong id="mstWeight">0</strong></div>
+        <div id="status"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <label>State (per-vertex)</label>
+      <table>
+        <thead><tr><th>Node</th><th>Key</th><th>Parent</th><th>In MST</th></tr></thead>
+        <tbody id="stateTable"></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <label>Legend</label>
+      <div class="legend">
+        <span><span class="colorbox" style="background:#e0e0e0;border:1px solid #ccc;"></span> Idle edge</span>
+        <span><span class="colorbox" style="background:#ffb74d;"></span> Candidate/relaxed</span>
+        <span><span class="colorbox" style="background:#4fc3f7;"></span> Extracted vertex</span>
+        <span><span class="colorbox" style="background:#81c784;"></span> Edge in MST</span>
+        <span><span class="colorbox" style="background:#f06292;"></span> Highlighted (selected)</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <label>Tips</label>
+      <div class="small">
+        - Press "Init Prim" to prepare snapshots. Then use Step ◀ / ▶ or Play. <br>
+        - Each snapshot corresponds to either extracting the next minimum vertex, or updating a neighbor's key/parent. <br>
+        - The table shows current key and parent values. When a vertex becomes part of the MST its connecting edge is colored green.
+      </div>
+    </div>
+
+    <footer>Click canvas nodes to drag. Double-click a node to set as start vertex.</footer>
+  </div>
+
+  <div id="canvasWrap">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+<script>
+/*
+Prim's Algorithm Interactive Demo
+Single-file HTML + JS visualization.
+
+Features:
+- Generate connected random weighted graph with n nodes.
+- Manual edit: add nodes, add edges, delete objects, drag nodes.
+- Initialize Prim from chosen start vertex: builds snapshots (one per extraction or neighbor relaxation).
+- Step forward/back through snapshots; Play/Pause at adjustable speed.
+- Visualize keys, parents, inMST, PQ state, highlighted edges/nodes.
+*/
+
+(() => {
+  const svg = document.getElementById('svg');
+  const width = () => svg.clientWidth;
+  const height = () => svg.clientHeight;
+
+  // Controls
+  const nodeCountInput = document.getElementById('nodeCount');
+  const densityInput = document.getElementById('density');
+  const maxWeightInput = document.getElementById('maxWeight');
+  const genGraphBtn = document.getElementById('genGraph');
+
+  const modeSelectBtn = document.getElementById('modeSelect');
+  const modeAddNodeBtn = document.getElementById('modeAddNode');
+  const modeAddEdgeBtn = document.getElementById('modeAddEdge');
+  const modeDeleteBtn = document.getElementById('modeDelete');
+
+  const startVertexSelect = document.getElementById('startVertex');
+  const initPrimBtn = document.getElementById('initPrim');
+  const stepBackBtn = document.getElementById('stepBack');
+  const stepForwardBtn = document.getElementById('stepForward');
+  const playBtn = document.getElementById('play');
+  const resetBtn = document.getElementById('reset');
+  const speedInput = document.getElementById('speed');
+
+  const stateTable = document.getElementById('stateTable');
+  const mstWeightEl = document.getElementById('mstWeight');
+  const statusEl = document.getElementById('status');
+
+  // Graph data
+  let nodes = []; // {id,x,y}
+  let edges = []; // {id,u,v,w}
+  let nextNodeId = 0;
+  let nextEdgeId = 0;
+
+  // Editing state
+  let mode = 'select'; // select, addNode, addEdge, delete
+  let dragging = null;
+  let addEdgeSource = null;
+
+  // Visualization state per snapshot
+  let snapshots = []; // array of {key:[], parent:[], inMST:[], lastExtracted: int or -1, lastRelaxed: {u,v} or null}
+  let currentSnapshotIndex = 0;
+  let playing = false;
+  let playTimer = null;
+
+  function setMode(m) {
+    mode = m;
+    [modeSelectBtn, modeAddNodeBtn, modeAddEdgeBtn, modeDeleteBtn].forEach(b => b.classList.remove('active'));
+    if (m === 'select') modeSelectBtn.classList.add('active');
+    if (m === 'addNode') modeAddNodeBtn.classList.add('active');
+    if (m === 'addEdge') modeAddEdgeBtn.classList.add('active');
+    if (m === 'delete') modeDeleteBtn.classList.add('active');
+    addEdgeSource = null;
+  }
+
+  // Utility
+  function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function distance(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.sqrt(dx*dx+dy*dy); }
+  function ensureConnectedGraph(n, densityPercent, maxW) {
+    nodes = [];
+    edges = [];
+    nextNodeId = 0; nextEdgeId = 0;
+    // place nodes randomly
+    for (let i=0;i<n;i++) {
+      const padding = 40;
+      const p = { id: nextNodeId++, x: rand(padding, width()-padding), y: rand(padding, height()-padding) };
+      nodes.push(p);
+    }
+    // first, generate a random spanning tree to ensure connectivity
+    const connected = new Set([0]);
+    const remaining = new Set([...Array(n).keys()].slice(1));
+    while (remaining.size) {
+      const r = Array.from(remaining)[rand(0, remaining.size-1)];
+      const c = Array.from(connected)[rand(0, connected.size-1)];
+      addEdgeInternal(nodes[r].id, nodes[c].id, rand(1, maxW));
+      remaining.delete(r);
+      connected.add(r);
+    }
+    // then add random extra edges based on density
+    for (let i=0;i<n;i++){
+      for (let j=i+1;j<n;j++){
+        if (Math.random()*100 < densityPercent) {
+          // avoid duplicate edge (we may already have from spanning tree)
+          if (!edgeBetween(nodes[i].id, nodes[j].id)) {
+            addEdgeInternal(nodes[i].id, nodes[j].id, rand(1, maxW));
+          }
+        }
+      }
+    }
+  }
+
+  function addNodeAt(x,y) {
+    const p = {id: nextNodeId++, x, y};
+    nodes.push(p);
+    render();
+    populateStartSelect();
+  }
+  function addEdgeInternal(uId, vId, w) {
+    if (uId === vId) return null;
+    if (edgeBetween(uId, vId)) return null;
+    const e = {id: nextEdgeId++, u: uId, v: vId, w};
+    edges.push(e);
+    render();
+    return e;
+  }
+  function edgeBetween(a,b) {
+    return edges.find(e => (e.u===a && e.v===b) || (e.u===b && e.v===a));
+  }
+  function removeNode(nodeId) {
+    nodes = nodes.filter(n => n.id !== nodeId);
+    edges = edges.filter(e => e.u !== nodeId && e.v !== nodeId);
+    render();
+    populateStartSelect();
+  }
+  function removeEdge(edgeId) {
+    edges = edges.filter(e => e.id !== edgeId);
+    render();
+  }
+
+  // SVG elements dictionaries for easy update
+  const nodeEls = new Map(); // id -> g element
+  const edgeEls = new Map(); // id -> {line,text,group}
+
+  function clearSvg() {
+    while (svg.lastChild) svg.removeChild(svg.lastChild);
+    nodeEls.clear();
+    edgeEls.clear();
+  }
+
+  function render() {
+    clearSvg();
+    // draw edges first
+    edges.forEach(e => {
+      const u = nodes.find(n => n.id === e.u);
+      const v = nodes.find(n => n.id === e.v);
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute('data-edge-id', e.id);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute('x1', u.x); line.setAttribute('y1', u.y);
+      line.setAttribute('x2', v.x); line.setAttribute('y2', v.y);
+      line.setAttribute('stroke', '#ddd'); line.setAttribute('stroke-width', '3'); line.setAttribute('stroke-linecap', 'round');
+      // weight label
+      const midx = (u.x+v.x)/2; const midy = (u.y+v.y)/2;
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute('x', midx); text.setAttribute('y', midy - 6);
+      text.setAttribute('text-anchor', 'middle'); text.setAttribute('font-size', '12');
+      text.setAttribute('fill', '#333'); text.textContent = e.w;
+      // add to svg
+      g.appendChild(line); g.appendChild(text);
+      svg.appendChild(g);
+      edgeEls.set(e.id, {g, line, text});
+      // pointer events
+      g.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (mode === 'delete') {
+          removeEdge(e.id);
+        } else if (mode === 'select') {
+          // select edge visually briefly
+          highlightTemporaryEdge(e.id);
+        }
+      });
+    });
+
+    // draw nodes
+    nodes.forEach(n => {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute('data-node-id', n.id);
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute('cx', n.x); circle.setAttribute('cy', n.y); circle.setAttribute('r', 18);
+      circle.setAttribute('fill', '#fff'); circle.setAttribute('stroke', '#777'); circle.setAttribute('stroke-width', '2');
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute('x', n.x); text.setAttribute('y', n.y + 5);
+      text.setAttribute('text-anchor', 'middle'); text.setAttribute('font-size', '12'); text.setAttribute('fill', '#111');
+      text.textContent = String(n.id);
+      g.appendChild(circle); g.appendChild(text);
+      svg.appendChild(g);
+      nodeEls.set(n.id, {g, circle, text});
+      // events
+      let offset = null;
+      g.addEventListener('mousedown', (ev) => {
+        ev.stopPropagation();
+        if (mode === 'addNode') return;
+        if (mode === 'addEdge') {
+          if (addEdgeSource == null) {
+            addEdgeSource = n.id;
+            statusEl.textContent = 'Selected source ' + n.id + '. Now click target node.';
+          } else {
+            const target = n.id;
+            if (addEdgeSource !== target) {
+              const weight = prompt('Edge weight (positive integer):', '5');
+              const w = Math.max(1, parseInt(weight)||1);
+              addEdgeInternal(addEdgeSource, target, w);
+            }
+            addEdgeSource = null;
+            statusEl.textContent = '';
+          }
+          return;
+        }
+        if (mode === 'delete') {
+          removeNode(n.id);
+          return;
+        }
+        // select/drag
+        dragging = n;
+        offset = { dx: ev.clientX - n.x, dy: ev.clientY - n.y };
+      });
+      g.addEventListener('dblclick', (ev) => {
+        ev.stopPropagation();
+        // set as start vertex quickly
+        populateStartSelect();
+        startVertexSelect.value = n.id;
+      });
+      window.addEventListener('mousemove', (ev) => {
+        if (!dragging || dragging.id !== n.id) return;
+        const newx = Math.max(20, Math.min(width()-20, ev.clientX - offset.dx));
+        const newy = Math.max(20, Math.min(height()-20, ev.clientY - offset.dy));
+        dragging.x = newx; dragging.y = newy;
+        // update visuals
+        updatePositions();
+      });
+      window.addEventListener('mouseup', () => { dragging = null; });
+    });
+
+    updatePositions();
+    refreshVisualFromSnapshot();
+  }
+
+  function updatePositions() {
+    // update edge positions and node positions
+    edges.forEach(e => {
+      const u = nodes.find(n => n.id === e.u);
+      const v = nodes.find(n => n.id === e.v);
+      const entry = edgeEls.get(e.id);
+      if (!entry) return;
+      entry.line.setAttribute('x1', u.x); entry.line.setAttribute('y1', u.y);
+      entry.line.setAttribute('x2', v.x); entry.line.setAttribute('y2', v.y);
+      const midx = (u.x+v.x)/2; const midy = (u.y+v.y)/2;
+      entry.text.setAttribute('x', midx); entry.text.setAttribute('y', midy - 6);
+    });
+
+    nodes.forEach(n => {
+      const entry = nodeEls.get(n.id);
+      if (!entry) return;
+      entry.circle.setAttribute('cx', n.x); entry.circle.setAttribute('cy', n.y);
+      entry.text.setAttribute('x', n.x); entry.text.setAttribute('y', n.y + 5);
+    });
+  }
+
+  // Snapshot helpers
+  function buildAdjList() {
+    const adj = new Map(); // id -> [{to,w}]
+    nodes.forEach(n => adj.set(n.id, []));
+    edges.forEach(e => {
+      adj.get(e.u).push({to: e.v, w: e.w});
+      adj.get(e.v).push({to: e.u, w: e.w});
+    });
+    return adj;
+  }
+
+  function initializePrimSnapshots(startId) {
+    snapshots = [];
+    currentSnapshotIndex = 0;
+    playing = false; clearPlayTimer();
+    const n = nodes.length;
+    if (n === 0) return;
+    const ids = nodes.map(x => x.id);
+    const idToIndex = new Map(ids.map((id,i) => [id,i]));
+    const INF = 1e9;
+    let key = Array(n).fill(INF);
+    let parent = Array(n).fill(-1);
+    let inMST = Array(n).fill(false);
+    // map nodeId -> index for arrays
+    const idAt = (idx) => ids[idx]; // index -> nodeId
+    const idxOf = (id) => idToIndex.get(id);
+
+    key[idxOf(startId)] = 0;
+    snapshots.push(snapshotCopy(key, parent, inMST, -1, null));
+    const adj = buildAdjList();
+
+    for (let iter=0; iter<n; iter++) {
+      // find min key among not inMST
+      let minKey = INF+1, uIndex = -1;
+      for (let i=0;i<n;i++){
+        if (!inMST[i] && key[i] < minKey) {
+          minKey = key[i]; uIndex = i;
+        }
+      }
+      if (uIndex === -1) break; // disconnected
+      inMST[uIndex] = true;
+      const uId = idAt(uIndex);
+      snapshots.push(snapshotCopy(key,parent,inMST,uId,null));
+
+      // relax neighbors
+      const neighbors = adj.get(uId) || [];
+      for (const nb of neighbors) {
+        const vIndex = idxOf(nb.to);
+        if (!inMST[vIndex] && nb.w < key[vIndex]) {
+          key[vIndex] = nb.w;
+          parent[vIndex] = uId;
+          snapshots.push(snapshotCopy(key,parent,inMST,-1,{u:uId,v:nb.to}));
+        }
+      }
+    }
+    // finished
+    statusEl.textContent = `Snapshots created: ${snapshots.length}.`;
+    currentSnapshotIndex = 0;
+    refreshVisualFromSnapshot();
+  }
+
+  function snapshotCopy(key, parent, inMST, lastExtracted, lastRelaxed) {
+    return {
+      key: key.slice(),
+      parent: parent.slice(),
+      inMST: inMST.slice(),
+      lastExtracted: lastExtracted === undefined ? -1 : lastExtracted,
+      lastRelaxed: lastRelaxed ? {u:lastRelaxed.u, v:lastRelaxed.v} : null
+    };
+  }
+
+  function refreshVisualFromSnapshot() {
+    // default styles
+    edgeEls.forEach((entry, id) => {
+      entry.line.setAttribute('stroke', '#ddd');
+      entry.line.setAttribute('stroke-width', '3');
+      entry.text.setAttribute('fill', '#333');
+      entry.g.setAttribute('opacity', '1');
+    });
+    nodeEls.forEach((entry, id) => {
+      entry.circle.setAttribute('fill', '#fff');
+      entry.circle.setAttribute('stroke', '#777');
+      entry.circle.setAttribute('stroke-width', '2');
+    });
+
+    if (snapshots.length === 0) {
+      // nothing to show, maybe show default
+      populateStateTable(null);
+      mstWeightEl.textContent = '0';
+      return;
+    }
+    const snap = snapshots[currentSnapshotIndex];
+    // map snapshot arrays back to node ids
+    const ids = nodes.map(n => n.id);
+    const idToIndex = new Map(ids.map((id,i)=>[id,i]));
+    // mark inMST edges
+    for (const nid of ids) {
+      const i = idToIndex.get(nid);
+      if (snap.inMST[i] && snap.parent[i] !== -1) {
+        const pid = snap.parent[i];
+        const e = edgeBetween(nid, pid);
+        if (e) {
+          const entry = edgeEls.get(e.id);
+          if (entry) entry.line.setAttribute('stroke', '#81c784');
+        }
+      }
+    }
+    // highlight last relaxed edge (candidate)
+    if (snap.lastRelaxed) {
+      const e = edgeBetween(snap.lastRelaxed.u, snap.lastRelaxed.v);
+      if (e) {
+        const entry = edgeEls.get(e.id);
+        if (entry) {
+          entry.line.setAttribute('stroke', '#ffb74d');
+          entry.line.setAttribute('stroke-width', '5');
+        }
+      }
+    }
+    // extracted vertex
+    if (snap.lastExtracted !== -1) {
+      const nid = snap.lastExtracted;
+      const entry = nodeEls.get(nid);
+      if (entry) {
+        entry.circle.setAttribute('fill', '#4fc3f7');
+        entry.circle.setAttribute('stroke', '#0b6');
+        entry.circle.setAttribute('stroke-width', '2');
+      }
+    }
+    // also mark nodes already in MST
+    for (let i=0;i<ids.length;i++){
+      if (snap.inMST[i]) {
+        const nid = ids[i];
+        const entry = nodeEls.get(nid);
+        if (entry) {
+          entry.circle.setAttribute('fill', '#e8f5e9');
+          entry.circle.setAttribute('stroke', '#388e3c');
+          entry.circle.setAttribute('stroke-width', '2');
+        }
+      }
+    }
+
+    // show candidate parent edges for nodes that have parent but not yet in MST
+    for (let i=0;i<ids.length;i++){
+      const pid = snap.parent[i];
+      if (pid !== -1 && !snap.inMST[i]) {
+        const nid = ids[i];
+        const e = edgeBetween(nid, pid);
+        if (e) {
+          const entry = edgeEls.get(e.id);
+          if (entry) entry.line.setAttribute('stroke', '#ffb74d');
+        }
+      }
+    }
+
+    populateStateTable(snap);
+    // total MST weight so far
+    let total = 0;
+    for (let i=0;i<ids.length;i++){
+      if (snap.inMST[i]) total += snap.key[i];
+    }
+    mstWeightEl.textContent = String(total);
+  }
+
+  function populateStateTable(snap) {
+    stateTable.innerHTML = '';
+    const ids = nodes.map(n => n.id);
+    const idToIndex = new Map(ids.map((id,i)=>[id,i]));
+    // header already present
+    for (const id of ids) {
+      const tr = document.createElement('tr');
+      const tdId = document.createElement('td'); tdId.textContent = id;
+      const tdKey = document.createElement('td');
+      const tdParent = document.createElement('td');
+      const tdIn = document.createElement('td');
+      if (!snap) {
+        tdKey.textContent = '-'; tdParent.textContent = '-'; tdIn.textContent = '-';
+      } else {
+        const i = idToIndex.get(id);
+        tdKey.textContent = (snap.key[i] >= 1e9 ? '∞' : snap.key[i]);
+        tdParent.textContent = (snap.parent[i] === -1 ? '-' : snap.parent[i]);
+        tdIn.textContent = snap.inMST[i] ? 'Yes' : 'No';
+      }
+      tr.appendChild(tdId); tr.appendChild(tdKey); tr.appendChild(tdParent); tr.appendChild(tdIn);
+      stateTable.appendChild(tr);
+    }
+  }
+
+  // Step controls
+  function stepForward() {
+    if (snapshots.length === 0) return;
+    if (currentSnapshotIndex < snapshots.length - 1) {
+      currentSnapshotIndex++;
+      refreshVisualFromSnapshot();
+    }
+    if (currentSnapshotIndex === snapshots.length - 1) {
+      // finished
+      clearPlayTimer();
+      playing = false;
+      playBtn.textContent = 'Play ▶';
+    }
+  }
+  function stepBack() {
+    if (snapshots.length === 0) return;
+    if (currentSnapshotIndex > 0) {
+      currentSnapshotIndex--;
+      refreshVisualFromSnapshot();
+    }
+    clearPlayTimer();
+    playing = false;
+    playBtn.textContent = 'Play ▶';
+  }
+  function playPause() {
+    if (snapshots.length === 0) return;
+    if (playing) {
+      clearPlayTimer();
+      playing = false;
+      playBtn.textContent = 'Play ▶';
+    } else {
+      playing = true;
+      playBtn.textContent = 'Pause ❚❚';
+      scheduleNextPlay();
+    }
+  }
+  function scheduleNextPlay() {
+    clearPlayTimer();
+    if (!playing) return;
+    const interval = parseInt(speedInput.value) || 600;
+    playTimer = setTimeout(() => {
+      stepForward();
+      if (currentSnapshotIndex < snapshots.length - 1) scheduleNextPlay();
+      else { playing = false; playBtn.textContent = 'Play ▶'; }
+    }, interval);
+  }
+  function clearPlayTimer() { if (playTimer) { clearTimeout(playTimer); playTimer = null; } }
+
+  // highlight temporary edge (for user feedback)
+  function highlightTemporaryEdge(eid) {
+    const entry = edgeEls.get(eid);
+    if (!entry) return;
+    const original = entry.line.getAttribute('stroke');
+    entry.line.setAttribute('stroke', '#f06292');
+    entry.line.setAttribute('stroke-width', '5');
+    setTimeout(() => {
+      if (entry) {
+        entry.line.setAttribute('stroke', original || '#ddd');
+        entry.line.setAttribute('stroke-width', '3');
+      }
+    }, 600);
+  }
+
+  // UI wiring
+  genGraphBtn.addEventListener('click', () => {
+    const n = Math.max(2, Math.min(20, parseInt(nodeCountInput.value) || 8));
+    const d = Math.max(0, Math.min(100, parseInt(densityInput.value) || 40));
+    const mw = Math.max(1, parseInt(maxWeightInput.value) || 20);
+    ensureConnectedGraph(n, d, mw);
+    render();
+    populateStartSelect();
+    snapshots = []; currentSnapshotIndex = 0; clearPlayTimer(); playing=false; playBtn.textContent='Play ▶';
+    statusEl.textContent = 'Random graph generated.';
+  });
+
+  // editing modes
+  modeSelectBtn.addEventListener('click', () => setMode('select'));
+  modeAddNodeBtn.addEventListener('click', () => setMode('addNode'));
+  modeAddEdgeBtn.addEventListener('click', () => setMode('addEdge'));
+  modeDeleteBtn.addEventListener('click', () => setMode('delete'));
+
+  svg.addEventListener('click', (ev) => {
+    const rect = svg.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    const y = ev.clientY - rect.top;
+    if (mode === 'addNode') {
+      addNodeAt(x, y);
+    } else {
+      addEdgeSource = null;
+      statusEl.textContent = '';
+    }
+  });
+
+  function populateStartSelect() {
+    startVertexSelect.innerHTML = '';
+    nodes.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n.id; opt.textContent = n.id;
+      startVertexSelect.appendChild(opt);
+    });
+  }
+
+  initPrimBtn.addEventListener('click', () => {
+    if (nodes.length === 0) { alert('Graph is empty. Generate or add nodes first.'); return; }
+    const startId = parseInt(startVertexSelect.value);
+    initializePrimSnapshots(startId);
+  });
+
+  stepForwardBtn.addEventListener('click', () => { stepForward(); });
+  stepBackBtn.addEventListener('click', () => { stepBack(); });
+
+  playBtn.addEventListener('click', () => { playPause(); });
+
+  resetBtn.addEventListener('click', () => {
+    snapshots = []; currentSnapshotIndex = 0; clearPlayTimer(); playing=false; playBtn.textContent='Play ▶';
+    // clear any algorithm highlights by re-render
+    refreshVisualFromSnapshot();
+    statusEl.textContent = 'Reset algorithm state.';
+    mstWeightEl.textContent = '0';
+    populateStateTable(null);
+  });
+
+  // allow deleting edges by clicking line: already wired in render
+
+  // initialization
+  function init() {
+    // initial random graph
+    ensureConnectedGraph(8, 40, 20);
+    render();
+    populateStartSelect();
+    // set width/height reactive
+    window.addEventListener('resize', () => {
+      // reposition nodes to stay within new bounds
+      nodes.forEach(n => {
+        n.x = Math.min(n.x, width()-20);
+        n.y = Math.min(n.y, height()-20);
+      });
+      updatePositions();
+    });
+    // keyboard shortcuts
+    window.addEventListener('keydown', (ev) => {
+      if (ev.key === ' ') { ev.preventDefault(); playPause(); }
+      if (ev.key === 'ArrowRight') stepForward();
+      if (ev.key === 'ArrowLeft') stepBack();
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

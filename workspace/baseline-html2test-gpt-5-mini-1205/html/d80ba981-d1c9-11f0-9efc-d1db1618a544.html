@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Fibonacci Sequence Explorer</title>
+<style>
+  :root{
+    --bg:#0f1724;
+    --card:#0b1220;
+    --muted:#9aa4b2;
+    --accent:#6ee7b7;
+    --accent2:#60a5fa;
+    --glass: rgba(255,255,255,0.03);
+    color-scheme: dark;
+  }
+  body{
+    margin:0;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background: linear-gradient(180deg, #071024 0%, #081226 50%, #081323 100%);
+    color:#e6eef6;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    padding:24px;
+  }
+  header{ margin-bottom:18px; display:flex; align-items:flex-start; gap:16px; }
+  h1{ margin:0; font-size:20px; letter-spacing:-0.2px; }
+  p.lead{ margin:4px 0 0; color:var(--muted); font-size:13px; max-width:58ch; }
+  main{ display:grid; grid-template-columns: 360px 1fr; gap:18px; align-items:start; }
+  .card{
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.03);
+    padding:14px;
+    border-radius:12px;
+    box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+  }
+  label{ display:block; font-size:13px; margin-bottom:6px; color:var(--muted); }
+  .form-row{ margin-bottom:12px; }
+  input[type="number"], select, input[type="text"]{
+    width:100%;
+    padding:8px 10px;
+    background:var(--glass);
+    border:1px solid rgba(255,255,255,0.03);
+    border-radius:8px;
+    color:inherit;
+    outline:none;
+    box-sizing:border-box;
+    font-size:13px;
+  }
+  button{
+    background:linear-gradient(90deg,var(--accent), var(--accent2));
+    border:0;
+    color:#042027;
+    padding:9px 12px;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  .muted{ color:var(--muted); font-size:13px; }
+  .row{ display:flex; gap:8px; align-items:center; }
+  .controls{ display:flex; gap:8px; margin-top:6px; }
+  .small{ font-size:12px; padding:7px 8px; border-radius:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); color:var(--muted); }
+  .output{ white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; color:#dcefff; background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005)); padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.02); max-height:360px; overflow:auto; }
+  .canvas-wrap{ background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005)); padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.02); }
+  footer{ margin-top:12px; color:var(--muted); font-size:12px; }
+  .meta{ font-size:13px; color:var(--muted); margin-top:8px; }
+  .badge{ background:rgba(255,255,255,0.02); color:var(--muted); padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.02); font-size:13px; }
+  a{ color:var(--accent2); text-decoration:none; }
+  @media (max-width:940px){
+    main{ grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Fibonacci Sequence Explorer</h1>
+    <p class="lead">Generate Fibonacci numbers, compare algorithms, visualize growth (log scale) and watch the ratios converge to the golden ratio φ ≈ 1.6180339887.</p>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="form-row">
+      <label for="count">How many Fibonacci numbers to compute?</label>
+      <input id="count" type="number" min="1" max="10000" value="30" />
+      <div class="muted" style="margin-top:6px;">Tip: naive recursion is slow—limited to n ≤ 40 for safety. Fast doubling can compute very large indices using BigInt.</div>
+    </div>
+
+    <div class="form-row">
+      <label for="method">Algorithm</label>
+      <select id="method">
+        <option value="iterative">Iterative (loop)</option>
+        <option value="recursive">Naive recursive (slow)</option>
+        <option value="memo">Recursive with memoization</option>
+        <option value="fastdoubling" selected>Fast doubling (recommended)</option>
+        <option value="matrix">Matrix exponentiation</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label for="limitDigits">If numbers grow large, optionally display only the last N digits (0 = full)</label>
+      <input id="limitDigits" type="number" min="0" max="100000" value="0" />
+    </div>
+
+    <div class="row controls">
+      <button id="computeBtn">Compute</button>
+      <button id="copyBtn" class="small">Copy sequence</button>
+      <button id="clearBtn" class="small">Clear</button>
+    </div>
+
+    <div class="meta">
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <div class="badge" id="timeBadge">Time: --</div>
+        <div class="badge" id="algoBadge">Algorithm: fastdoubling</div>
+      </div>
+      <div class="muted" style="margin-top:8px;">Notes: All integer computations use BigInt to preserve exactness. Ratios are shown as floating approximations.</div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column; gap:12px;">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>Output</strong>
+        <div class="muted">Count: <span id="outCount">0</span></div>
+      </div>
+      <div id="output" class="output" aria-live="polite">Press "Compute" to begin.</div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong>Charts</strong>
+        <div class="muted">Visualization: log10(Fn) bar heights and ratio F(n+1)/F(n)</div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="chart" width="1000" height="300" style="width:100%; height:240px; display:block;"></canvas>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="downloadPNG" class="small">Download PNG</button>
+        <button id="toggleLog" class="small">Toggle Y-scale: Log</button>
+        <div style="flex:1"></div>
+        <div class="muted" id="phiBadge">φ ≈ 1.6180339887</div>
+      </div>
+    </div>
+
+    <footer class="muted">This page demonstrates Fibonacci generation methods, performance, and convergence to the golden ratio. Works offline — single file.</footer>
+  </section>
+</main>
+
+<script>
+/*
+  Fibonacci Explorer
+  - Multiple algorithms:
+    iterative, naive recursive, memoized, fast doubling, matrix
+  - Uses BigInt for exact integers
+  - Visualizes log10(Fn) bars and ratio line
+  - Limits naive recursion for safety
+*/
+
+const elements = {
+  count: document.getElementById('count'),
+  method: document.getElementById('method'),
+  computeBtn: document.getElementById('computeBtn'),
+  output: document.getElementById('output'),
+  outCount: document.getElementById('outCount'),
+  timeBadge: document.getElementById('timeBadge'),
+  algoBadge: document.getElementById('algoBadge'),
+  copyBtn: document.getElementById('copyBtn'),
+  clearBtn: document.getElementById('clearBtn'),
+  limitDigits: document.getElementById('limitDigits'),
+  chart: document.getElementById('chart'),
+  downloadPNG: document.getElementById('downloadPNG'),
+  toggleLog: document.getElementById('toggleLog'),
+  phiBadge: document.getElementById('phiBadge')
+};
+
+const ctx = elements.chart.getContext('2d');
+let useLog = true;
+
+const PHI = (1 + Math.sqrt(5)) / 2;
+const SQRT5 = Math.sqrt(5);
+
+function formatBigInt(bi, limitDigits){
+  if(limitDigits && limitDigits > 0){
+    // last N digits: use string and take last part
+    const s = bi.toString();
+    if(s.length > limitDigits){
+      return '…' + s.slice(-limitDigits);
+    }
+    return s;
+  } else {
+    return bi.toString();
+  }
+}
+
+// Algorithms
+function fibIterative(n){
+  // returns array of BigInt from F1..Fn
+  const res = [];
+  if(n <= 0) return res;
+  let a = 0n, b = 1n;
+  for(let i=1;i<=n;i++){
+    res.push(b);
+    const nxt = a + b;
+    a = b; b = nxt;
+  }
+  return res;
+}
+
+function fibNaive(n){
+  // compute F(n) naive recursion (1-indexed)
+  function f(k){
+    if(k <= 0) return 0n;
+    if(k === 1) return 1n;
+    return f(k-1) + f(k-2);
+  }
+  const arr = [];
+  for(let i=1;i<=n;i++) arr.push(f(i));
+  return arr;
+}
+
+function fibMemo(n){
+  const memo = {0:0n, 1:1n};
+  function f(k){
+    if(k in memo) return memo[k];
+    memo[k] = f(k-1) + f(k-2);
+    return memo[k];
+  }
+  const arr = [];
+  for(let i=1;i<=n;i++) arr.push(f(i));
+  return arr;
+}
+
+function fibMatrix(n){
+  // Uses 2x2 matrix exponentiation with BigInt
+  function mul(A,B){
+    return [
+      [A[0][0]*B[0][0] + A[0][1]*B[1][0], A[0][0]*B[0][1] + A[0][1]*B[1][1]],
+      [A[1][0]*B[0][0] + A[1][1]*B[1][0], A[1][0]*B[0][1] + A[1][1]*B[1][1]]
+    ];
+  }
+  function powMatrix(M, k){
+    let res = [[1n,0n],[0n,1n]];
+    let base = M;
+    while(k > 0){
+      if(k & 1) res = mul(res, base);
+      base = mul(base, base);
+      k >>= 1;
+    }
+    return res;
+  }
+  const arr = [];
+  for(let i=1;i<=n;i++){
+    const M = [[1n,1n],[1n,0n]];
+    const P = powMatrix(M, i-1); // P * [F1;F0] gives [Fi;F{i-1}] where F1=1 F0=0
+    arr.push(P[0][0]); // Fi
+  }
+  return arr;
+}
+
+function fibFastDoublingSingle(k){
+  // returns [F(k), F(k+1)] as BigInt using fast doubling
+  function fd(n){
+    if(n === 0) return [0n, 1n];
+    const [a,b] = fd(Math.floor(n/2));
+    const c = a * ( (b<<1n) - a );
+    const d = a*a + b*b;
+    if(n % 2 === 0) return [c, d];
+    else return [d, c + d];
+  }
+  return fd(k);
+}
+
+function fibFastDoubling(n){
+  const arr = [];
+  for(let i=1;i<=n;i++){
+    arr.push(fibFastDoublingSingle(i)[0]);
+  }
+  return arr;
+}
+
+// Helpers for approximate double value (for ratio when BigInt too big)
+function approxFibDouble(n){
+  // Use Binet's formula approximation as double
+  // Fn ≈ phi^n / sqrt(5) for n >= 1 (more accurate for larger n)
+  return Math.exp(n * Math.log(PHI) - Math.log(SQRT5));
+}
+
+function computeSequence(n, method){
+  if(n <= 0) return [];
+  switch(method){
+    case 'iterative': return fibIterative(n);
+    case 'recursive':
+      if(n > 40) throw new Error('Naive recursion limited to n ≤ 40 to avoid freezing the page.');
+      return fibNaive(n);
+    case 'memo': return fibMemo(n);
+    case 'matrix': return fibMatrix(n);
+    case 'fastdoubling': return fibFastDoubling(n);
+    default: return fibIterative(n);
+  }
+}
+
+function timeIt(fn){
+  const t0 = performance.now();
+  const res = fn();
+  const t1 = performance.now();
+  return {res, time: t1 - t0};
+}
+
+function drawChart(valuesBigInt){
+  const canvas = elements.chart;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
+  const H = canvas.height = Math.floor(canvas.clientHeight * devicePixelRatio);
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  const padding = {l:44, r:16, t:12, b:36};
+  const cw = canvas.clientWidth;
+  const ch = canvas.clientHeight;
+
+  const n = valuesBigInt.length;
+  if(n === 0){
+    ctx.fillStyle = '#9aa4b2';
+    ctx.font = '13px ui-sans-serif';
+    ctx.fillText('No data to plot', padding.l, ch/2);
+    ctx.restore();
+    return;
+  }
+
+  // compute heights: use log10(Fn) so we can plot regardless of magnitude
+  const logs = valuesBigInt.map((v, i)=>{
+    if(v === 0n) return 0;
+    // if small enough to convert safely:
+    const s = v.toString();
+    if(s.length <= 15){
+      return Math.log10(Number(v));
+    } else {
+      // approximate log10 via length and leading digits
+      // log10(v) ≈ (len-1) + log10(leading)
+      const len = s.length;
+      const lead = Number(s.slice(0,15)) / Math.pow(10, 15 - 1);
+      return Math.log10(lead) + (len - 1);
+    }
+  });
+
+  const minLog = Math.min(...logs);
+  const maxLog = Math.max(...logs);
+
+  // For ratio plot: compute ratio approximations
+  const ratios = [];
+  for(let i=0;i<n-1;i++){
+    const a = valuesBigInt[i];
+    const b = valuesBigInt[i+1];
+    let r;
+    // if both small enough:
+    if(a.toString().length <= 15 && b.toString().length <= 15){
+      r = Number(b) / Number(a);
+    } else {
+      // ratio ≈ phi for large indices; or use exponents: ratio ≈ 10^(log10(b)-log10(a))
+      const logA = logs[i];
+      const logB = logs[i+1];
+      r = Math.pow(10, logB - logA);
+    }
+    ratios.push(r);
+  }
+
+  const maxRatio = Math.max(...ratios, PHI);
+  const minRatio = Math.min(...ratios, PHI);
+
+  // draw axes
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padding.l, padding.t);
+  ctx.lineTo(padding.l, ch - padding.b);
+  ctx.lineTo(cw - padding.r, ch - padding.b);
+  ctx.stroke();
+
+  // bars for logs
+  const plotW = cw - padding.l - padding.r;
+  const barGap = Math.min(4, Math.max(1, Math.floor(plotW / n / 6)));
+  const barW = Math.max(2, (plotW / n) - barGap);
+
+  // compute y scale for logs
+  const logRange = (maxLog - minLog) || 1;
+  function yFromLog(L){
+    // map maxLog -> padding.t, minLog -> ch - padding.b
+    const t = padding.t + ( (maxLog - L) / logRange ) * (ch - padding.t - padding.b);
+    return t;
+  }
+
+  // draw bars
+  for(let i=0;i<n;i++){
+    const x = padding.l + i * (barW + barGap);
+    const y = yFromLog(logs[i]);
+    const h = (ch - padding.b) - y;
+    const grd = ctx.createLinearGradient(x, y, x, y+h);
+    grd.addColorStop(0, 'rgba(110,231,183,0.9)');
+    grd.addColorStop(1, 'rgba(96,165,250,0.85)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(x, y, barW, h);
+  }
+
+  // draw ratio line
+  ctx.beginPath();
+  for(let i=0;i<ratios.length;i++){
+    const r = ratios[i];
+    // map ratio to y on right half scale
+    const y = padding.t + ( (maxRatio - r) / (maxRatio - minRatio || 1) ) * (ch - padding.t - padding.b);
+    const x = padding.l + (i + 0.5) * (barW + barGap);
+    if(i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = 'rgba(255,205,86,0.95)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // draw golden ratio horizontal line
+  const phiY = padding.t + ( (maxRatio - PHI) / (maxRatio - minRatio || 1) ) * (ch - padding.t - padding.b);
+  ctx.beginPath();
+  ctx.setLineDash([6,4]);
+  ctx.moveTo(padding.l, phiY);
+  ctx.lineTo(cw - padding.r, phiY);
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // labels
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.font = '12px ui-sans-serif';
+  ctx.fillText('log10(Fn)', 8, padding.t + 12);
+  ctx.fillText('ratio F(n+1)/F(n)', cw - padding.r - 140, padding.t + 12);
+
+  // y-axis ticks for log scale
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = '11px ui-sans-serif';
+  const ticks = 4;
+  for(let i=0;i<=ticks;i++){
+    const L = minLog + ( (ticks - i) / ticks ) * (maxLog - minLog);
+    const y = yFromLog(L);
+    ctx.fillText(L.toFixed(1), 6, y + 4);
+    ctx.beginPath();
+    ctx.moveTo(padding.l - 4, y);
+    ctx.lineTo(padding.l, y);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.stroke();
+  }
+
+  // x-axis labels (every so often)
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = '11px ui-sans-serif';
+  const step = Math.ceil(n / 10);
+  for(let i=0;i<n;i+=step){
+    const x = padding.l + (i) * (barW + barGap);
+    ctx.fillText(String(i+1), x, ch - padding.b + 14);
+  }
+
+  ctx.restore();
+}
+
+// Event handlers
+elements.computeBtn.addEventListener('click', ()=> {
+  const n = Math.floor(Number(elements.count.value)) || 0;
+  const method = elements.method.value;
+  const limitDigits = Math.floor(Number(elements.limitDigits.value)) || 0;
+  elements.algoBadge.textContent = `Algorithm: ${method}`;
+  elements.timeBadge.textContent = 'Time: computing…';
+  elements.output.textContent = 'Computing… please wait.';
+
+  try{
+    const {res, time} = timeIt(()=> computeSequence(n, method));
+    // res is array of BigInt
+    elements.timeBadge.textContent = `Time: ${time.toFixed(2)} ms`;
+    elements.outCount.textContent = String(res.length);
+    const lines = res.map((v, idx)=>{
+      return `${idx+1}: ${formatBigInt(v, limitDigits)}`;
+    });
+    elements.output.textContent = lines.join('\n');
+    drawChart(res);
+  } catch(err){
+    elements.timeBadge.textContent = 'Time: error';
+    elements.output.textContent = 'Error: ' + err.message;
+    ctx.clearRect(0,0, elements.chart.width, elements.chart.height);
+  }
+});
+
+elements.copyBtn.addEventListener('click', async ()=>{
+  const text = elements.output.textContent;
+  try{
+    await navigator.clipboard.writeText(text);
+    elements.copyBtn.textContent = 'Copied!';
+    setTimeout(()=> elements.copyBtn.textContent = 'Copy sequence', 1200);
+  } catch(e){
+    elements.copyBtn.textContent = 'Copy failed';
+    setTimeout(()=> elements.copyBtn.textContent = 'Copy sequence', 1200);
+  }
+});
+
+elements.clearBtn.addEventListener('click', ()=>{
+  elements.output.textContent = '';
+  elements.outCount.textContent = '0';
+  elements.timeBadge.textContent = 'Time: --';
+  ctx.clearRect(0,0, elements.chart.width, elements.chart.height);
+});
+
+elements.downloadPNG.addEventListener('click', ()=>{
+  const link = document.createElement('a');
+  link.href = elements.chart.toDataURL('image/png');
+  link.download = 'fibonacci_chart.png';
+  link.click();
+});
+
+elements.toggleLog.addEventListener('click', ()=>{
+  useLog = !useLog;
+  elements.toggleLog.textContent = useLog ? 'Toggle Y-scale: Log' : 'Toggle Y-scale: Linear';
+  // we don't support linear in this simplified viewer; redraw with same data
+  // re-trigger compute to redraw chart
+  elements.computeBtn.click();
+});
+
+// Initialize with default example
+window.addEventListener('load', ()=>{
+  elements.computeBtn.click();
+});
+
+// Extra: compute and display ratio convergence for larger n when user hovers phiBadge
+elements.phiBadge.addEventListener('mouseenter', ()=>{
+  // compute ratios for n = 5..25 quickly using fast doubling and show approximate closeness
+  const ns = [5,8,10,12,15,20,30,50];
+  const rows = ns.map(k=>{
+    const fk = fibFastDoublingSingle(k)[0];
+    const fk1 = fibFastDoublingSingle(k+1)[0];
+    let ratio;
+    if(fk.toString().length <= 15 && fk1.toString().length <= 15){
+      ratio = (Number(fk1) / Number(fk)).toFixed(12);
+    } else {
+      const logA = Math.log10(Number(approxFibDouble(k)));
+      const logB = Math.log10(Number(approxFibDouble(k+1)));
+      ratio = Math.pow(10, logB - logA).toFixed(12);
+    }
+    const diff = (Math.abs(Number(ratio) - PHI)).toExponential(3);
+    return `n=${k}: ratio=${ratio}, diff from φ ≈ ${diff}`;
+  });
+  elements.phiBadge.textContent = rows.join(' | ');
+});
+elements.phiBadge.addEventListener('mouseleave', ()=>{
+  elements.phiBadge.textContent = `φ ≈ ${PHI.toFixed(10)}`;
+});
+
+
+// Accessibility: allow Enter key on count to compute
+elements.count.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') elements.computeBtn.click();
+});
+elements.method.addEventListener('change', ()=> {
+  elements.algoBadge.textContent = `Algorithm: ${elements.method.value}`;
+});
+</script>
+</body>
+</html>

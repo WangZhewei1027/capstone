@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Weighted Graph Interactive Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  :root { --bg:#f6f8fa; --panel:#fff; --accent:#0b69ff; --accent-2:#ff6b6b; --muted:#6b7280; }
+  html,body { height:100%; margin:0; font-family:Inter, "Segoe UI", Roboto, Arial; background:var(--bg); color:#111827; }
+  .container { display:flex; height:100vh; gap:12px; padding:12px; box-sizing:border-box; }
+  .left { width:320px; background:var(--panel); border-radius:10px; box-shadow:0 6px 18px rgba(12,20,40,0.08); padding:14px; box-sizing:border-box; overflow:auto; }
+  .canvas-wrap { flex:1; background:linear-gradient(180deg,#ffffff, #f8fbff); border-radius:10px; box-shadow:0 6px 18px rgba(12,20,40,0.06); position:relative; overflow:hidden; }
+  h2 { margin:6px 0 10px 0; font-size:16px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .btn { padding:8px 10px; border-radius:8px; background:#f3f4f6; border:1px solid #e6e7eb; cursor:pointer; font-size:13px; }
+  .btn.active { background:var(--accent); color:white; border-color:transparent; }
+  .btn.warn { background:var(--accent-2); color:white; border-color:transparent; }
+  .info { font-size:13px; color:var(--muted); margin-top:8px; line-height:1.5; }
+  label.small { font-size:12px; color:var(--muted); display:block; margin-top:8px; }
+  input[type=number], input[type=range] { width:100%; margin-top:6px; box-sizing:border-box; padding:6px; border-radius:6px; border:1px solid #e6e7eb; }
+  .svg-canvas { width:100%; height:100%; display:block; }
+  .status { position:absolute; left:12px; bottom:12px; background:rgba(255,255,255,0.9); padding:8px 10px; border-radius:8px; box-shadow:0 6px 18px rgba(12,20,40,0.06); font-size:13px; }
+  .legend { display:flex; gap:8px; align-items:center; margin-top:8px; font-size:13px; }
+  .swatch { width:18px; height:10px; border-radius:3px; display:inline-block; }
+  footer { font-size:12px; color:var(--muted); margin-top:12px; }
+  .small-muted { font-size:12px; color:var(--muted); }
+  .controls-row { display:flex; gap:6px; margin-top:8px; }
+  .input-inline { display:flex; gap:6px; align-items:center; }
+  .node-count { font-weight:600; color:#111827; }
+  /* Tooltip like label for weights */
+  .weight-label { font-family:monospace; font-size:12px; user-select:none; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="left">
+    <h2>Weighted Graph — Interactive Demo</h2>
+    <div class="toolbar" id="toolbar">
+      <button class="btn active" id="mode-move">Move</button>
+      <button class="btn" id="mode-add">Add Node</button>
+      <button class="btn" id="mode-connect">Connect</button>
+      <button class="btn" id="mode-delete">Delete</button>
+      <button class="btn" id="mode-select">Select S/T</button>
+    </div>
+
+    <div class="controls-row">
+      <button class="btn" id="btn-dijkstra">Dijkstra (shortest)</button>
+      <button class="btn" id="btn-mst">MST (Kruskal)</button>
+      <button class="btn" id="btn-clear">Clear</button>
+    </div>
+
+    <label class="small">Random graph</label>
+    <div class="controls-row">
+      <input type="number" id="rand-n" value="8" min="2" style="width:70px"/>
+      <input type="number" id="rand-p" value="30" min="0" max="100" style="width:70px"/>
+      <button class="btn" id="btn-random">Generate</button>
+    </div>
+
+    <div style="margin-top:10px;">
+      <label class="small">Edge weight on connect</label>
+      <input type="range" id="weight-range" min="1" max="20" value="6"/>
+      <div class="input-inline"><span class="small-muted">Default: </span><div style="width:8px"></div><strong id="default-weight">6</strong></div>
+    </div>
+
+    <div class="info">
+      Controls:
+      <ul>
+        <li>Move: drag nodes.</li>
+        <li>Add Node: click canvas to add node.</li>
+        <li>Connect: click two nodes to create weighted edge (range default used; or double-click weight to edit).</li>
+        <li>Select S/T: click two nodes to set source & target for Dijkstra.</li>
+        <li>Delete: click node or edge.</li>
+      </ul>
+      Edge double-click: edit weight. Edge click while Delete: remove.
+    </div>
+
+    <div class="legend" style="margin-top:8px;">
+      <div><span class="swatch" style="background:#111827"></span> edge</div>
+      <div><span class="swatch" style="background:#10b981"></span> shortest</div>
+      <div><span class="swatch" style="background:#ffb020"></span> MST</div>
+      <div style="margin-left:8px;"><span class="node-count" id="node-count">0</span> nodes</div>
+    </div>
+
+    <footer>
+      Click an edge weight to edit. Shortest path and MST highlight edges; selecting new mode clears selection highlights.
+    </footer>
+  </div>
+
+  <div class="canvas-wrap" id="canvasWrap">
+    <svg id="svg" class="svg-canvas" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.08"/>
+        </filter>
+      </defs>
+    </svg>
+
+    <div class="status" id="status">Mode: Move</div>
+  </div>
+</div>
+
+<script>
+/*
+  Weighted Graph Interactive Demo
+  - Undirected weighted graph
+  - Modes: move, add, connect, delete, select (for S/T)
+  - Features: Dijkstra shortest path, Kruskal MST, random graph generator, edit weights
+*/
+
+const svg = document.getElementById('svg');
+const status = document.getElementById('status');
+const nodeCountLabel = document.getElementById('node-count');
+const defaultWeightEl = document.getElementById('default-weight');
+let width = svg.clientWidth, height = svg.clientHeight;
+
+window.addEventListener('resize', ()=> { width = svg.clientWidth; height = svg.clientHeight; });
+
+// Graph data
+let nodes = []; // {id, x, y}
+let edges = []; // {id, u, v, w}
+let nextNodeId = 1, nextEdgeId = 1;
+
+// UI state
+let mode = 'move'; // move, add, connect, delete, select
+let dragging = null;
+let connectFirst = null;
+let selectST = []; // [sNodeId, tNodeId]
+let highlightedEdges = new Set();
+let highlightedNodes = new Set();
+let highlightedType = null; // 'shortest' or 'mst'
+
+// default connect weight
+let defaultWeight = Number(document.getElementById('weight-range').value);
+defaultWeightEl.textContent = defaultWeight;
+
+// SVG groups for ordering
+const edgesGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+const weightsGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+const nodesGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+svg.appendChild(edgesGroup);
+svg.appendChild(weightsGroup);
+svg.appendChild(nodesGroup);
+
+// element maps
+const nodeElems = new Map(); // id -> {g, circle, label}
+const edgeElems = new Map(); // id -> {line, weightText}
+
+// Utilities
+function setMode(newMode){
+  mode = newMode;
+  document.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+  if(newMode === 'move') document.getElementById('mode-move').classList.add('active');
+  if(newMode === 'add') document.getElementById('mode-add').classList.add('active');
+  if(newMode === 'connect') document.getElementById('mode-connect').classList.add('active');
+  if(newMode === 'delete') document.getElementById('mode-delete').classList.add('active');
+  if(newMode === 'select') document.getElementById('mode-select').classList.add('active');
+  status.textContent = 'Mode: ' + capitalize(newMode);
+  if(newMode !== 'select'){ clearSelectionST(); }
+  if(newMode !== 'connect'){ connectFirst = null; }
+  if(newMode !== 'move'){ /* nothing */ }
+  clearHighlights();
+}
+function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+// Drawing
+function render(){
+  // clear groups
+  // We'll update existing elements or create new ones to preserve event handlers
+  // Edges
+  edges.forEach(e=>{
+    let u = nodes.find(n=>n.id===e.u);
+    let v = nodes.find(n=>n.id===e.v);
+    if(!u || !v) return;
+    let obj = edgeElems.get(e.id);
+    if(!obj){
+      let line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('stroke','#111827');
+      line.setAttribute('stroke-width',2.2);
+      line.setAttribute('stroke-linecap','round');
+      line.style.cursor = 'pointer';
+      line.addEventListener('click', ev => { ev.stopPropagation(); onEdgeClick(e.id); });
+      line.addEventListener('dblclick', ev => { ev.stopPropagation(); editEdgeWeightPrompt(e.id); });
+      edgesGroup.appendChild(line);
+
+      let weightText = document.createElementNS('http://www.w3.org/2000/svg','text');
+      weightText.setAttribute('text-anchor','middle');
+      weightText.setAttribute('alignment-baseline','middle');
+      weightText.setAttribute('class','weight-label');
+      weightText.setAttribute('fill','#111827');
+      weightText.style.cursor = 'pointer';
+      weightText.addEventListener('click', ev=>{ ev.stopPropagation(); editEdgeWeightPrompt(e.id); });
+      weightsGroup.appendChild(weightText);
+
+      obj = { line, weightText };
+      edgeElems.set(e.id, obj);
+    }
+    const {line, weightText} = obj;
+    line.setAttribute('x1', u.x); line.setAttribute('y1', u.y);
+    line.setAttribute('x2', v.x); line.setAttribute('y2', v.y);
+    // weight label midpoint with slight offset perpendicular to edge for clarity
+    const mx = (u.x+v.x)/2, my = (u.y+v.y)/2;
+    const dx = v.x-u.x, dy = v.y-u.y;
+    const len = Math.hypot(dx,dy) || 1;
+    const off = 12;
+    const nx = -dy/len * off;
+    const ny = dx/len * off;
+    weightText.setAttribute('x', mx + nx);
+    weightText.setAttribute('y', my + ny);
+    weightText.textContent = String(e.w);
+    // Styling based on highlight sets
+    if(highlightedEdges.has(e.id)){
+      if(highlightedType === 'shortest'){
+        line.setAttribute('stroke','#10b981'); line.setAttribute('stroke-width',4);
+        weightText.setAttribute('fill','#065f46');
+      } else if(highlightedType === 'mst'){
+        line.setAttribute('stroke','#ffb020'); line.setAttribute('stroke-width',4);
+        weightText.setAttribute('fill','#7a3e00');
+      }
+    } else {
+      line.setAttribute('stroke','#111827'); line.setAttribute('stroke-width',2.2);
+      weightText.setAttribute('fill','#111827');
+    }
+  });
+
+  // Nodes
+  nodes.forEach(n=>{
+    let el = nodeElems.get(n.id);
+    if(!el){
+      let g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      let circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('r',14);
+      circle.setAttribute('fill','#fff');
+      circle.setAttribute('stroke','#111827');
+      circle.setAttribute('stroke-width',1.6);
+      circle.style.cursor = 'grab';
+      circle.addEventListener('mousedown', ev => { ev.stopPropagation(); onNodeMouseDown(ev, n.id); });
+      circle.addEventListener('dblclick', ev => { ev.stopPropagation(); /* could edit label */ });
+
+      let text = document.createElementNS('http://www.w3.org/2000/svg','text');
+      text.setAttribute('text-anchor','middle');
+      text.setAttribute('alignment-baseline','middle');
+      text.setAttribute('font-size','12');
+      text.setAttribute('fill','#111827');
+      text.style.pointerEvents = 'none';
+
+      g.appendChild(circle);
+      g.appendChild(text);
+      nodesGroup.appendChild(g);
+      el = {g, circle, text};
+      nodeElems.set(n.id, el);
+    }
+    el.g.setAttribute('transform', `translate(${n.x},${n.y})`);
+    el.text.textContent = String(n.id);
+    // highlight style
+    if(highlightedNodes.has(n.id)){
+      el.circle.setAttribute('fill','#10b981');
+      el.text.setAttribute('fill','#fff');
+    } else {
+      el.circle.setAttribute('fill','#fff');
+      el.text.setAttribute('fill','#111827');
+    }
+  });
+
+  nodeCountLabel.textContent = nodes.length;
+}
+
+// Node interactions
+function onNodeMouseDown(ev, nodeId){
+  if(mode === 'delete'){
+    removeNode(nodeId);
+    render(); return;
+  }
+  if(mode === 'connect'){
+    if(connectFirst == null){
+      connectFirst = nodeId;
+      status.textContent = 'Connect: selected node '+connectFirst+' (click second)';
+    } else if(connectFirst === nodeId){
+      // clicked same -> cancel
+      connectFirst = null;
+      status.textContent = 'Mode: Connect';
+    } else {
+      // create edge
+      const w = defaultWeight;
+      addEdge(connectFirst, nodeId, w);
+      connectFirst = null;
+      status.textContent = 'Mode: Connect';
+      render();
+    }
+    return;
+  }
+  if(mode === 'select'){
+    if(selectST.length === 0){
+      selectST.push(nodeId);
+      status.textContent = 'Select: Source set to '+nodeId;
+    } else if(selectST.length === 1){
+      if(nodeId === selectST[0]){
+        status.textContent = 'Select: Source unchanged (clicked same)';
+      } else {
+        selectST.push(nodeId);
+        status.textContent = 'Select: Target set to '+nodeId;
+      }
+    } else {
+      selectST = [nodeId];
+      status.textContent = 'Select: Source set to '+nodeId;
+    }
+    updateSelectionVisuals();
+    return;
+  }
+  // default: move mode - start dragging
+  if(mode === 'move'){
+    dragging = { id: nodeId, ox: ev.clientX, oy: ev.clientY };
+    document.addEventListener('mousemove', onDocMouseMove);
+    document.addEventListener('mouseup', onDocMouseUp);
+    // make cursor grabbing
+    const el = nodeElems.get(nodeId);
+    if(el) el.circle.style.cursor = 'grabbing';
+  }
+}
+
+// Dragging handlers
+function onDocMouseMove(ev){
+  if(!dragging) return;
+  const node = nodes.find(n=>n.id===dragging.id);
+  if(!node) return;
+  // calculate svg coords (svg is responsive so use getBoundingClientRect)
+  const rect = svg.getBoundingClientRect();
+  let x = ev.clientX - rect.left;
+  let y = ev.clientY - rect.top;
+  // clamp
+  x = Math.max(20, Math.min(rect.width-20, x));
+  y = Math.max(20, Math.min(rect.height-20, y));
+  node.x = x; node.y = y;
+  render();
+}
+
+function onDocMouseUp(ev){
+  if(dragging){
+    const el = nodeElems.get(dragging.id);
+    if(el) el.circle.style.cursor = 'grab';
+  }
+  dragging = null;
+  document.removeEventListener('mousemove', onDocMouseMove);
+  document.removeEventListener('mouseup', onDocMouseUp);
+}
+
+// Canvas click for adding nodes or clearing selections
+svg.addEventListener('click', (ev)=>{
+  const rect = svg.getBoundingClientRect();
+  const x = ev.clientX - rect.left;
+  const y = ev.clientY - rect.top;
+  if(mode === 'add'){
+    addNode(x,y); render(); return;
+  }
+  // if clicked empty space while in select mode reset selection
+  if(mode === 'select'){
+    if(selectST.length>0){
+      clearSelectionST();
+      updateSelectionVisuals();
+    }
+  }
+});
+
+// Graph operations
+function addNode(x,y){
+  nodes.push({ id: nextNodeId++, x, y });
+  render();
+}
+function addEdge(u,v,w){
+  // avoid duplicate (undirected): check if an edge connecting same nodes exists
+  const exists = edges.find(e => (e.u===u && e.v===v) || (e.u===v && e.v===u));
+  if(exists){ alert('Edge already exists between these nodes'); return; }
+  edges.push({ id: nextEdgeId++, u, v, w: Number(w) });
+}
+function removeNode(id){
+  nodes = nodes.filter(n=>n.id!==id);
+  // remove edges connected
+  edges = edges.filter(e => e.u !== id && e.v !== id);
+  // remove elements map entries
+  nodeElems.delete(id);
+  // also delete any edge SVG elements removed
+  // cleanup edgeElems for missing edges
+  Array.from(edgeElems.keys()).forEach(k => {
+    if(!edges.find(e=>e.id===k)){
+      const obj = edgeElems.get(k);
+      if(obj){
+        obj.line.remove(); obj.weightText.remove();
+      }
+      edgeElems.delete(k);
+    }
+  });
+  clearHighlights();
+}
+function removeEdge(edgeId){
+  edges = edges.filter(e=>e.id!==edgeId);
+  const obj = edgeElems.get(edgeId);
+  if(obj){ obj.line.remove(); obj.weightText.remove(); }
+  edgeElems.delete(edgeId);
+  clearHighlights();
+}
+function editEdgeWeightPrompt(edgeId){
+  const e = edges.find(x=>x.id===edgeId);
+  if(!e) return;
+  const val = prompt('Enter new weight (positive number):', String(e.w));
+  if(val === null) return;
+  const num = Number(val);
+  if(Number.isFinite(num) && num > 0){
+    e.w = num;
+    render();
+  } else {
+    alert('Invalid weight');
+  }
+}
+
+function onEdgeClick(edgeId){
+  if(mode === 'delete'){ removeEdge(edgeId); render(); return; }
+  // otherwise toggle highlight (for debug) - but we generally use Dijkstra/MST to highlight
+  // For convenience, show info
+  const e = edges.find(x=>x.id===edgeId);
+  if(e) status.textContent = `Edge ${edgeId}: ${e.u} —(${e.w})— ${e.v}`;
+}
+
+// Selection visuals (S/T)
+function updateSelectionVisuals(){
+  clearHighlights();
+  highlightedNodes.clear();
+  if(selectST.length>0) highlightedNodes.add(selectST[0]);
+  if(selectST.length>1) highlightedNodes.add(selectST[1]);
+  // style nodes directly via render
+  render();
+}
+function clearSelectionST(){ selectST = []; highlightedNodes.clear(); render(); }
+
+// Highlights
+function clearHighlights(){
+  highlightedEdges.clear();
+  highlightedNodes.clear();
+  highlightedType = null;
+  render();
+}
+
+// Algorithms
+function dijkstra(sourceId, targetId){
+  // build adjacency list
+  const adj = new Map();
+  nodes.forEach(n => adj.set(n.id, []));
+  edges.forEach(e => {
+    adj.get(e.u).push({to:e.v, w:e.w, id:e.id});
+    adj.get(e.v).push({to:e.u, w:e.w, id:e.id});
+  });
+  const dist = new Map();
+  const prev = new Map();
+  const prevEdge = new Map();
+  nodes.forEach(n => { dist.set(n.id, Infinity); prev.set(n.id, null); prevEdge.set(n.id, null); });
+  dist.set(sourceId, 0);
+  // simple priority queue via array (ok for small graphs)
+  const visited = new Set();
+  while(true){
+    let u = null;
+    let best = Infinity;
+    for(const [id,d] of dist){
+      if(!visited.has(id) && d < best){ best = d; u = id; }
+    }
+    if(u === null) break;
+    visited.add(u);
+    if(u === targetId) break;
+    for(const nei of adj.get(u)){
+      if(visited.has(nei.to)) continue;
+      const alt = dist.get(u) + nei.w;
+      if(alt < dist.get(nei.to)){
+        dist.set(nei.to, alt);
+        prev.set(nei.to, u);
+        prevEdge.set(nei.to, nei.id);
+      }
+    }
+  }
+  const path = [];
+  const pathEdges = [];
+  if(dist.get(targetId) === Infinity) return {dist:Infinity, path:[], pathEdges:[]};
+  let cur = targetId;
+  while(cur !== null && cur !== undefined){
+    path.unshift(cur);
+    const pe = prevEdge.get(cur);
+    if(pe) pathEdges.unshift(pe);
+    cur = prev.get(cur);
+  }
+  return { dist: dist.get(targetId), path, pathEdges };
+}
+
+function kruskalMST(){
+  // sort edges by weight
+  const sorted = [...edges].sort((a,b)=>a.w - b.w);
+  // union-find
+  const parent = {};
+  function find(x){ if(parent[x] == null) parent[x] = x; return parent[x] === x ? x : (parent[x] = find(parent[x])); }
+  function union(a,b){ const ra = find(a), rb = find(b); if(ra===rb) return false; parent[ra]=rb; return true; }
+  const chosen = [];
+  let total = 0;
+  for(const e of sorted){
+    if(union(e.u, e.v)){
+      chosen.push(e.id);
+      total += e.w;
+    }
+  }
+  return { chosen, total };
+}
+
+// UI bindings
+document.getElementById('mode-move').addEventListener('click', ()=>setMode('move'));
+document.getElementById('mode-add').addEventListener('click', ()=>setMode('add'));
+document.getElementById('mode-connect').addEventListener('click', ()=>setMode('connect'));
+document.getElementById('mode-delete').addEventListener('click', ()=>setMode('delete'));
+document.getElementById('mode-select').addEventListener('click', ()=>setMode('select'));
+
+document.getElementById('weight-range').addEventListener('input', (e)=>{
+  defaultWeight = Number(e.target.value);
+  defaultWeightEl.textContent = defaultWeight;
+});
+
+document.getElementById('btn-clear').addEventListener('click', ()=>{
+  if(!confirm('Clear graph?')) return;
+  // cleanup svg elements
+  nodes.forEach(n => {
+    const el = nodeElems.get(n.id);
+    if(el) el.g.remove();
+  });
+  edges.forEach(e => {
+    const obj = edgeElems.get(e.id);
+    if(obj){ obj.line.remove(); obj.weightText.remove(); }
+  });
+  nodes = []; edges = []; nodeElems.clear(); edgeElems.clear();
+  nextNodeId = 1; nextEdgeId = 1;
+  clearHighlights();
+  render();
+});
+
+document.getElementById('btn-random').addEventListener('click', ()=>{
+  const n = Math.max(2, Math.min(40, Number(document.getElementById('rand-n').value) || 8));
+  const p = Math.max(0, Math.min(100, Number(document.getElementById('rand-p').value) || 30));
+  generateRandomGraph(n, p/100);
+});
+
+document.getElementById('btn-dijkstra').addEventListener('click', ()=>{
+  if(selectST.length < 2){ alert('Select source and target nodes first (use Select S/T mode)'); return; }
+  const s = selectST[0], t = selectST[1];
+  const res = dijkstra(s,t);
+  if(res.dist === Infinity){ alert('No path exists between selected nodes'); return; }
+  highlightedEdges = new Set(res.pathEdges);
+  highlightedNodes = new Set(res.path);
+  highlightedType = 'shortest';
+  status.textContent = `Shortest path ${s} → ${t}: length ${res.dist}`;
+  render();
+});
+
+document.getElementById('btn-mst').addEventListener('click', ()=>{
+  const res = kruskalMST();
+  highlightedEdges = new Set(res.chosen);
+  highlightedNodes = new Set();
+  highlightedType = 'mst';
+  status.textContent = `MST total weight: ${res.total}`;
+  render();
+});
+
+// Random generator
+function generateRandomGraph(n, p){
+  // clear first
+  nodes.forEach(nnode => {
+    const el = nodeElems.get(nnode.id);
+    if(el) el.g.remove();
+  });
+  edges.forEach(e => {
+    const obj = edgeElems.get(e.id);
+    if(obj){ obj.line.remove(); obj.weightText.remove(); }
+  });
+  nodes = []; edges = []; nodeElems.clear(); edgeElems.clear();
+  nextNodeId = 1; nextEdgeId = 1;
+
+  // place nodes on circle
+  const rect = svg.getBoundingClientRect();
+  const cx = rect.width/2, cy = rect.height/2;
+  const R = Math.min(rect.width, rect.height)/2 - 60;
+  for(let i=0;i<n;i++){
+    const theta = (i/n) * Math.PI * 2;
+    const x = cx + R * Math.cos(theta);
+    const y = cy + R * Math.sin(theta);
+    addNode(x,y);
+  }
+  // random edges
+  for(let i=0;i<n;i++){
+    for(let j=i+1;j<n;j++){
+      if(Math.random() < p){
+        const w = Math.floor(Math.random()*15) + 1;
+        addEdge(nodes[i].id, nodes[j].id, w);
+      }
+    }
+  }
+  render();
+}
+
+// Helpers for initial demo
+function seedDemo(){
+  // small example
+  addNode(120,120); addNode(260,90); addNode(380,160); addNode(220,240); addNode(440,260);
+  addNode(100,260);
+  addEdge(1,2,4); addEdge(2,3,2); addEdge(1,4,7); addEdge(4,3,1); addEdge(2,4,3);
+  addEdge(3,5,5); addEdge(4,6,6); addEdge(1,6,10);
+  render();
+  status.textContent = 'Mode: Move (demo graph loaded)';
+}
+seedDemo();
+
+// initial text selection prevention
+svg.addEventListener('mousedown', e=>e.preventDefault());
+
+</script>
+</body>
+</html>

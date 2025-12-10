@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sliding Window Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --accent:#60a5fa;
+      --muted:#94a3b8;
+      --good:#fbbf24;
+      --win:#38bdf8;
+      --left:#fb7185;
+      --right:#34d399;
+      --card:#071226;
+      color-scheme: dark;
+    }
+    html,body { height:100%; margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; background:linear-gradient(180deg,#021024 0%, #041025 60%); color:#e6eef8;}
+    .wrap { max-width:1100px; margin:24px auto; padding:20px; border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); box-shadow: 0 8px 30px rgba(2,6,23,0.6); }
+    h1 { margin:0 0 8px; font-size:20px; color:var(--accent); }
+    p.lead { margin:0 0 18px; color:var(--muted); font-size:13px; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px;}
+    select,input,button { background:var(--panel); color:#dbeafe; border:1px solid rgba(255,255,255,0.04); padding:8px 10px; border-radius:8px; font-size:13px; }
+    button { cursor:pointer; }
+    button.primary { background:linear-gradient(90deg,var(--accent),#3b82f6); border:none; color:#03203a; font-weight:600; }
+    .grid { display:grid; grid-template-columns: 1fr 360px; gap:16px; align-items:start; }
+    .card { background:var(--card); padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.03); }
+    .vis { min-height:160px; display:flex; gap:8px; align-items:center; padding:12px; flex-wrap:wrap; }
+    .cell { width:48px; height:48px; display:flex; align-items:center; justify-content:center; border-radius:8px; background:rgba(255,255,255,0.02); color:#cfe8ff; font-weight:600; position:relative; }
+    .cell.small { width:36px; height:36px; font-size:13px; }
+    .cell .idx { position:absolute; bottom:-18px; font-size:11px; color:var(--muted); left:0; right:0; text-align:center; }
+    .cell.left { box-shadow:0 0 0 3px rgba(251,113,133,0.12) inset, 0 6px 18px rgba(11,17,30,0.6); border:1px solid rgba(251,113,133,0.2); }
+    .cell.right { box-shadow:0 0 0 3px rgba(52,211,153,0.12) inset; border:1px solid rgba(52,211,153,0.16); }
+    .cell.window { background:linear-gradient(180deg, rgba(56,189,248,0.15), rgba(56,189,248,0.06)); border:1px solid rgba(56,189,248,0.18); box-shadow:0 6px 18px rgba(3,7,18,0.55); }
+    .cell.best { background:linear-gradient(180deg, rgba(251,191,36,0.14), rgba(251,191,36,0.06)); border:1px solid rgba(251,191,36,0.2); box-shadow:0 6px 18px rgba(7,4,0,0.45); }
+    .legend { display:flex; gap:8px; margin-top:8px; font-size:13px; color:var(--muted); flex-wrap:wrap; }
+    .legend .l { display:flex; gap:6px; align-items:center; }
+    .swatch { width:14px;height:12px;border-radius:3px; display:inline-block; }
+    .sw-win { background:linear-gradient(90deg,var(--win),#60a5fa); }
+    .sw-left { background:var(--left); }
+    .sw-right { background:var(--right); }
+    .stats { margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; }
+    .stat { background:rgba(255,255,255,0.02); padding:8px 10px; border-radius:8px; font-size:13px; color:var(--muted); }
+    .params { display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+    textarea.input { width:100%; min-height:64px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; padding:8px; border-radius:8px; background:var(--panel); color:#dbeafe; }
+    .rightcol { position:relative; display:flex; flex-direction:column; gap:12px; }
+    .log { font-family:ui-monospace, Menlo, monospace; font-size:13px; color:#dbeafe; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:8px; border-radius:8px; max-height:300px; overflow:auto; border:1px solid rgba(255,255,255,0.02); }
+    .controls .big { padding:10px 12px; font-weight:700; }
+    .row { display:flex; gap:8px; align-items:center; }
+    .hint { color:var(--muted); font-size:13px; margin-top:10px; }
+    footer { margin-top:14px; color:var(--muted); font-size:13px; text-align:center; }
+    .small { font-size:12px; color:var(--muted); }
+    input[type=range] { -webkit-appearance:none; width:120px; height:6px; background:linear-gradient(90deg,#0b1220,#0b1220); border-radius:6px; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--accent); box-shadow:0 2px 6px rgba(59,130,246,0.4); }
+    pre { margin:0; white-space:pre-wrap; word-break:break-word; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Sliding Window Visualizer</h1>
+    <p class="lead">Interactive demonstration of the sliding window technique. Pick a scenario, provide input, and step through how left/right pointers and the window evolve.</p>
+
+    <div class="controls">
+      <label>
+        Algorithm:
+        <select id="algo">
+          <option value="fixed">Max Sum Subarray (fixed-size window)</option>
+          <option value="atmost">Longest Subarray with Sum ≤ S (variable window)</option>
+          <option value="unique">Longest Substring Without Repeating Characters</option>
+        </select>
+      </label>
+
+      <label id="param-k" style="display:flex;align-items:center;">
+        k:
+        <input id="k" type="number" value="3" min="1" style="width:70px; margin-left:6px;">
+      </label>
+
+      <label id="param-s" style="display:none;align-items:center;">
+        S:
+        <input id="s" type="number" value="8" style="width:80px; margin-left:6px;">
+      </label>
+
+      <button id="reset" class="primary">Reset</button>
+      <button id="randomize">Randomize Input</button>
+
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <button id="back">⟵ Back</button>
+        <button id="step" class="big">Step</button>
+        <button id="play">Play ▶</button>
+        <button id="pause">Pause ⏸</button>
+        <label class="small">Speed<input id="speed" type="range" min="100" max="2000" step="100" value="700"></label>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <div class="params">
+            <div style="flex:1">
+              <label class="small">Array (comma separated integers)</label>
+              <textarea id="arrayInput" class="input">2,1,5,1,3,2</textarea>
+            </div>
+            <div id="stringBox" style="flex:1; display:none">
+              <label class="small">String</label>
+              <textarea id="stringInput" class="input">abcabcbb</textarea>
+            </div>
+          </div>
+
+          <div class="vis card" id="vis"></div>
+
+          <div class="legend">
+            <div class="l"><span class="swatch sw-win"></span> current window</div>
+            <div class="l"><span class="swatch sw-left"></span> left pointer</div>
+            <div class="l"><span class="swatch sw-right"></span> right pointer</div>
+            <div class="l"><span class="swatch" style="background:var(--good);"></span> best window</div>
+          </div>
+
+          <div class="stats" id="stats">
+            <div class="stat" id="stat-info">State: idle</div>
+            <div class="stat" id="stat-sum" style="display:none">Sum: -</div>
+            <div class="stat" id="stat-max">Best: -</div>
+          </div>
+
+          <div class="hint">
+            Use Step to advance one micro-step. Play will animate steps. Back rewinds through history.
+          </div>
+        </div>
+
+        <div style="margin-top:12px;" class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div><strong>Pseudocode (high level)</strong></div>
+            <div class="small" id="pc-title"></div>
+          </div>
+          <pre id="pseudocode" style="margin-top:8px;font-size:13px; color:var(--muted)"></pre>
+        </div>
+      </div>
+
+      <div class="rightcol">
+        <div class="card">
+          <div style="display:flex; gap:8px; align-items:center;">
+            <strong>Execution Log</strong>
+            <div class="small" style="margin-left:auto;" id="stepCount">Step: 0</div>
+          </div>
+          <div class="log" id="log"></div>
+        </div>
+
+        <div class="card small">
+          <div style="margin-bottom:8px;"><strong>Controls</strong></div>
+          <div>Reset: restart with current inputs. Randomize: fill array/string randomly. Edit inputs then Reset to use them.</div>
+          <div style="margin-top:8px;"><strong>Examples:</strong> fixed: max sum for k; atmost: longest subarray with sum ≤ S; unique: longest substring without repeat.</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>Built to illustrate the sliding window pattern — fixed and variable window examples, and string variant.</footer>
+  </div>
+
+  <script>
+    // Basic utility
+    const $ = id => document.getElementById(id);
+
+    // UI elements
+    const algoSel = $('algo');
+    const arrInput = $('arrayInput');
+    const strInput = $('stringInput');
+    const vis = $('vis');
+    const statInfo = $('stat-info');
+    const statSum = $('stat-sum');
+    const statMax = $('stat-max');
+    const logEl = $('log');
+    const stepBtn = $('step');
+    const playBtn = $('play');
+    const pauseBtn = $('pause');
+    const backBtn = $('back');
+    const resetBtn = $('reset');
+    const randomBtn = $('randomize');
+    const kInput = $('k');
+    const sInput = $('s');
+    const paramK = $('param-k');
+    const paramS = $('param-s');
+    const stringBox = $('stringBox');
+    const pcTitle = $('pc-title');
+    const pseudocode = $('pseudocode');
+    const stepCount = $('stepCount');
+    const speedR = $('speed');
+
+    // State
+    let generator = null;
+    let history = [];
+    let historyIndex = -1;
+    let playing = false;
+    let timer = null;
+    let stepNumber = 0;
+
+    // Helpers to parse inputs
+    function parseArrayInput() {
+      const raw = arrInput.value.trim();
+      if (!raw) return [];
+      return raw.split(',').map(s => parseInt(s.trim(),10)).filter(n => !Number.isNaN(n));
+    }
+    function parseStringInput() {
+      return strInput.value || "";
+    }
+
+    // Render functions
+    function renderState(state) {
+      // state object contains:
+      // type: 'array' or 'string'
+      // arr or str
+      // left, right (indices)
+      // windowLeft, windowRight (if exists)
+      // currentSum, currentLen, bestLen, bestLeft, bestRight, bestSum, message
+      // map maybe for string
+      vis.innerHTML = '';
+      logEl.scrollTop = logEl.scrollHeight;
+
+      if (!state) return;
+      if (state.type === 'array') {
+        const arr = state.arr || [];
+        arr.forEach((v,i) => {
+          const c = document.createElement('div');
+          c.className = 'cell' + (arr.length>12?' small':'');
+          c.textContent = String(v);
+          const idx = document.createElement('div');
+          idx.className = 'idx';
+          idx.textContent = i;
+          c.appendChild(idx);
+
+          if (state.bestLeft !== undefined && i>=state.bestLeft && i<=state.bestRight && state.bestLen>0) {
+            c.classList.add('best');
+          }
+          if (state.windowLeft !== undefined && i>=state.windowLeft && i<=state.windowRight) {
+            c.classList.add('window');
+          }
+          if (state.left === i) c.classList.add('left');
+          if (state.right === i) c.classList.add('right');
+
+          vis.appendChild(c);
+        });
+      } else {
+        // string
+        const s = state.str || "";
+        for (let i=0;i<s.length;i++){
+          const c = document.createElement('div');
+          c.className = 'cell' + (s.length>12?' small':'');
+          c.textContent = s[i];
+          const idx = document.createElement('div');
+          idx.className = 'idx';
+          idx.textContent = i;
+          c.appendChild(idx);
+
+          if (state.bestLeft !== undefined && i>=state.bestLeft && i<=state.bestRight && state.bestLen>0) {
+            c.classList.add('best');
+          }
+          if (state.windowLeft !== undefined && i>=state.windowLeft && i<=state.windowRight) {
+            c.classList.add('window');
+          }
+          if (state.left === i) c.classList.add('left');
+          if (state.right === i) c.classList.add('right');
+
+          vis.appendChild(c);
+        }
+      }
+
+      // Stats panel
+      statInfo.textContent = state.message || 'running';
+      if (state.currentSum !== undefined) {
+        statSum.style.display = 'inline-block';
+        statSum.textContent = 'Sum: ' + state.currentSum;
+      } else {
+        statSum.style.display = 'none';
+      }
+      if (state.bestLen !== undefined) {
+        // show best appropriately per algorithm
+        if (state.type==='array' && state.mode==='fixed') {
+          statMax.textContent = 'Max sum: ' + (state.bestSum === -Infinity ? '-' : state.bestSum) + (state.bestLeft!==undefined ? ' (indices '+state.bestLeft+'..'+state.bestRight+')' : '');
+        } else if (state.mode==='atmost') {
+          statMax.textContent = 'Best length: ' + (state.bestLen||0) + (state.bestLeft!==undefined ? ' (indices '+state.bestLeft+'..'+state.bestRight+')' : '');
+        } else if (state.mode==='unique') {
+          statMax.textContent = 'Best length: ' + (state.bestLen||0) + (state.bestLeft!==undefined ? ' (indices '+state.bestLeft+'..'+state.bestRight+')' : '');
+        } else {
+          statMax.textContent = 'Best: ' + JSON.stringify(state.bestLen);
+        }
+      }
+
+      // Update log and step count
+      stepCount.textContent = 'Step: ' + stepNumber;
+      if (state.logEntry) {
+        const entry = document.createElement('div');
+        entry.style.padding = '6px 4px';
+        entry.style.borderBottom = '1px dashed rgba(255,255,255,0.02)';
+        entry.innerHTML = `<div style="color:var(--muted);font-size:12px;">${new Date().toLocaleTimeString()}</div><div>${state.logEntry}</div>`;
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    // Generators for algorithms; each yields states at micro-steps.
+
+    // 1) Fixed-size sliding window: max sum of size k
+    function* genFixed(arr,k) {
+      const n = arr.length;
+      const stateBase = { type:'array', arr:arr.slice(), mode:'fixed' };
+      if (k<=0 || k>n) {
+        yield { ...stateBase, message: 'Invalid k - window size', logEntry: 'Invalid k; must be between 1 and n.' };
+        return;
+      }
+      let sum = 0;
+      for (let i=0;i<k;i++) sum += arr[i];
+      let bestSum = sum;
+      let bestL = 0, bestR = k-1;
+      let l = 0, r = k-1;
+      stepNumber++;
+      yield { ...stateBase, windowLeft: l, windowRight: r, left:l, right:r, currentSum: sum, bestSum, bestLeft:bestL, bestRight:bestR, bestLen:k, message: `Initial window [${l}..${r}] sum=${sum}`, logEntry: `Initial window [${l}..${r}] sum=${sum}` };
+
+      for (let i=k;i<n;i++) {
+        // slide: remove arr[i-k], add arr[i]
+        const removed = arr[i-k];
+        const added = arr[i];
+        sum = sum - removed + added;
+        l = i-k+1;
+        r = i;
+        stepNumber++;
+        yield { ...stateBase, windowLeft: l, windowRight: r, left:l, right:r, currentSum: sum, bestSum, bestLeft:bestL, bestRight:bestR, bestLen:k, message: `Slide window to [${l}..${r}] (removed ${removed}, added ${added}) sum=${sum}`, logEntry: `Slide to [${l}..${r}]: -${removed} +${added} => sum=${sum}` };
+
+        if (sum > bestSum) {
+          bestSum = sum;
+          bestL = l;
+          bestR = r;
+          stepNumber++;
+          yield { ...stateBase, windowLeft: l, windowRight: r, left:l, right:r, currentSum: sum, bestSum, bestLeft:bestL, bestRight:bestR, bestLen:k, message: `New best sum ${bestSum} at [${bestL}..${bestR}]`, logEntry: `New best sum ${bestSum} at [${bestL}..${bestR}]` };
+        }
+      }
+
+      stepNumber++;
+      yield { ...stateBase, windowLeft: l, windowRight: r, left:l, right:r, currentSum: sum, bestSum, bestLeft:bestL, bestRight:bestR, bestLen:k, message: `Done. Max sum ${bestSum} at [${bestL}..${bestR}]`, logEntry: `Done. Max sum ${bestSum} at [${bestL}..${bestR}]` };
+    }
+
+    // 2) Variable-size sliding window: longest subarray with sum <= S
+    function* genAtMost(arr,S) {
+      const n = arr.length;
+      const stateBase = { type:'array', arr:arr.slice(), mode:'atmost' };
+      let l = 0, sum = 0, bestLen = 0, bestL=-1,bestR=-1;
+      for (let r=0;r<n;r++) {
+        sum += arr[r];
+        stepNumber++;
+        yield { ...stateBase, left:l, right:r, windowLeft:l, windowRight:r, currentSum: sum, bestLen, bestLeft:bestL,bestRight:bestR, message: `Expanded right to ${r}, sum=${sum}`, logEntry: `Add arr[${r}]=${arr[r]}; sum=${sum}` };
+
+        while (sum > S && l<=r) {
+          const removed = arr[l];
+          sum -= removed;
+          l++;
+          stepNumber++;
+          yield { ...stateBase, left:l, right:r, windowLeft:l, windowRight:r, currentSum: sum, bestLen, bestLeft:bestL,bestRight:bestR, message: `Shrank left to ${l}, removed ${removed}, sum=${sum}`, logEntry: `sum>${S}, removed arr[${l-1}]=${removed}, sum=${sum}` };
+        }
+        // now sum <= S
+        const len = r - l + 1;
+        if (len > bestLen) {
+          bestLen = len; bestL = l; bestR = r;
+          stepNumber++;
+          yield { ...stateBase, left:l, right:r, windowLeft:l, windowRight:r, currentSum: sum, bestLen, bestLeft:bestL,bestRight:bestR, message: `New best length ${bestLen} at [${bestL}..${bestR}]`, logEntry: `New best length ${bestLen} (indices ${bestL}..${bestR})` };
+        }
+      }
+      stepNumber++;
+      yield { ...stateBase, left:l, right: n-1, windowLeft:l, windowRight:n-1, currentSum: sum, bestLen, bestLeft:bestL,bestRight:bestR, message: `Done. Best length ${bestLen} at [${bestL}..${bestR}]`, logEntry: `Done. Best length ${bestLen}` };
+    }
+
+    // 3) Longest substring without repeating characters (string)
+    function* genUnique(s) {
+      const n = s.length;
+      const stateBase = { type:'string', str:s, mode:'unique' };
+      let last = new Map();
+      let l = 0, bestL=-1, bestR=-1, bestLen=0;
+      for (let r=0;r<n;r++) {
+        const ch = s[r];
+        stepNumber++;
+        yield { ...stateBase, left:l, right:r, windowLeft:l, windowRight:r, bestLen, bestLeft:bestL,bestRight:bestR, message: `Inspecting '${ch}' at ${r}`, logEntry: `Inspect ${ch} at ${r}` };
+
+        if (last.has(ch) && last.get(ch) >= l) {
+          const prev = last.get(ch);
+          stepNumber++;
+          yield { ...stateBase, left:l, right:r, windowLeft:l, windowRight:r, bestLen, bestLeft:bestL,bestRight:bestR, message: `Duplicate '${ch}' seen at ${prev}, move left to ${prev+1}`, logEntry: `Duplicate ${ch} seen at ${prev}, shift left to ${prev+1}` };
+          l = prev + 1;
+        }
+        last.set(ch, r);
+        const len = r - l + 1;
+        if (len > bestLen) {
+          bestLen = len; bestL = l; bestR = r;
+          stepNumber++;
+          yield { ...stateBase, left:l, right:r, windowLeft:l, windowRight:r, bestLen, bestLeft:bestL,bestRight:bestR, message: `New best substring length ${bestLen} at [${bestL}..${bestR}]`, logEntry: `New best len ${bestLen} "${s.slice(bestL,bestR+1)}"` };
+        }
+      }
+      stepNumber++;
+      yield { ...stateBase, left:l, right:n-1, windowLeft:l, windowRight:n-1, bestLen, bestLeft:bestL,bestRight:bestR, message: `Done. Best length ${bestLen} substring "${s.slice(bestL,bestR+1)}"`, logEntry: `Done. Best length ${bestLen}` };
+    }
+
+    // Control functions
+    function resetExecution() {
+      stopPlaying();
+      history = [];
+      historyIndex = -1;
+      stepNumber = 0;
+      logEl.innerHTML = '';
+      prepareGenerator();
+      // take first step automatically to show initial state
+      stepOnce();
+    }
+
+    function prepareGenerator() {
+      const algo = algoSel.value;
+      if (algo === 'fixed') {
+        const arr = parseArrayInput();
+        const k = parseInt(kInput.value,10) || 0;
+        generator = genFixed(arr,k);
+        pcTitle.textContent = 'fixed-size window';
+        pseudocode.textContent = `// Max sum of subarray of size k\nsum = sum(arr[0..k-1])\nbest = sum\nfor i = k..n-1:\n  sum += arr[i] - arr[i-k]\n  update best if needed`;
+        stringBox.style.display = 'none';
+        document.querySelector('#stringBox').style.display='none';
+      } else if (algo === 'atmost') {
+        const arr = parseArrayInput();
+        const S = parseInt(sInput.value,10) || 0;
+        generator = genAtMost(arr,S);
+        pcTitle.textContent = 'variable-size window';
+        pseudocode.textContent = `// Longest subarray with sum ≤ S\nl = 0; sum = 0; best = 0\nfor r in 0..n-1:\n  sum += arr[r]\n  while sum > S:\n    sum -= arr[l]\n    l++\n  best = max(best, r-l+1)`;
+        stringBox.style.display = 'none';
+      } else {
+        const s = parseStringInput();
+        generator = genUnique(s);
+        pcTitle.textContent = 'string sliding window';
+        pseudocode.textContent = `// Longest substring without repeating chars\nl = 0; last = {}\nfor r in 0..n-1:\n  if last[s[r]] ≥ l: l = last[s[r]]+1\n  last[s[r]] = r\n  best = max(best, r-l+1)`;
+        stringBox.style.display = '';
+      }
+    }
+
+    function stepOnce() {
+      if (!generator) {
+        prepareGenerator();
+      }
+      const res = generator.next();
+      if (res.done) {
+        // nothing more
+        playing = false;
+        stopPlaying();
+        return;
+      }
+      const state = res.value;
+      history.push(state);
+      historyIndex = history.length - 1;
+      renderState(state);
+    }
+
+    function stepBack() {
+      if (historyIndex > 0) {
+        historyIndex--;
+        const state = history[historyIndex];
+        renderState({ ...state, logEntry: null }); // don't duplicate log
+      }
+    }
+
+    function play() {
+      if (playing) return;
+      playing = true;
+      const speed = parseInt(speedR.value,10) || 700;
+      timer = setInterval(() => {
+        const beforeLen = history.length;
+        const res = generator.next();
+        if (res.done) {
+          // final state may have been yielded previously; stop
+          stopPlaying();
+          return;
+        }
+        const state = res.value;
+        history.push(state);
+        historyIndex = history.length - 1;
+        renderState(state);
+      }, speed);
+    }
+
+    function stopPlaying() {
+      playing = false;
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+
+    // Toggle visible inputs based on algorithm
+    function updateUIForAlgo() {
+      const algo = algoSel.value;
+      if (algo === 'fixed') {
+        paramK.style.display = '';
+        paramS.style.display = 'none';
+        arrInput.style.display = '';
+        stringBox.style.display = 'none';
+      } else if (algo === 'atmost') {
+        paramK.style.display = 'none';
+        paramS.style.display = '';
+        arrInput.style.display = '';
+        stringBox.style.display = 'none';
+      } else {
+        paramK.style.display = 'none';
+        paramS.style.display = 'none';
+        arrInput.style.display = 'none';
+        stringBox.style.display = '';
+      }
+    }
+
+    // Randomize helpers
+    function randomArray(n=8, min=0, max=9) {
+      const a = [];
+      for (let i=0;i<n;i++) a.push(Math.floor(Math.random()*(max-min+1))+min);
+      return a;
+    }
+    function randomString(n=10) {
+      const chars = 'abcdefghijklmnopqrstuvwxyz';
+      let s = '';
+      for (let i=0;i<n;i++) s += chars[Math.floor(Math.random()*chars.length)];
+      return s;
+    }
+
+    // Event bindings
+    algoSel.addEventListener('change', () => {
+      updateUIForAlgo();
+      resetExecution();
+    });
+    resetBtn.addEventListener('click', () => {
+      resetExecution();
+    });
+    randomBtn.addEventListener('click', () => {
+      const algo = algoSel.value;
+      if (algo === 'unique') {
+        strInput.value = randomString(10);
+      } else {
+        const arr = randomArray(10,0,9);
+        arrInput.value = arr.join(', ');
+        if (algo==='fixed') {
+          kInput.value = Math.max(1, Math.min(4, arr.length));
+        } else {
+          sInput.value = Math.floor(arr.reduce((a,b)=>a+b,0)/2);
+        }
+      }
+      resetExecution();
+    });
+
+    stepBtn.addEventListener('click', () => {
+      stopPlaying();
+      stepOnce();
+    });
+    backBtn.addEventListener('click', () => {
+      stopPlaying();
+      stepBack();
+    });
+    playBtn.addEventListener('click', () => {
+      if (!generator) prepareGenerator();
+      // some steps may remain in history; resume generator from current
+      playing = true;
+      play();
+    });
+    pauseBtn.addEventListener('click', () => {
+      stopPlaying();
+    });
+    speedR.addEventListener('change', () => {
+      if (playing) {
+        stopPlaying();
+        play();
+      }
+    });
+
+    // Initial setup
+    updateUIForAlgo();
+    prepareGenerator();
+    // start with initial step to show the starting state
+    stepOnce();
+
+    // Keyboard shortcuts for convenience
+    document.addEventListener('keydown', (e) => {
+      if (e.key === ' ') { e.preventDefault(); if (playing) { stopPlaying(); } else { play(); } }
+      if (e.key === 'ArrowRight') { stepOnce(); }
+      if (e.key === 'ArrowLeft') { stepBack(); }
+    });
+
+  </script>
+</body>
+</html>

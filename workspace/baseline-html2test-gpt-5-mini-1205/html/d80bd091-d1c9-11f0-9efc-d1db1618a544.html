@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Huffman Coding Interactive Demonstration</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 18px; color: #111; }
+  h1 { margin-top: 0; }
+  .container { display: grid; grid-template-columns: 1fr 420px; gap: 18px; align-items: start; }
+  .panel { border: 1px solid #ddd; padding: 12px; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  textarea { width: 100%; min-height: 80px; font-family: monospace; font-size: 13px; padding: 8px; box-sizing: border-box; }
+  input[type="text"] { width: 100%; padding: 6px 8px; box-sizing: border-box; }
+  button { padding: 8px 10px; margin: 4px 2px 0 0; }
+  .small { font-size: 13px; color: #444; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 13px; }
+  th { background: #fafafa; position: sticky; top: 0; }
+  .freq { font-weight: 600; }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .queue { font-family: monospace; font-size: 14px; }
+  .svg-wrap { overflow: auto; border: 1px solid #eee; padding: 6px; border-radius: 6px; background: #fff; }
+  svg { width: 100%; height: 280px; }
+  .node { cursor: default; }
+  .node circle { fill: #f7fbff; stroke: #1e88e5; stroke-width: 1.5px; }
+  .node text { font-size: 12px; text-anchor: middle; pointer-events: none; }
+  .internal circle { fill: #fff7e6; stroke: #ff8a00; }
+  .highlight circle { stroke-width: 3px; transform-origin: center; }
+  .help { font-size: 13px; color: #333; margin-bottom: 8px; }
+  .metrics { font-size: 14px; margin-top: 8px; }
+  .codecell { font-family: monospace; background: #f6f9ff; padding: 6px; border-radius: 4px; display:block; }
+  .bit-output { word-break: break-all; font-family: monospace; background: #f3f3f3; padding: 8px; border-radius: 4px; }
+  .stat { display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; }
+  .stat div { background:#fafafa; padding:6px 8px; border-radius:6px; border:1px solid #eee; font-size:13px; }
+  .footer { margin-top: 16px; font-size:13px; color:#555; }
+  .muted { color: #666; font-size: 13px; }
+  .legend { display:flex; gap:10px; align-items:center; margin-top:8px; }
+  .legend span { display:inline-flex; gap:6px; align-items:center; font-size:13px; }
+  .color-swatch { width:12px; height:12px; border-radius:2px; display:inline-block; border:1px solid #ccc; }
+  .left-col { min-width: 0; }
+  .right-col { position: sticky; top: 12px; align-self: start; }
+  .node-label { font-size: 11px; fill: #333; }
+</style>
+</head>
+<body>
+<h1>Huffman Coding — Interactive Demonstration</h1>
+<div class="help panel">
+  <strong>What is Huffman Coding?</strong>
+  <p class="small">Huffman coding is a variable-length, prefix-free encoding for symbols based on their frequencies. More frequent symbols get shorter codes. This demo lets you type text or provide symbol frequencies, then builds the Huffman tree step-by-step, shows codes, encodes and decodes bitstrings, and compares sizes.</p>
+  <div class="legend">
+    <span><span class="color-swatch" style="background:#e3f2fd;border-color:#1e88e5"></span> Leaf node (symbol)</span>
+    <span><span class="color-swatch" style="background:#fff6e5;border-color:#ff8a00"></span> Internal node</span>
+  </div>
+</div>
+
+<div class="container">
+  <div class="panel left-col">
+    <div>
+      <label><strong>Input text (or type symbols separated by spaces)</strong></label>
+      <textarea id="inputText" placeholder="Type a sample text here...">this is an example for huffman encoding</textarea>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="analyzeBtn">Analyze Frequencies & Build Steps</button>
+        <button id="autoPlayBtn">Auto-play</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+    </div>
+
+    <div class="controls" style="margin-top:12px;">
+      <label style="display:flex; gap:8px; align-items:center;"><input id="ignoreSpaces" type="checkbox" checked/> Ignore spaces</label>
+      <label style="display:flex; gap:8px; align-items:center;"><input id="showStepCodes" type="checkbox" checked/> Show interim codes</label>
+      <label style="display:flex; gap:8px; align-items:center;"><input id="useUtf8" type="checkbox" checked/> Use 8-bit per symbol baseline</label>
+      <label style="display:flex; gap:8px; align-items:center;"><input id="showEdges" type="checkbox" checked/> Show tree edges</label>
+    </div>
+
+    <div style="display:flex; gap:12px; margin-top:12px;">
+      <div style="flex:1">
+        <strong>Frequency Table</strong>
+        <div id="freqArea" class="panel" style="padding:8px; margin-top:8px;"></div>
+      </div>
+      <div style="width:220px;">
+        <strong>Final Codes</strong>
+        <div id="codesArea" class="panel" style="padding:8px; margin-top:8px;"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <strong>Step-by-step Priority Queue & Tree Construction</strong>
+      <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+        <button id="stepBackBtn">‹ Prev</button>
+        <button id="stepNextBtn">Next ›</button>
+        <button id="fastForwardBtn">Finish</button>
+        <div style="margin-left:auto;" class="muted">Step <span id="stepNum">0</span> / <span id="stepTotal">0</span></div>
+      </div>
+      <div id="queueArea" class="panel queue" style="margin-top:8px; min-height:54px;"></div>
+      <div class="svg-wrap" style="margin-top:10px;">
+        <svg id="treeSvg" viewBox="0 0 1000 300" preserveAspectRatio="xMinYMin meet"></svg>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <strong>Encode & Decode</strong>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="encodeBtn">Encode Input</button>
+        <button id="decodeBtn">Decode Bits</button>
+        <button id="copyBitsBtn">Copy Bits</button>
+      </div>
+      <div style="margin-top:8px;">
+        <label>Bit string (editable)</label>
+        <textarea id="bitString" placeholder="Encoded bit string will appear here..." style="min-height:60px"></textarea>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <div class="stat">
+            <div>Original size: <span id="origSize">-</span></div>
+            <div>Huffman size: <span id="huffSize">-</span></div>
+            <div>Compression: <span id="ratio">-</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Tip: If you want to encode arbitrary bytes, paste them into the input field. By default the demo treats each character as one symbol (8-bit baseline). Use "Ignore spaces" to collapse spaces.
+    </div>
+  </div>
+
+  <div class="panel right-col">
+    <strong>Explanation & Metrics</strong>
+    <div class="muted" style="margin-top:8px;">
+      This interactive shows how Huffman coding merges the two least frequent nodes repeatedly to form a binary tree. Each leaf is a symbol; paths left=0 right=1 (convention) define the codewords. The resulting encoding is prefix-free and optimal (minimum average code length) for the given symbol frequencies.
+    </div>
+
+    <div style="margin-top:12px;">
+      <strong>Steps</strong>
+      <ol id="stepsList" style="padding-left:18px; margin-top:8px; max-height:240px; overflow:auto;"></ol>
+    </div>
+
+    <div style="margin-top:12px;">
+      <strong>Selected Node Details</strong>
+      <div id="nodeDetails" style="margin-top:8px; font-size:13px;" class="muted">Click a node in the tree to see details.</div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <strong>Options</strong>
+      <div style="margin-top:6px;" class="small">
+        <label><input type="checkbox" id="leftBitZero" checked/> Left branch = 0 (else 1)</label><br/>
+        <label><input type="checkbox" id="showInterimSizes" checked/> Show interim sizes during building</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  Huffman Coding Interactive Demo
+  - Build frequency table from input
+  - Step-by-step merge of lowest-frequency nodes
+  - Visualize tree (SVG)
+  - Show codes, encode, decode, compare sizes
+*/
+
+(function(){
+  // Utilities
+  const $ = id => document.getElementById(id);
+
+  // DOM elements
+  const inputText = $('inputText');
+  const analyzeBtn = $('analyzeBtn');
+  const freqArea = $('freqArea');
+  const codesArea = $('codesArea');
+  const queueArea = $('queueArea');
+  const treeSvg = $('treeSvg');
+  const stepBackBtn = $('stepBackBtn');
+  const stepNextBtn = $('stepNextBtn');
+  const fastForwardBtn = $('fastForwardBtn');
+  const stepNumSpan = $('stepNum');
+  const stepTotalSpan = $('stepTotal');
+  const stepsList = $('stepsList');
+  const autoPlayBtn = $('autoPlayBtn');
+  const bitString = $('bitString');
+  const encodeBtn = $('encodeBtn');
+  const decodeBtn = $('decodeBtn');
+  const copyBitsBtn = $('copyBitsBtn');
+  const origSizeSpan = $('origSize');
+  const huffSizeSpan = $('huffSize');
+  const ratioSpan = $('ratio');
+  const nodeDetails = $('nodeDetails');
+  const resetBtn = $('resetBtn');
+
+  // Options
+  const ignoreSpaces = $('ignoreSpaces');
+  const showStepCodes = $('showStepCodes');
+  const useUtf8 = $('useUtf8');
+  const showEdges = $('showEdges');
+  const leftBitZero = $('leftBitZero');
+  const showInterimSizes = $('showInterimSizes');
+
+  // State
+  let frequencies = {}; // symbol -> count
+  let nodes = []; // initial leaf nodes
+  let steps = []; // each step holds queue snapshot and merged node
+  let currentStep = 0;
+  let autoPlaying = false;
+  let finalRoot = null;
+  let finalCodes = {}; // symbol -> code string
+  let treeNodesById = {}; // id -> node object for visualization
+  let stepTimer = null;
+
+  function resetState(){
+    frequencies = {};
+    nodes = [];
+    steps = [];
+    currentStep = 0;
+    finalRoot = null;
+    finalCodes = {};
+    treeNodesById = {};
+    clearInterval(stepTimer);
+    autoPlaying = false;
+    autoPlayBtn.textContent = 'Auto-play';
+    stepNumSpan.textContent = '0';
+    stepTotalSpan.textContent = '0';
+    queueArea.innerHTML = '';
+    treeSvg.innerHTML = '';
+    freqArea.innerHTML = '';
+    codesArea.innerHTML = '';
+    stepsList.innerHTML = '';
+    nodeDetails.innerHTML = 'Click a node in the tree to see details.';
+    bitString.value = '';
+    origSizeSpan.textContent = '-';
+    huffSizeSpan.textContent = '-';
+    ratioSpan.textContent = '-';
+  }
+
+  function analyzeInput(){
+    resetState();
+    const txt = inputText.value;
+    if(txt.length === 0) {
+      alert('Please type some text to analyze.');
+      return;
+    }
+    // Build frequencies
+    frequencies = {};
+    for(let ch of txt){
+      if(ignoreSpaces.checked && ch === ' ') continue;
+      frequencies[ch] = (frequencies[ch] || 0) + 1;
+    }
+    // If nothing remains (all spaces), include space
+    if(Object.keys(frequencies).length === 0){
+      frequencies[' '] = txt.length;
+    }
+
+    // Build leaf nodes
+    let idCounter = 0;
+    nodes = Object.keys(frequencies).map(sym => ({
+      id: 'n' + (idCounter++),
+      sym,
+      weight: frequencies[sym],
+      left: null,
+      right: null,
+      isLeaf: true
+    }));
+
+    // Display frequency table
+    renderFrequencyTable();
+
+    // Build steps (simulate merges)
+    buildSteps();
+
+    // Render initial tree (leaves only)
+    renderStep(0);
+
+    // Compute final codes (on finish)
+    computeFinalCodes();
+    renderCodes();
+    updateSizeMetrics();
+
+    // Populate steps list summaries
+    renderStepsList();
+  }
+
+  function renderFrequencyTable(){
+    const pairs = Object.entries(frequencies).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+    let html = '<table><thead><tr><th>Symbol</th><th>Frequency</th></tr></thead><tbody>';
+    for(const [sym, cnt] of pairs){
+      const label = sym === ' ' ? '␣ (space)' : escapeHtml(sym);
+      html += `<tr><td class="freq">${label}</td><td>${cnt}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    freqArea.innerHTML = html;
+  }
+
+  function buildSteps(){
+    // Build a working priority queue as array, deterministic sort: by weight asc, then by isLeaf? then by symbol (or id)
+    let pq = nodes.map(n => ({...n})); // clone
+    // assign stable order via id sequencing if needed
+    let stepIndex = 0;
+    steps = [];
+    // Save initial queue snapshot
+    steps.push({ step: stepIndex++, pq: snapshotQueue(pq), merged: null });
+
+    while(pq.length > 1){
+      // sort
+      pq.sort((a,b)=>{
+        if(a.weight !== b.weight) return a.weight - b.weight;
+        // deterministic tie-break: prefer leaf with lexicographic symbol, internal nodes by id
+        const ak = a.isLeaf ? ('0'+a.sym) : ('1'+a.id);
+        const bk = b.isLeaf ? ('0'+b.sym) : ('1'+b.id);
+        return ak < bk ? -1 : (ak > bk ? 1 : 0);
+      });
+
+      // take two smallest
+      const left = pq.shift();
+      const right = pq.shift();
+      // merge node
+      const merged = {
+        id: 'm' + stepIndex + '_' + Math.random().toString(36).slice(2,6),
+        sym: null,
+        weight: left.weight + right.weight,
+        left,
+        right,
+        isLeaf: false
+      };
+      pq.push(merged);
+      steps.push({ step: stepIndex++, pq: snapshotQueue(pq), merged });
+    }
+
+    // Save final root
+    finalRoot = pq[0] || null;
+    // Save final full tree nodes by traversing
+    treeNodesById = {};
+    if(finalRoot) traverseAssignIds(finalRoot);
+    stepTotalSpan.textContent = steps.length - 1;
+  }
+
+  function snapshotQueue(pq){
+    // Return compact snapshot for display: shallow clones with minimal info
+    return pq.map(n => ({
+      id: n.id,
+      isLeaf: !!n.isLeaf,
+      sym: n.sym,
+      weight: n.weight,
+      leftId: n.left && n.left.id,
+      rightId: n.right && n.right.id
+    }));
+  }
+
+  function traverseAssignIds(node){
+    treeNodesById[node.id] = node;
+    if(node.left) traverseAssignIds(node.left);
+    if(node.right) traverseAssignIds(node.right);
+  }
+
+  function computeFinalCodes(){
+    finalCodes = {};
+    if(!finalRoot) return;
+    const leftZero = leftBitZero.checked;
+    function dfs(n, prefix){
+      if(n.isLeaf){
+        finalCodes[n.sym] = prefix || '0'; // single symbol edge case -> give it 0
+      } else {
+        // Left = 0, right = 1 (or reverse based on option)
+        if(n.left) dfs(n.left, prefix + (leftZero ? '0' : '1'));
+        if(n.right) dfs(n.right, prefix + (leftZero ? '1' : '0'));
+      }
+    }
+    dfs(finalRoot, '');
+  }
+
+  function renderCodes(){
+    const pairs = Object.entries(finalCodes).sort((a,b)=>a[0].localeCompare(b[0]));
+    let html = '<table><thead><tr><th>Symbol</th><th>Code</th><th>Len</th></tr></thead><tbody>';
+    for(const [sym, code] of pairs){
+      const label = sym === ' ' ? '␣ (space)' : escapeHtml(sym);
+      html += `<tr><td class="freq">${label}</td><td class="codecell">${code}</td><td>${code.length}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    codesArea.innerHTML = html;
+  }
+
+  function updateSizeMetrics(){
+    const leftZero = leftBitZero.checked;
+    const totSymbols = Object.values(frequencies).reduce((a,b)=>a+b,0);
+    const baselineBitsPerSymbol = useUtf8.checked ? 8 : 1; // rough default
+    const origBits = totSymbols * baselineBitsPerSymbol;
+    let huffBits = 0;
+    for(const sym in frequencies){
+      const count = frequencies[sym];
+      const codeLen = (finalCodes[sym] || '').length || 0;
+      huffBits += count * codeLen;
+    }
+    origSizeSpan.textContent = origBits + ' bits';
+    huffSizeSpan.textContent = huffBits + ' bits';
+    ratioSpan.textContent = origBits > 0 ? ( (100 * (origBits - huffBits)/origBits).toFixed(1) + '% saved' ) : '-';
+  }
+
+  function renderStepsList(){
+    stepsList.innerHTML = '';
+    for(let i=0;i<steps.length;i++){
+      const s = steps[i];
+      const li = document.createElement('li');
+      li.textContent = i === 0 ? `Initial queue (${s.pq.length} nodes)` : `Merged node: weight ${s.merged ? s.merged.weight : ''}  — queue size ${s.pq.length}`;
+      li.style.cursor = 'pointer';
+      li.style.padding = '4px 0';
+      li.onclick = () => {
+        renderStep(i);
+      };
+      stepsList.appendChild(li);
+    }
+  }
+
+  function renderStep(idx){
+    if(idx < 0) idx = 0;
+    if(idx >= steps.length) idx = steps.length - 1;
+    currentStep = idx;
+    stepNumSpan.textContent = idx;
+    // Render queue
+    const snapshot = steps[idx].pq;
+    queueArea.innerHTML = snapshot.map(q=>{
+      const sym = q.isLeaf ? (q.sym === ' ' ? '␣' : escapeHtml(q.sym)) : '(int)';
+      return `<div style="display:inline-block; margin-right:8px; padding:6px 8px; border-radius:6px; background:#fff; border:1px solid #eee;">
+        <div style="font-weight:700">${sym}</div>
+        <div style="font-size:12px;color:#666">${q.weight}</div>
+      </div>`;
+    }).join('');
+
+    // Render tree: from partial nodes available at this step
+    // Need to reconstruct full nodes that are present in pq: these refer to leftId/rightId in snapshots
+    const nodesMap = {};
+    // Build from final tree but only include nodes reachable from ids present in snapshot
+    for(const q of snapshot){
+      // For each id, if exists in treeNodesById, clone that subtree for display
+      const original = treeNodesById[q.id] || findNodeInInitial(q.id);
+      if(original) nodesMap[q.id] = cloneSubtree(original);
+    }
+    // If there are multiple roots (nodes in pq), create a virtual root joining them for layout (not used in code)
+    // We'll display each node as independent trees side-by-side; for simplicity, create a temporary super-root with children = pq nodes
+    const superRoot = { id: 'super', isLeaf: false, left: null, right: null };
+    // For layout convenience, transform multiple children to a binary chain: chain them to the right
+    // Build chain: first = nodesMap[pq[0].id], then right = rest chained
+    if(snapshot.length > 0){
+      let chain = cloneSubtree(nodesMap[snapshot[0].id] || { id:'empty', isLeaf:true, sym:'?', weight:0 });
+      for(let i=1;i<snapshot.length;i++){
+        const next = cloneSubtree(nodesMap[snapshot[i].id] || { id:'empty'+i, isLeaf:true, sym:'?', weight:0 });
+        chain = { id: 'chain' + i + '_' + Math.random().toString(36).slice(2,5), isLeaf:false, left: chain, right: next, weight: (chain.weight || 0) + (next.weight || 0) };
+      }
+      superRoot.left = chain;
+      superRoot.right = null; // single child chain, visualization handles chaining
+    } else {
+      superRoot.left = null;
+    }
+
+    // For visualization we want a single root. If only one element in pq and it's fully built tree, show it
+    const vizRoot = snapshot.length === 1 ? (treeNodesById[snapshot[0].id] || cloneSubtree(nodesMap[snapshot[0].id])) : superRoot.left;
+
+    // Build a small internal registry for nodes displayed
+    const vizNodes = {};
+    if(vizRoot) {
+      traverseAssignTemp(vizRoot, vizNodes);
+    }
+
+    drawTree(vizRoot, idx);
+
+    // Update steps list highlight
+    const lis = stepsList.querySelectorAll('li');
+    lis.forEach((li, i) => li.style.fontWeight = i === idx ? '700' : 'normal');
+  }
+
+  function traverseAssignTemp(node, map){
+    if(!node) return;
+    map[node.id] = node;
+    if(node.left) traverseAssignTemp(node.left, map);
+    if(node.right) traverseAssignTemp(node.right, map);
+  }
+
+  function drawTree(root, stepIdx){
+    treeSvg.innerHTML = '';
+    if(!root){
+      // Nothing to show
+      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x','10');
+      t.setAttribute('y','20');
+      t.setAttribute('fill','#666');
+      t.textContent = 'No tree to display yet.';
+      treeSvg.appendChild(t);
+      return;
+    }
+
+    // Compute positions: assign x positions to leaves evenly
+    const leaves = [];
+    function collectLeaves(n, depth){
+      if(!n) return;
+      if(n.isLeaf || (!n.left && !n.right)) {
+        leaves.push(n);
+      } else {
+        collectLeaves(n.left, depth+1);
+        collectLeaves(n.right, depth+1);
+      }
+    }
+    collectLeaves(root, 0);
+    const leafCount = Math.max(1, leaves.length);
+    const width = 960;
+    const height = 260;
+    const marginX = 20;
+    const marginY = 20;
+    const xSpacing = (width - marginX*2) / (leafCount);
+    // assign x to leaves in order of left-to-right traversal
+    let idx = 0;
+    function assignX(n, depth){
+      if(!n) return;
+      if(n.isLeaf || (!n.left && !n.right)){
+        n._x = marginX + idx * xSpacing + xSpacing/2;
+        n._y = marginY + depth * 40;
+        idx++;
+      } else {
+        assignX(n.left, depth+1);
+        assignX(n.right, depth+1);
+        // internal node x is middle of children
+        const lx = n.left ? n.left._x : null;
+        const rx = n.right ? n.right._x : null;
+        n._x = ( (lx || 0) + (rx || lx || 0) ) / ( (rx ? 1 : 0) + 1 );
+        n._y = marginY + depth * 40;
+      }
+    }
+    assignX(root, 0);
+
+    // Expand viewBox to fit
+    treeSvg.setAttribute('viewBox','0 0 ' + width + ' ' + height);
+
+    // Draw edges first
+    function drawEdges(n){
+      if(!n) return;
+      if(n.left){
+        if(showEdges.checked) {
+          const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+          line.setAttribute('x1', n._x);
+          line.setAttribute('y1', n._y + 14);
+          line.setAttribute('x2', n.left._x);
+          line.setAttribute('y2', n.left._y - 14);
+          line.setAttribute('stroke','#bbb');
+          line.setAttribute('stroke-width','1.2');
+          treeSvg.appendChild(line);
+          // bit label on edge
+          const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+          txt.setAttribute('x', (n._x + n.left._x)/2 );
+          txt.setAttribute('y', (n._y + n.left._y)/2 - 4 );
+          txt.setAttribute('fill','#555');
+          txt.setAttribute('class','node-label');
+          txt.textContent = leftBitZero.checked ? '0' : '1';
+          treeSvg.appendChild(txt);
+        }
+        drawEdges(n.left);
+      }
+      if(n.right){
+        if(showEdges.checked) {
+          const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+          line.setAttribute('x1', n._x);
+          line.setAttribute('y1', n._y + 14);
+          line.setAttribute('x2', n.right._x);
+          line.setAttribute('y2', n.right._y - 14);
+          line.setAttribute('stroke','#bbb');
+          line.setAttribute('stroke-width','1.2');
+          treeSvg.appendChild(line);
+          // bit label on edge
+          const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+          txt.setAttribute('x', (n._x + n.right._x)/2 );
+          txt.setAttribute('y', (n._y + n.right._y)/2 - 4 );
+          txt.setAttribute('fill','#555');
+          txt.setAttribute('class','node-label');
+          txt.textContent = leftBitZero.checked ? '1' : '0';
+          treeSvg.appendChild(txt);
+        }
+        drawEdges(n.right);
+      }
+    }
+    drawEdges(root);
+
+    // Draw nodes
+    function drawNode(n){
+      // group
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('transform', `translate(${n._x},${n._y})`);
+      g.setAttribute('class', 'node ' + (n.isLeaf ? 'leaf' : 'internal'));
+      g.setAttribute('data-id', n.id);
+      // circle
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('r', 14);
+      circle.setAttribute('cx', 0);
+      circle.setAttribute('cy', 0);
+      circle.setAttribute('fill', n.isLeaf ? '#eaf5ff' : '#fff6e5');
+      circle.setAttribute('stroke', n.isLeaf ? '#1e88e5' : '#ff8a00');
+      circle.setAttribute('stroke-width', '1.6');
+      g.appendChild(circle);
+      // weight text
+      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('y', 4);
+      t.setAttribute('fill', '#111');
+      t.setAttribute('font-size', '11');
+      t.textContent = n.weight != null ? n.weight : '';
+      g.appendChild(t);
+
+      // symbol label for leaf below circle
+      if(n.isLeaf){
+        const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+        lbl.setAttribute('y', 30);
+        lbl.setAttribute('fill', '#222');
+        lbl.setAttribute('font-size', '12');
+        lbl.setAttribute('text-anchor','middle');
+        lbl.textContent = n.sym === ' ' ? '␣' : n.sym;
+        g.appendChild(lbl);
+      }
+
+      // make clickable
+      g.style.cursor = 'pointer';
+      g.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        showNodeDetails(n);
+        // highlight node
+        Array.from(treeSvg.querySelectorAll('.node circle')).forEach(c => c.setAttribute('stroke-width', '1.6'));
+        circle.setAttribute('stroke-width','3');
+      });
+
+      treeSvg.appendChild(g);
+
+      if(n.left) drawNode(n.left);
+      if(n.right) drawNode(n.right);
+    }
+    drawNode(root);
+  }
+
+  function showNodeDetails(n){
+    let html = `<div><strong>Node ID:</strong> ${n.id}</div>`;
+    html += `<div><strong>Weight:</strong> ${n.weight || 0}</div>`;
+    if(n.isLeaf){
+      html += `<div><strong>Symbol:</strong> ${n.sym === ' ' ? '␣ (space)' : escapeHtml(n.sym)}</div>`;
+      const code = finalCodes[n.sym] || computeCodeForNode(n);
+      html += `<div><strong>Final code:</strong> <span class="codecell">${code}</span></div>`;
+    } else {
+      html += `<div><strong>Internal node</strong></div>`;
+      html += `<div><em>Children:</em></div>`;
+      html += `<div style="margin-left:10px">Left: ${n.left ? (n.left.isLeaf ? (n.left.sym === ' ' ? '␣' : escapeHtml(n.left.sym)) : '(internal)') : '—'}</div>`;
+      html += `<div style="margin-left:10px">Right: ${n.right ? (n.right.isLeaf ? (n.right.sym === ' ' ? '␣' : escapeHtml(n.right.sym)) : '(internal)') : '—'}</div>`;
+    }
+    nodeDetails.innerHTML = html;
+  }
+
+  function computeCodeForNode(targetNode){
+    // If finalRoot exists, walk to find path to target
+    if(!finalRoot) return '';
+    let found = null;
+    function dfs(n, prefix){
+      if(!n || found) return;
+      if(n === targetNode || (n.isLeaf && targetNode.isLeaf && n.sym === targetNode.sym && n.weight === targetNode.weight)){
+        found = prefix;
+        return;
+      }
+      dfs(n.left, prefix + (leftBitZero.checked ? '0' : '1'));
+      dfs(n.right, prefix + (leftBitZero.checked ? '1' : '0'));
+    }
+    dfs(finalRoot, '');
+    return found || '';
+  }
+
+  // Step control
+  stepNextBtn.addEventListener('click', ()=>{
+    if(steps.length === 0) return;
+    renderStep(Math.min(currentStep + 1, steps.length - 1));
+  });
+  stepBackBtn.addEventListener('click', ()=>{
+    if(steps.length === 0) return;
+    renderStep(Math.max(currentStep - 1, 0));
+  });
+  fastForwardBtn.addEventListener('click', ()=>{
+    if(steps.length === 0) return;
+    renderStep(steps.length - 1);
+  });
+
+  analyzeBtn.addEventListener('click', analyzeInput);
+
+  // Auto-play
+  autoPlayBtn.addEventListener('click', ()=>{
+    if(autoPlaying){
+      autoPlaying = false;
+      clearInterval(stepTimer);
+      autoPlayBtn.textContent = 'Auto-play';
+      return;
+    }
+    if(steps.length === 0){
+      analyzeInput();
+    }
+    autoPlaying = true;
+    autoPlayBtn.textContent = 'Stop';
+    renderStep(0);
+    stepTimer = setInterval(()=>{
+      if(currentStep >= steps.length - 1){
+        clearInterval(stepTimer);
+        autoPlaying = false;
+        autoPlayBtn.textContent = 'Auto-play';
+        return;
+      }
+      renderStep(currentStep + 1);
+    }, 700);
+  });
+
+  // Encode input using final codes
+  encodeBtn.addEventListener('click', ()=>{
+    if(Object.keys(finalCodes).length === 0){
+      alert('No codes available. Click "Analyze" first.');
+      return;
+    }
+    const txt = inputText.value;
+    let bits = '';
+    for(let ch of txt){
+      if(ignoreSpaces.checked && ch === ' ') continue;
+      const c = finalCodes[ch];
+      if(!c){
+        alert('No code for symbol: ' + JSON.stringify(ch));
+        return;
+      }
+      bits += c;
+    }
+    bitString.value = bits;
+    updateSizeMetrics();
+  });
+
+  // Decode bitstring
+  decodeBtn.addEventListener('click', ()=>{
+    if(!finalRoot) { alert('Tree not built. Analyze first.'); return; }
+    const bits = bitString.value.trim();
+    if(bits.length === 0){ alert('Enter a bit string to decode.'); return; }
+    let out = '';
+    let node = finalRoot;
+    const leftZero = leftBitZero.checked;
+    for(let i=0;i<bits.length;i++){
+      const b = bits[i];
+      if(b !== '0' && b !== '1') continue;
+      if(b === (leftZero ? '0' : '1')) node = node.left;
+      else node = node.right;
+      if(!node) { alert('Decoding error at bit index ' + i + '. Path invalid.'); return; }
+      if(node.isLeaf){
+        out += node.sym;
+        node = finalRoot;
+      }
+    }
+    // If ended in non-root and not at leaf, that's an incomplete code; still show what we have
+    if(node !== finalRoot && !node.isLeaf){
+      alert('Bit string ended on a non-leaf node. It may be truncated.');
+    }
+    inputText.value = out;
+    analyzeInput();
+  });
+
+  copyBitsBtn.addEventListener('click', ()=>{
+    const txt = bitString.value;
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(txt).then(()=>alert('Copied bits to clipboard.'));
+    } else {
+      // fallback
+      prompt('Copy bits:', txt);
+    }
+  });
+
+  resetBtn.addEventListener('click', ()=>{
+    inputText.value = '';
+    resetState();
+  });
+
+  // Helpers
+  function escapeHtml(s){
+    return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function findNodeInInitial(id){
+    // search initial nodes array
+    for(const n of nodes){
+      if(n.id === id) return n;
+    }
+    return null;
+  }
+
+  function cloneSubtree(n){
+    if(!n) return null;
+    return {
+      id: n.id,
+      isLeaf: !!n.isLeaf,
+      sym: n.sym,
+      weight: n.weight,
+      left: cloneSubtree(n.left),
+      right: cloneSubtree(n.right)
+    };
+  }
+
+  // Initialize with default analysis
+  analyzeInput();
+
+  // End of IIFE
+})();
+
+</script>
+</body>
+</html>

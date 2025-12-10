@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Longest Common Subsequence (LCS) Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 18px; color: #111; }
+    h1 { margin: 0 0 8px 0; font-size: 20px; }
+    p.lead { margin: 6px 0 14px 0; color: #333; max-width: 900px; }
+    .controls { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+    label { font-size: 13px; }
+    input[type="text"] { padding:6px 8px; font-size:14px; width:260px; }
+    button { padding:8px 12px; font-size:14px; cursor:pointer; }
+    .small { font-size:13px; color:#555; }
+    .container { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
+    .panel { background:#fff; border:1px solid #ddd; padding:12px; border-radius:6px; box-shadow: 0 1px 0 rgba(0,0,0,0.02); }
+    .panel.wide { min-width:420px; max-width:100%; }
+    table.dp { border-collapse:collapse; margin-top:12px; }
+    table.dp th, table.dp td { border:1px solid #e1e6ea; padding:6px 8px; text-align:center; min-width:32px; position:relative; background: #fafcff; }
+    table.dp th { background:#f4f8ff; font-weight:600; color:#0b3b6f; }
+    td.empty { background:#f9f9f9; color:#999; }
+    td.match { background: linear-gradient(180deg,#e6fff4,#e0fff2); }
+    td.highlight { box-shadow: inset 0 0 0 3px rgba(255,236,179,0.6); } /* path highlight */
+    .arrow { font-size:12px; position:absolute; bottom:2px; right:4px; color:#666; }
+    .status { margin-top:8px; font-size:13px; color:#333; }
+    .result { margin-top:12px; }
+    .sequences { max-height:160px; overflow:auto; padding:8px; background:#fcfcff; border:1px dashed #eee; border-radius:4px; }
+    .meta { margin-top:8px; font-size:13px; color:#444; }
+    .footer { margin-top:14px; font-size:13px; color:#444; max-width:680px; }
+    .toggle { display:flex; gap:8px; align-items:center; }
+    input[type=number] { width:70px; padding:6px; }
+    .note { font-size:12px; color:#666; margin-top:6px; }
+    .sequence-picked { font-weight:700; color:#0b3b6f; }
+  </style>
+</head>
+<body>
+  <h1>Longest Common Subsequence (LCS) Visualizer</h1>
+  <p class="lead">Enter two strings below. This tool builds the DP table for LCS and lets you visualize how the table is filled, then reconstructs the subsequence(s). You can animate the filling, step through, and list multiple LCS up to a limit.</p>
+
+  <div class="controls">
+    <label>String A: <input id="strA" type="text" value="ABCBDAB" /></label>
+    <label>String B: <input id="strB" type="text" value="BDCABA" /></label>
+    <button id="computeBtn">Compute</button>
+    <label class="toggle"><input id="animateChk" type="checkbox" checked /> Animate</label>
+    <label>Speed(ms): <input id="speed" type="number" value="60" min="10" /></label>
+    <button id="stepBtn" disabled>Step</button>
+    <button id="pauseBtn" disabled>Pause</button>
+  </div>
+
+  <div class="container">
+    <div class="panel wide" id="panelLeft">
+      <div class="small">DP Table (rows: A prefix, columns: B prefix). Top-left is 0x0 base.</div>
+      <div id="tableWrapper"></div>
+      <div class="status" id="status">Ready.</div>
+    </div>
+
+    <div class="panel" style="min-width:300px;">
+      <div><strong>Results</strong></div>
+      <div class="result" id="resultArea">
+        <div class="meta">Length: <span id="lcsLen">-</span></div>
+        <div class="meta">One LCS: <span id="oneLcs" class="sequence-picked">-</span></div>
+        <div class="meta">All LCS (limited):</div>
+        <div class="sequences" id="allLcs">-</div>
+        <div class="note">Algorithm complexity: O(n*m) time and O(n*m) space for the DP table. Backtracking to enumerate multiple LCS can be exponential in worst case.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Utility
+    const $ = id => document.getElementById(id);
+
+    // Elements
+    const strAInput = $('strA'), strBInput = $('strB');
+    const computeBtn = $('computeBtn'), animateChk = $('animateChk'), speedInput = $('speed');
+    const tableWrapper = $('tableWrapper'), status = $('status');
+    const lcsLenSpan = $('lcsLen'), oneLcsSpan = $('oneLcs'), allLcsDiv = $('allLcs');
+    const stepBtn = $('stepBtn'), pauseBtn = $('pauseBtn');
+
+    // State
+    let A = '', B = '';
+    let n=0, m=0;
+    let dp = [];      // dp matrix (n+1 x m+1)
+    let dirs = [];    // directions storing arrows info for backtracking
+    let cells = [];   // references to table td elements
+    let animating = false, paused = false;
+    let stepMode = false;
+    let maxEnumerate = 200; // limit for enumerating all LCS strings
+
+    // Arrow characters
+    const ARROW_UP = '↑', ARROW_LEFT = '←', ARROW_DIAG = '↖';
+
+    // Create DP table DOM
+    function createTable() {
+      tableWrapper.innerHTML = '';
+      const table = document.createElement('table');
+      table.className = 'dp';
+      const thead = document.createElement('thead');
+      const tbody = document.createElement('tbody');
+
+      // top row header: empty cell + B chars
+      const topRow = document.createElement('tr');
+      const thEmpty = document.createElement('th'); thEmpty.textContent = ''; topRow.appendChild(thEmpty);
+      const thZero = document.createElement('th'); thZero.textContent = ''; topRow.appendChild(thZero);
+      for (let j=0;j<m;j++){
+        const th = document.createElement('th'); th.textContent = B[j]; topRow.appendChild(th);
+      }
+      thead.appendChild(topRow);
+
+      // rows: first header row for A (empty) + zeros row
+      table.appendChild(thead);
+
+      // Row 0 (0th row of dp) with leading header blank + zero cells for j=0..m
+      const row0 = document.createElement('tr');
+      const row0Header = document.createElement('th'); row0Header.textContent = ''; row0.appendChild(row0Header);
+      for (let j=0;j<=m;j++){
+        const td = document.createElement('td'); td.className='empty'; td.textContent = '0';
+        row0.appendChild(td);
+      }
+      tbody.appendChild(row0);
+
+      // subsequent rows: header cell with A[i-1], then dp cells
+      cells = []; // 2D array for easy access [i][j]
+      cells.push(Array.from(row0.querySelectorAll('td'))); // row 0 cells (j from 0..m)
+
+      for (let i=1;i<=n;i++){
+        const tr = document.createElement('tr');
+        const th = document.createElement('th'); th.textContent = A[i-1]; tr.appendChild(th);
+        const cellRow = [];
+        for (let j=0;j<=m;j++){
+          const td = document.createElement('td');
+          td.textContent = '0';
+          // include an arrow container
+          const arrow = document.createElement('div'); arrow.className='arrow'; td.appendChild(arrow);
+          tr.appendChild(td);
+          cellRow.push(td);
+        }
+        tbody.appendChild(tr);
+        cells.push(cellRow);
+      }
+
+      table.appendChild(tbody);
+      tableWrapper.appendChild(table);
+    }
+
+    // Initialize dp & dirs
+    function initDP() {
+      dp = Array.from({length:n+1}, () => Array(m+1).fill(0));
+      dirs = Array.from({length:n+1}, () => Array.from({length:m+1}, () => ({ up:false, left:false, diag:false })));
+    }
+
+    // Sleep promise for animation
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Update table cell content and arrow
+    function updateCell(i,j,val,dirObj, highlight=false, match=false) {
+      // cells is indexed by [i][j] where i from 0..n, j from 0..m
+      const td = cells[i][j];
+      td.classList.toggle('highlight', !!highlight);
+      td.classList.toggle('match', !!match);
+      // set number (first child text node). Some td have arrow div appended.
+      // We place the number as the first text node.
+      td.childNodes[0] && (td.childNodes[0].textContent = String(val));
+      // update arrow
+      const arrowDiv = td.querySelector('.arrow');
+      if (arrowDiv) {
+        let s = '';
+        if (dirObj.diag) s += ARROW_DIAG;
+        if (dirObj.up) s += (s? ' ':'') + ARROW_UP;
+        if (dirObj.left) s += (s? ' ':'') + ARROW_LEFT;
+        arrowDiv.textContent = s;
+      }
+    }
+
+    // Main compute (with optional animation)
+    async function compute(animate=true) {
+      A = strAInput.value || '';
+      B = strBInput.value || '';
+      n = A.length; m = B.length;
+      initDP();
+      createTable();
+      // initialize row0 and col0 visuals
+      for (let j=0;j<=m;j++) updateCell(0,j,0, {up:false,left:false,diag:false});
+      for (let i=1;i<=n;i++) updateCell(i,0,0, {up:false,left:false,diag:false});
+
+      status.textContent = 'Filling DP table...';
+      animating = animate;
+      paused = false;
+      stepMode = false;
+      stepBtn.disabled = true;
+      pauseBtn.disabled = !animate ? true : false;
+
+      const delay = Math.max(1, Number(speedInput.value) || 60);
+
+      // Fill dp row by row
+      for (let i=1;i<=n;i++){
+        for (let j=1;j<=m;j++){
+          // handle pausing
+          if (animate) {
+            // wait while paused
+            while (paused) {
+              await sleep(50);
+            }
+            // if step mode: wait for a single step
+            if (stepMode) {
+              stepBtn.disabled = false;
+              pauseBtn.disabled = true;
+              // wait until user clicks step
+              await new Promise(res => {
+                const onStep = () => { stepBtn.removeEventListener('click', onStep); res(); };
+                stepBtn.addEventListener('click', onStep);
+              });
+              stepBtn.disabled = true;
+              pauseBtn.disabled = false;
+            } else {
+              await sleep(delay);
+            }
+          }
+
+          if (A[i-1] === B[j-1]) {
+            dp[i][j] = dp[i-1][j-1] + 1;
+            dirs[i][j] = { diag:true, up:false, left:false };
+            updateCell(i,j,dp[i][j], dirs[i][j], true, true);
+          } else {
+            if (dp[i-1][j] > dp[i][j-1]) {
+              dp[i][j] = dp[i-1][j];
+              dirs[i][j] = { diag:false, up:true, left:false };
+            } else if (dp[i-1][j] < dp[i][j-1]) {
+              dp[i][j] = dp[i][j-1];
+              dirs[i][j] = { diag:false, up:false, left:true };
+            } else {
+              dp[i][j] = dp[i-1][j]; // equal
+              dirs[i][j] = { diag:false, up:true, left:true };
+            }
+            updateCell(i,j,dp[i][j], dirs[i][j], false, false);
+          }
+        }
+      }
+
+      animating = false;
+      paused = false;
+      stepMode = false;
+      stepBtn.disabled = true;
+      pauseBtn.disabled = true;
+
+      status.textContent = 'Table complete. Backtracking to get LCS...';
+      // Display results
+      displayResults();
+    }
+
+    // Backtrack to get one LCS string (simple greedy path)
+    function getOneLCS() {
+      let i=n, j=m;
+      const seq = [];
+      // we'll follow preference: diag if match; else choose up if dp[i-1][j] >= dp[i][j-1], else left
+      while (i>0 && j>0) {
+        if (A[i-1] === B[j-1]) {
+          seq.push(A[i-1]);
+          // mark match cells
+          cells[i][j].classList.add('highlight');
+          i--; j--;
+        } else {
+          if (dp[i-1][j] >= dp[i][j-1]) {
+            // go up
+            i--;
+          } else {
+            j--;
+          }
+        }
+      }
+      return seq.reverse().join('');
+    }
+
+    // Backtrack to enumerate all LCS sequences (with memoization and limit)
+    function allLCS(limit = maxEnumerate) {
+      const memo = new Map(); // key: i,j -> set of strings (array)
+      function key(i,j){ return i+','+j; }
+
+      function helper(i,j) {
+        const k = key(i,j);
+        if (memo.has(k)) return memo.get(k);
+        const res = new Set();
+        if (i===0 || j===0) {
+          res.add('');
+          memo.set(k,res); return res;
+        }
+        if (A[i-1] === B[j-1]) {
+          const prev = helper(i-1,j-1);
+          for (const s of prev) {
+            // prepend A[i-1] (but since prev strings are from left->right, append)
+            res.add(s + A[i-1]);
+            if (res.size >= limit) break;
+          }
+        } else {
+          if (dp[i-1][j] >= dp[i][j-1]) {
+            for (const s of helper(i-1,j)) {
+              res.add(s);
+              if (res.size >= limit) break;
+            }
+          }
+          if (res.size < limit && dp[i][j-1] >= dp[i-1][j]) {
+            for (const s of helper(i,j-1)) {
+              res.add(s);
+              if (res.size >= limit) break;
+            }
+          }
+        }
+        // For correctness, the strings created by match-case are built L->R (since we appended as we go bottom-up),
+        // but when returning to top-level they are in correct order.
+        // However helper returns strings built from prefixes ending at i,j; for performance we are okay.
+        memo.set(k,res);
+        return res;
+      }
+
+      const setRes = helper(n,m);
+      // The set contains strings built left-to-right but possibly duplicates; ensure unique and cut limit
+      const arr = Array.from(setRes).slice(0, limit);
+      // They might be built from bottom-up appending; ensure they are of length dp[n][m]
+      return arr.map(s => s);
+    }
+
+    // Highlight a chosen LCS sequence's match positions in the table
+    function highlightSequence(seq) {
+      // Clear previous highlights
+      for (let i=0;i<=n;i++) for (let j=0;j<=m;j++) cells[i][j].classList.remove('highlight');
+
+      let i=1, j=1;
+      let k=0;
+      // We want to mark positions where characters of seq were matched. We'll scan A and B to find matches in DP consistent with seq.
+      // We'll iterate through table: move to find next char of seq by advancing i/j such that match occurs at dp value decreasing as appropriate.
+      i = n; j = m;
+      // For better marking, we'll backtrack following the specific sequence: start from end and find matches backward.
+      const positions = [];
+      let si = seq.length -1;
+      while (i>0 && j>0 && si>=0) {
+        if (A[i-1] === B[j-1] && A[i-1] === seq[si]) {
+          positions.push([i,j]);
+          i--; j--; si--;
+        } else {
+          // move in direction of greater dp
+          if (dp[i-1][j] >= dp[i][j-1]) i--; else j--;
+        }
+      }
+      // mark positions
+      for (const [ii,jj] of positions) cells[ii][jj].classList.add('highlight');
+    }
+
+    // Display final results
+    function displayResults() {
+      lcsLenSpan.textContent = String(dp[n][m]);
+      // Clear highlights first
+      for (let i=0;i<=n;i++) for (let j=0;j<=m;j++) cells[i][j].classList.remove('highlight');
+
+      // Find one LCS
+      const one = getOneLCS();
+      oneLcsSpan.textContent = one || '(empty)';
+
+      // Enumerate all (up to limit)
+      status.textContent = 'Enumerating LCS (limited)...';
+      // We do enumeration asynchronously so UI doesn't block for long sequences
+      setTimeout(() => {
+        const arr = allLCS(maxEnumerate);
+        // arr contains strings built from left to right. Some might be in reversed order in our builder depending on implementation;
+        // ensure they are of correct length and no duplicates.
+        const uniq = Array.from(new Set(arr)).filter(s => s.length === dp[n][m]);
+        allLcsDiv.innerHTML = '';
+        if (uniq.length === 0) {
+          allLcsDiv.textContent = '(none / empty)';
+        } else {
+          for (let i=0;i<uniq.length;i++) {
+            const d = document.createElement('div');
+            d.style.padding = '4px 0';
+            d.style.borderBottom = (i<uniq.length-1)? '1px dashed #eee' : 'none';
+            d.innerHTML = `<span class="small">${i+1}.</span> <span class="sequence-picked">${uniq[i]||'(empty)'}</span>`;
+            // clicking a sequence highlights its matches in table
+            d.style.cursor = 'pointer';
+            d.title = 'Click to highlight this sequence on the DP table';
+            d.addEventListener('click', ()=> highlightSequence(uniq[i]));
+            allLcsDiv.appendChild(d);
+          }
+          if (uniq.length >= maxEnumerate) {
+            const note = document.createElement('div'); note.className='note'; note.textContent = `Displayed first ${maxEnumerate} unique LCS sequences (limit).`;
+            allLcsDiv.appendChild(note);
+          }
+        }
+        status.textContent = 'Done. Click any sequence to highlight its matches in the table.';
+      }, 10);
+    }
+
+    // Wire buttons
+    computeBtn.addEventListener('click', async () => {
+      // reset statuses
+      status.textContent = 'Preparing...';
+      // Cancel any existing highlights / animation state
+      paused = false;
+      stepMode = false;
+      stepBtn.disabled = true;
+      pauseBtn.disabled = true;
+      try {
+        await compute(animateChk.checked);
+      } catch (e) {
+        console.error(e);
+        status.textContent = 'Error: ' + e.message;
+      }
+    });
+
+    // Pause button
+    pauseBtn.addEventListener('click', () => {
+      if (!animating) return;
+      paused = !paused;
+      pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+      status.textContent = paused ? 'Paused.' : 'Animating...';
+      // If paused, enable step button to allow stepping
+      stepBtn.disabled = !paused;
+      stepMode = false;
+    });
+
+    // Step button toggles step-mode: if clicked it's handled in compute loop
+    stepBtn.addEventListener('click', () => {
+      // step action is handled during compute via event listener in compute's step promise
+      // (button enabled only when paused).
+    });
+
+    // Keyboard shortcut: Enter in input triggers compute
+    [strAInput, strBInput].forEach(inp => {
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') computeBtn.click(); });
+    });
+
+    // Initial compute on load
+    window.addEventListener('load', () => {
+      computeBtn.click();
+    });
+
+    // Small improvements: recompute on string change after small delay?
+    // Not necessary here; user can press compute.
+
+    // Explanatory note in the console for advanced users
+    console.log('LCS Visualizer ready. Edit the strings and press Compute. Click sequences to highlight matches in DP table.');
+  </script>
+</body>
+</html>
