@@ -1,0 +1,51 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Heap Sort Algorithm Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - text: "Enter numbers (comma-separated):"
+      - textbox "Enter numbers (comma-separated):" [ref=e6]: 5,2,8
+      - button "Generate Array" [active] [ref=e7] [cursor=pointer]
+    - generic [ref=e8]:
+      - button "Sort Array" [ref=e9] [cursor=pointer]
+      - button "Step-by-Step" [ref=e10] [cursor=pointer]
+      - button "Reset" [ref=e11] [cursor=pointer]
+  - generic [ref=e12]:
+    - heading "Current Array:" [level=3] [ref=e13]
+    - generic [ref=e14]:
+      - generic [ref=e15]: "5"
+      - generic [ref=e16]: "2"
+      - generic [ref=e17]: "8"
+    - generic [ref=e18]:
+      - generic [ref=e20]: "5"
+      - generic [ref=e21]:
+        - generic [ref=e22]: "2"
+        - generic [ref=e24]: "8"
+    - generic [ref=e26]: Array generated. Click "Sort Array" to begin heap sort.
+  - generic [ref=e27]:
+    - heading "Heap Sort Algorithm Explanation" [level=3] [ref=e28]
+    - paragraph [ref=e29]:
+      - strong [ref=e30]: Heap Sort
+      - text: is a comparison-based sorting algorithm that uses a binary heap data structure.
+    - heading "Steps:" [level=4] [ref=e31]
+    - list [ref=e32]:
+      - listitem [ref=e33]:
+        - strong [ref=e34]: "Build Max Heap:"
+        - text: Convert the array into a max heap (parent nodes are greater than children)
+      - listitem [ref=e35]:
+        - strong [ref=e36]: "Extract Maximum:"
+        - text: Repeatedly remove the maximum element from the heap and reconstruct the heap
+      - listitem [ref=e37]:
+        - strong [ref=e38]: "Sort:"
+        - text: Place the extracted elements at the end of the array to form the sorted portion
+    - heading "Time Complexity:" [level=4] [ref=e39]
+    - list [ref=e40]:
+      - listitem [ref=e41]: "Best Case: O(n log n)"
+      - listitem [ref=e42]: "Average Case: O(n log n)"
+      - listitem [ref=e43]: "Worst Case: O(n log n)"
+    - heading "Space Complexity:" [level=4] [ref=e44]
+    - list [ref=e45]:
+      - listitem [ref=e46]: O(1) - sorts in place
+```

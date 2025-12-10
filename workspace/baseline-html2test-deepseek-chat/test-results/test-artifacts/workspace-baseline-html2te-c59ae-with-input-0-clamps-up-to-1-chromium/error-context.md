@@ -1,0 +1,43 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Fibonacci Sequence" [level=1] [ref=e3]
+  - paragraph [ref=e4]: Explore the fascinating mathematical pattern found in nature
+  - generic [ref=e5]:
+    - spinbutton [ref=e6]: "10"
+    - button "Generate Sequence" [active] [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - button "Show More Terms" [ref=e9] [cursor=pointer]
+    - button "Show Fewer Terms" [ref=e10] [cursor=pointer]
+    - button "Reset" [ref=e11] [cursor=pointer]
+  - generic [ref=e12]:
+    - heading "Fibonacci Sequence" [level=2] [ref=e13]
+    - generic [ref=e14]:
+      - generic "Fibonacci number at position 1" [ref=e15]: "0"
+      - text: ","
+      - generic "Fibonacci number at position 2" [ref=e16]: "1"
+      - text: ","
+      - generic "Fibonacci number at position 3" [ref=e17]: "1"
+      - text: ","
+      - generic "Fibonacci number at position 4" [ref=e18]: "2"
+      - text: ","
+      - generic "Fibonacci number at position 5" [ref=e19]: "3"
+      - text: ","
+      - generic "Fibonacci number at position 6" [ref=e20]: "5"
+      - text: ","
+      - generic "Fibonacci number at position 7" [ref=e21]: "8"
+      - text: ","
+      - generic "Fibonacci number at position 8" [ref=e22]: "13"
+      - text: ","
+      - generic "Fibonacci number at position 9" [ref=e23]: "21"
+      - text: ","
+      - generic "Fibonacci number at position 10" [ref=e24]: "34"
+      - paragraph [ref=e25]: "Ratio of last two numbers: 1.619048 (approaches φ ≈ 1.618034)"
+  - generic [ref=e26]:
+    - heading "About the Fibonacci Sequence" [level=2] [ref=e27]
+    - paragraph [ref=e28]: The Fibonacci sequence is a series of numbers where each number is the sum of the two preceding ones, usually starting with 0 and 1.
+    - paragraph [ref=e29]: "Sequence: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, ..."
+    - paragraph [ref=e30]: This sequence appears in many natural phenomena, such as the arrangement of leaves on a stem, the fruit sprouts of a pineapple, and the flowering of an artichoke.
+    - paragraph [ref=e31]: The ratio of consecutive Fibonacci numbers approaches the Golden Ratio (φ ≈ 1.618), which is considered aesthetically pleasing and appears in art, architecture, and nature.
+```

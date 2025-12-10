@@ -1,0 +1,51 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Drag-and-Drop Sortable List Tutorial" [level=1] [ref=e4]
+    - paragraph [ref=e5]: Learn how to implement drag-and-drop functionality with vanilla JavaScript
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - heading "Interactive Demo" [level=2] [ref=e8]
+      - paragraph [ref=e9]: "Try dragging the items below to reorder the list:"
+      - list [ref=e11]:
+        - listitem [ref=e12]:
+          - generic [ref=e13]: "1"
+          - text: Complete project proposal
+        - listitem [ref=e14]:
+          - generic [ref=e15]: "2"
+          - text: Design user interface
+        - listitem [ref=e16]:
+          - generic [ref=e17]: "3"
+          - text: Implement core functionality
+        - listitem [ref=e18]:
+          - generic [ref=e19]: "4"
+          - text: Test and debug features
+        - listitem [ref=e20]:
+          - generic [ref=e21]: "5"
+          - text: Deploy to production
+      - button "Reset List Order" [ref=e22] [cursor=pointer]
+      - paragraph [ref=e24]:
+        - strong [ref=e25]: "How it works:"
+        - text: This implementation uses the HTML5 Drag and Drop API along with JavaScript event handlers to enable reordering of list items.
+    - generic [ref=e26]:
+      - heading "Implementation Guide" [level=2] [ref=e27]
+      - 'heading "Step 1: HTML Structure" [level=3] [ref=e28]'
+      - paragraph [ref=e29]: "Create a basic list structure with draggable items:"
+      - code [ref=e31]: <ul id="sortable-list"> <li draggable="true" data-id="1">Item 1</li> <li draggable="true" data-id="2">Item 2</li> <li draggable="true" data-id="3">Item 3</li> </ul>
+      - 'heading "Step 2: CSS Styling" [level=3] [ref=e32]'
+      - paragraph [ref=e33]: "Add visual feedback for drag states:"
+      - code [ref=e35]: "li.dragging { opacity: 0.5; } li.over { border-top: 2px solid blue; }"
+      - 'heading "Step 3: JavaScript Logic" [level=3] [ref=e36]'
+      - paragraph [ref=e37]: "Set up event listeners for drag events:"
+      - code [ref=e39]: "const list = document.getElementById('sortable-list'); let draggedItem = null; // Drag start event list.addEventListener('dragstart', (e) => { draggedItem = e.target; e.target.classList.add('dragging'); }); // Drag over event list.addEventListener('dragover', (e) => { e.preventDefault(); const afterElement = getDragAfterElement(list, e.clientY); const currentItem = document.querySelector('.dragging'); if (afterElement == null) { list.appendChild(currentItem); } else { list.insertBefore(currentItem, afterElement); } }); // Drag end event list.addEventListener('dragend', (e) => { e.target.classList.remove('dragging'); });"
+      - heading "Complete Code" [level=3] [ref=e40]
+      - paragraph [ref=e41]: "The full implementation includes helper functions for precise positioning:"
+      - code [ref=e43]: "function getDragAfterElement(container, y) { const draggableElements = [...container.querySelectorAll('li:not(.dragging)')]; return draggableElements.reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = y - box.top - box.height / 2; if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } else { return closest; } }, { offset: Number.NEGATIVE_INFINITY }).element; }"
+      - paragraph [ref=e45]:
+        - strong [ref=e46]: "Pro Tip:"
+        - text: You can extend this functionality by saving the new order to local storage or sending it to a server via AJAX.
+  - contentinfo [ref=e47]:
+    - paragraph [ref=e48]: Drag-and-Drop Sortable List Tutorial © 2023 | Built with HTML, CSS, and JavaScript
+```

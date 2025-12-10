@@ -1,0 +1,60 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - text: "# Bellman-Ford Algorithm Visualization I'll create an interactive visualization of the Bellman-Ford algorithm that lets users build graphs and see the algorithm in action. ```html"
+  - generic [ref=e2]:
+    - heading "Bellman-Ford Algorithm Visualization" [level=1] [ref=e3]
+    - paragraph [ref=e4]: Visualize the shortest path finding algorithm that handles negative weight edges
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e8]:
+            - button "Add Node" [ref=e9] [cursor=pointer]
+            - button "Add Edge" [ref=e10] [cursor=pointer]
+            - button "Move Node" [ref=e11] [cursor=pointer]
+            - button "Delete" [ref=e12] [cursor=pointer]
+          - button "Run Algorithm" [ref=e13] [cursor=pointer]
+          - button "Reset Graph" [ref=e14] [cursor=pointer]
+          - button "Step Forward" [disabled] [ref=e15]
+          - button "Step Backward" [disabled] [ref=e16]
+        - generic [ref=e19]:
+          - heading "How to use:" [level=3] [ref=e20]
+          - list [ref=e21]:
+            - listitem [ref=e22]:
+              - strong [ref=e23]: "Add Node:"
+              - text: Click on an empty area to add a node
+            - listitem [ref=e24]:
+              - strong [ref=e25]: "Add Edge:"
+              - text: Select two nodes to create an edge (you can set weight in the edge info)
+            - listitem [ref=e26]:
+              - strong [ref=e27]: "Move Node:"
+              - text: Drag nodes to reposition them
+            - listitem [ref=e28]:
+              - strong [ref=e29]: "Delete:"
+              - text: Click on a node or edge to delete it
+            - listitem [ref=e30]: Set the source node by clicking on it while the algorithm is not running
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - heading "About Bellman-Ford Algorithm" [level=3] [ref=e33]
+          - paragraph [ref=e34]: The Bellman-Ford algorithm finds the shortest path from a source node to all other nodes in a weighted graph. It can handle graphs with negative weight edges and detect negative cycles.
+          - paragraph [ref=e35]:
+            - strong [ref=e36]: "Time Complexity:"
+            - text: O(V*E) where V is the number of vertices and E is the number of edges.
+        - generic [ref=e37]:
+          - heading "Algorithm Steps" [level=3] [ref=e38]
+          - generic [ref=e39]: Ready to run the algorithm.
+        - generic [ref=e40]:
+          - heading "Distance Table" [level=3] [ref=e41]
+          - table [ref=e43]:
+            - rowgroup [ref=e44]:
+              - row "Node Distance Previous" [ref=e45]:
+                - cell "Node" [ref=e46]
+                - cell "Distance" [ref=e47]
+                - cell "Previous" [ref=e48]
+            - rowgroup
+        - generic [ref=e49]:
+          - generic [ref=e52]: Source Node
+          - generic [ref=e55]: Relaxed Node/Edge
+          - generic [ref=e58]: Negative Cycle
+```

@@ -1,0 +1,148 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Binary Search Algorithm" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - paragraph [ref=e5]: Binary search is an efficient algorithm for finding an item from a sorted list of items. It works by repeatedly dividing the search interval in half. If the target value is less than the middle element, the search continues in the lower half; otherwise, it continues in the upper half.
+    - paragraph [ref=e6]:
+      - strong [ref=e7]: "Prerequisites:"
+      - text: The array must be sorted for binary search to work correctly.
+  - heading "Algorithm Steps" [level=2] [ref=e8]
+  - list [ref=e9]:
+    - listitem [ref=e10]: Start with the entire sorted array
+    - listitem [ref=e11]: "Calculate the midpoint index: mid = floor((low + high) / 2)"
+    - listitem [ref=e12]: Compare the target with the element at the midpoint
+    - listitem [ref=e13]: If they match, return the midpoint index
+    - listitem [ref=e14]: If the target is smaller, repeat the search on the left half
+    - listitem [ref=e15]: If the target is larger, repeat the search on the right half
+    - listitem [ref=e16]: Continue until the target is found or the search space is empty
+  - heading "Visual Demonstration" [level=2] [ref=e17]
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]: "Enter a number to search for (1-100):"
+      - spinbutton "Enter a number to search for (1-100):" [ref=e21]: "42"
+    - generic [ref=e22]:
+      - generic [ref=e23]: "1"
+      - generic [ref=e24]: "2"
+      - generic [ref=e25]: "3"
+      - generic [ref=e26]: "4"
+      - generic [ref=e27]: "5"
+      - generic [ref=e28]: "6"
+      - generic [ref=e29]: "7"
+      - generic [ref=e30]: "8"
+      - generic [ref=e31]: "9"
+      - generic [ref=e32]: "10"
+      - generic [ref=e33]: "11"
+      - generic [ref=e34]: "12"
+      - generic [ref=e35]: "13"
+      - generic [ref=e36]: "14"
+      - generic [ref=e37]: "15"
+      - generic [ref=e38]: "16"
+      - generic [ref=e39]: "17"
+      - generic [ref=e40]: "18"
+      - generic [ref=e41]: "19"
+      - generic [ref=e42]: "20"
+      - generic [ref=e43]: "21"
+      - generic [ref=e44]: "22"
+      - generic [ref=e45]: "23"
+      - generic [ref=e46]: "24"
+      - generic [ref=e47]: "25"
+      - generic [ref=e48]: "26"
+      - generic [ref=e49]: "27"
+      - generic [ref=e50]: "28"
+      - generic [ref=e51]: "29"
+      - generic [ref=e52]: "30"
+      - generic [ref=e53]: "31"
+      - generic [ref=e54]: "32"
+      - generic [ref=e55]: "33"
+      - generic [ref=e56]: "34"
+      - generic [ref=e57]: "35"
+      - generic [ref=e58]: "36"
+      - generic [ref=e59]: "37"
+      - generic [ref=e60]: "38"
+      - generic [ref=e61]: "39"
+      - generic [ref=e62]: "40"
+      - generic [ref=e63]: "41"
+      - generic [ref=e64]: "42"
+      - generic [ref=e65]: "43"
+      - generic [ref=e66]: "44"
+      - generic [ref=e67]: "45"
+      - generic [ref=e68]: "46"
+      - generic [ref=e69]: "47"
+      - generic [ref=e70]: "48"
+      - generic [ref=e71]: "49"
+      - generic [ref=e72]: "50"
+      - generic [ref=e73]: "51"
+      - generic [ref=e74]: "52"
+      - generic [ref=e75]: "53"
+      - generic [ref=e76]: "54"
+      - generic [ref=e77]: "55"
+      - generic [ref=e78]: "56"
+      - generic [ref=e79]: "57"
+      - generic [ref=e80]: "58"
+      - generic [ref=e81]: "59"
+      - generic [ref=e82]: "60"
+      - generic [ref=e83]: "61"
+      - generic [ref=e84]: "62"
+      - generic [ref=e85]: "63"
+      - generic [ref=e86]: "64"
+      - generic [ref=e87]: "65"
+      - generic [ref=e88]: "66"
+      - generic [ref=e89]: "67"
+      - generic [ref=e90]: "68"
+      - generic [ref=e91]: "69"
+      - generic [ref=e92]: "70"
+      - generic [ref=e93]: "71"
+      - generic [ref=e94]: "72"
+      - generic [ref=e95]: "73"
+      - generic [ref=e96]: "74"
+      - generic [ref=e97]: "75"
+      - generic [ref=e98]: "76"
+      - generic [ref=e99]: "77"
+      - generic [ref=e100]: "78"
+      - generic [ref=e101]: "79"
+      - generic [ref=e102]: "80"
+      - generic [ref=e103]: "81"
+      - generic [ref=e104]: "82"
+      - generic [ref=e105]: "83"
+      - generic [ref=e106]: "84"
+      - generic [ref=e107]: "85"
+      - generic [ref=e108]: "86"
+      - generic [ref=e109]: "87"
+      - generic [ref=e110]: "88"
+      - generic [ref=e111]: "89"
+      - generic [ref=e112]: "90"
+      - generic [ref=e113]: "91"
+      - generic [ref=e114]: "92"
+      - generic [ref=e115]: "93"
+      - generic [ref=e116]: "94"
+      - generic [ref=e117]: "95"
+      - generic [ref=e118]: "96"
+      - generic [ref=e119]: "97"
+      - generic [ref=e120]: "98"
+      - generic [ref=e121]: "99"
+      - generic [ref=e122]: "100"
+    - generic [ref=e123]:
+      - button "Start Search" [ref=e124] [cursor=pointer]
+      - button "Next Step" [disabled] [ref=e125]
+      - button "Reset" [ref=e126] [cursor=pointer]
+  - heading "Time Complexity" [level=2] [ref=e128]
+  - generic [ref=e129]:
+    - generic [ref=e130]:
+      - heading "Best Case" [level=3] [ref=e131]
+      - paragraph [ref=e132]: O(1)
+      - paragraph [ref=e133]: Target is at the middle of the array
+    - generic [ref=e134]:
+      - heading "Average Case" [level=3] [ref=e135]
+      - paragraph [ref=e136]: O(log n)
+      - paragraph [ref=e137]: Target is found after log₂n comparisons
+    - generic [ref=e138]:
+      - heading "Worst Case" [level=3] [ref=e139]
+      - paragraph [ref=e140]: O(log n)
+      - paragraph [ref=e141]: Target is not in the array or at extremes
+  - heading "JavaScript Implementation" [level=2] [ref=e142]
+  - generic [ref=e143]: "function binarySearch(arr, target) { let left = 0; let right = arr.length - 1; while (left <= right) { const mid = Math.floor((left + right) / 2); if (arr[mid] === target) { return mid; // Target found } else if (arr[mid] < target) { left = mid + 1; // Search right half } else { right = mid - 1; // Search left half } } return -1; // Target not found }"
+  - contentinfo [ref=e144]:
+    - paragraph [ref=e145]: Binary Search Algorithm Visualization | Created for educational purposes
+```

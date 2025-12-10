@@ -1,0 +1,53 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - text: "# Quick Sort Visualization I'll create an interactive visualization that demonstrates how the quick sort algorithm works with animated sorting actions. ```html"
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - heading "Quick Sort Algorithm Visualization" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Quick Sort is a highly efficient sorting algorithm that uses a divide-and-conquer approach. It works by selecting a 'pivot' element and partitioning the array around the pivot, placing smaller elements to the left and larger elements to the right. This process is recursively applied to the sub-arrays until the entire array is sorted.
+    - generic [ref=e6]:
+      - button "Generate New Array" [ref=e7] [cursor=pointer]
+      - button "Start Quick Sort" [ref=e8] [cursor=pointer]
+      - button "Reset" [ref=e9] [cursor=pointer]
+      - button "Step Through" [ref=e10] [cursor=pointer]
+    - generic [ref=e11]:
+      - generic [ref=e12]: "Array Size:"
+      - slider "Array Size:" [ref=e13]: "20"
+      - generic [ref=e14]: "20"
+      - generic [ref=e15]: "Speed:"
+      - slider "Speed:" [ref=e16]: "5"
+      - generic [ref=e17]: "5"
+    - generic [ref=e19]:
+      - heading "How Quick Sort Works" [level=2] [ref=e20]
+      - paragraph [ref=e21]: Click "Start Quick Sort" to begin the visualization.
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - 'heading "Step 1: Choose Pivot" [level=3] [ref=e24]'
+        - paragraph [ref=e25]: Select an element from the array as the pivot. In this visualization, we use the last element as the pivot.
+      - generic [ref=e26]:
+        - 'heading "Step 2: Partition" [level=3] [ref=e27]'
+        - paragraph [ref=e28]: Rearrange the array so that all elements smaller than the pivot come before it, and all greater elements come after it.
+      - generic [ref=e29]:
+        - 'heading "Step 3: Recursively Sort" [level=3] [ref=e30]'
+        - paragraph [ref=e31]: Apply the same process recursively to the sub-arrays formed by dividing the array at the pivot.
+    - table [ref=e32]:
+      - rowgroup [ref=e33]:
+        - row "Case Time Complexity Space Complexity" [ref=e34]:
+          - cell "Case" [ref=e35]
+          - cell "Time Complexity" [ref=e36]
+          - cell "Space Complexity" [ref=e37]
+        - row "Best Case (O(n log n)) O(n log n) O(log n)" [ref=e38]:
+          - cell "Best Case (O(n log n))" [ref=e39]
+          - cell "O(n log n)" [ref=e40]
+          - cell "O(log n)" [ref=e41]
+        - row "Average Case (O(n log n)) O(n log n) O(log n)" [ref=e42]:
+          - cell "Average Case (O(n log n))" [ref=e43]
+          - cell "O(n log n)" [ref=e44]
+          - cell "O(log n)" [ref=e45]
+        - row "Worst Case (O(n²)) O(n²) O(n)" [ref=e46]:
+          - cell "Worst Case (O(n²))" [ref=e47]
+          - cell "O(n²)" [ref=e48]
+          - cell "O(n)" [ref=e49]
+```

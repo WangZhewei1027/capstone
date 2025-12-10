@@ -1,0 +1,71 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Deque Data Structure Visualizer" [level=1] [ref=e4]
+    - paragraph [ref=e5]: A deque (double-ended queue) is a linear data structure that allows insertion and deletion at both ends. It combines the features of both stacks and queues, providing flexible data management.
+  - generic [ref=e6]:
+    - heading "Visualization" [level=2] [ref=e7]
+    - generic [ref=e8]:
+      - generic [ref=e9]: "Deque Elements:"
+      - generic [ref=e11]: Deque is empty
+    - generic [ref=e12]: Welcome! Use the controls below to interact with the deque.
+    - generic [ref=e13]:
+      - generic [ref=e14] [cursor=pointer]: Push Front
+      - generic [ref=e15] [cursor=pointer]: Push Back
+      - generic [ref=e16] [cursor=pointer]: Pop Front
+      - generic [ref=e17] [cursor=pointer]: Pop Back
+      - generic [ref=e18] [cursor=pointer]: Get Front
+      - generic [ref=e19] [cursor=pointer]: Get Back
+      - generic [ref=e20] [cursor=pointer]: Clear Deque
+  - generic [ref=e21]:
+    - generic [ref=e22]:
+      - heading "Add Element" [level=3] [ref=e23]
+      - textbox "Enter element value" [ref=e24]
+      - button "Add to Front" [ref=e25] [cursor=pointer]
+      - button "Add to Back" [ref=e26] [cursor=pointer]
+    - generic [ref=e27]:
+      - heading "Generate Random Elements" [level=3] [ref=e28]
+      - spinbutton [ref=e29]: "5"
+      - button "Generate Elements" [ref=e30] [cursor=pointer]
+    - generic [ref=e31]:
+      - heading "Deque Information" [level=3] [ref=e32]
+      - paragraph [ref=e33]: "Size: 0"
+      - paragraph [ref=e34]: "Is Empty: True"
+      - button "Show Details" [ref=e35] [cursor=pointer]
+  - generic [ref=e36]:
+    - heading "Deque Operations and Complexity" [level=2] [ref=e37]
+    - paragraph [ref=e38]: Deques provide O(1) time complexity for insertion and deletion at both ends when implemented with a doubly-linked list or dynamic array.
+    - table [ref=e39]:
+      - rowgroup [ref=e40]:
+        - row "Operation Description Time Complexity" [ref=e41]:
+          - cell "Operation" [ref=e42]
+          - cell "Description" [ref=e43]
+          - cell "Time Complexity" [ref=e44]
+      - rowgroup [ref=e45]:
+        - row "Push Front Add an element to the front O(1)" [ref=e46]:
+          - cell "Push Front" [ref=e47]
+          - cell "Add an element to the front" [ref=e48]
+          - cell "O(1)" [ref=e49]
+        - row "Push Back Add an element to the back O(1)" [ref=e50]:
+          - cell "Push Back" [ref=e51]
+          - cell "Add an element to the back" [ref=e52]
+          - cell "O(1)" [ref=e53]
+        - row "Pop Front Remove an element from the front O(1)" [ref=e54]:
+          - cell "Pop Front" [ref=e55]
+          - cell "Remove an element from the front" [ref=e56]
+          - cell "O(1)" [ref=e57]
+        - row "Pop Back Remove an element from the back O(1)" [ref=e58]:
+          - cell "Pop Back" [ref=e59]
+          - cell "Remove an element from the back" [ref=e60]
+          - cell "O(1)" [ref=e61]
+        - row "Get Front Get the front element without removing O(1)" [ref=e62]:
+          - cell "Get Front" [ref=e63]
+          - cell "Get the front element without removing" [ref=e64]
+          - cell "O(1)" [ref=e65]
+        - row "Get Back Get the back element without removing O(1)" [ref=e66]:
+          - cell "Get Back" [ref=e67]
+          - cell "Get the back element without removing" [ref=e68]
+          - cell "O(1)" [ref=e69]
+```

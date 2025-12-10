@@ -1,0 +1,124 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Arrays in Genetic Algorithms" [level=1] [ref=e4]
+    - paragraph [ref=e5]: Visualizing how arrays represent chromosomes in evolutionary computation
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - heading "Understanding Arrays in Genetic Algorithms" [level=2] [ref=e8]
+      - paragraph [ref=e9]: In genetic algorithms (GAs), arrays play a fundamental role as they represent chromosomes - the encoded solutions to optimization problems.
+      - paragraph [ref=e10]:
+        - text: Each element in the array is a
+        - strong [ref=e11]: gene
+        - text: ", which can be a binary value (0 or 1), a real number, or a symbol depending on the problem encoding."
+      - paragraph [ref=e12]: "Key operations in genetic algorithms that use arrays:"
+      - list [ref=e13]:
+        - listitem [ref=e14]:
+          - strong [ref=e15]: "Initialization:"
+          - text: Creating random arrays as the initial population
+        - listitem [ref=e16]:
+          - strong [ref=e17]: "Selection:"
+          - text: Choosing arrays based on fitness for reproduction
+        - listitem [ref=e18]:
+          - strong [ref=e19]: "Crossover:"
+          - text: Combining parts of two parent arrays to create offspring
+        - listitem [ref=e20]:
+          - strong [ref=e21]: "Mutation:"
+          - text: Randomly altering some elements in the arrays
+      - paragraph [ref=e22]: Genetic algorithms mimic natural selection to evolve better solutions over generations. The array-based representation allows for efficient manipulation and evaluation of potential solutions.
+    - generic [ref=e23]:
+      - heading "Genetic Algorithm Simulation" [level=2] [ref=e24]
+      - paragraph [ref=e25]: This simulation demonstrates a simple genetic algorithm trying to evolve an array of all 1s. Each array represents an individual's chromosome.
+      - generic [ref=e26]:
+        - button "Start Evolution" [ref=e27] [cursor=pointer]
+        - button "Pause" [disabled] [ref=e28]
+        - button "Reset" [ref=e29] [cursor=pointer]
+        - button "Next Generation" [ref=e30] [cursor=pointer]
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: "Fitness: 60.0%"
+          - generic [ref=e34]: "0"
+          - generic [ref=e35]: "0"
+          - generic [ref=e36]: "1"
+          - generic [ref=e37]: "1"
+          - generic [ref=e38]: "0"
+          - generic [ref=e39]: "1"
+          - generic [ref=e40]: "0"
+          - generic [ref=e41]: "1"
+          - generic [ref=e42]: "1"
+          - generic [ref=e43]: "1"
+        - generic [ref=e44]:
+          - generic [ref=e45]: "Fitness: 40.0%"
+          - generic [ref=e46]: "0"
+          - generic [ref=e47]: "0"
+          - generic [ref=e48]: "1"
+          - generic [ref=e49]: "0"
+          - generic [ref=e50]: "0"
+          - generic [ref=e51]: "0"
+          - generic [ref=e52]: "1"
+          - generic [ref=e53]: "0"
+          - generic [ref=e54]: "1"
+          - generic [ref=e55]: "1"
+        - generic [ref=e56]:
+          - generic [ref=e57]: "Fitness: 40.0%"
+          - generic [ref=e58]: "0"
+          - generic [ref=e59]: "0"
+          - generic [ref=e60]: "1"
+          - generic [ref=e61]: "0"
+          - generic [ref=e62]: "0"
+          - generic [ref=e63]: "1"
+          - generic [ref=e64]: "1"
+          - generic [ref=e65]: "1"
+          - generic [ref=e66]: "0"
+          - generic [ref=e67]: "0"
+        - generic [ref=e68]:
+          - generic [ref=e69]: "Fitness: 60.0%"
+          - generic [ref=e70]: "1"
+          - generic [ref=e71]: "0"
+          - generic [ref=e72]: "1"
+          - generic [ref=e73]: "0"
+          - generic [ref=e74]: "0"
+          - generic [ref=e75]: "1"
+          - generic [ref=e76]: "0"
+          - generic [ref=e77]: "1"
+          - generic [ref=e78]: "1"
+          - generic [ref=e79]: "1"
+        - generic [ref=e80]:
+          - generic [ref=e81]: "Fitness: 30.0%"
+          - generic [ref=e82]: "0"
+          - generic [ref=e83]: "1"
+          - generic [ref=e84]: "0"
+          - generic [ref=e85]: "1"
+          - generic [ref=e86]: "1"
+          - generic [ref=e87]: "0"
+          - generic [ref=e88]: "0"
+          - generic [ref=e89]: "0"
+          - generic [ref=e90]: "0"
+          - generic [ref=e91]: "0"
+        - generic [ref=e92]:
+          - generic [ref=e93]: "Fitness: 50.0%"
+          - generic [ref=e94]: "0"
+          - generic [ref=e95]: "1"
+          - generic [ref=e96]: "0"
+          - generic [ref=e97]: "1"
+          - generic [ref=e98]: "1"
+          - generic [ref=e99]: "0"
+          - generic [ref=e100]: "0"
+          - generic [ref=e101]: "0"
+          - generic [ref=e102]: "1"
+          - generic [ref=e103]: "1"
+      - generic [ref=e104]:
+        - generic [ref=e105]:
+          - generic [ref=e106]: Generation
+          - generic [ref=e107]: "0"
+        - generic [ref=e108]:
+          - generic [ref=e109]: Best Fitness
+          - generic [ref=e110]: 60.0%
+        - generic [ref=e111]:
+          - generic [ref=e112]: Average Fitness
+          - generic [ref=e113]: 46.7%
+  - contentinfo [ref=e114]:
+    - paragraph [ref=e115]: This visualization demonstrates how arrays are fundamental to genetic algorithms, serving as chromosome representations that evolve toward optimal solutions.
+```

@@ -1,0 +1,82 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Knapsack Problem Solver" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - paragraph [ref=e5]:
+      - text: The
+      - strong [ref=e6]: Knapsack Problem
+      - text: "is a classic optimization problem: given a set of items, each with a weight and a value, determine the number of each item to include in a collection so that the total weight is less than or equal to a given limit and the total value is as large as possible."
+    - paragraph [ref=e7]: This implementation uses dynamic programming to find the optimal solution.
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - heading "Add Items" [level=2] [ref=e10]
+      - generic [ref=e11]:
+        - generic [ref=e12]: "Item Name:"
+        - textbox "Item Name:" [ref=e13]:
+          - /placeholder: e.g., Laptop
+      - generic [ref=e14]:
+        - generic [ref=e15]: "Weight:"
+        - spinbutton "Weight:" [ref=e16]
+      - generic [ref=e17]:
+        - generic [ref=e18]: "Value:"
+        - spinbutton "Value:" [ref=e19]
+      - button "Add Item" [ref=e20] [cursor=pointer]
+    - generic [ref=e21]:
+      - heading "Problem Configuration" [level=2] [ref=e22]
+      - generic [ref=e23]:
+        - generic [ref=e24]: "Knapsack Capacity:"
+        - generic [ref=e25]:
+          - spinbutton "Knapsack Capacity:" [ref=e26]: "6"
+          - button "Set" [ref=e27] [cursor=pointer]
+      - button "Solve Knapsack Problem" [ref=e28] [cursor=pointer]
+      - button "Reset Items" [ref=e29] [cursor=pointer]
+      - button "Generate Example" [ref=e30] [cursor=pointer]
+  - generic [ref=e31]:
+    - heading "Items" [level=2] [ref=e32]
+    - table [ref=e33]:
+      - rowgroup [ref=e34]:
+        - row "Item Weight Value Value/Weight Action" [ref=e35]:
+          - cell "Item" [ref=e36]
+          - cell "Weight" [ref=e37]
+          - cell "Value" [ref=e38]
+          - cell "Value/Weight" [ref=e39]
+          - cell "Action" [ref=e40]
+      - rowgroup [ref=e41]:
+        - row "Laptop 3 500 166.67 Remove" [ref=e42]:
+          - cell "Laptop" [ref=e43]
+          - cell "3" [ref=e44]
+          - cell "500" [ref=e45]
+          - cell "166.67" [ref=e46]
+          - cell "Remove" [ref=e47]:
+            - button "Remove" [ref=e48] [cursor=pointer]
+        - row "Camera 1 300 300.00 Remove" [ref=e49]:
+          - cell "Camera" [ref=e50]
+          - cell "1" [ref=e51]
+          - cell "300" [ref=e52]
+          - cell "300.00" [ref=e53]
+          - cell "Remove" [ref=e54]:
+            - button "Remove" [ref=e55] [cursor=pointer]
+        - row "Headphones 1 150 150.00 Remove" [ref=e56]:
+          - cell "Headphones" [ref=e57]
+          - cell "1" [ref=e58]
+          - cell "150" [ref=e59]
+          - cell "150.00" [ref=e60]
+          - cell "Remove" [ref=e61]:
+            - button "Remove" [ref=e62] [cursor=pointer]
+        - row "Book 2 50 25.00 Remove" [ref=e63]:
+          - cell "Book" [ref=e64]
+          - cell "2" [ref=e65]
+          - cell "50" [ref=e66]
+          - cell "25.00" [ref=e67]
+          - cell "Remove" [ref=e68]:
+            - button "Remove" [ref=e69] [cursor=pointer]
+        - row "Water Bottle 3 60 20.00 Remove" [ref=e70]:
+          - cell "Water Bottle" [ref=e71]
+          - cell "3" [ref=e72]
+          - cell "60" [ref=e73]
+          - cell "20.00" [ref=e74]
+          - cell "Remove" [ref=e75]:
+            - button "Remove" [ref=e76] [cursor=pointer]
+```

@@ -1,0 +1,72 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Adjacency List Visualization" [level=1] [ref=e4]
+    - generic [ref=e5]: A visual demonstration of graph representation using adjacency lists
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - heading "Graph Controls" [level=2] [ref=e9]
+        - generic [ref=e10]: "Number of Nodes:"
+        - spinbutton "Number of Nodes:" [ref=e11]: "5"
+        - generic [ref=e12]: "Graph Type:"
+        - combobox "Graph Type:" [ref=e13]:
+          - option "Directed Graph" [selected]
+          - option "Undirected Graph"
+        - button "Generate Graph" [ref=e14] [cursor=pointer]
+        - button "Reset Graph" [ref=e15] [cursor=pointer]
+      - generic [ref=e16]:
+        - heading "Add Connection" [level=2] [ref=e17]
+        - generic [ref=e18]: "From Node:"
+        - combobox "From Node:" [ref=e19]:
+          - option "Node 0" [selected]
+          - option "Node 1"
+          - option "Node 2"
+          - option "Node 3"
+          - option "Node 4"
+        - generic [ref=e20]: "To Node:"
+        - combobox "To Node:" [ref=e21]:
+          - option "Node 0" [selected]
+          - option "Node 1"
+          - option "Node 2"
+          - option "Node 3"
+          - option "Node 4"
+        - button "Add Connection" [active] [ref=e22] [cursor=pointer]
+      - generic [ref=e23]:
+        - heading "About Adjacency Lists" [level=2] [ref=e24]
+        - generic [ref=e25]:
+          - paragraph [ref=e26]: An adjacency list represents a graph as an array of linked lists. Each index represents a vertex, and each element in the linked list represents the vertices adjacent to that vertex.
+          - paragraph [ref=e27]:
+            - strong [ref=e28]: "Space Complexity:"
+            - text: O(V + E) where V is vertices and E is edges
+          - paragraph [ref=e29]:
+            - strong [ref=e30]: "Advantages:"
+            - text: Efficient for sparse graphs, easy to find all vertices adjacent to a given vertex
+    - generic [ref=e31]:
+      - heading "Graph Visualization" [level=2] [ref=e32]
+      - generic [ref=e33]:
+        - generic [ref=e50] [cursor=pointer]: "0"
+        - generic [ref=e51] [cursor=pointer]: "1"
+        - generic [ref=e52] [cursor=pointer]: "2"
+        - generic [ref=e53] [cursor=pointer]: "3"
+        - generic [ref=e54] [cursor=pointer]: "4"
+      - heading "Adjacency List Representation" [level=2] [ref=e55]
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - strong [ref=e58]: "Node 0:"
+          - text: "[3]"
+        - generic [ref=e59]:
+          - strong [ref=e60]: "Node 1:"
+          - text: "[3]"
+        - generic [ref=e61]:
+          - strong [ref=e62]: "Node 2:"
+          - text: "[3, 4]"
+        - generic [ref=e63]:
+          - strong [ref=e64]: "Node 3:"
+          - text: "[0]"
+        - generic [ref=e65]:
+          - strong [ref=e66]: "Node 4:"
+          - text: "[0, 3, 1]"
+```

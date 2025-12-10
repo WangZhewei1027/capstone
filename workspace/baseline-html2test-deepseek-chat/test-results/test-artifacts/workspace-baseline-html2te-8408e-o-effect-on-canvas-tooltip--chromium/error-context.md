@@ -1,0 +1,66 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - text: "# K-Nearest Neighbors (KNN) Interactive Demonstration I'll create an interactive visualization that demonstrates how K-Nearest Neighbors classification works, allowing users to place points and see how the algorithm classifies them. ```html"
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - heading "K-Nearest Neighbors (KNN) Algorithm" [level=1] [ref=e4]
+      - paragraph [ref=e5]: An interactive demonstration of how the K-Nearest Neighbors classification algorithm works. Place points on the canvas and see how KNN classifies new points based on their neighbors.
+    - generic [ref=e6]:
+      - generic [ref=e9]:
+        - generic [ref=e12]: Class A (Red)
+        - generic [ref=e15]: Class B (Green)
+        - generic [ref=e18]: New Point (Blue)
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - heading "Controls" [level=2] [ref=e21]
+          - generic [ref=e22]: "K Value:"
+          - spinbutton "K Value:" [ref=e23]: "5"
+          - generic [ref=e24]: "Mode:"
+          - generic [ref=e25]:
+            - radio "Class A (Red)" [checked] [ref=e26]
+            - text: Class A (Red)
+          - generic [ref=e27]:
+            - radio "Class B (Green)" [ref=e28]
+            - text: Class B (Green)
+          - generic [ref=e29]:
+            - radio "Classify Point" [ref=e30]
+            - text: Classify Point
+        - generic [ref=e31]:
+          - button "Reset Canvas" [active] [ref=e32] [cursor=pointer]
+          - button "Generate Random Points" [ref=e33] [cursor=pointer]
+        - generic [ref=e34]:
+          - heading "How KNN Works" [level=2] [ref=e35]
+          - paragraph [ref=e36]: 1. Select a value for K (number of neighbors)
+          - paragraph [ref=e37]: 2. Calculate distance to all training points
+          - paragraph [ref=e38]: 3. Identify the K nearest neighbors
+          - paragraph [ref=e39]: 4. Classify based on majority vote of neighbors
+    - generic [ref=e40]:
+      - heading "Understanding K-Nearest Neighbors" [level=3] [ref=e41]
+      - paragraph [ref=e42]: The K-Nearest Neighbors (KNN) algorithm is a simple, supervised machine learning algorithm that can be used for both classification and regression. It's based on the principle that similar things exist in close proximity.
+      - paragraph [ref=e44]:
+        - strong [ref=e45]: "Key Idea:"
+        - text: The class of a new data point is determined by the classes of its K nearest neighbors in the feature space.
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - heading "1 Choose K" [level=3] [ref=e48]:
+            - generic [ref=e49]: "1"
+            - text: Choose K
+          - paragraph [ref=e50]: Select the number of neighbors (K) to consider. A small K value makes the algorithm sensitive to noise, while a large K value makes it more stable but possibly less accurate.
+        - generic [ref=e51]:
+          - heading "2 Calculate Distance" [level=3] [ref=e52]:
+            - generic [ref=e53]: "2"
+            - text: Calculate Distance
+          - paragraph [ref=e54]: Compute the distance between the new point and all existing points. Typically, Euclidean distance is used, but other distance metrics can be applied.
+        - generic [ref=e55]:
+          - heading "3 Find Neighbors" [level=3] [ref=e56]:
+            - generic [ref=e57]: "3"
+            - text: Find Neighbors
+          - paragraph [ref=e58]: Identify the K points with the smallest distances to the new point. These are the "nearest neighbors."
+        - generic [ref=e59]:
+          - heading "4 Majority Vote" [level=3] [ref=e60]:
+            - generic [ref=e61]: "4"
+            - text: Majority Vote
+          - paragraph [ref=e62]: For classification, assign the class that appears most frequently among the K neighbors. For regression, take the average of the neighbors' values.
+```

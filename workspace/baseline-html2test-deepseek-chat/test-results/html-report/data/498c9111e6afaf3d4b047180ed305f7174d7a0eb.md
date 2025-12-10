@@ -1,0 +1,53 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Priority Queue" [level=1] [ref=e3]
+    - paragraph [ref=e4]: A visualization of how priority queues work
+    - paragraph [ref=e6]:
+      - text: A
+      - strong [ref=e7]: priority queue
+      - text: is an abstract data type similar to a regular queue, but where each element has a priority. Elements with higher priorities are served before elements with lower priorities. Priority queues are often implemented using heaps and have various applications such as in Dijkstra's algorithm, Huffman coding, and job scheduling.
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: "Value:"
+        - textbox "Value:" [ref=e11]:
+          - /placeholder: Enter value
+      - generic [ref=e12]:
+        - generic [ref=e13]: "Priority:"
+        - combobox "Priority:" [ref=e14]:
+          - option "High"
+          - option "Medium" [selected]
+          - option "Low"
+      - button "Enqueue (Add)" [ref=e17] [cursor=pointer]
+      - button "Dequeue (Remove Highest Priority)" [ref=e20] [cursor=pointer]
+    - generic [ref=e21]:
+      - heading "Priority Queue" [level=2] [ref=e22]
+      - generic [ref=e24]:
+        - generic [ref=e25]: Task A
+        - generic [ref=e26]: High
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - heading "Operations" [level=3] [ref=e29]
+        - paragraph [ref=e30]: "Elements in the queue: 1"
+        - paragraph [ref=e31]: "Highest priority element: Task A (High)"
+      - generic [ref=e32]:
+        - heading "Complexity" [level=3] [ref=e33]
+        - paragraph [ref=e34]: "Enqueue: O(log n)"
+        - paragraph [ref=e35]: "Dequeue: O(log n)"
+        - paragraph [ref=e36]: "Peek: O(1)"
+    - generic [ref=e37]:
+      - heading "Operation Log" [level=3] [ref=e38]
+      - generic [ref=e39]:
+        - generic [ref=e40]: "4:21:58 PM: Priority queue initialized. Ready for operations."
+        - generic [ref=e41]: "4:21:59 PM: Added \"Task A\" with High priority"
+  - generic [ref=e42]:
+    - heading "How to Use" [level=2] [ref=e43]
+    - list [ref=e44]:
+      - listitem [ref=e45]: Enter a value and select a priority level (High, Medium, or Low)
+      - listitem [ref=e46]: Click "Enqueue" to add the element to the priority queue
+      - listitem [ref=e47]: Click "Dequeue" to remove the element with the highest priority
+      - listitem [ref=e48]: Elements with higher priority will be served first (High > Medium > Low)
+      - listitem [ref=e49]: If two elements have the same priority, they are served in the order they were added (FIFO)
+```

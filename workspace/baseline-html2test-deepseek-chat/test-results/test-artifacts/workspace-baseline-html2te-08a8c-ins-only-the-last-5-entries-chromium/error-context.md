@@ -1,0 +1,41 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Queue Data Structure" [level=1] [ref=e3]
+  - paragraph [ref=e4]: First-In-First-Out (FIFO) Visualization
+  - paragraph [ref=e6]: A queue is a linear data structure that follows the First-In-First-Out (FIFO) principle. Elements are added at the rear (enqueue) and removed from the front (dequeue). This visualization demonstrates how queues work with interactive controls.
+  - generic [ref=e7]:
+    - textbox "Enter a value to enqueue" [active] [ref=e8]
+    - button "Enqueue" [ref=e9] [cursor=pointer]
+  - generic [ref=e10]: Please enter a value to enqueue.
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]: Front
+      - generic [ref=e14]: Rear
+    - generic [ref=e15]:
+      - generic [ref=e16]: "3"
+      - generic [ref=e17]: "4"
+      - generic [ref=e18]: "5"
+      - generic [ref=e19]: "6"
+  - generic [ref=e20]:
+    - button "Dequeue" [ref=e21] [cursor=pointer]
+    - button "Clear Queue" [ref=e22] [cursor=pointer]
+  - generic [ref=e23]:
+    - generic [ref=e24]:
+      - generic [ref=e25]: "4"
+      - generic [ref=e26]: Queue Size
+    - generic [ref=e27]:
+      - generic [ref=e28]: "3"
+      - generic [ref=e29]: Front Element
+    - generic [ref=e30]:
+      - generic [ref=e31]: "6"
+      - generic [ref=e32]: Rear Element
+  - generic [ref=e33]:
+    - generic [ref=e34]: Operations Log
+    - generic [ref=e35]:
+      - generic [ref=e36]: "4:22:46 PM: Enqueued: 6"
+      - generic [ref=e37]: "4:22:46 PM: Enqueued: 5"
+      - generic [ref=e38]: "4:22:45 PM: Enqueued: 4"
+      - generic [ref=e39]: "4:22:45 PM: Enqueued: 3"
+```

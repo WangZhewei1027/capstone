@@ -1,0 +1,51 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Linked List Visualization" [level=1] [ref=e3]
+  - generic [ref=e5]:
+    - spinbutton [ref=e6]
+    - button "Add Node" [active] [ref=e7] [cursor=pointer]
+    - button "Remove Node" [ref=e8] [cursor=pointer]
+    - button "Find Node" [ref=e9] [cursor=pointer]
+    - button "Clear List" [ref=e10] [cursor=pointer]
+    - combobox [ref=e11]:
+      - option "Traverse List" [selected]
+      - option "Reverse List"
+    - button "Execute Algorithm" [ref=e12] [cursor=pointer]
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]: "42"
+        - generic [ref=e17]: →
+      - generic [ref=e18]: "NULL"
+    - generic [ref=e19]:
+      - heading "What is a Linked List?" [level=3] [ref=e20]
+      - paragraph [ref=e21]: "A linked list is a linear data structure where each element (node) contains:"
+      - list [ref=e22]:
+        - listitem [ref=e23]:
+          - strong [ref=e24]: Data
+          - text: "- The value stored in the node"
+        - listitem [ref=e25]:
+          - strong [ref=e26]: Pointer/Reference
+          - text: "- A link to the next node in the sequence"
+      - paragraph [ref=e27]: The last node points to NULL, indicating the end of the list.
+    - generic [ref=e28]:
+      - heading "Operations:" [level=4] [ref=e29]
+      - list [ref=e30]:
+        - listitem [ref=e31]:
+          - strong [ref=e32]: Add Node
+          - text: ": Adds a new node with the specified value to the end of the list"
+        - listitem [ref=e33]:
+          - strong [ref=e34]: Remove Node
+          - text: ": Removes the first occurrence of the specified value"
+        - listitem [ref=e35]:
+          - strong [ref=e36]: Find Node
+          - text: ": Highlights the node containing the specified value"
+        - listitem [ref=e37]:
+          - strong [ref=e38]: Traverse
+          - text: ": Visits each node in sequence (animation)"
+        - listitem [ref=e39]:
+          - strong [ref=e40]: Reverse
+          - text: ": Reverses the order of nodes in the list"
+```

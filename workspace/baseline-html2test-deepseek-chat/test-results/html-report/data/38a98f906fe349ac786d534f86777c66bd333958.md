@@ -1,0 +1,57 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Counting Sort Algorithm Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - heading "Enter numbers to sort (comma-separated, non-negative integers only):" [level=3] [ref=e5]
+    - textbox [ref=e6]
+    - button "Start Sorting" [active] [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - generic [ref=e11]: Input Array
+    - generic [ref=e14]: Count Array
+    - generic [ref=e17]: Output Array
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - strong [ref=e20]: "Step 1/25:"
+      - text: Initialize Count Array
+      - text: Created count array of size 9 (max value + 1) initialized with zeros
+    - heading "Input Array:" [level=3] [ref=e21]
+    - generic [ref=e22]:
+      - 'generic "Input value: 4" [ref=e23]': "4"
+      - 'generic "Input value: 2" [ref=e24]': "2"
+      - 'generic "Input value: 2" [ref=e25]': "2"
+      - 'generic "Input value: 8" [ref=e26]': "8"
+      - 'generic "Input value: 3" [ref=e27]': "3"
+      - 'generic "Input value: 3" [ref=e28]': "3"
+      - 'generic "Input value: 1" [ref=e29]': "1"
+    - heading "Count Array:" [level=3] [ref=e30]
+    - generic [ref=e31]:
+      - 'generic "Count for value 0: 0" [ref=e32]': "0"
+      - 'generic "Count for value 1: 0" [ref=e33]': "0"
+      - 'generic "Count for value 2: 0" [ref=e34]': "0"
+      - 'generic "Count for value 3: 0" [ref=e35]': "0"
+      - 'generic "Count for value 4: 0" [ref=e36]': "0"
+      - 'generic "Count for value 5: 0" [ref=e37]': "0"
+      - 'generic "Count for value 6: 0" [ref=e38]': "0"
+      - 'generic "Count for value 7: 0" [ref=e39]': "0"
+      - 'generic "Count for value 8: 0" [ref=e40]': "0"
+    - heading "Output Array:" [level=3] [ref=e41]
+    - generic [ref=e42]:
+      - button "Previous Step" [ref=e43] [cursor=pointer]
+      - button "Next Step" [ref=e44] [cursor=pointer]
+      - button "Auto Play" [ref=e45] [cursor=pointer]
+      - button "Reset" [ref=e46] [cursor=pointer]
+  - generic [ref=e47]:
+    - heading "About Counting Sort:" [level=3] [ref=e48]
+    - paragraph [ref=e49]: Counting Sort is a non-comparison-based sorting algorithm that works by counting the number of occurrences of each distinct element in the input array. It's efficient when the range of potential items (k) is not significantly larger than the number of items (n).
+    - paragraph [ref=e50]:
+      - strong [ref=e51]: "Time Complexity:"
+      - text: O(n + k) where n is the number of elements and k is the range of input
+    - paragraph [ref=e52]:
+      - strong [ref=e53]: "Space Complexity:"
+      - text: O(n + k)
+    - paragraph [ref=e54]:
+      - strong [ref=e55]: "Stable:"
+      - text: Yes (maintains relative order of equal elements)
+```

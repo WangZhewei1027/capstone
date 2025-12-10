@@ -1,0 +1,60 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Heap Sort Algorithm Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - text: "Enter numbers (comma-separated):"
+      - textbox "Enter numbers (comma-separated):" [ref=e6]: 64,34,25,12,22,11,90
+      - button "Generate Array" [ref=e7] [cursor=pointer]
+    - generic [ref=e8]:
+      - button "Sort Array" [ref=e9] [cursor=pointer]
+      - button "Step-by-Step" [ref=e10] [cursor=pointer]
+      - button "Reset" [ref=e11] [cursor=pointer]
+  - generic [ref=e12]:
+    - heading "Current Array:" [level=3] [ref=e13]
+    - generic [ref=e14]:
+      - generic [ref=e15]: "64"
+      - generic [ref=e16]: "34"
+      - generic [ref=e17]: "25"
+      - generic [ref=e18]: "12"
+      - generic [ref=e19]: "22"
+      - generic [ref=e20]: "11"
+      - generic [ref=e21]: "90"
+    - generic [ref=e22]:
+      - generic [ref=e24]: "64"
+      - generic [ref=e25]:
+        - generic [ref=e26]: "34"
+        - generic [ref=e28]: "25"
+      - generic [ref=e30]:
+        - generic [ref=e31]: "12"
+        - generic [ref=e33]: "22"
+        - generic [ref=e35]: "11"
+        - generic [ref=e37]: "90"
+    - generic [ref=e39]: Enter numbers and click "Generate Array" to begin.
+  - generic [ref=e40]:
+    - heading "Heap Sort Algorithm Explanation" [level=3] [ref=e41]
+    - paragraph [ref=e42]:
+      - strong [ref=e43]: Heap Sort
+      - text: is a comparison-based sorting algorithm that uses a binary heap data structure.
+    - heading "Steps:" [level=4] [ref=e44]
+    - list [ref=e45]:
+      - listitem [ref=e46]:
+        - strong [ref=e47]: "Build Max Heap:"
+        - text: Convert the array into a max heap (parent nodes are greater than children)
+      - listitem [ref=e48]:
+        - strong [ref=e49]: "Extract Maximum:"
+        - text: Repeatedly remove the maximum element from the heap and reconstruct the heap
+      - listitem [ref=e50]:
+        - strong [ref=e51]: "Sort:"
+        - text: Place the extracted elements at the end of the array to form the sorted portion
+    - heading "Time Complexity:" [level=4] [ref=e52]
+    - list [ref=e53]:
+      - listitem [ref=e54]: "Best Case: O(n log n)"
+      - listitem [ref=e55]: "Average Case: O(n log n)"
+      - listitem [ref=e56]: "Worst Case: O(n log n)"
+    - heading "Space Complexity:" [level=4] [ref=e57]
+    - list [ref=e58]:
+      - listitem [ref=e59]: O(1) - sorts in place
+```

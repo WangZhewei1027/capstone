@@ -1,0 +1,87 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - heading "HashMap Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - textbox "Enter key" [active] [ref=e4]
+    - textbox "Enter value" [ref=e5]: value1
+    - button "Insert Key-Value Pair" [ref=e6] [cursor=pointer]
+    - button "Get Value" [ref=e7] [cursor=pointer]
+    - button "Remove Key" [ref=e8] [cursor=pointer]
+    - button "Clear All" [ref=e9] [cursor=pointer]
+  - generic [ref=e10]:
+    - generic [ref=e11]:
+      - heading "HashMap Structure" [level=2] [ref=e12]
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]: "Bucket 0:"
+          - generic [ref=e16]: Empty
+        - generic [ref=e17]:
+          - generic [ref=e18]: "Bucket 1:"
+          - generic [ref=e19]: Empty
+        - generic [ref=e20]:
+          - generic [ref=e21]: "Bucket 2:"
+          - generic [ref=e22]: Empty
+        - generic [ref=e23]:
+          - generic [ref=e24]: "Bucket 3:"
+          - generic [ref=e25]: Empty
+        - generic [ref=e26]:
+          - generic [ref=e27]: "Bucket 4:"
+          - generic [ref=e28]: Empty
+        - generic [ref=e29]:
+          - generic [ref=e30]: "Bucket 5:"
+          - generic [ref=e31]: Empty
+        - generic [ref=e32]:
+          - generic [ref=e33]: "Bucket 6:"
+          - generic [ref=e34]: Empty
+        - generic [ref=e35]:
+          - generic [ref=e36]: "Bucket 7:"
+          - generic [ref=e37]: Empty
+        - generic [ref=e38]:
+          - generic [ref=e39]: "Bucket 8:"
+          - generic [ref=e40]: Empty
+        - generic [ref=e41]:
+          - generic [ref=e42]: "Bucket 9:"
+          - generic [ref=e43]: Empty
+        - generic [ref=e44]:
+          - generic [ref=e45]: "Bucket 10:"
+          - generic [ref=e46]: Empty
+        - generic [ref=e47]:
+          - generic [ref=e48]: "Bucket 11:"
+          - generic [ref=e49]: name → John
+          - generic [ref=e50]: city → New York
+        - generic [ref=e51]:
+          - generic [ref=e52]: "Bucket 12:"
+          - generic [ref=e53]: Empty
+        - generic [ref=e54]:
+          - generic [ref=e55]: "Bucket 13:"
+          - generic [ref=e56]: Empty
+        - generic [ref=e57]:
+          - generic [ref=e58]: "Bucket 14:"
+          - generic [ref=e59]: Empty
+        - generic [ref=e60]:
+          - generic [ref=e61]: "Bucket 15:"
+          - generic [ref=e62]: age → 25
+      - generic [ref=e63]:
+        - generic [ref=e64]: "Size: 3"
+        - generic [ref=e65]: "Capacity: 16"
+        - generic [ref=e66]: "Load Factor: 0.75"
+    - generic [ref=e67]:
+      - heading "How HashMap Works" [level=2] [ref=e68]
+      - heading "Hash Function:" [level=3] [ref=e69]
+      - generic [ref=e70]: // Hash calculation will appear here
+      - heading "Key Operations:" [level=3] [ref=e71]
+      - list [ref=e72]:
+        - listitem [ref=e73]:
+          - strong [ref=e74]: "put(key, value):"
+          - text: Calculates hash, finds bucket, stores key-value pair
+        - listitem [ref=e75]:
+          - strong [ref=e76]: "get(key):"
+          - text: Calculates hash, finds bucket, retrieves value
+        - listitem [ref=e77]:
+          - strong [ref=e78]: "remove(key):"
+          - text: Calculates hash, finds bucket, removes entry
+      - heading "Current Operation Log:" [level=3] [ref=e79]
+      - generic [ref=e81]: "[4:21:34 PM] HashMap initialized with capacity 16 and load factor 0.75"
+```

@@ -1,0 +1,57 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Floyd-Warshall Algorithm Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - button "Reset" [ref=e5] [cursor=pointer]
+    - button "Step" [ref=e6] [cursor=pointer]
+    - button "Run All" [ref=e7] [cursor=pointer]
+    - button "Pause" [disabled] [ref=e8]
+    - generic [ref=e9]:
+      - text: "Speed:"
+      - 'spinbutton "Speed: ms" [ref=e10]': "500"
+      - text: ms
+    - generic [ref=e11]:
+      - text: "Vertex Count:"
+      - spinbutton "Vertex Count:" [ref=e12]: "4"
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - heading "Distance Matrix" [level=3] [ref=e15]
+      - table [ref=e17]:
+        - rowgroup [ref=e18]:
+          - row "A B C D" [ref=e19]:
+            - cell [ref=e20]
+            - cell "A" [ref=e21]
+            - cell "B" [ref=e22]
+            - cell "C" [ref=e23]
+            - cell "D" [ref=e24]
+          - row "A 0 3 7 ∞" [ref=e25]:
+            - cell "A" [ref=e26]
+            - cell "0" [ref=e27]
+            - cell "3" [ref=e28]
+            - cell "7" [ref=e29]
+            - cell "∞" [ref=e30]
+          - row "B 3 0 10 3" [ref=e31]:
+            - cell "B" [ref=e32]
+            - cell "3" [ref=e33]
+            - cell "0" [ref=e34]
+            - cell "10" [ref=e35]
+            - cell "3" [ref=e36]
+          - row "C 7 10 0 ∞" [ref=e37]:
+            - cell "C" [ref=e38]
+            - cell "7" [ref=e39]
+            - cell "10" [ref=e40]
+            - cell "0" [ref=e41]
+            - cell "∞" [ref=e42]
+          - row "D ∞ 3 ∞ 0" [ref=e43]:
+            - cell "D" [ref=e44]
+            - cell "∞" [ref=e45]
+            - cell "3" [ref=e46]
+            - cell "∞" [ref=e47]
+            - cell "0" [ref=e48]
+    - heading "Graph Visualization" [level=3] [ref=e50]
+  - generic [ref=e53]:
+    - generic [ref=e54]: "Step 0: Checking path from A to A via A"
+    - generic [ref=e55]: The Floyd-Warshall algorithm finds the shortest paths between all pairs of vertices in a weighted graph. It works for both directed and undirected graphs, and can handle negative weights (but not negative cycles).
+```

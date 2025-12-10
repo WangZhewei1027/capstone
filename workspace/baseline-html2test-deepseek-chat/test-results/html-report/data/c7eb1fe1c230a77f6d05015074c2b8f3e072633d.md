@@ -1,0 +1,41 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Selection Sort Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - button "Generate New Array" [ref=e5] [cursor=pointer]
+    - button "Next Step" [active] [ref=e6] [cursor=pointer]
+    - button "Auto Sort" [ref=e7] [cursor=pointer]
+    - button "Reset" [ref=e8] [cursor=pointer]
+  - generic [ref=e9]:
+    - generic [ref=e10]: "75"
+    - generic [ref=e11]: "56"
+    - generic [ref=e12]: "34"
+    - generic [ref=e13]: "24"
+    - generic [ref=e14]: "94"
+    - generic [ref=e15]: "52"
+    - generic [ref=e16]: "20"
+    - generic [ref=e17]: "3"
+  - generic [ref=e18]:
+    - heading "Current Step Information" [level=3] [ref=e19]
+    - generic [ref=e20]:
+      - paragraph [ref=e21]:
+        - strong [ref=e22]: "Step 2/62:"
+        - text: "Starting iteration 1: Looking for minimum in unsorted portion"
+      - paragraph [ref=e23]:
+        - strong [ref=e24]: "Current State:"
+        - text: "[75, 56, 34, 24, 94, 52, 20, 3]"
+  - generic [ref=e25]: "function selectionSort(arr) { for (let i = 0; i < arr.length - 1; i++) { let minIndex = i; for (let j = i + 1; j < arr.length; j++) { if (arr[j] < arr[minIndex]) { minIndex = j; } } if (minIndex !== i) { [arr[i], arr[minIndex]] = [arr[minIndex], arr[i]]; } } return arr; }"
+  - generic [ref=e26]:
+    - heading "How Selection Sort Works" [level=3] [ref=e27]
+    - paragraph [ref=e28]:
+      - strong [ref=e29]: Selection Sort
+      - text: is a simple sorting algorithm that works by repeatedly finding the minimum element from the unsorted portion and putting it at the beginning.
+    - paragraph [ref=e30]:
+      - strong [ref=e31]: "Time Complexity:"
+      - text: O(n²) in all cases
+    - paragraph [ref=e32]:
+      - strong [ref=e33]: "Space Complexity:"
+      - text: O(1)
+```

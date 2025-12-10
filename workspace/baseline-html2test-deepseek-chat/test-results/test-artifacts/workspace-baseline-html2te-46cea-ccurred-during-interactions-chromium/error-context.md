@@ -1,0 +1,49 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Linear Regression Demonstration" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - button "Generate Random Data" [ref=e5] [cursor=pointer]
+    - button "Add Custom Point" [ref=e6] [cursor=pointer]
+    - button "Clear All Points" [ref=e7] [cursor=pointer]
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - text: "X:"
+        - spinbutton "X:" [ref=e10]: "5"
+      - generic [ref=e11]:
+        - text: "Y:"
+        - spinbutton "Y:" [ref=e12]: "5"
+  - generic [ref=e15]:
+    - heading "Regression Statistics" [level=3] [ref=e16]
+    - generic [ref=e17]: y = 2.000x + 0.000
+    - generic [ref=e18]:
+      - paragraph [ref=e19]:
+        - strong [ref=e20]: "Slope (m):"
+        - text: "2.0000"
+      - paragraph [ref=e21]:
+        - strong [ref=e22]: "Y-Intercept (b):"
+        - text: "0.0000"
+      - paragraph [ref=e23]:
+        - strong [ref=e24]: "R² (Goodness of Fit):"
+        - text: "1.0000"
+      - paragraph [ref=e25]:
+        - strong [ref=e26]: "Mean X:"
+        - text: "2.50"
+      - paragraph [ref=e27]:
+        - strong [ref=e28]: "Mean Y:"
+        - text: "5.00"
+      - paragraph [ref=e29]:
+        - strong [ref=e30]: "Number of Points:"
+        - text: "4"
+  - generic [ref=e31]:
+    - heading "How Linear Regression Works" [level=3] [ref=e32]
+    - paragraph [ref=e33]: Linear regression finds the best-fit line through a set of data points by minimizing the sum of squared errors between the actual y-values and the predicted y-values.
+    - paragraph [ref=e34]:
+      - strong [ref=e35]: "Formula:"
+      - text: "y = mx + b, where:"
+    - list [ref=e36]:
+      - listitem [ref=e37]: m = slope = Σ((x - x̄)(y - ȳ)) / Σ((x - x̄)²)
+      - listitem [ref=e38]: b = y-intercept = ȳ - m*x̄
+      - listitem [ref=e39]: R² = coefficient of determination (how well the line fits the data)
+```

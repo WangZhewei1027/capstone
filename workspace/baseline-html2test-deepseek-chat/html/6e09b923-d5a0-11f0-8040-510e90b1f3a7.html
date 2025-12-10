@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weighted Graph Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        input, button {
+            margin: 5px;
+            padding: 5px;
+        }
+        svg {
+            border: 1px solid #ccc;
+        }
+        .node {
+            fill: lightblue;
+            stroke: #000;
+            stroke-width: 2px;
+            cursor: move;
+        }
+        .link {
+            stroke: #000;
+            stroke-width: 2px;
+        }
+        .weight {
+            font-size: 12px;
+            fill: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Weighted Graph Visualization</h1>
+    <div class="controls">
+        <input type="text" id="node1" placeholder="Node 1">
+        <input type="text" id="node2" placeholder="Node 2">
+        <input type="number" id="weight" placeholder="Weight" value="1">
+        <button onclick="addEdge()">Add Edge</button>
+        <button onclick="addNode()">Add Node</button>
+        <button onclick="clearGraph()">Clear Graph</button>
+    </div>
+    <svg id="graph" width="800" height="600"></svg>
+
+    <script>
+        let graph = new Map(); // Adjacency list: node -> {neighbor: weight}
+        let nodes = new Set(); // All nodes
+        let links = []; // All edges: {source, target, weight}
+
+        const svg = d3.select("#graph");
+        let simulation;
+
+        function initializeSimulation() {
+            simulation = d3.forceSimulation(Array.from(nodes).map(d => ({id: d})))
+                .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(400, 300));
+
+            // Draw edges
+            const link = svg.selectAll(".link")
+                .data(links)
+                .join("line")
+                .attr("class", "link");
+
+            // Draw edge weights
+            const weight = svg.selectAll(".weight")
+                .data(links)
+                .join("text")
+                .attr("class", "weight")
+                .text(d => d.weight);
+
+            // Draw nodes
+            const node = svg.selectAll(".node")
+                .data(Array.from(nodes).map(d => ({id: d})))
+                .join("circle")
+                .attr("class", "node")
+                .attr("r", 10)
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+            // Node labels
+            const label = svg.selectAll(".label")
+                .data(Array.from(nodes).map(d => ({id: d})))
+                .join("text")
+                .attr("class", "label")
+                .text(d => d.id)
+                .attr("dx", 12)
+                .attr("dy", 3);
+
+            simulation.on("tick", () => {
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+                node
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+                label
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y);
+                weight
+                    .attr("x", d => (d.source.x + d.target.x) / 2)
+                    .attr("y", d => (d.source.y + d.target.y) / 2);
+            });
+        }
+
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        function addNode() {
+            const node1 = document.getElementById("node1").value;
+            if (node1 && !nodes.has(node1)) {
+                nodes.add(node1);
+                graph.set(node1, new Map());
+                initializeSimulation();
+            }
+        }
+
+        function addEdge() {
+            const node1 = document.getElementById("node1").value;
+            const node2 = document.getElementById("node2").value;
+            const weight = parseInt(document.getElementById("weight").value);
+
+            if (node1 && node2 && weight && node1 !== node2) {
+                // Add nodes if they don't exist
+                if (!nodes.has(node1)) {
+                    nodes.add(node1);
+                    graph.set(node1, new Map());
+                }
+                if (!nodes.has(node2)) {
+                    nodes.add(node2);
+                    graph.set(node2, new Map());
+                }
+
+                // Add edge (undirected)
+                graph.get(node1).set(node2, weight);
+                graph.get(node2).set(node1, weight);
+
+                // Update links array if not already present
+                if (!links.some(l => 
+                    (l.source.id === node1 && l.target.id === node2) || 
+                    (l.source.id === node2 && l.target.id === node1)
+                )) {
+                    links.push({source: node1, target: node2, weight});
+                }
+
+                initializeSimulation();
+            }
+        }
+
+        function clearGraph() {
+            graph.clear();
+            nodes.clear();
+            links = [];
+            svg.selectAll("*").remove();
+        }
+
+        // Initialize with an example graph
+        nodes.add("A");
+        nodes.add("B");
+        nodes.add("C");
+        graph.set("A", new Map([["B", 4], ["C", 2]]));
+        graph.set("B", new Map([["A", 4], ["C", 5]]));
+        graph.set("C", new Map([["A", 2], ["B", 5]]));
+        links.push({source: "A", target: "B", weight: 4});
+        links.push({source: "A", target: "C", weight: 2});
+        links.push({source: "B", target: "C", weight: 5});
+        initializeSimulation();
+    </script>
+</body>
+</html>

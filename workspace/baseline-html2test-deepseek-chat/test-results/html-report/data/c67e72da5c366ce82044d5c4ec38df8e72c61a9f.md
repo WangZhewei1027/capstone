@@ -1,0 +1,44 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "🌳 Binary Search Tree Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - spinbutton [ref=e6]
+      - button "Insert Node" [ref=e7] [cursor=pointer]
+      - button "Delete Node" [ref=e8] [cursor=pointer]
+      - button "Search Node" [ref=e9] [cursor=pointer]
+    - generic [ref=e10]:
+      - button "In-Order Traversal" [ref=e11] [cursor=pointer]
+      - button "Pre-Order Traversal" [ref=e12] [cursor=pointer]
+      - button "Post-Order Traversal" [ref=e13] [cursor=pointer]
+      - button "Find Minimum" [ref=e14] [cursor=pointer]
+      - button "Find Maximum" [ref=e15] [cursor=pointer]
+      - button "Clear Tree" [ref=e16] [cursor=pointer]
+      - button "Random Tree (10 nodes)" [ref=e17] [cursor=pointer]
+  - generic [ref=e18]:
+    - heading "Tree Structure:" [level=3] [ref=e19]
+    - generic [ref=e22]:
+      - generic [ref=e24]: "50"
+      - generic [ref=e25]:
+        - generic [ref=e26]: "30"
+        - generic [ref=e27]: "70"
+      - generic [ref=e28]:
+        - generic [ref=e29]: "20"
+        - generic [ref=e30]: "40"
+        - generic [ref=e31]: "60"
+        - generic [ref=e32]: "80"
+      - generic [ref=e33]:
+        - generic [ref=e34]: ·
+        - generic [ref=e35]: ·
+        - generic [ref=e36]: ·
+        - generic [ref=e37]: ·
+        - generic [ref=e38]: ·
+        - generic [ref=e39]: ·
+        - generic [ref=e40]: ·
+        - generic [ref=e41]: ·
+    - generic [ref=e42]:
+      - heading "Operations Output:" [level=3] [ref=e43]
+      - generic [ref=e44]: "In-Order: [20, 30, 40, 50, 60, 70, 80]"
+```

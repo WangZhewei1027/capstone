@@ -1,0 +1,62 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - text: "# Binary Tree Visualization with JavaScript Here's an interactive visualization of a binary tree that demonstrates insertion, traversal, and deletion operations: ```html"
+  - heading "Binary Tree Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]: "A binary tree is a hierarchical data structure where each node has at most two children: left and right."
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "Controls" [level=2] [ref=e6]
+      - generic [ref=e7]:
+        - text: "Node Value:"
+        - spinbutton [ref=e8]: "15"
+        - button "Insert Node" [ref=e9] [cursor=pointer]
+      - generic [ref=e10]:
+        - text: "Delete Node:"
+        - spinbutton [ref=e11]: "15"
+        - button "Delete Node" [ref=e12] [cursor=pointer]
+      - generic [ref=e13]:
+        - text: "Traversal Type:"
+        - combobox [ref=e14]:
+          - option "In-Order (Left, Root, Right)" [selected]
+          - option "Pre-Order (Root, Left, Right)"
+          - option "Post-Order (Left, Right, Root)"
+          - option "Level-Order (Breadth-First)"
+        - button "Traverse Tree" [ref=e15] [cursor=pointer]
+      - generic [ref=e16]:
+        - button "Clear Tree" [ref=e17] [cursor=pointer]
+        - button "Generate Random Tree" [ref=e18] [cursor=pointer]
+      - generic [ref=e19]: "Status: Ready"
+      - heading "Operation Log" [level=3] [ref=e21]
+      - generic [ref=e22]:
+        - strong [ref=e23]: "Tree Information:"
+        - generic [ref=e24]: No tree generated yet.
+    - heading "Binary Tree Visualization" [level=2] [ref=e26]
+  - generic [ref=e27]:
+    - heading "Binary Tree Properties & Algorithms" [level=2] [ref=e28]
+    - generic [ref=e29]:
+      - paragraph [ref=e30]:
+        - strong [ref=e31]: "Properties of Binary Trees:"
+      - list [ref=e32]:
+        - listitem [ref=e33]: Each node has at most two children (left and right)
+        - listitem [ref=e34]: The topmost node is called the root
+        - listitem [ref=e35]: Nodes with no children are called leaves
+        - listitem [ref=e36]: The depth of a node is the number of edges from the root to that node
+        - listitem [ref=e37]: The height of a tree is the maximum depth of any node
+      - paragraph [ref=e38]:
+        - strong [ref=e39]: "Traversal Algorithms:"
+      - list [ref=e40]:
+        - listitem [ref=e41]:
+          - strong [ref=e42]: "In-Order:"
+          - text: Visit left subtree, then root, then right subtree. Produces sorted order in Binary Search Trees.
+        - listitem [ref=e43]:
+          - strong [ref=e44]: "Pre-Order:"
+          - text: Visit root, then left subtree, then right subtree. Useful for creating a copy of the tree.
+        - listitem [ref=e45]:
+          - strong [ref=e46]: "Post-Order:"
+          - text: Visit left subtree, then right subtree, then root. Useful for deleting the tree.
+        - listitem [ref=e47]:
+          - strong [ref=e48]: "Level-Order:"
+          - text: Visit nodes level by level from top to bottom. Uses a queue data structure.
+```

@@ -1,0 +1,48 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Counting Sort Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "What is Counting Sort?" [level=2] [ref=e5]
+      - paragraph [ref=e6]: Counting Sort is a non-comparison based sorting algorithm that works by counting the occurrences of each distinct element in the input array. It then calculates the position of each element in the sorted output.
+      - heading "Algorithm Steps:" [level=3] [ref=e7]
+      - list [ref=e8]:
+        - listitem [ref=e9]: Find the maximum element in the array to determine the range
+        - listitem [ref=e10]: Create a count array to store the count of each unique element
+        - listitem [ref=e11]: Modify the count array to store cumulative counts
+        - listitem [ref=e12]: Build the output array by placing elements in their correct positions
+      - heading "Time Complexity:" [level=3] [ref=e13]
+      - table [ref=e14]:
+        - rowgroup [ref=e15]:
+          - row "Case Time Complexity" [ref=e16]:
+            - cell "Case" [ref=e17]
+            - cell "Time Complexity" [ref=e18]
+          - row "Best Case O(n + k)" [ref=e19]:
+            - cell "Best Case" [ref=e20]
+            - cell "O(n + k)" [ref=e21]
+          - row "Average Case O(n + k)" [ref=e22]:
+            - cell "Average Case" [ref=e23]
+            - cell "O(n + k)" [ref=e24]
+          - row "Worst Case O(n + k)" [ref=e25]:
+            - cell "Worst Case" [ref=e26]
+            - cell "O(n + k)" [ref=e27]
+      - paragraph [ref=e28]: Where n is the number of elements and k is the range of input.
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - textbox "Enter numbers separated by commas (e.g., 4,2,2,8,3,3,1)" [ref=e31]: 4,2,2,8,3,3,1
+        - button "Generate Random Array" [ref=e32] [cursor=pointer]
+        - button "Sort" [ref=e33] [cursor=pointer]
+        - button "Reset" [ref=e34] [cursor=pointer]
+      - generic [ref=e35]:
+        - generic [ref=e36]: "4"
+        - generic [ref=e37]: "2"
+        - generic [ref=e38]: "2"
+        - generic [ref=e39]: "8"
+        - generic [ref=e40]: "3"
+        - generic [ref=e41]: "3"
+        - generic [ref=e42]: "1"
+      - heading "Count Array:" [level=3] [ref=e44]
+      - heading "Sorting Steps:" [level=3] [ref=e47]
+```

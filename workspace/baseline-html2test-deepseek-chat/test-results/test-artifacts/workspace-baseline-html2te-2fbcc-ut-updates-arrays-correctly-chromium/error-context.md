@@ -1,0 +1,47 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Counting Sort Algorithm Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - heading "Enter numbers to sort (comma-separated, non-negative integers only):" [level=3] [ref=e5]
+    - textbox [ref=e6]: 1,0,2
+    - button "Start Sorting" [active] [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - generic [ref=e11]: Input Array
+    - generic [ref=e14]: Count Array
+    - generic [ref=e17]: Output Array
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - strong [ref=e20]: "Step 1/11:"
+      - text: Initialize Count Array
+      - text: Created count array of size 3 (max value + 1) initialized with zeros
+    - heading "Input Array:" [level=3] [ref=e21]
+    - generic [ref=e22]:
+      - 'generic "Input value: 1" [ref=e23]': "1"
+      - 'generic "Input value: 0" [ref=e24]': "0"
+      - 'generic "Input value: 2" [ref=e25]': "2"
+    - heading "Count Array:" [level=3] [ref=e26]
+    - generic [ref=e27]:
+      - 'generic "Count for value 0: 0" [ref=e28]': "0"
+      - 'generic "Count for value 1: 0" [ref=e29]': "0"
+      - 'generic "Count for value 2: 0" [ref=e30]': "0"
+    - heading "Output Array:" [level=3] [ref=e31]
+    - generic [ref=e32]:
+      - button "Previous Step" [ref=e33] [cursor=pointer]
+      - button "Next Step" [ref=e34] [cursor=pointer]
+      - button "Auto Play" [ref=e35] [cursor=pointer]
+      - button "Reset" [ref=e36] [cursor=pointer]
+  - generic [ref=e37]:
+    - heading "About Counting Sort:" [level=3] [ref=e38]
+    - paragraph [ref=e39]: Counting Sort is a non-comparison-based sorting algorithm that works by counting the number of occurrences of each distinct element in the input array. It's efficient when the range of potential items (k) is not significantly larger than the number of items (n).
+    - paragraph [ref=e40]:
+      - strong [ref=e41]: "Time Complexity:"
+      - text: O(n + k) where n is the number of elements and k is the range of input
+    - paragraph [ref=e42]:
+      - strong [ref=e43]: "Space Complexity:"
+      - text: O(n + k)
+    - paragraph [ref=e44]:
+      - strong [ref=e45]: "Stable:"
+      - text: Yes (maintains relative order of equal elements)
+```

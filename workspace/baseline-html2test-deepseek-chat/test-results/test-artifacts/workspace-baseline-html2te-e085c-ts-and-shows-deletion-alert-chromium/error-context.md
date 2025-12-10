@@ -1,0 +1,57 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Hash Table Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Operations" [level=3] [ref=e5]
+      - generic [ref=e6]:
+        - textbox "Key" [ref=e7]
+        - textbox "Value" [ref=e8]
+        - button "Insert" [ref=e9] [cursor=pointer]
+      - generic [ref=e10]:
+        - textbox "Key to search" [ref=e11]
+        - button "Search" [ref=e12] [cursor=pointer]
+      - generic [ref=e13]:
+        - textbox "Key to delete" [ref=e14]
+        - button "Delete" [ref=e15] [cursor=pointer]
+      - button "Clear Hash Table" [ref=e16] [cursor=pointer]
+      - heading "Configuration" [level=3] [ref=e17]
+      - generic [ref=e18]:
+        - text: "Table Size:"
+        - spinbutton [ref=e19]: "7"
+        - button "Resize" [ref=e20] [cursor=pointer]
+      - generic [ref=e21]:
+        - heading "Statistics" [level=4] [ref=e22]
+        - generic [ref=e23]:
+          - generic [ref=e24]: "Entries: 0"
+          - generic [ref=e25]: "Load Factor: 0.00"
+          - generic [ref=e26]: "Collisions: 0"
+          - generic [ref=e27]: "Total Operations: 0"
+          - generic [ref=e28]: "Table Size: 7"
+    - generic [ref=e29]:
+      - heading "Hash Table Structure" [level=3] [ref=e30]
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: "Bucket 0 (Index: 0)"
+          - generic [ref=e34]: Empty
+        - generic [ref=e35]:
+          - generic [ref=e36]: "Bucket 1 (Index: 1)"
+          - generic [ref=e37]: Empty
+        - generic [ref=e38]:
+          - generic [ref=e39]: "Bucket 2 (Index: 2)"
+          - generic [ref=e40]: Empty
+        - generic [ref=e41]:
+          - generic [ref=e42]: "Bucket 3 (Index: 3)"
+          - generic [ref=e43]: Empty
+        - generic [ref=e44]:
+          - generic [ref=e45]: "Bucket 4 (Index: 4)"
+          - generic [ref=e46]: Empty
+        - generic [ref=e47]:
+          - generic [ref=e48]: "Bucket 5 (Index: 5)"
+          - generic [ref=e49]: Empty
+        - generic [ref=e50]:
+          - generic [ref=e51]: "Bucket 6 (Index: 6)"
+          - generic [ref=e52]: Empty
+```

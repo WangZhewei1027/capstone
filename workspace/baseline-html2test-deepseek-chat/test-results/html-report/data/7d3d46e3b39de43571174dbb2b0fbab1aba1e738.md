@@ -1,0 +1,45 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Merge Sort Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - text: "Enter numbers (comma separated):"
+    - textbox "Enter numbers (comma separated):" [ref=e5]: 5,4,3,2,1
+    - button "Sort" [ref=e6] [cursor=pointer]
+    - button "Reset" [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - heading "Sorting Process:" [level=3] [ref=e9]
+    - generic [ref=e10]:
+      - generic [ref=e12]: "Initial array: [5, 4, 3, 2, 1]"
+      - generic [ref=e14]: "Splitting: [5, 4, 3, 2, 1]"
+      - generic [ref=e16]: "Splitting: [5, 4, 3]"
+      - generic [ref=e18]: "Splitting: [5, 4]"
+      - generic [ref=e20]: "Merging: [5] and [4]"
+      - generic [ref=e22]: Comparing 5 and 4
+      - generic [ref=e24]: Taking 4 from right array
+      - generic [ref=e26]: Copying remaining 5 from left array
+      - generic [ref=e28]: "Merged result: [4, 5]"
+      - generic [ref=e30]: "Merging: [4, 5] and [3]"
+      - generic [ref=e32]: Comparing 4 and 3
+      - generic [ref=e34]: Taking 3 from right array
+      - generic [ref=e36]: Copying remaining 4 from left array
+      - generic [ref=e38]: Copying remaining 5 from left array
+      - generic [ref=e40]: "Merged result: [3, 4, 5]"
+      - generic [ref=e42]: "Splitting: [2, 1]"
+      - generic [ref=e44]: "Merging: [2] and [1]"
+      - generic [ref=e46]: Comparing 2 and 1
+      - generic [ref=e48]: Taking 1 from right array
+      - generic [ref=e50]: Copying remaining 2 from left array
+      - generic [ref=e52]: "Merged result: [1, 2]"
+      - generic [ref=e54]: "Merging: [3, 4, 5] and [1, 2]"
+      - generic [ref=e56]: Comparing 3 and 1
+      - generic [ref=e58]: Taking 1 from right array
+      - generic [ref=e60]: Comparing 3 and 2
+      - generic [ref=e62]: Taking 2 from right array
+      - generic [ref=e64]: Copying remaining 3 from left array
+      - generic [ref=e66]: Copying remaining 4 from left array
+      - generic [ref=e68]: Copying remaining 5 from left array
+      - generic [ref=e70]: "Merged result: [1, 2, 3, 4, 5]"
+      - generic [ref=e72]: "Final sorted array: [1, 2, 3, 4, 5]"
+```

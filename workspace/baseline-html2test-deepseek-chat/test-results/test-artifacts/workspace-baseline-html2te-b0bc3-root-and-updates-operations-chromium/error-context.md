@@ -1,0 +1,56 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Heap (Min/Max) Data Structure" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - spinbutton [ref=e5]
+    - button "Insert" [ref=e6] [cursor=pointer]
+    - button "Extract Root" [ref=e7] [cursor=pointer]
+    - combobox [ref=e8]:
+      - option "Min Heap" [selected]
+      - option "Max Heap"
+    - button "Generate Random Heap" [ref=e9] [cursor=pointer]
+    - button "Clear" [ref=e10] [cursor=pointer]
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - heading "Min Heap Visualization" [level=2] [ref=e13]
+      - generic [ref=e14]:
+        - generic [ref=e16]: "5"
+        - generic [ref=e17]:
+          - generic [ref=e18]: "15"
+          - generic [ref=e19]: "8"
+        - generic [ref=e20]:
+          - generic [ref=e21]: "30"
+          - generic [ref=e22]: "20"
+          - generic [ref=e23]: "25"
+          - generic [ref=e24]: "10"
+      - generic [ref=e25]: Inserted 10 Inserted 20 Inserted 5 Inserted 30 Inserted 15 Inserted 25 Inserted 8
+    - generic [ref=e26]:
+      - heading "Max Heap Visualization" [level=2] [ref=e27]
+      - generic [ref=e28]:
+        - generic [ref=e30]: "30"
+        - generic [ref=e31]:
+          - generic [ref=e32]: "20"
+          - generic [ref=e33]: "25"
+        - generic [ref=e34]:
+          - generic [ref=e35]: "10"
+          - generic [ref=e36]: "15"
+          - generic [ref=e37]: "5"
+          - generic [ref=e38]: "8"
+      - generic [ref=e39]: Inserted 10 Inserted 20 Inserted 5 Inserted 30 Inserted 15 Inserted 25 Inserted 8
+  - generic [ref=e40]:
+    - heading "About Heaps" [level=3] [ref=e41]
+    - paragraph [ref=e42]:
+      - strong [ref=e43]: "Min Heap:"
+      - text: A complete binary tree where each node is smaller than or equal to its children.
+    - paragraph [ref=e44]:
+      - strong [ref=e45]: "Max Heap:"
+      - text: A complete binary tree where each node is larger than or equal to its children.
+    - paragraph [ref=e46]:
+      - strong [ref=e47]: "Operations:"
+      - text: Insert O(log n), Extract Root O(log n), Get Min/Max O(1)
+    - paragraph [ref=e48]:
+      - strong [ref=e49]: "Common Uses:"
+      - text: Priority queues, heap sort, Dijkstra's algorithm
+```

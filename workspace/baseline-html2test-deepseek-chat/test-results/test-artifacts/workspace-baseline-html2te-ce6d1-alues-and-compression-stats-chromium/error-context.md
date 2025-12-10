@@ -1,0 +1,81 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Huffman Coding Demo" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - heading "Enter text to encode:" [level=3] [ref=e5]
+    - textbox "Enter some text here..." [ref=e6]: Huffman coding is a lossless data compression algorithm.
+    - button "Encode Text" [active] [ref=e7] [cursor=pointer]
+    - button "Decode Text" [ref=e8] [cursor=pointer]
+    - button "Clear" [ref=e9] [cursor=pointer]
+  - generic [ref=e10]:
+    - heading "Results:" [level=3] [ref=e11]
+    - generic [ref=e12]: "Original Text: \"Huffman coding is a lossless data compression algorithm.\" Character Frequencies: 'H': 1 (Code: 111000) 'u': 1 (Code: 111001) 'f': 2 (Code: 01011) 'm': 3 (Code: 0010) 'a': 5 (Code: 1111) 'n': 3 (Code: 0011) 'SPACE': 7 (Code: 011) 'c': 2 (Code: 10110) 'o': 5 (Code: 000) 'd': 2 (Code: 10111) 'i': 4 (Code: 1010) 'g': 2 (Code: 11000) 's': 7 (Code: 100) 'l': 3 (Code: 0100) 'e': 2 (Code: 11001) 't': 2 (Code: 11010) 'p': 1 (Code: 111010) 'r': 2 (Code: 11011) 'h': 1 (Code: 111011) '.': 1 (Code: 01010) Encoded Binary: 111000111001010110101100101111001101110110000101111010001111000011101010001111110110100000100100010011001100100011101111111110101111011101100000010111010110111100110010010100000011011111101001100000011011101011010111011001001010 Decoded Text: \"Huffman coding is a lossless data compression algorithm.\" Verification: ✓ Success Compression Statistics: Original Size: 448 bits Compressed Size: 228 bits Compression Ratio: 49.11% Average Code Length: 4.07 bits/character"
+    - generic [ref=e13]:
+      - heading "Huffman Tree:" [level=4] [ref=e14]
+      - generic [ref=e15]: "Node Freq: 56 Left: Node Freq: 24 Left: Node Freq: 11 Left: Char: 'o' Freq: 5 Right: Node Freq: 6 Left: Char: 'm' Freq: 3 Right: Char: 'n' Freq: 3 Right: Node Freq: 13 Left: Node Freq: 6 Left: Char: 'l' Freq: 3 Right: Node Freq: 3 Left: Char: '.' Freq: 1 Right: Char: 'f' Freq: 2 Right: Char: 'SPACE' Freq: 7 Right: Node Freq: 32 Left: Node Freq: 15 Left: Char: 's' Freq: 7 Right: Node Freq: 8 Left: Char: 'i' Freq: 4 Right: Node Freq: 4 Left: Char: 'c' Freq: 2 Right: Char: 'd' Freq: 2 Right: Node Freq: 17 Left: Node Freq: 8 Left: Node Freq: 4 Left: Char: 'g' Freq: 2 Right: Char: 'e' Freq: 2 Right: Node Freq: 4 Left: Char: 't' Freq: 2 Right: Char: 'r' Freq: 2 Right: Node Freq: 9 Left: Node Freq: 4 Left: Node Freq: 2 Left: Char: 'H' Freq: 1 Right: Char: 'u' Freq: 1 Right: Node Freq: 2 Left: Char: 'p' Freq: 1 Right: Char: 'h' Freq: 1 Right: Char: 'a' Freq: 5"
+    - generic [ref=e16]:
+      - heading "Binary Codes:" [level=4] [ref=e17]
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - generic [ref=e20]: "'o'"
+          - generic [ref=e21]: "000"
+        - generic [ref=e22]:
+          - generic [ref=e23]: "'m'"
+          - generic [ref=e24]: "0010"
+        - generic [ref=e25]:
+          - generic [ref=e26]: "'n'"
+          - generic [ref=e27]: "0011"
+        - generic [ref=e28]:
+          - generic [ref=e29]: "'l'"
+          - generic [ref=e30]: "0100"
+        - generic [ref=e31]:
+          - generic [ref=e32]: "'.'"
+          - generic [ref=e33]: "01010"
+        - generic [ref=e34]:
+          - generic [ref=e35]: "'f'"
+          - generic [ref=e36]: "01011"
+        - generic [ref=e37]:
+          - generic [ref=e38]: "'SPACE'"
+          - generic [ref=e39]: "011"
+        - generic [ref=e40]:
+          - generic [ref=e41]: "'s'"
+          - generic [ref=e42]: "100"
+        - generic [ref=e43]:
+          - generic [ref=e44]: "'i'"
+          - generic [ref=e45]: "1010"
+        - generic [ref=e46]:
+          - generic [ref=e47]: "'c'"
+          - generic [ref=e48]: "10110"
+        - generic [ref=e49]:
+          - generic [ref=e50]: "'d'"
+          - generic [ref=e51]: "10111"
+        - generic [ref=e52]:
+          - generic [ref=e53]: "'g'"
+          - generic [ref=e54]: "11000"
+        - generic [ref=e55]:
+          - generic [ref=e56]: "'e'"
+          - generic [ref=e57]: "11001"
+        - generic [ref=e58]:
+          - generic [ref=e59]: "'t'"
+          - generic [ref=e60]: "11010"
+        - generic [ref=e61]:
+          - generic [ref=e62]: "'r'"
+          - generic [ref=e63]: "11011"
+        - generic [ref=e64]:
+          - generic [ref=e65]: "'H'"
+          - generic [ref=e66]: "111000"
+        - generic [ref=e67]:
+          - generic [ref=e68]: "'u'"
+          - generic [ref=e69]: "111001"
+        - generic [ref=e70]:
+          - generic [ref=e71]: "'p'"
+          - generic [ref=e72]: "111010"
+        - generic [ref=e73]:
+          - generic [ref=e74]: "'h'"
+          - generic [ref=e75]: "111011"
+        - generic [ref=e76]:
+          - generic [ref=e77]: "'a'"
+          - generic [ref=e78]: "1111"
+```

@@ -1,0 +1,56 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Adjacency Matrix Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - paragraph [ref=e5]: An adjacency matrix is a square matrix used to represent a finite graph. The elements of the matrix indicate whether pairs of vertices are adjacent or not in the graph.
+    - generic [ref=e6]:
+      - generic [ref=e7]: "Number of vertices:"
+      - spinbutton "Number of vertices:" [ref=e8]: "5"
+      - button "Update" [ref=e9] [cursor=pointer]
+    - generic [ref=e10]:
+      - button "Toggle Edge" [ref=e11] [cursor=pointer]
+      - button "Toggle Directed/Undirected" [ref=e12] [cursor=pointer]
+      - button "Weighted" [ref=e13] [cursor=pointer]
+      - button "Reset Graph" [ref=e14] [cursor=pointer]
+    - generic [ref=e15]:
+      - heading "Adjacency Matrix" [level=3] [ref=e16]
+      - generic [ref=e17]:
+        - generic [ref=e19]: A
+        - generic [ref=e20]: B
+        - generic [ref=e21]: C
+        - generic [ref=e22]: D
+        - generic [ref=e23]: E
+        - generic [ref=e24]: A
+        - generic [ref=e26]: "1"
+        - generic [ref=e30]: B
+        - generic [ref=e31]: "1"
+        - generic [ref=e36]: C
+        - generic [ref=e42]: D
+        - generic [ref=e48]: E
+    - generic [ref=e55]:
+      - generic [ref=e56]: A
+      - generic [ref=e57]: B
+      - generic [ref=e58]: C
+      - generic [ref=e59]: D
+      - generic [ref=e60]: E
+      - generic [ref=e61]: "1"
+      - generic [ref=e63]: "1"
+    - generic [ref=e65]:
+      - heading "About Adjacency Matrices" [level=3] [ref=e66]
+      - paragraph [ref=e67]:
+        - strong [ref=e68]: "Definition:"
+        - text: An adjacency matrix is a way to represent which vertices (nodes) of a graph are adjacent to which other vertices.
+      - paragraph [ref=e69]:
+        - strong [ref=e70]: "Properties:"
+      - list [ref=e71]:
+        - listitem [ref=e72]: For an unweighted graph, matrix cells contain 0 or 1
+        - listitem [ref=e73]: For a weighted graph, cells contain weights or ∞ for no connection
+        - listitem [ref=e74]: "Space complexity: O(V²) where V is the number of vertices"
+        - listitem [ref=e75]: "Checking if two vertices are connected: O(1) time complexity"
+      - paragraph
+      - paragraph [ref=e76]:
+        - strong [ref=e77]: "Use Cases:"
+        - text: Adjacency matrices are useful for dense graphs and when frequent connectivity checks are needed.
+```

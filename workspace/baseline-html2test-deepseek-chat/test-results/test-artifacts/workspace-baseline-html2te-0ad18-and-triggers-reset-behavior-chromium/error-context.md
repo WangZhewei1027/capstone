@@ -1,0 +1,46 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Linear Search Algorithm" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - paragraph [ref=e5]:
+      - strong [ref=e6]: Linear Search
+      - text: is a simple searching algorithm that checks each element in a list sequentially until the target element is found or the entire list has been searched.
+    - paragraph [ref=e7]:
+      - strong [ref=e8]: "Time Complexity:"
+      - text: O(n) - In the worst case, we may need to check all n elements.
+    - paragraph [ref=e9]:
+      - strong [ref=e10]: "Space Complexity:"
+      - text: O(1) - Only a constant amount of extra space is needed.
+  - generic [ref=e11]:
+    - text: "Enter comma-separated numbers:"
+    - textbox "Enter comma-separated numbers:" [ref=e12]: 5, 3, 8, 1, 9, 2, 7, 4, 6
+    - text: "Value to search for:"
+    - spinbutton "Value to search for:" [ref=e13]: "7"
+    - button "Perform Linear Search" [ref=e14] [cursor=pointer]
+    - button "Reset" [ref=e15] [cursor=pointer]
+  - generic [ref=e16]:
+    - generic [ref=e17]: "5"
+    - generic [ref=e18]: "3"
+    - generic [ref=e19]: "8"
+    - generic [ref=e20]: "1"
+    - generic [ref=e21]: "9"
+    - generic [ref=e22]: "2"
+    - generic [ref=e23]: "7"
+    - generic [ref=e24]: "4"
+    - generic [ref=e25]: "6"
+  - generic [ref=e26]: Enter a value and click "Perform Linear Search" to begin.
+  - generic [ref=e27]:
+    - heading "Algorithm Complexity Analysis" [level=3] [ref=e28]
+    - list [ref=e29]:
+      - listitem [ref=e30]:
+        - strong [ref=e31]: "Best Case:"
+        - text: O(1) - The target is the first element
+      - listitem [ref=e32]:
+        - strong [ref=e33]: "Average Case:"
+        - text: O(n) - The target is somewhere in the middle
+      - listitem [ref=e34]:
+        - strong [ref=e35]: "Worst Case:"
+        - text: O(n) - The target is the last element or not present
+```

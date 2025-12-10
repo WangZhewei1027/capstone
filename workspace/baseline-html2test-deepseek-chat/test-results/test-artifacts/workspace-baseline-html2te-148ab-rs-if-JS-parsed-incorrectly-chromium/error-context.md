@@ -1,0 +1,42 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - text: "```html"
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "Topological Sort Algorithm" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Visualize and understand topological sorting on directed acyclic graphs (DAG)
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "Graph Visualization" [level=2] [ref=e8]
+        - img [ref=e10]
+        - heading "Topological Order" [level=2] [ref=e11]
+        - paragraph [ref=e13]: Run the algorithm to see the topological order
+        - paragraph [ref=e15]: No steps yet. Run the algorithm to see the steps.
+      - generic [ref=e16]:
+        - heading "Algorithm Controls" [level=2] [ref=e17]
+        - generic [ref=e18]:
+          - paragraph [ref=e19]: "Try a predefined graph:"
+          - generic [ref=e20]:
+            - button "Simple Linear DAG:" [ref=e21] [cursor=pointer]
+            - button "Complex DAG:" [ref=e22] [cursor=pointer]
+            - button "Tree-like DAG:" [ref=e23] [cursor=pointer]
+            - button "Course Dependencies:" [ref=e24] [cursor=pointer]
+        - paragraph [ref=e25]: Enter graph edges below as "A->B" (one per line)
+        - textbox "A->B B->C A->D D->C" [ref=e26]:
+          - /placeholder: "A->B\nB->C\nA->D\nD->C"
+        - button "Parse Graph" [ref=e27] [cursor=pointer]
+        - button "Run Algorithm" [disabled] [ref=e28]
+        - button "Step Forward" [disabled] [ref=e29]
+        - button "Reset" [ref=e30] [cursor=pointer]
+        - heading "About Topological Sort" [level=2] [ref=e31]
+        - paragraph [ref=e32]: Topological sort is an algorithm for ordering the nodes of a directed acyclic graph (DAG) such that for every directed edge u → v, u comes before v in the ordering.
+        - paragraph [ref=e33]: "Applications include:"
+        - list [ref=e34]:
+          - listitem [ref=e35]: Course prerequisites scheduling
+          - listitem [ref=e36]: Build system dependency resolution
+          - listitem [ref=e37]: Event scheduling
+          - listitem [ref=e38]: Task scheduling with dependencies
+        - paragraph [ref=e39]: The algorithm works by repeatedly selecting nodes with no incoming edges (in-degree of 0), adding them to the order, and removing their outgoing edges.
+```

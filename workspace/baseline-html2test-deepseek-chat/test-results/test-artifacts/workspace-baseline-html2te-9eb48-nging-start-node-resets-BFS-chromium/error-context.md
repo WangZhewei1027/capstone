@@ -1,0 +1,52 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Breadth-First Search (BFS) Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Controls" [level=3] [ref=e5]
+      - button "Start BFS" [ref=e6] [cursor=pointer]
+      - button "Next Step" [disabled] [ref=e7]
+      - button "Reset" [ref=e8] [cursor=pointer]
+      - generic [ref=e9]:
+        - heading "Current Step:" [level=4] [ref=e10]
+        - paragraph [ref=e11]: Ready to start BFS
+      - generic [ref=e12]:
+        - heading "Graph Configuration:" [level=4] [ref=e13]
+        - generic [ref=e14]:
+          - text: "Start Node:"
+          - combobox "Start Node:" [ref=e15]:
+            - option "A" [selected]
+            - option "B"
+            - option "C"
+            - option "D"
+            - option "E"
+            - option "F"
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e30] [cursor=pointer]: A
+        - generic [ref=e31] [cursor=pointer]: B
+        - generic [ref=e32] [cursor=pointer]: C
+        - generic [ref=e33] [cursor=pointer]: D
+        - generic [ref=e34] [cursor=pointer]: E
+        - generic [ref=e35] [cursor=pointer]: F
+      - heading "Queue:" [level=4] [ref=e37]
+  - generic [ref=e38]:
+    - heading "Breadth-First Search Algorithm" [level=3] [ref=e39]
+    - paragraph [ref=e40]: BFS is a graph traversal algorithm that explores all the vertices of a graph in breadth-first order. It starts at a selected node and explores all its neighbors at the present depth before moving on to nodes at the next depth level.
+    - paragraph [ref=e41]:
+      - strong [ref=e42]: "Algorithm Steps:"
+    - list [ref=e43]:
+      - listitem [ref=e44]: Start from the selected root node
+      - listitem [ref=e45]: Visit the root node and mark it as visited
+      - listitem [ref=e46]: Enqueue all adjacent unvisited nodes
+      - listitem [ref=e47]: Dequeue a node and visit its unvisited neighbors
+      - listitem [ref=e48]: Repeat until the queue is empty
+    - paragraph [ref=e49]:
+      - strong [ref=e50]: "Time Complexity:"
+      - text: O(V + E) where V is the number of vertices and E is the number of edges
+    - paragraph [ref=e51]:
+      - strong [ref=e52]: "Space Complexity:"
+      - text: O(V) for storing visited nodes and the queue
+```

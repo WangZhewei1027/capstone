@@ -1,0 +1,43 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Hash Table Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - heading "What is a Hash Table?" [level=3] [ref=e5]
+    - paragraph [ref=e6]: A hash table is a data structure that maps keys to values using a hash function to compute an index into an array of buckets. It provides O(1) average time complexity for insertions, deletions, and lookups.
+  - generic [ref=e7]:
+    - textbox "Enter key" [ref=e8]: apple
+    - textbox "Enter value" [ref=e9]: "10"
+    - button "Insert" [ref=e10] [cursor=pointer]
+    - button "Get Value" [active] [ref=e11] [cursor=pointer]
+    - button "Remove" [ref=e12] [cursor=pointer]
+    - button "Clear Table" [ref=e13] [cursor=pointer]
+    - spinbutton [ref=e14]: "7"
+    - button "Resize" [ref=e15] [cursor=pointer]
+  - generic [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e18]: Bucket 0
+      - generic [ref=e19]: "orange: 15"
+    - generic [ref=e20]:
+      - generic [ref=e21]: Bucket 1
+      - generic [ref=e22]: "apple: 10"
+      - generic [ref=e23]: "banana: 20"
+    - generic [ref=e24]:
+      - generic [ref=e25]: Bucket 2
+      - generic [ref=e26]: Empty
+    - generic [ref=e27]:
+      - generic [ref=e28]: Bucket 3
+      - generic [ref=e29]: Empty
+    - generic [ref=e30]:
+      - generic [ref=e31]: Bucket 4
+      - generic [ref=e32]: Empty
+    - generic [ref=e33]:
+      - generic [ref=e34]: Bucket 5
+      - generic [ref=e35]: "grape: 25"
+      - generic [ref=e36]: "kiwi: 8"
+    - generic [ref=e37]:
+      - generic [ref=e38]: Bucket 6
+      - generic [ref=e39]: Empty
+  - generic [ref=e40]: "Table Size: 7 | Items: 5 | Load Factor: 0.71"
+```

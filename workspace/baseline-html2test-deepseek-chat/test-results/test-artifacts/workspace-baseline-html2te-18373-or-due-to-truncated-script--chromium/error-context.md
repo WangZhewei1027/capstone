@@ -1,0 +1,68 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - text: "# Dijkstra's Algorithm Visualization I'll create an interactive visualization that demonstrates how Dijkstra's Algorithm finds the shortest path in a graph. This will include a grid where you can add obstacles, set start/end points, and watch the algorithm in action. ```html"
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - heading "Dijkstra's Algorithm" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Visualization of the shortest path finding algorithm
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - heading "Controls" [level=2] [ref=e9]
+          - button "Start Algorithm" [ref=e10] [cursor=pointer]
+          - button "Reset Grid" [ref=e11] [cursor=pointer]
+          - button "Clear Walls" [ref=e12] [cursor=pointer]
+          - button "Clear Path" [ref=e13] [cursor=pointer]
+        - generic [ref=e14]:
+          - heading "Instructions" [level=2] [ref=e15]
+          - paragraph [ref=e16]: 1. Click cells to add/remove walls (obstacles)
+          - paragraph [ref=e17]: 2. Drag the green start node or red end node to reposition
+          - paragraph [ref=e18]: 3. Click "Start Algorithm" to visualize Dijkstra's Algorithm
+        - generic [ref=e19]:
+          - heading "Legend" [level=2] [ref=e20]
+          - generic [ref=e21]:
+            - generic [ref=e24]: Start Node
+            - generic [ref=e27]: End Node
+            - generic [ref=e30]: Wall
+            - generic [ref=e33]: Visited Node
+            - generic [ref=e36]: Shortest Path
+        - generic [ref=e37]:
+          - heading "Status" [level=2] [ref=e38]
+          - generic [ref=e39]: Ready to start
+        - generic [ref=e40]:
+          - heading "Algorithm Steps" [level=2] [ref=e41]
+          - generic [ref=e42]: Algorithm not started yet.
+      - generic [ref=e43]:
+        - heading "Grid Visualization" [level=2] [ref=e45]
+        - generic [ref=e47]:
+          - heading "About Dijkstra's Algorithm" [level=2] [ref=e48]
+          - paragraph [ref=e49]: Dijkstra's algorithm is a graph search algorithm that solves the shortest-path problem for a graph with non-negative edge weights, producing a shortest-path tree.
+          - heading "Algorithm Steps:" [level=3] [ref=e50]
+          - list [ref=e51]:
+            - listitem [ref=e52]: Assign to every node a tentative distance value (0 for the start node, infinity for others)
+            - listitem [ref=e53]: Set the start node as current. Mark all other nodes unvisited.
+            - listitem [ref=e54]: For the current node, consider all of its unvisited neighbors and calculate their tentative distances
+            - listitem [ref=e55]: When we are done considering all of the neighbors of the current node, mark the current node as visited
+            - listitem [ref=e56]: Select the unvisited node with the smallest tentative distance, and set it as the new current node
+            - listitem [ref=e57]: Repeat steps 3-5 until the destination node has been visited (or until all nodes are visited)
+          - heading "Time Complexity:" [level=3] [ref=e58]
+          - table [ref=e59]:
+            - rowgroup [ref=e60]:
+              - row "Data Structure Time Complexity" [ref=e61]:
+                - cell "Data Structure" [ref=e62]
+                - cell "Time Complexity" [ref=e63]
+              - row "Adjacency List + Priority Queue O((V+E) log V)" [ref=e64]:
+                - cell "Adjacency List + Priority Queue" [ref=e65]
+                - cell "O((V+E) log V)" [ref=e66]
+              - row "Adjacency Matrix O(V²)" [ref=e67]:
+                - cell "Adjacency Matrix" [ref=e68]
+                - cell "O(V²)" [ref=e69]
+          - heading "Applications:" [level=3] [ref=e70]
+          - list [ref=e71]:
+            - listitem [ref=e72]: Network routing protocols
+            - listitem [ref=e73]: Geographic mapping systems
+            - listitem [ref=e74]: Social networks analysis
+            - listitem [ref=e75]: Game development for pathfinding
+```
