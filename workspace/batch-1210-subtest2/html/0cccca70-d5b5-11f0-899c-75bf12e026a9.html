@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kruskal's Algorithm Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        header {
+            background: #3f51b5;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            overflow: hidden;
+        }
+        #graph-container {
+            flex: 1;
+            position: relative;
+            background: #f0f0f0;
+            border-right: 1px solid #ccc;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #fafafa;
+        }
+        #info-panel {
+            width: 350px;
+            padding: 10px 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            background: #ffffff;
+            border-left: 1px solid #ccc;
+        }
+        h2 {
+            margin-top: 0;
+        }
+        .step-highlight {
+            background: #fffbcc;
+            border-left: 4px solid #ffca28;
+            padding-left: 6px;
+            margin: 6px 0;
+        }
+        #controls {
+            margin-bottom: 15px;
+        }
+        button {
+            background-color: #3f51b5;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            margin-right: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            border-radius: 3px;
+            transition: background-color 0.3s ease;
+        }
+        button:disabled {
+            background-color: #9fa8da;
+            cursor: default;
+        }
+        #edge-list {
+            font-family: monospace;
+            max-height: 150px;
+            overflow-y: auto;
+            background: #eeeeee;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        #mst-list {
+            font-family: monospace;
+            max-height: 150px;
+            overflow-y: auto;
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        #legend {
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+        #legend span {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 15px;
+        }
+        #legend .box {
+            width: 16px;
+            height: 16px;
+            margin-right: 5px;
+            display: inline-block;
+            border-radius: 3px;
+        }
+        #legend .edge {
+            border-bottom: 2px solid;
+            display: inline-block;
+            width: 20px;
+            margin-right: 5px;
+        }
+        a {
+            color: #3f51b5;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        #note {
+            font-size: 0.85rem;
+            color: #555;
+            margin-top: 10px;
+        }
+        /* Scrollbar styling for lists */
+        #edge-list::-webkit-scrollbar,
+        #mst-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        #edge-list::-webkit-scrollbar-track,
+        #mst-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        #edge-list::-webkit-scrollbar-thumb,
+        #mst-list::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        #edge-list::-webkit-scrollbar-thumb:hover,
+        #mst-list::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Kruskal's Algorithm Visualization</h1>
+        <div>Minimum Spanning Tree (MST) construction step-by-step</div>
+    </header>
+    <main>
+        <div id="graph-container">
+            <canvas id="graph-canvas"></canvas>
+        </div>
+        <aside id="info-panel">
+            <div id="controls">
+                <button id="prev-step" disabled>Previous Step</button>
+                <button id="next-step">Next Step</button>
+                <button id="reset-btn">Reset</button>
+            </div>
+            <h2>Edges (sorted by weight):</h2>
+            <div id="edge-list"></div>
+
+            <h2>Current MST Edges:</h2>
+            <div id="mst-list"></div>
+
+            <h2>Algorithm Explanation:</h2>
+            <div id="explanation"></div>
+
+            <div id="legend">
+                <strong>Legend:</strong><br />
+                <span><span class="box" style="background:#bbb;"></span>Node</span>
+                <span><span class="edge" style="border-color:#bbb;"></span>Unchecked edge</span><br/>
+                <span><span class="edge" style="border-color:#4caf50;"></span>Selected (MST) edge</span>
+                <span><span class="edge" style="border-color:#f44336; opacity:0.6;"></span>Rejected edge (creates cycle)</span>
+            </div>
+            <div id="note">
+                Note: Nodes can be dragged to reposition for better visibility.<br/>
+                Source code of <a href="https://en.wikipedia.org/wiki/Kruskal%27s_algorithm" target="_blank" rel="noopener noreferrer">Kruskal's Algorithm (Wikipedia)</a>.
+            </div>
+        </aside>
+    </main>
+    <script>
+        (() => {
+            // Graph data - undirected weighted graph
+            // Nodes: id, x, y (canvas coordinates)
+            // Edges: u, v, weight
+            // We'll define nodes placed in a circle for clarity but allow dragging the nodes.
+            const canvas = document.getElementById('graph-canvas');
+            const ctx = canvas.getContext('2d');
+            let width, height;
+
+            function resize() {
+                width = canvas.clientWidth;
+                height = canvas.clientHeight;
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
+            resize();
+            window.addEventListener('resize', () => {
+                resize();
+                drawGraph();
+            });
+
+            // Node radius for drawing
+            const NODE_RADIUS = 16;
+
+            // Graph Example Setup
+            // Use a small graph for clarity
+            // Nodes on a circle centered in the canvas
+            const NODE_POSITIONS = [];
+            const NODE_COUNT = 7;
+            const CENTER = {x: 0, y: 0};
+            const RADIUS = 150;
+
+            // initialize positions after knowing canvas size
+            function initNodePositions() {
+                CENTER.x = width / 2;
+                CENTER.y = height / 2;
+                NODE_POSITIONS.length = 0;
+                for (let i = 0; i < NODE_COUNT; i++) {
+                    const angle = (2 * Math.PI * i) / NODE_COUNT - Math.PI / 2;
+                    let x = CENTER.x + RADIUS * Math.cos(angle);
+                    let y = CENTER.y + RADIUS * Math.sin(angle);
+                    NODE_POSITIONS.push({id: i, x, y});
+                }
+            }
+            initNodePositions();
+
+            // Graph edges (u, v, weight) - undirected
+            // Ensure it's connected enough for meaningful MST
+            // Weights are chosen arbitrarily but reasonably spread
+            let EDGES = [
+                {u:0, v:1, w:7},
+                {u:0, v:3, w:5},
+                {u:1, v:2, w:8},
+                {u:1, v:3, w:9},
+                {u:1, v:4, w:7},
+                {u:2, v:4, w:5},
+                {u:3, v:4, w:15},
+                {u:3, v:5, w:6},
+                {u:4, v:5, w:8},
+                {u:4, v:6, w:9},
+                {u:5, v:6, w:11},
+            ];
+
+            // Sort edges by weight ascending for Kruskal
+            // We'll keep a separate sorted copy so we can highlight them in order
+            const sortedEdges = [...EDGES].sort((a,b) => a.w - b.w);
+
+            // Disjoint Set Union (Union-Find) for cycle detection
+            class DSU {
+                constructor(n) {
+                    this.parent = new Array(n);
+                    this.rank = new Array(n);
+                    for(let i = 0; i < n; i++) {
+                        this.parent[i] = i;
+                        this.rank[i] = 0;
+                    }
+                }
+                find(x) {
+                    if(this.parent[x] !== x) {
+                        this.parent[x] = this.find(this.parent[x]);
+                    }
+                    return this.parent[x];
+                }
+                union(a,b) {
+                    a = this.find(a);
+                    b = this.find(b);
+                    if(a === b) return false;
+                    if(this.rank[a] < this.rank[b]) {
+                        this.parent[a] = b;
+                    } else if(this.rank[b] < this.rank[a]) {
+                        this.parent[b] = a;
+                    } else {
+                        this.parent[b] = a;
+                        this.rank[a]++;
+                    }
+                    return true;
+                }
+            }
+
+            // Visual State:
+            // - For each edge: status = "unchecked", "accepted", "rejected"
+            // We'll simulate the algorithm step by step.
+            // Each step considers one edge.
+            // On accepting edge: union sets.
+            // On rejecting edge: no union.
+
+            let currentStep = -1; // before first edge considered
+            const edgeStatuses = new Map(); // edge index -> status
+
+            function resetState() {
+                currentStep = -1;
+                edgeStatuses.clear();
+                updateUI();
+                drawGraph();
+            }
+
+            // Step forward
+            function nextStep() {
+                if(currentStep >= sortedEdges.length - 1) return;
+                currentStep++;
+                const edge = sortedEdges[currentStep];
+                // Check if adding this edge creates a cycle
+                const dsu = new DSU(NODE_COUNT);
+                for(let i = 0; i < currentStep; i++) {
+                    if(edgeStatuses.get(i) === 'accepted') {
+                        dsu.union(sortedEdges[i].u, sortedEdges[i].v);
+                    }
+                }
+                if(dsu.union(edge.u, edge.v)) {
+                    // accepted
+                    edgeStatuses.set(currentStep, 'accepted');
+                } else {
+                    // rejected (would create cycle)
+                    edgeStatuses.set(currentStep, 'rejected');
+                }
+                updateUI();
+                drawGraph();
+            }
+
+            // Step backward
+            function prevStep() {
+                if(currentStep < 0) return;
+                edgeStatuses.delete(currentStep);
+                currentStep--;
+                updateUI();
+                drawGraph();
+            }
+
+            // Canvas Drawing Helpers
+
+            // Clear canvas
+            function clearCanvas() {
+                ctx.clearRect(0, 0, width, height);
+            }
+
+            // Draw nodes as circles with labels
+            // Drag capability implemented below
+            function drawNodes() {
+                for(let node of NODE_POSITIONS) {
+                    // Node circle
+                    ctx.beginPath();
+                    ctx.fillStyle = '#bbb';
+                    ctx.strokeStyle = '#666';
+                    ctx.lineWidth = 2;
+                    ctx.shadowColor = 'rgba(0,0,0,0.1)';
+                    ctx.shadowBlur = 4;
+                    ctx.shadowOffsetX = 1;
+                    ctx.shadowOffsetY = 1;
+                    ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.shadowColor = 'transparent';
+                    ctx.stroke();
+
+                    // Node label
+                    ctx.fillStyle = '#222';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(node.id.toString(), node.x, node.y);
+                }
+            }
+
+            // Draw edges with different styles depending on status
+            function drawEdges() {
+                for(let i=0; i<sortedEdges.length; i++) {
+                    const edge = sortedEdges[i];
+                    const n1 = NODE_POSITIONS[edge.u];
+                    const n2 = NODE_POSITIONS[edge.v];
+                    const status = edgeStatuses.get(i) || 'unchecked';
+                    ctx.beginPath();
+                    ctx.lineWidth = 3;
+                    // edge color and style based on status
+                    if(status === 'accepted') {
+                        ctx.strokeStyle = '#4caf50'; // green
+                        ctx.shadowColor = 'rgba(76, 175, 80, 0.5)';
+                        ctx.shadowBlur = 8;
+                        ctx.setLineDash([]);
+                    } else if(status === 'rejected') {
+                        ctx.strokeStyle = 'rgba(244, 67, 54, 0.5)'; // red transparent
+                        ctx.shadowColor = 'transparent';
+                        ctx.setLineDash([10,6]);
+                    } else {
+                        ctx.strokeStyle = '#bbb';
+                        ctx.shadowColor = 'transparent';
+                        ctx.setLineDash([]);
+                    }
+                    ctx.moveTo(n1.x, n1.y);
+                    ctx.lineTo(n2.x, n2.y);
+                    ctx.stroke();
+                    ctx.shadowColor = 'transparent';
+                    ctx.setLineDash([]);
+
+                    // Draw weight label in middle of edge
+                    const midX = (n1.x + n2.x)/2;
+                    const midY = (n1.y + n2.y)/2;
+                    ctx.fillStyle = '#444';
+                    ctx.font = 'normal 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    // Draw weight background circle for readability
+                    ctx.beginPath();
+                    ctx.fillStyle = 'white';
+                    ctx.arc(midX, midY, 12, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = '#444';
+                    ctx.fillText(edge.w.toString(), midX, midY);
+                }
+            }
+
+            function drawGraph() {
+                clearCanvas();
+                drawEdges();
+                drawNodes();
+            }
+
+            // UI Elements
+            const prevBtn = document.getElementById('prev-step');
+            const nextBtn = document.getElementById('next-step');
+            const resetBtn = document.getElementById('reset-btn');
+            const edgeListDiv = document.getElementById('edge-list');
+            const mstListDiv = document.getElementById('mst-list');
+            const explanationDiv = document.getElementById('explanation');
+
+            // Explanation texts for each step
+            function getExplanation(step) {
+                if(step < 0) {
+                    return 'Algorithm not started yet. Click "Next Step" to begin considering edges.';
+                }
+                if(step >= sortedEdges.length) {
+                    return 'All edges considered. MST construction complete!';
+                }
+                const edge = sortedEdges[step];
+                const status = edgeStatuses.get(step);
+                let text = `Considering edge <strong>${edge.u} - ${edge.v}</strong> with weight <strong>${edge.w}</strong>. `;
+                if(status === 'accepted') {
+                    text += 'Adding this edge does NOT create a cycle, so it is <span style="color:#4caf50;">accepted</span> into the MST.';
+                } else if(status === 'rejected') {
+                    text += 'Adding this edge would create a cycle, so it is <span style="color:#f44336;">rejected</span>.';
+                } else {
+                    text += 'Deciding this edge status...';
+                }
+                return text;
+            }
+
+            // Update edge list display, MST list display and buttons
+            function updateUI() {
+                // Update edges display with statuses
+                // Show edges with their index and status, highlight current edge being considered
+                let edgeHTML = '';
+                for(let i=0; i<sortedEdges.length; i++) {
+                    const e = sortedEdges[i];
+                    const status = edgeStatuses.get(i) || 'unchecked';
+                    let color, weightColor;
+                    switch(status) {
+                        case 'accepted': color = '#4caf50'; break;
+                        case 'rejected': color = '#f44336'; break;
+                        default: color = '#555'; break;
+                    }
+                    const highlight = (i === currentStep) ? 'step-highlight' : '';
+                    edgeHTML += `<div class="${highlight}" style="color:${color};">
+                        [${i}] Edge ${e.u} - ${e.v}, weight: <strong>${e.w}</strong>
+                    </div>`;
+                }
+                edgeListDiv.innerHTML = edgeHTML;
+
+                // MST edges
+                let mstHTML = '';
+                for(let i=0; i<=currentStep; i++) {
+                    if(edgeStatuses.get(i) === 'accepted') {
+                        const e = sortedEdges[i];
+                        mstHTML += `Edge ${e.u} - ${e.v} (wt: ${e.w})<br/>`;
+                    }
+                }
+                if(!mstHTML) mstHTML = '<i>No edges selected yet.</i>';
+                mstListDiv.innerHTML = mstHTML;
+
+                // Explanation text
+                explanationDiv.innerHTML = getExplanation(currentStep);
+
+                // Buttons enable/disable
+                prevBtn.disabled = currentStep < 0;
+                nextBtn.disabled = currentStep >= sortedEdges.length - 1;
+            }
+
+            // Node Dragging to reposition nodes
+            let draggingNode = null;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+
+            canvas.addEventListener('mousedown', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = (e.clientX - rect.left);
+                const mouseY = (e.clientY - rect.top);
+                // Check if mouse is inside any node
+                for(let node of NODE_POSITIONS) {
+                    const dx = mouseX - node.x;
+                    const dy = mouseY - node.y;
+                    if(dx*dx + dy*dy <= NODE_RADIUS*NODE_RADIUS) {
+                        draggingNode = node;
+                        dragOffsetX = dx;
+                        dragOffsetY = dy;
+                        break;
+                    }
+                }
+            });
+            window.addEventListener('mouseup', () => {
+                draggingNode = null;
+            });
+            window.addEventListener('mousemove', e => {
+                if(draggingNode) {
+                    const rect = canvas.getBoundingClientRect();
+                    let x = (e.clientX - rect.left) - dragOffsetX;
+                    let y = (e.clientY - rect.top) - dragOffsetY;
+                    // Clamp inside canvas
+                    x = Math.min(width - NODE_RADIUS, Math.max(NODE_RADIUS, x));
+                    y = Math.min(height - NODE_RADIUS, Math.max(NODE_RADIUS, y));
+                    draggingNode.x = x;
+                    draggingNode.y = y;
+                    drawGraph();
+                }
+            });
+
+            // Button event listeners
+            prevBtn.addEventListener('click', () => {
+                prevStep();
+            });
+            nextBtn.addEventListener('click', () => {
+                nextStep();
+            });
+            resetBtn.addEventListener('click', () => {
+                resetState();
+            });
+
+            // Initialize UI and graph drawing
+            resetState();
+        })();
+    </script>
+</body>
+</html>

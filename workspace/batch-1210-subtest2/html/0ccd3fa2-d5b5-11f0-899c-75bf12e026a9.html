@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Linear Regression Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+    }
+    #container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    #canvasContainer {
+      text-align: center;
+      margin-top: 20px;
+      position: relative;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      background: #fff;
+      cursor: crosshair;
+    }
+    #instructions {
+      text-align: center;
+      margin-bottom: 10px;
+      color: #555;
+    }
+    #rmse {
+      margin-top: 15px;
+      font-weight: bold;
+      text-align: center;
+    }
+    button {
+      display: block;
+      margin: 10px auto 0 auto;
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      background: #007BFF;
+      color: white;
+      border-radius: 4px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #clearBtn {
+      background: #dc3545;
+    }
+    #clearBtn:hover {
+      background: #a71d2a;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <h1>Linear Regression Interactive Demo</h1>
+    <div id="instructions">Click on the canvas to add data points. The linear regression line updates automatically.</div>
+    <div id="canvasContainer">
+      <canvas id="plot" width="700" height="400"></canvas>
+    </div>
+    <div id="rmse"></div>
+    <button id="clearBtn">Clear Points</button>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('plot');
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+
+      // Margin for axis labels and ticks
+      const margin = { top: 30, bottom: 50, left: 60, right: 30 };
+
+      // Data to store points as objects {x, y} in data coordinate space
+      let points = [];
+
+      // Coordinate system ranges - we will scale dynamically based on points
+      let xMin = 0, xMax = 10;
+      let yMin = 0, yMax = 10;
+
+      // Convert data coordinates to canvas coordinates
+      function dataToCanvasX(x) {
+        return margin.left + ((x - xMin) / (xMax - xMin)) * (width - margin.left - margin.right);
+      }
+      function dataToCanvasY(y) {
+        return height - margin.bottom - ((y - yMin) / (yMax - yMin)) * (height - margin.top - margin.bottom);
+      }
+
+      // Convert canvas coordinates to data coordinates
+      function canvasToDataX(cx) {
+        return xMin + ((cx - margin.left) / (width - margin.left - margin.right)) * (xMax - xMin);
+      }
+      function canvasToDataY(cy) {
+        return yMin + ((height - margin.bottom - cy) / (height - margin.top - margin.bottom)) * (yMax - yMin);
+      }
+
+      // Draw axes with ticks and labels
+      function drawAxes() {
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.font = '12px Arial';
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Draw x axis
+        ctx.beginPath();
+        ctx.moveTo(margin.left, height - margin.bottom);
+        ctx.lineTo(width - margin.right, height - margin.bottom);
+        ctx.stroke();
+
+        // Draw y axis
+        ctx.beginPath();
+        ctx.moveTo(margin.left, margin.top);
+        ctx.lineTo(margin.left, height - margin.bottom);
+        ctx.stroke();
+
+        // Ticks and labels - 6 ticks each axis
+        let xTicks = 6;
+        let yTicks = 6;
+
+        // X axis ticks & labels
+        for(let i = 0; i <= xTicks; i++) {
+          const x = margin.left + i * (width - margin.left - margin.right) / xTicks;
+          const val = xMin + i * (xMax - xMin) / xTicks;
+          ctx.beginPath();
+          ctx.moveTo(x, height - margin.bottom);
+          ctx.lineTo(x, height - margin.bottom + 6);
+          ctx.stroke();
+          ctx.fillText(val.toFixed(1), x, height - margin.bottom + 18);
+        }
+
+        // Y axis ticks & labels
+        ctx.textAlign = 'right';
+        for(let i = 0; i <= yTicks; i++) {
+          const y = height - margin.bottom - i * (height - margin.top - margin.bottom) / yTicks;
+          const val = yMin + i * (yMax - yMin) / yTicks;
+          ctx.beginPath();
+          ctx.moveTo(margin.left, y);
+          ctx.lineTo(margin.left - 6, y);
+          ctx.stroke();
+          ctx.fillText(val.toFixed(1), margin.left - 10, y);
+        }
+
+        // Axis labels
+        ctx.textAlign = 'center';
+        ctx.fillText('X', width/2, height - 10);
+        ctx.save();
+        ctx.translate(15, height/2);
+        ctx.rotate(-Math.PI/2);
+        ctx.fillText('Y', 0, 0);
+        ctx.restore();
+      }
+
+      // Draw the data points
+      function drawPoints() {
+        ctx.fillStyle = 'blue';
+        points.forEach(({x,y}) => {
+          const cx = dataToCanvasX(x);
+          const cy = dataToCanvasY(y);
+          ctx.beginPath();
+          ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+      }
+
+      // Calculate linear regression parameters: slope (m) and intercept (b)
+      // y = m*x + b
+      function linearRegression(dataPoints) {
+        if(dataPoints.length < 2) return null;
+
+        const n = dataPoints.length;
+        let sumX=0, sumY=0, sumXY=0, sumX2=0;
+        for(const p of dataPoints) {
+          sumX += p.x;
+          sumY += p.y;
+          sumXY += p.x * p.y;
+          sumX2 += p.x * p.x;
+        }
+        const denominator = n*sumX2 - sumX*sumX;
+        if(denominator === 0) return null; // vertical line or all x the same
+
+        const m = (n*sumXY - sumX*sumY) / denominator;
+        const b = (sumY - m*sumX) / n;
+        return {m, b};
+      }
+
+      // Draw linear regression line
+      function drawRegressionLine(line) {
+        if(!line) return;
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Find two points on the x-range
+        const x1 = xMin;
+        const y1 = line.m*x1 + line.b;
+        const x2 = xMax;
+        const y2 = line.m*x2 + line.b;
+        // Clip line to y boundaries
+        let pointsToDraw = [];
+
+        function clipPoint(x, y) {
+          if(y < yMin) {
+            y = yMin;
+            x = (y - line.b)/line.m;
+          } else if(y > yMax) {
+            y = yMax;
+            x = (y - line.b)/line.m;
+          }
+          return {x,y};
+        }
+
+        let p1 = clipPoint(x1,y1);
+        let p2 = clipPoint(x2,y2);
+
+        ctx.moveTo(dataToCanvasX(p1.x), dataToCanvasY(p1.y));
+        ctx.lineTo(dataToCanvasX(p2.x), dataToCanvasY(p2.y));
+        ctx.stroke();
+      }
+
+      // Calculate Root Mean Squared Error (RMSE) for the regression line
+      function calculateRMSE(line, dataPoints) {
+        if(!line) return null;
+        let sumSqError = 0;
+        dataPoints.forEach(p => {
+          const pred = line.m*p.x + line.b;
+          const error = p.y - pred;
+          sumSqError += error * error;
+        });
+        return Math.sqrt(sumSqError / dataPoints.length);
+      }
+
+      // Update data coordinate ranges to fit points nicely with some margin
+      function updateRanges() {
+        if(points.length === 0) {
+          xMin = 0; xMax = 10;
+          yMin = 0; yMax = 10;
+          return;
+        }
+        // Determine min and max of points with padding
+        const paddingFactor = 0.1;
+        let xs = points.map(p => p.x);
+        let ys = points.map(p => p.y);
+        let minX = Math.min(...xs);
+        let maxX = Math.max(...xs);
+        let minY = Math.min(...ys);
+        let maxY = Math.max(...ys);
+
+        // Avoid zero ranges
+        if(maxX - minX < 1) {
+          minX -= 1;
+          maxX += 1;
+        }
+        if(maxY - minY < 1) {
+          minY -= 1;
+          maxY += 1;
+        }
+
+        let xRange = maxX - minX;
+        let yRange = maxY - minY;
+
+        xMin = minX - xRange * paddingFactor;
+        xMax = maxX + xRange * paddingFactor;
+        yMin = minY - yRange * paddingFactor;
+        yMax = maxY + yRange * paddingFactor;
+
+        // Floor and ceil for nicer axis ticks
+        xMin = Math.floor(xMin);
+        xMax = Math.ceil(xMax);
+        yMin = Math.floor(yMin);
+        yMax = Math.ceil(yMax);
+      }
+
+      // Redraw entire plot
+      function redraw() {
+        ctx.clearRect(0, 0, width, height);
+        updateRanges();
+        drawAxes();
+        drawPoints();
+        const line = linearRegression(points);
+        drawRegressionLine(line);
+        const rmse = calculateRMSE(line, points);
+        const rmseDiv = document.getElementById('rmse');
+        if(rmse !== null) {
+          rmseDiv.textContent = 'Root Mean Squared Error (RMSE): ' + rmse.toFixed(3);
+        } else {
+          rmseDiv.textContent = '';
+        }
+      }
+
+      // Event: user clicks on canvas to add a point
+      canvas.addEventListener('click', function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+
+        if(cx < margin.left || cx > width - margin.right ||
+           cy < margin.top || cy > height - margin.bottom) {
+          // Outside plotting area - ignore
+          return;
+        }
+
+        const x = canvasToDataX(cx);
+        const y = canvasToDataY(cy);
+
+        points.push({x,y});
+        redraw();
+      });
+
+      // Clear button to reset points
+      document.getElementById('clearBtn').addEventListener('click', () => {
+        points = [];
+        redraw();
+      });
+
+      // Initial draw
+      redraw();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bellman-Ford Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f4f6f8;
+  }
+  h1 {
+    text-align: center;
+  }
+  #graph-input {
+    margin-bottom: 15px;
+  }
+  #output {
+    white-space: pre-wrap;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 15px;
+    height: 200px;
+    overflow-y: scroll;
+    font-family: monospace;
+  }
+  label, input, button {
+    font-size: 1rem;
+  }
+  #graph-input > div {
+    margin-bottom: 10px;
+  }
+  table {
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  table, th, td {
+    border: 1px solid #666;
+    padding: 6px 10px;
+    text-align: center;
+  }
+  #visualization {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+  }
+  svg {
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  .node circle {
+    fill: #4a90e2;
+    stroke: #333;
+    stroke-width: 2px;
+  }
+  .node text {
+    fill: white;
+    font-weight: bold;
+    user-select: none;
+  }
+  .edge path {
+    stroke: #999;
+    stroke-width: 2px;
+    fill: none;
+    marker-end: url(#arrowhead);
+  }
+  .edge text {
+    font-size: 12px;
+    fill: #555;
+    user-select: none;
+  }
+  .highlight {
+    stroke: #e94e77 !important;
+    stroke-width: 3px !important;
+    fill: #e94e77 !important;
+  }
+  #steps {
+    margin-top: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-family: monospace;
+  }
+  #instructions {
+    max-width: 600px;
+    margin: 0 auto 20px auto;
+    background: #eef5fb;
+    border: 1px solid #a0c4ff;
+    padding: 15px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+  }
+</style>
+</head>
+<body>
+<h1>Bellman-Ford Algorithm Visualization</h1>
+<div id="instructions">
+  <p>Enter the directed graph edges and their weights below. Use the following format:<br>
+  <code>source target weight</code><br>
+  For example, to add an edge from node 0 to node 1 with weight -2, enter:<br>
+  <code>0 1 -2</code></p>
+  <p>Separate edges by new lines. Node IDs should be integers starting from 0.</p>
+  <p>After entering edges, specify the source vertex (start node) and click <strong>Run Bellman-Ford</strong> to see shortest paths and detect negative weight cycles.</p>
+</div>
+<div id="graph-input">
+  <div>
+    <label for="edges">Graph Edges (one per line):</label><br>
+    <textarea id="edges" rows="10" cols="45" placeholder="0 1 5&#10;1 2 3&#10;0 2 10&#10;2 1 -2"></textarea>
+  </div>
+  <div>
+    <label for="source">Source Vertex:</label>
+    <input type="number" id="source" min="0" value="0" />
+  </div>
+  <div>
+    <button id="runBtn">Run Bellman-Ford</button>
+  </div>
+</div>
+
+<div id="output-container">
+  <h3>Algorithm Output:</h3>
+  <div id="output">Enter graph edges and source, then click "Run Bellman-Ford".</div>
+</div>
+
+<div id="visualization">
+  <svg id="svgGraph" width="700" height="400" aria-label="Graph visualization"></svg>
+</div>
+
+<div id="steps-container">
+  <h3>Relaxation Steps:</h3>
+  <div id="steps">Steps will appear here after running the algorithm.</div>
+</div>
+
+<script>
+(() => {
+  const svg = document.getElementById('svgGraph');
+  const edgesInput = document.getElementById('edges');
+  const sourceInput = document.getElementById('source');
+  const runBtn = document.getElementById('runBtn');
+  const output = document.getElementById('output');
+  const stepsDiv = document.getElementById('steps');
+
+  // Constants for visualization layout
+  const NODE_RADIUS = 20;
+  const SVG_WIDTH = svg.clientWidth || 700;
+  const SVG_HEIGHT = svg.clientHeight || 400;
+
+  // Clear SVG content
+  function clearSvg() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+  }
+
+  // Draw arrowhead marker
+  function addArrowheadMarker() {
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'arrowhead');
+    marker.setAttribute('markerWidth', '10');
+    marker.setAttribute('markerHeight', '7');
+    marker.setAttribute('refX', '10');
+    marker.setAttribute('refY', '3.5');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('fill', '#999');
+
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', '0 0, 10 3.5, 0 7');
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+  }
+
+  // Parse input edges to structured graph form
+  // Returns {edges: [{source, target, weight}], nodes: Set(nodeIds)}
+  function parseEdges(text) {
+    const lines = text.trim().split('\n');
+    const edges = [];
+    const nodes = new Set();
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const parts = line.split(/\s+/);
+      if (parts.length !== 3) {
+        throw new Error(`Line ${i + 1}: Expected 3 values per line (source target weight)`);
+      }
+      const source = parseInt(parts[0], 10);
+      const target = parseInt(parts[1], 10);
+      const weight = parseFloat(parts[2]);
+      if (isNaN(source) || isNaN(target) || isNaN(weight)) {
+        throw new Error(`Line ${i + 1}: Invalid number format`);
+      }
+      edges.push({ source, target, weight });
+      nodes.add(source);
+      nodes.add(target);
+    }
+    return { edges, nodes };
+  }
+
+  // Calculate positions for nodes in a circle for visualization
+  // Returns Map nodeId => {x, y}
+  function calculateNodePositions(nodes) {
+    const nodeArray = Array.from(nodes).sort((a,b) => a-b);
+    const count = nodeArray.length;
+    const centerX = SVG_WIDTH / 2;
+    const centerY = SVG_HEIGHT / 2;
+    const radius = Math.min(SVG_WIDTH, SVG_HEIGHT) / 2 - 60;
+
+    const positions = new Map();
+    nodeArray.forEach((nodeId, i) => {
+      const angle = (2 * Math.PI * i) / count - Math.PI / 2;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      positions.set(nodeId, { x, y });
+    });
+    return positions;
+  }
+
+  // Create SVG elements for the graph
+  function drawGraph(edges, nodes, positions, highlightEdges = [], distances = {}) {
+    clearSvg();
+    addArrowheadMarker();
+
+    // Draw edges first
+    for (const { source, target, weight } of edges) {
+      const start = positions.get(source);
+      const end = positions.get(target);
+      if (!start || !end) continue;
+
+      // Calculate line start/end adjusted to node radius
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const len = Math.sqrt(dx*dx + dy*dy);
+      const offsetX = (dx / len) * NODE_RADIUS;
+      const offsetY = (dy / len) * NODE_RADIUS;
+      const lineStartX = start.x + offsetX;
+      const lineStartY = start.y + offsetY;
+      const lineEndX = end.x - offsetX;
+      const lineEndY = end.y - offsetY;
+
+      // Create path for edge
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${lineStartX},${lineStartY} L${lineEndX},${lineEndY}`);
+      path.setAttribute('class', 'edge');
+      path.setAttribute('stroke', '#999');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('marker-end', 'url(#arrowhead)');
+
+      // Highlight if in highlightEdges
+      if (highlightEdges.some(e => e.source === source && e.target === target && e.weight === weight)) {
+        path.classList.add('highlight');
+        path.setAttribute('stroke', '#e94e77');
+        path.setAttribute('stroke-width', '3');
+      }
+
+      svg.appendChild(path);
+
+      // Weight label midpoint with a slight offset
+      const labelX = (lineStartX + lineEndX) / 2 + (-dy / len) * 12;
+      const labelY = (lineStartY + lineEndY) / 2 + (dx / len) * 12;
+      const weightText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      weightText.setAttribute('x', labelX);
+      weightText.setAttribute('y', labelY);
+      weightText.setAttribute('text-anchor', 'middle');
+      weightText.setAttribute('dominant-baseline', 'middle');
+      weightText.setAttribute('class', 'edge-text');
+      weightText.setAttribute('fill', highlightEdges.some(e => e.source === source && e.target === target && e.weight === weight) ? '#e94e77' : '#555');
+      weightText.textContent = weight;
+      svg.appendChild(weightText);
+    }
+
+    // Draw nodes on top
+    for (const nodeId of nodes) {
+      const pos = positions.get(nodeId);
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'node');
+      g.setAttribute('tabindex', 0);
+      g.setAttribute('role', 'button');
+      g.setAttribute('aria-label', 'Node ' + nodeId);
+      g.setAttribute('transform', `translate(${pos.x},${pos.y})`);
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('r', NODE_RADIUS);
+      circle.setAttribute('stroke', '#333');
+      circle.setAttribute('stroke-width', '2');
+      circle.setAttribute('fill', '#4a90e2');
+
+      // Highlight source node in a different color
+      if (distances.source === nodeId) {
+        circle.setAttribute('fill', '#f39c12');
+        circle.setAttribute('stroke', '#b36b00');
+      }
+
+      // If distance is Infinity we show '∞', else the distance
+      const distVal = (distances.dist && typeof distances.dist[nodeId] !== 'undefined') 
+        ? (distances.dist[nodeId] === Infinity ? '∞' : distances.dist[nodeId]) 
+        : '';
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('fill', 'white');
+      text.setAttribute('font-weight', 'bold');
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'middle');
+      text.textContent = nodeId;
+
+      const distText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      distText.setAttribute('fill', '#ffeb3b');
+      distText.setAttribute('font-size', '12px');
+      distText.setAttribute('text-anchor', 'middle');
+      distText.setAttribute('dominant-baseline', 'hanging');
+      distText.textContent = distVal;
+
+      g.appendChild(circle);
+      g.appendChild(text);
+      g.appendChild(distText);
+      svg.appendChild(g);
+    }
+  }
+
+  // Bellman-Ford Algorithm Implementation
+  /*
+   * graph: { edges: [{source, target, weight}], nodes: Set }
+   * source: integer nodeId
+   *
+   * Returns:
+   *  - {dist: map nodeId->distance,
+   *     predecessor: map nodeId->predecessor or null,
+   *     negativeCycle: boolean,
+   *     steps: array of step descriptions}
+   */
+  function bellmanFord(graph, source) {
+    const dist = {};
+    const predecessor = {};
+    const steps = [];
+
+    // Initialization
+    graph.nodes.forEach((node) => {
+      dist[node] = Infinity;
+      predecessor[node] = null;
+    });
+    dist[source] = 0;
+
+    steps.push(`Initialization: set distance[${source}] = 0, all others to Infinity.\n`);
+
+    const edges = graph.edges;
+
+    const nodeCount = graph.nodes.size;
+
+    for (let i = 1; i <= nodeCount - 1; i++) {
+      steps.push(`Iteration ${i}:\n`);
+      let anyUpdate = false;
+      for (const { source: u, target: v, weight: w } of edges) {
+        const prevDist = dist[v];
+        if (dist[u] !== Infinity && dist[u] + w < dist[v]) {
+          dist[v] = dist[u] + w;
+          predecessor[v] = u;
+          anyUpdate = true;
+          steps.push(`  Relax edge (${u} -> ${v}) with weight ${w}: updated dist[${v}] from ${prevDist === Infinity ? '∞' : prevDist} to ${dist[v]}.\n`);
+        } else {
+          steps.push(`  Check edge (${u} -> ${v}) with weight ${w}: no update needed.\n`);
+        }
+      }
+      if (!anyUpdate) {
+        steps.push(`No updates in this iteration. Early stop.\n`);
+        break;
+      }
+    }
+
+    // Check for negative-weight cycles
+    let negativeCycle = false;
+    steps.push(`Checking for negative weight cycles:\n`);
+    for (const { source: u, target: v, weight: w } of edges) {
+      if (dist[u] !== Infinity && dist[u] + w < dist[v]) {
+        negativeCycle = true;
+        steps.push(`  Negative cycle detected via edge (${u} -> ${v}) with weight ${w}.\n`);
+        break;
+      }
+    }
+    if (!negativeCycle) {
+      steps.push(`  No negative weight cycles detected.\n`);
+    }
+
+    return { dist, predecessor, negativeCycle, steps, source };
+  }
+
+  // Reconstruct path from source to a target node using predecessor map
+  function reconstructPath(predecessor, source, target) {
+    let path = [];
+    let current = target;
+    while (current !== null && current !== undefined) {
+      path.push(current);
+      if (current === source) break;
+      current = predecessor[current];
+    }
+    if (path[path.length - 1] !== source) return null; // no path
+    return path.reverse();
+  }
+
+  // Format output text with distances and paths
+  function formatOutput(data) {
+    if (data.negativeCycle) {
+      return 'Negative weight cycle detected. Shortest paths not reliable.';
+    }
+    let text = `Shortest distances from source vertex ${data.source}:\n`;
+    for (const node of Array.from(Object.keys(data.dist)).sort((a,b) => a - b)) {
+      const distVal = data.dist[node];
+      if (distVal === Infinity) {
+        text += `  Node ${node}: unreachable\n`;
+      } else {
+        const path = reconstructPath(data.predecessor, data.source, Number(node));
+        const pathStr = path ? path.join(' → ') : 'unreachable';
+        text += `  Node ${node}: distance = ${distVal}, path = ${pathStr}\n`;
+      }
+    }
+    return text;
+  }
+
+  // Highlight edges that were relaxed in the last iteration where an update happened
+  // We will parse the steps logs to collect the last updated edges for visual highlight
+  function extractLastRelaxedEdgesFromSteps(steps) {
+    // Steps have lines like:
+    // "  Relax edge (u -> v) with weight w: updated dist[v] from ... to ..."
+    // We want to find the edges updated in the last iteration that had any update.
+
+    // Reverse iterate to find last iteration with updates and collect edges updated there.
+    const updatesPerIteration = [];
+    let currentIterationUpdates = [];
+    let iterationStarted = false;
+    for (const line of steps) {
+      const iterMatch = line.match(/^Iteration (\d+):/);
+      if (iterMatch) {
+        if (iterationStarted) {
+          updatesPerIteration.push(currentIterationUpdates);
+          currentIterationUpdates = [];
+        }
+        iterationStarted = true;
+      } else if (/Relax edge \((\d+) -> (\d+)\) with weight (-?\d+\.?\d*): updated/.test(line)) {
+        const m = line.match(/Relax edge \((\d+) -> (\d+)\) with weight (-?\d+\.?\d*): updated/);
+        currentIterationUpdates.push({
+          source: Number(m[1]),
+          target: Number(m[2]),
+          weight: Number(m[3])
+        });
+      }
+    }
+    if (iterationStarted) updatesPerIteration.push(currentIterationUpdates);
+
+    // Find last iteration with updates (non-empty array) from end
+    for (let i = updatesPerIteration.length - 1; i >= 0; i--) {
+      if (updatesPerIteration[i].length > 0) return updatesPerIteration[i];
+    }
+    return [];
+  }
+
+  runBtn.addEventListener('click', () => {
+    const edgesText = edgesInput.value.trim();
+    const sourceNode = Number(sourceInput.value);
+
+    output.textContent = '';
+    stepsDiv.textContent = '';
+
+    if (isNaN(sourceNode)) {
+      output.textContent = 'Invalid source vertex.';
+      return;
+    }
+    if (!edgesText) {
+      output.textContent = 'Please enter edges.';
+      return;
+    }
+
+    let graph;
+    try {
+      graph = parseEdges(edgesText);
+    } catch (e) {
+      output.textContent = 'Error parsing edges: ' + e.message;
+      return;
+    }
+
+    if (!graph.nodes.has(sourceNode)) {
+      output.textContent = `Source vertex ${sourceNode} does not exist in the graph nodes.`;
+      return;
+    }
+
+    // Run Bellman-Ford
+    const result = bellmanFord(graph, sourceNode);
+
+    // Show output text
+    output.textContent = formatOutput(result);
+
+    // Show steps:
+    stepsDiv.textContent = result.steps.join('');
+
+    // Calculate node positions & draw graph with highlights on edges relaxed in last update iteration
+    const positions = calculateNodePositions(graph.nodes);
+    const highlightEdges = extractLastRelaxedEdgesFromSteps(result.steps);
+    drawGraph(graph.edges, graph.nodes, positions, highlightEdges, { dist: result.dist, source: sourceNode });
+  });
+})();
+</script>
+</body>
+</html>

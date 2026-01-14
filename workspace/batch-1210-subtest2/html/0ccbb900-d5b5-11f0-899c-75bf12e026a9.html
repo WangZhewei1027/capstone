@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Adjacency Matrix Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+  }
+  h1 {
+    text-align: center;
+  }
+  #graphInputs {
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    margin-top: 10px;
+  }
+  input[type="number"], input[type="text"] {
+    width: 50px;
+    text-align: center;
+  }
+  textarea {
+    width: 300px;
+    height: 80px;
+    font-family: monospace;
+  }
+  table {
+    border-collapse: collapse;
+    margin-top: 20px;
+  }
+  table, th, td {
+    border: 1px solid #444;
+  }
+  th, td {
+    padding: 5px 10px;
+    text-align: center;
+  }
+  #matrixContainer {
+    overflow-x: auto;
+  }
+  #graphDisplay {
+    margin-top: 30px;
+    display: flex;
+    justify-content: center;
+  }
+  svg {
+    border: 1px solid #ddd;
+    background-color: #fafafa;
+  }
+</style>
+</head>
+<body>
+<h1>Adjacency Matrix Demonstration</h1>
+
+<div id="graphInputs">
+  <label>
+    Number of vertices (max 10):
+    <input type="number" id="numVertices" min="1" max="10" value="4" />
+  </label>
+  <label>
+    Directed graph?
+    <input type="checkbox" id="directed" />
+  </label>
+  <label>
+    Weighted edges?
+    <input type="checkbox" id="weighted" />
+  </label>
+  <label>
+    Enter edges (one per line):
+    <br />
+    Format:
+    <ul>
+      <li>Unweighted: <code>src dest</code> (e.g. <code>0 2</code>)</li>
+      <li>Weighted: <code>src dest weight</code> (e.g. <code>0 2 5</code>)</li>
+      <li>Vertices indexed from 0 to n-1</li>
+    </ul>
+    <textarea id="edgesInput">0 1
+0 2
+1 2
+2 3</textarea>
+  </label>
+  <br />
+  <button id="generateMatrixBtn">Generate Adjacency Matrix</button>
+</div>
+
+<div id="matrixContainer">
+  <h2>Adjacency Matrix</h2>
+  <div id="matrixOutput"></div>
+</div>
+
+<div id="graphDisplay">
+  <svg id="graphSVG" width="500" height="400"></svg>
+</div>
+
+<script>
+(() => {
+  const numVerticesInput = document.getElementById('numVertices');
+  const directedInput = document.getElementById('directed');
+  const weightedInput = document.getElementById('weighted');
+  const edgesInput = document.getElementById('edgesInput');
+  const generateBtn = document.getElementById('generateMatrixBtn');
+  const matrixOutput = document.getElementById('matrixOutput');
+  const graphSVG = document.getElementById('graphSVG');
+
+  // Clear SVG content
+  function clearSVG() {
+    while (graphSVG.firstChild) {
+      graphSVG.removeChild(graphSVG.firstChild);
+    }
+  }
+
+  // Create adjacency matrix
+  function createAdjacencyMatrix(n, edges, directed, weighted) {
+    const matrix = Array(n)
+      .fill(null)
+      .map(() => Array(n).fill(weighted ? 0 : 0)); // 0 for no edge
+
+    edges.forEach(edge => {
+      const [src, dest, w] = edge;
+      if (weighted) {
+        matrix[src][dest] = w;
+        if (!directed) matrix[dest][src] = w;
+      } else {
+        matrix[src][dest] = 1;
+        if (!directed) matrix[dest][src] = 1;
+      }
+    });
+    return matrix;
+  }
+
+  // Render matrix as HTML table
+  function renderMatrix(matrix, weighted) {
+    const n = matrix.length;
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+
+    // Top-left empty corner cell
+    const cornerCell = document.createElement('th');
+    cornerCell.textContent = '';
+    headerRow.appendChild(cornerCell);
+
+    // Header columns: vertex indices
+    for (let j = 0; j < n; j++) {
+      const th = document.createElement('th');
+      th.textContent = j;
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for (let i = 0; i < n; i++) {
+      const row = document.createElement('tr');
+      const rowHeader = document.createElement('th');
+      rowHeader.textContent = i;
+      row.appendChild(rowHeader);
+
+      for (let j = 0; j < n; j++) {
+        const td = document.createElement('td');
+        let val = matrix[i][j];
+        if (weighted) {
+          // Show 0 as empty for clarity
+          td.textContent = val === 0 ? '' : val;
+        } else {
+          td.textContent = val;
+        }
+        row.appendChild(td);
+      }
+      tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    return table;
+  }
+
+  // Draw the graph on SVG
+  function drawGraph(matrix, directed, weighted) {
+    clearSVG();
+    const n = matrix.length;
+    const width = graphSVG.clientWidth;
+    const height = graphSVG.clientHeight;
+    const radius = Math.min(width, height) / 2 - 50; // leave margin
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // Calculate vertex positions on a circle
+    const positions = [];
+    for (let i = 0; i < n; i++) {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2; // start from top
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      positions.push({ x, y });
+    }
+
+    // Draw edges (lines/arrows)
+    // To avoid overlapping, if multiple edges between same nodes, shift slightly
+    const existingEdges = new Set();
+
+    function createArrowMarker() {
+      const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+      marker.setAttribute("id", "arrowhead");
+      marker.setAttribute("markerWidth", "10");
+      marker.setAttribute("markerHeight", "7");
+      marker.setAttribute("refX", "10");
+      marker.setAttribute("refY", "3.5");
+      marker.setAttribute("orient", "auto");
+      marker.setAttribute("fill", "#333");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", "M0,0 L10,3.5 L0,7 Z");
+      marker.appendChild(path);
+      return marker;
+    }
+
+    // Add defs for arrow markers once
+    let defs = graphSVG.querySelector('defs');
+    if (!defs) {
+      defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      graphSVG.appendChild(defs);
+      defs.appendChild(createArrowMarker());
+    }
+
+    // Helper to shorten line ends so arrows don't overlap nodes
+    function shortenLine(x1, y1, x2, y2, shorten) {
+      // shorten: length to shorten from end
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      if (length === 0) return [x1, y1, x2, y2];
+      const ratio = (length - shorten) / length;
+      const newX2 = x1 + dx * ratio;
+      const newY2 = y1 + dy * ratio;
+      return [x1, y1, newX2, newY2];
+    }
+
+    // Draw edges
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        let val = matrix[i][j];
+        if ((weighted && val !== 0) || (!weighted && val === 1)) {
+          // Check duplicate edge in undirected graph
+          if (!directed && i > j) continue; // draw only once
+
+          // Calculate line start/end points slightly outside vertex circles
+          const { x: x1, y: y1 } = positions[i];
+          const { x: x2, y: y2 } = positions[j];
+          const nodeRadius = 15;
+          const [startX, startY, endX, endY] = shortenLine(
+            x1,
+            y1,
+            x2,
+            y2,
+            nodeRadius
+          );
+
+          // For directed graphs, add arrow marker
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("x1", startX);
+          line.setAttribute("y1", startY);
+          line.setAttribute("x2", endX);
+          line.setAttribute("y2", endY);
+          line.setAttribute("stroke", "#333");
+          line.setAttribute("stroke-width", "2");
+
+          if (directed) {
+            line.setAttribute("marker-end", "url(#arrowhead)");
+          }
+
+          // For self loop, draw a small circle near the node
+          if (i === j) {
+            // Remove the line, draw loop as a circle near node
+            // Draw a circle offset right/down of the node position
+            const loopRadius = 12;
+            const loop = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            loop.setAttribute("cx", x1 + nodeRadius + loopRadius);
+            loop.setAttribute("cy", y1 - loopRadius);
+            loop.setAttribute("r", loopRadius);
+            loop.setAttribute("fill", "none");
+            loop.setAttribute("stroke", "#333");
+            loop.setAttribute("stroke-width", "2");
+            graphSVG.appendChild(loop);
+
+            if (weighted) {
+              const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+              txt.setAttribute("x", x1 + nodeRadius + loopRadius);
+              txt.setAttribute("y", y1 - loopRadius);
+              txt.setAttribute("font-size", "12");
+              txt.setAttribute("fill", "#333");
+              txt.setAttribute("text-anchor", "middle");
+              txt.setAttribute("dominant-baseline", "middle");
+              txt.textContent = val;
+              graphSVG.appendChild(txt);
+            }
+            continue;
+          }
+
+          graphSVG.appendChild(line);
+
+          // Add weight label for weighted edges
+          if (weighted) {
+            // Position text near midpoint offset a bit
+            const midX = (startX + endX) / 2;
+            const midY = (startY + endY) / 2;
+
+            // Offset perpendicular direction for clarity
+            const dx = endX - startX;
+            const dy = endY - startY;
+            const offset = 12;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const offsetX = -(dy / length) * offset;
+            const offsetY = (dx / length) * offset;
+
+            const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            txt.setAttribute("x", midX + offsetX);
+            txt.setAttribute("y", midY + offsetY);
+            txt.setAttribute("font-size", "12");
+            txt.setAttribute("fill", "#d22");
+            txt.setAttribute("font-weight", "bold");
+            txt.setAttribute("text-anchor", "middle");
+            txt.setAttribute("dominant-baseline", "middle");
+            txt.textContent = val;
+            graphSVG.appendChild(txt);
+          }
+        }
+      }
+    }
+
+    // Draw vertices as circles with labels
+    for (let i = 0; i < n; i++) {
+      const { x, y } = positions[i];
+      // Circle
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", x);
+      circle.setAttribute("cy", y);
+      circle.setAttribute("r", 15);
+      circle.setAttribute("fill", "#3a87ad");
+      circle.setAttribute("stroke", "#222");
+      circle.setAttribute("stroke-width", "2");
+      graphSVG.appendChild(circle);
+
+      // Label
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", x);
+      text.setAttribute("y", y + 1); // adjust vertical center
+      text.setAttribute("font-size", "14");
+      text.setAttribute("fill", "#fff");
+      text.setAttribute("font-weight", "bold");
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("dominant-baseline", "middle");
+      text.textContent = i;
+      graphSVG.appendChild(text);
+    }
+  }
+
+  function parseEdges(inputText, weighted, n) {
+    const lines = inputText.trim().split('\n');
+    const edges = [];
+    for (let idx = 0; idx < lines.length; idx++) {
+      const line = lines[idx].trim();
+      if (!line) continue;
+      const parts = line.split(/\s+/);
+      if (weighted) {
+        if (parts.length < 3) {
+          alert(`Invalid edge format in line ${idx + 1}, expected: src dest weight`);
+          return null;
+        }
+        const [srcStr, destStr, weightStr] = parts;
+        const src = parseInt(srcStr, 10);
+        const dest = parseInt(destStr, 10);
+        const weight = Number(weightStr);
+        if (
+          Number.isNaN(src) ||
+          Number.isNaN(dest) ||
+          Number.isNaN(weight) ||
+          src < 0 ||
+          src >= n ||
+          dest < 0 ||
+          dest >= n
+        ) {
+          alert(`Invalid values in line ${idx + 1}`);
+          return null;
+        }
+        edges.push([src, dest, weight]);
+      } else {
+        if (parts.length < 2) {
+          alert(`Invalid edge format in line ${idx + 1}, expected: src dest`);
+          return null;
+        }
+        const [srcStr, destStr] = parts;
+        const src = parseInt(srcStr, 10);
+        const dest = parseInt(destStr, 10);
+        if (
+          Number.isNaN(src) ||
+          Number.isNaN(dest) ||
+          src < 0 ||
+          src >= n ||
+          dest < 0 ||
+          dest >= n
+        ) {
+          alert(`Invalid values in line ${idx + 1}`);
+          return null;
+        }
+        edges.push([src, dest]);
+      }
+    }
+    return edges;
+  }
+
+  generateBtn.addEventListener('click', () => {
+    const n = parseInt(numVerticesInput.value, 10);
+    if (!(n >= 1 && n <= 10)) {
+      alert('Number of vertices must be between 1 and 10');
+      return;
+    }
+    const directed = directedInput.checked;
+    const weighted = weightedInput.checked;
+
+    const edges = parseEdges(edgesInput.value, weighted, n);
+    if (edges === null) return;
+
+    const matrix = createAdjacencyMatrix(n, edges, directed, weighted);
+
+    // Show matrix
+    matrixOutput.innerHTML = '';
+    const table = renderMatrix(matrix, weighted);
+    matrixOutput.appendChild(table);
+
+    // Draw graph
+    drawGraph(matrix, directed, weighted);
+  });
+
+  // Initial generate run for default inputs
+  generateBtn.click();
+})();
+</script>
+</body>
+</html>

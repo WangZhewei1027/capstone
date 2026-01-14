@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Breadth-First Search (BFS) Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f0f0f0;
+  }
+  h1 { text-align: center; }
+  #graph-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+  }
+  svg {
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+  circle.node {
+    fill: #eee;
+    stroke: #666;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: fill 0.3s;
+  }
+  circle.node.visited {
+    fill: #76c7c0;
+  }
+  circle.node.current {
+    fill: #ff6f61;
+  }
+  text.node-label {
+    font-size: 14px;
+    pointer-events: none;
+    user-select: none;
+  }
+  line.edge {
+    stroke: #999;
+    stroke-width: 2px;
+  }
+  line.edge.highlighted {
+    stroke: #ff6f61;
+    stroke-width: 3px;
+  }
+  #controls {
+    max-width: 600px;
+    margin: 0 auto 30px;
+    text-align: center;
+  }
+  #log {
+    max-width: 600px;
+    margin: 0 auto;
+    background: white;
+    border: 1px solid #ccc;
+    height: 150px;
+    overflow-y: auto;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+  button {
+    background: #76c7c0;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    margin-left: 10px;
+  }
+  button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+  #startNodeLabel {
+    width: 40px;
+    font-weight: bold;
+    text-align: center;
+    font-size: 16px;
+    margin-left: 10px;
+  }
+  #desc {
+    max-width: 600px;
+    margin: 0 auto 20px;
+    background: #fff8dc;
+    border: 1px solid #e2d27d;
+    border-radius: 6px;
+    padding: 15px;
+  }
+  a {
+    color: #76c7c0;
+  }
+</style>
+</head>
+<body>
+<h1>Breadth-First Search (BFS) Visualization</h1>
+<div id="desc">
+  <p>
+    This is an interactive demonstration of <strong>Breadth-First Search (BFS)</strong> on a graph.
+    BFS explores the graph layer by layer, starting from a selected start node, visiting all neighbors at the current depth before moving deeper.
+  </p>
+  <p>
+    Click on a node below to select the BFS start node, then press <em>Start BFS</em>.<br/>
+    Nodes turn <span style="color:#ff6f61; font-weight:bold;">red</span> when currently visiting,<br/>
+    and <span style="color:#76c7c0; font-weight:bold;">teal</span> when visited.<br/>
+    Explored edges also highlight in red as BFS progresses.
+  </p>
+  <p>
+    Learn more about BFS: <a href="https://en.wikipedia.org/wiki/Breadth-first_search" target="_blank" rel="noopener">Wikipedia BFS</a> 
+  </p>
+</div>
+<div id="controls">
+  Start Node: 
+  <input type="text" id="startNodeLabel" maxlength="2" readonly />
+  <button id="startBFS" disabled>Start BFS</button>
+  <button id="resetGraph">Reset</button>
+</div>
+<div id="graph-container">
+  <svg id="graph" width="600" height="450" aria-label="Graph visualization of nodes and edges">
+    <!-- Nodes and edges will be added here by JS -->
+  </svg>
+</div>
+<h2 style="text-align:center;">BFS Visit Log</h2>
+<div id="log" role="log" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(() => {
+  const svg = document.getElementById('graph');
+  const logEl = document.getElementById('log');
+  const startInput = document.getElementById('startNodeLabel');
+  const startBtn = document.getElementById('startBFS');
+  const resetBtn = document.getElementById('resetGraph');
+
+  // Graph data - adjacency list and node positions
+  /*
+    Graph layout:
+      A --- B --- E
+      |    /      |
+      C -- D -----F
+      |
+      G
+  */
+  const nodes = [
+    { id: 'A', x: 100, y: 100 },
+    { id: 'B', x: 220, y: 80 },
+    { id: 'C', x: 100, y: 220 },
+    { id: 'D', x: 220, y: 200 },
+    { id: 'E', x: 350, y: 80 },
+    { id: 'F', x: 350, y: 200 },
+    { id: 'G', x: 50,  y: 320 },
+  ];
+
+  const edges = [
+    ['A','B'],
+    ['A','C'],
+    ['B','C'],
+    ['B','E'],
+    ['C','D'],
+    ['D','E'],
+    ['D','F'],
+    ['E','F'],
+    ['C','G']
+  ];
+
+  // Build adjacency list map
+  const adjacency = {};
+  nodes.forEach(({id}) => adjacency[id] = []);
+  edges.forEach(([u,v]) => {
+    adjacency[u].push(v);
+    adjacency[v].push(u);
+  });
+
+  // Helpers for SVG element creation
+  function createSVGElement(name, attrs) {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+    for (const attr in attrs) {
+      el.setAttribute(attr, attrs[attr]);
+    }
+    return el;
+  }
+
+  // State vars
+  let selectedStartNode = null;
+  let bfsRunning = false;
+  let visitedNodes = new Set();
+  let visitedEdges = new Set();
+  let bfsQueue = [];
+  let bfsTimeout = null;
+
+  // Store references to created DOM objects for nodes and edges:
+  const nodeElements = {};
+  const edgeElements = {};
+
+  // Draw edges
+  edges.forEach(([u,v]) => {
+    const from = nodes.find(n => n.id === u);
+    const to = nodes.find(n => n.id === v);
+    // Edges are undirected, draw a line from center of u to center of v
+    const line = createSVGElement('line', {
+      class: 'edge',
+      x1: from.x,
+      y1: from.y,
+      x2: to.x,
+      y2: to.y,
+      'data-edge': `${u}-${v}`
+    });
+    svg.appendChild(line);
+    // Store edge element for easy access both ways
+    edgeElements[`${u}-${v}`] = line;
+    edgeElements[`${v}-${u}`] = line;
+  });
+
+  // Draw nodes
+  nodes.forEach(({id, x, y}) => {
+    const group = createSVGElement('g', { class: 'node-group', 'aria-label': `Node ${id}`, role: 'button', tabindex: 0 });
+    const circle = createSVGElement('circle', {
+      class: 'node',
+      cx: x,
+      cy: y,
+      r: 22,
+      fill: '#eee',
+      stroke: '#666',
+      'stroke-width': 2,
+      cursor: 'pointer',
+      'data-node': id
+    });
+    const text = createSVGElement('text', {
+      class: 'node-label',
+      x: x,
+      y: y + 5,
+      'text-anchor': 'middle',
+      'pointer-events': 'none',
+      fill: '#333',
+      'font-weight': 'bold',
+      'font-size': '16px',
+      'user-select': 'none'
+    });
+    text.textContent = id;
+
+    group.appendChild(circle);
+    group.appendChild(text);
+    svg.appendChild(group);
+
+    nodeElements[id] = {
+      group,
+      circle,
+      text
+    };
+
+    // Node click/select handlers
+    group.addEventListener('click', () => {
+      if (bfsRunning) return;
+      selectStartNode(id);
+    });
+    group.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ' ') && !bfsRunning) {
+        e.preventDefault();
+        selectStartNode(id);
+      }
+    });
+  });
+
+  // Select start node logic
+  function selectStartNode(id) {
+    if (selectedStartNode === id) return;
+    if (bfsRunning) return;
+
+    if (selectedStartNode) {
+      // reset old
+      nodeElements[selectedStartNode].circle.setAttribute('stroke', '#666');
+      nodeElements[selectedStartNode].circle.setAttribute('stroke-width', 2);
+    }
+    selectedStartNode = id;
+    nodeElements[id].circle.setAttribute('stroke', '#ff6f61');
+    nodeElements[id].circle.setAttribute('stroke-width', 4);
+    startInput.value = id;
+    startBtn.disabled = false;
+    appendLog(`Selected start node: ${id}`);
+  }
+
+  // Reset graph states (colors and program vars)
+  function resetGraph() {
+    if (bfsTimeout) {
+      clearTimeout(bfsTimeout);
+      bfsTimeout = null;
+    }
+    bfsRunning = false;
+    visitedNodes.clear();
+    visitedEdges.clear();
+    bfsQueue = [];
+    startBtn.disabled = !selectedStartNode;
+    startInput.value = selectedStartNode || '';
+
+    // Reset nodes styles
+    for (const id in nodeElements) {
+      const circle = nodeElements[id].circle;
+      circle.classList.remove('visited', 'current');
+      circle.setAttribute('fill', '#eee');
+      if (id === selectedStartNode) {
+        circle.setAttribute('stroke', '#ff6f61');
+        circle.setAttribute('stroke-width', 4);
+      } else {
+        circle.setAttribute('stroke', '#666');
+        circle.setAttribute('stroke-width', 2);
+      }
+    }
+    // Reset edges
+    for (const key in edgeElements) {
+      edgeElements[key].classList.remove('highlighted');
+    }
+    clearLog();
+    appendLog('Graph reset.');
+  }
+
+  // Append message to log with auto scroll
+  function appendLog(msg) {
+    const timestamp = new Date().toLocaleTimeString();
+    logEl.textContent += `[${timestamp}] ${msg}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function clearLog() {
+    logEl.textContent = '';
+  }
+
+  // BFS Algorithm with visual step-by-step and delays
+  function startBFS() {
+    if (!selectedStartNode || bfsRunning) return;
+
+    bfsRunning = true;
+    startBtn.disabled = true;
+    resetBtn.disabled = true;
+
+    visitedNodes.clear();
+    visitedEdges.clear();
+    bfsQueue = [selectedStartNode];
+    appendLog(`Starting BFS from node ${selectedStartNode}...`);
+
+    stepBFS();
+  }
+
+  function stepBFS() {
+    if (bfsQueue.length === 0) {
+      appendLog('BFS Complete!');
+      bfsRunning = false;
+      resetBtn.disabled = false;
+      return;
+    }
+
+    const current = bfsQueue.shift();
+
+    // Mark current node
+    if (visitedNodes.has(current)) {
+      // Already visited, do next step immediately
+      stepBFS();
+      return;
+    }
+
+    // Visual steps
+    // 1) Mark node current red (current visiting)
+    // 2) After delay, mark node visited teal
+    // 3) Enqueue all unvisited neighbors
+
+    // 1) Highlight current node 
+    const currentCircle = nodeElements[current].circle;
+    currentCircle.classList.add('current');
+    currentCircle.setAttribute('fill', '#ff6f61');
+    appendLog(`Visiting node ${current}`);
+
+    // After 800ms, mark visited and enqueue neighbors
+    bfsTimeout = setTimeout(() => {
+      // Mark visited
+      currentCircle.classList.remove('current');
+      currentCircle.classList.add('visited');
+      currentCircle.setAttribute('fill', '#76c7c0');
+      visitedNodes.add(current);
+
+      // Enqueue neighbors
+      const neighbors = adjacency[current];
+      let newlyQueued = [];
+      neighbors.forEach(nbr => {
+        if (!visitedNodes.has(nbr) && !bfsQueue.includes(nbr)) {
+          bfsQueue.push(nbr);
+          newlyQueued.push(nbr);
+        }
+
+        // Highlight edge between current and neighbor if neighbor just queued or visited
+        if (visitedNodes.has(nbr) || bfsQueue.includes(nbr)) {
+          // To avoid double highlight, check visitedEdges Set with a sorted key
+          const edgeKey = [current, nbr].sort().join('-');
+          if (!visitedEdges.has(edgeKey)) {
+            visitedEdges.add(edgeKey);
+            const edgeEl = edgeElements[`${current}-${nbr}`];
+            if (edgeEl) {
+              edgeEl.classList.add('highlighted');
+            }
+          }
+        }
+      });
+
+      if (newlyQueued.length > 0) {
+        appendLog(`Enqueued neighbors of ${current}: ${newlyQueued.join(', ')}`);
+      } else {
+        appendLog(`No unvisited neighbors to enqueue from ${current}.`);
+      }
+
+      // Proceed to next step after 700ms
+      bfsTimeout = setTimeout(stepBFS, 700);
+    }, 800);
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (!selectedStartNode) return;
+    clearLog();
+    startBFS();
+  });
+
+  resetBtn.addEventListener('click', () => {
+    resetGraph();
+  });
+
+  // Initialize states
+  resetGraph();
+
+  // Accessibility instructions in console:
+  console.info('BFS Visualization: Select a node by clicking or tab+Enter. Press Start BFS to run.');
+})();
+</script>
+</body>
+</html>

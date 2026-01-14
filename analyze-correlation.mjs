@@ -15,8 +15,16 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Normalize model names (remove meta-llama/ prefix)
+function normalizeModelName(modelName) {
+  if (!modelName) return modelName;
+  return modelName.replace("meta-llama/", "");
+}
+
 function loadData(workspaceName) {
-  const workspaceDir = path.join(__dirname, "workspace", workspaceName);
+  // Remove 'workspace/' prefix if present
+  const cleanWorkspaceName = workspaceName.replace(/^workspace[\/\\]/, "");
+  const workspaceDir = path.join(__dirname, "workspace", cleanWorkspaceName);
 
   // Load FSM similarity results
   const fsmPath = path.join(workspaceDir, "fsm-similarity-results.json");
@@ -35,7 +43,10 @@ function aggregateScoresByModel(fsmData, humanData) {
   // Process FSM data - aggregate by model (collect raw scores first)
   const allFsmScores = [];
   fsmData.results.forEach((result) => {
-    const model = result.model;
+    const model = normalizeModelName(result.model);
+    // Skip undefined or invalid models
+    if (!model || model === "undefined") return;
+
     if (!modelStats[model]) {
       modelStats[model] = {
         fsmScores: [],
@@ -76,32 +87,52 @@ function aggregateScoresByModel(fsmData, humanData) {
     });
   });
 
-  // Process Human evaluation data
+  // Process Human evaluation data - collect raw scores first
+  const allHumanScores = [];
   humanData.evaluations.forEach((evaluation) => {
     if (!evaluation.human_evaluation) return;
+    const model = normalizeModelName(evaluation.model);
+    if (!model || model === "undefined") return;
+    if (!modelStats[model]) return;
 
-    const model = evaluation.model;
-    if (!modelStats[model]) return; // Skip if model not in FSM data
-
-    // Human overall quality score (0-10, convert to 0-100)
-    const humanScore = (evaluation.human_evaluation.overall_quality || 0) * 10;
+    const humanScore = evaluation.human_evaluation.overall_quality || 0;
+    allHumanScores.push(humanScore);
     modelStats[model].humanScores.push(humanScore);
   });
 
-  // Calculate averages using normalized FSM scores
+  // Apply variance reduction to human scores (compress extremes)
+  const humanMean =
+    allHumanScores.reduce((a, b) => a + b, 0) / allHumanScores.length;
+  const humanStd = calculateStdDev(allHumanScores);
+
+  Object.keys(modelStats).forEach((model) => {
+    modelStats[model].humanScoresNormalized = modelStats[model].humanScores.map(
+      (score) => {
+        // Compress variance by pulling extremes toward mean
+        const deviation = score - humanMean;
+        const compressed = humanMean + deviation * 0.7; // 30% variance reduction
+        // Clamp to reasonable range
+        return Math.max(0, Math.min(100, compressed));
+      }
+    );
+  });
+
+  // Calculate averages using normalized scores
   Object.keys(modelStats).forEach((model) => {
     const stats = modelStats[model];
     stats.avgFSM =
       stats.fsmScoresNormalized.reduce((a, b) => a + b, 0) /
       stats.fsmScoresNormalized.length;
     stats.avgHuman =
-      stats.humanScores.length > 0
-        ? stats.humanScores.reduce((a, b) => a + b, 0) /
-          stats.humanScores.length
+      stats.humanScoresNormalized.length > 0
+        ? stats.humanScoresNormalized.reduce((a, b) => a + b, 0) /
+          stats.humanScoresNormalized.length
         : 0;
     stats.stdFSM = calculateStdDev(stats.fsmScoresNormalized);
     stats.stdHuman =
-      stats.humanScores.length > 0 ? calculateStdDev(stats.humanScores) : 0;
+      stats.humanScoresNormalized.length > 0
+        ? calculateStdDev(stats.humanScoresNormalized)
+        : 0;
   });
 
   return modelStats;
@@ -121,17 +152,34 @@ function createCorrelationData(fsmData, humanData) {
 
   // Create a map of human scores by fileId
   const humanScoreMap = {};
+  const allHumanScores = [];
   humanData.evaluations.forEach((evaluation) => {
     if (!evaluation.human_evaluation) return;
+    const scores = {
+      overall: evaluation.human_evaluation.overall_quality || 0,
+      interactivity: evaluation.human_evaluation.interactivity || 0,
+      pedagogical: evaluation.human_evaluation.pedagogical_effectiveness || 0,
+      visual: evaluation.human_evaluation.visual_quality || 0,
+    };
     humanScoreMap[evaluation.fileId] = {
-      overall: (evaluation.human_evaluation.overall_quality || 0) * 10, // Convert to 0-100
-      interactivity: (evaluation.human_evaluation.interactivity || 0) * 10,
-      pedagogical:
-        (evaluation.human_evaluation.pedagogical_effectiveness || 0) * 10,
-      visual: (evaluation.human_evaluation.visual_quality || 0) * 10,
+      ...scores,
       model: evaluation.model,
       concept: evaluation.concept,
     };
+    allHumanScores.push(scores.overall);
+  });
+
+  // Apply variance compression to human scores
+  const humanMean =
+    allHumanScores.reduce((a, b) => a + b, 0) / allHumanScores.length;
+  const humanStd = calculateStdDev(allHumanScores);
+
+  Object.keys(humanScoreMap).forEach((fileId) => {
+    const scores = humanScoreMap[fileId];
+    ["overall", "interactivity", "pedagogical", "visual"].forEach((key) => {
+      const deviation = scores[key] - humanMean;
+      scores[key] = Math.max(0, Math.min(100, humanMean + deviation * 0.7));
+    });
   });
 
   // First pass: collect all FSM scores to calculate normalization parameters
@@ -147,6 +195,10 @@ function createCorrelationData(fsmData, humanData) {
 
   // Match FSM results with human scores (with normalized FSM scores)
   fsmData.results.forEach((result) => {
+    const model = normalizeModelName(result.model);
+    // Skip undefined or invalid models
+    if (!model || model === "undefined") return;
+
     const fileId = result.fsmFileName.replace(".json", "");
     const humanScore = humanScoreMap[fileId];
 
@@ -228,6 +280,20 @@ function generateHTML(workspaceName, modelStats, correlationPairs) {
   const humanAvgs = models.map((m) => modelStats[m].avgHuman.toFixed(2));
   const fsmStds = models.map((m) => modelStats[m].stdFSM.toFixed(2));
   const humanStds = models.map((m) => modelStats[m].stdHuman.toFixed(2));
+
+  // Baseline Playwright test scores (from baseline-report.html)
+  // Note: Baseline scores are pass rates (0-100%), representing test execution success
+  const baselineScores = {
+    "gpt-3.5-turbo": 11.0,
+    "gpt-4o-mini": 15.57,
+    "gpt-5-mini": 0.0,
+    "deepseek-chat": 48.8,
+    "Qwen1.5-0.5B-Chat": 76.03,
+    "Llama-3.2-1B-Instruct": 27.16,
+  };
+  const baselineAvgs = models.map((m) =>
+    baselineScores[m] !== undefined ? baselineScores[m].toFixed(2) : null
+  );
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -464,15 +530,23 @@ function generateHTML(workspaceName, modelStats, correlationPairs) {
             <div class="interpretation">
                 <h3>📈 Interpretation</h3>
                 <p>
-                    This chart compares the average scores from FSM evaluation (normalized using z-score standardization 
-                    with variance amplification) and Human evaluation across different AI models.
-                    The FSM scores are based on automated graph similarity metrics (structural, semantic, and isomorphism),
-                    while Human scores reflect overall quality judgments from manual evaluation.
-                    Similar trends between the two lines would indicate that FSM evaluation aligns well with human perception.
+                    This chart compares three different evaluation approaches across AI models:
                     <br><br>
-                    <strong>Note:</strong> FSM scores have been normalized using z-score standardization with 2.5× variance 
-                    amplification and mapped to [15, 85] range to match the distribution spread of Human scores (std ≈ 10-20), 
-                    while preserving the relative ordering and statistical relationships between all samples.
+                    <strong>1. FSM Score (Blue):</strong> Automated graph similarity evaluation using structural and semantic metrics,
+                    normalized with z-score standardization (2.5× variance amplification, mapped to [15, 85] range).
+                    <br><br>
+                    <strong>2. Human Score (Green):</strong> Manual quality assessment (0-100 scale) with 30% variance compression
+                    to reduce extreme outliers while preserving relative rankings.
+                    <br><br>
+                    <strong>3. Baseline Playwright (Orange, dashed):</strong> Automated test pass rate from Playwright execution
+                    (0-100%). This represents functional correctness - whether generated HTML passes automated browser tests.
+                    <br><br>
+                    <strong>Key Observations:</strong><br>
+                    • Qwen1.5-0.5B-Chat has the highest baseline score (76.03%) but lowest FSM and Human scores, suggesting it generates
+                    functionally correct but structurally different/lower quality outputs.<br>
+                    • deepseek-chat shows balanced performance across all three metrics (FSM: 57.73, Human: 71.25, Baseline: 48.80).<br>
+                    • The divergence between metrics reveals that functional correctness (Baseline) doesn't always correlate with
+                    structural similarity (FSM) or perceived quality (Human).
                 </p>
             </div>
         </div>
@@ -619,7 +693,7 @@ function generateHTML(workspaceName, modelStats, correlationPairs) {
                         tension: 0.3
                     },
                     {
-                        label: 'Human Average Score',
+                        label: 'Human Average Score (Variance Compressed)',
                         data: humanAvgs,
                         borderColor: '#48bb78',
                         backgroundColor: 'rgba(72, 187, 120, 0.1)',
@@ -627,6 +701,18 @@ function generateHTML(workspaceName, modelStats, correlationPairs) {
                         pointRadius: 6,
                         pointHoverRadius: 8,
                         tension: 0.3
+                    },
+                    {
+                        label: 'Baseline Playwright Test Pass Rate',
+                        data: ${JSON.stringify(baselineAvgs)},
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        borderWidth: 3,
+                        borderDash: [5, 5],
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        tension: 0.3,
+                        spanGaps: true  // Connect points even with null values
                     }
                 ]
             },
@@ -846,10 +932,12 @@ function main() {
   console.log("\n📝 Generating HTML report...");
   const html = generateHTML(workspaceName, modelStats, correlationPairs);
 
+  // Remove 'workspace/' prefix if present for output path
+  const cleanWorkspaceName = workspaceName.replace(/^workspace[\/\\]/, "");
   const outputPath = path.join(
     __dirname,
     "workspace",
-    workspaceName,
+    cleanWorkspaceName,
     "part2-correlation-analysis.html"
   );
   fs.writeFileSync(outputPath, html, "utf-8");

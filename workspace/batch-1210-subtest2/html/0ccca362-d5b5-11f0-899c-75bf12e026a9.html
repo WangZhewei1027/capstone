@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Floyd-Warshall Algorithm Visualization</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      text-align: center;
+    }
+    #inputArea {
+      margin-bottom: 20px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      background: white;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px #ccc;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    textarea, input[type=number] {
+      width: 100%;
+      font-family: monospace;
+      font-size: 1rem;
+      margin-top: 5px;
+      padding: 8px;
+      box-sizing: border-box;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      resize: vertical;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 15px;
+      font-size: 1rem;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #outputArea {
+      max-width: 800px;
+      margin: 20px auto 40px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px #ccc;
+      overflow-x: auto;
+    }
+    table {
+      border-collapse: collapse;
+      margin-top: 10px;
+      width: 100%;
+      max-width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      text-align: center;
+      padding: 8px;
+      min-width: 40px;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    td.infinity {
+      color: #d9534f;
+      font-weight: bold;
+    }
+    #stepControls {
+      max-width: 800px;
+      margin: 10px auto 0 auto;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    #stepControls button {
+      width: auto;
+      padding: 10px 20px;
+    }
+
+    #description {
+      max-width: 800px;
+      margin: 0 auto 30px auto;
+      background: white;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px #ccc;
+      line-height: 1.5;
+    }
+    .highlight {
+      background-color: #fff3cd;
+    }
+    #status {
+      max-width: 800px;
+      margin: 10px auto;
+      text-align: center;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+    small {
+      color: #777;
+    }
+    @media (max-width: 600px) {
+      #stepControls {
+        flex-direction: column;
+        gap: 8px;
+      }
+      button {
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Floyd-Warshall Algorithm Visualization</h1>
+  <div id="description">
+    <p>The Floyd-Warshall algorithm finds the shortest paths between all pairs of vertices in a weighted graph (with positive or negative edge weights but no negative cycles).</p>
+    <p>Input the adjacency matrix of your graph below, where each row represents the edges from the corresponding vertex. Use <code>INF</code> or <code>Infinity</code> for no direct edge. For instance, with 4 vertices, input a 4x4 matrix like this:</p>
+    <pre>[
+[0, 3, INF, 7],
+[8, 0, 2, INF],
+[5, INF, 0, 1],
+[2, INF, INF, 0]
+]</pre>
+    <p>Press "Run Algorithm" to see step-by-step how shortest paths between all pairs get updated.</p>
+    <small>Note: Vertices are zero-indexed (0 to n-1).</small>
+  </div>
+  <div id="inputArea">
+    <label for="matrixInput">Adjacency Matrix (JSON Array of Arrays):</label>
+    <textarea id="matrixInput" rows="8" spellcheck="false">
+[
+[0, 3, Infinity, 7],
+[8, 0, 2, Infinity],
+[5, Infinity, 0, 1],
+[2, Infinity, Infinity, 0]
+]
+    </textarea>
+    <button id="runButton">Run Algorithm</button>
+  </div>
+  <div id="status"></div>
+  <div id="outputArea"></div>
+  <div id="stepControls" style="display:none;">
+    <button id="prevStep" disabled>Previous Step</button>
+    <button id="nextStep" disabled>Next Step</button>
+    <button id="autoPlay">Auto Play</button>
+    <button id="resetSteps">Reset</button>
+  </div>
+
+  <script>
+    (() => {
+      const matrixInput = document.getElementById("matrixInput");
+      const runButton = document.getElementById("runButton");
+      const outputArea = document.getElementById("outputArea");
+      const status = document.getElementById("status");
+      const stepControls = document.getElementById("stepControls");
+      const prevStepBtn = document.getElementById("prevStep");
+      const nextStepBtn = document.getElementById("nextStep");
+      const autoPlayBtn = document.getElementById("autoPlay");
+      const resetStepsBtn = document.getElementById("resetSteps");
+
+      let steps = [];
+      let currentStep = 0;
+      let autoPlayInterval = null;
+
+      /**
+       * Parse input text as adjacency matrix
+       * - Accepts Infinity or INF (case insensitive) as Infinity
+       * - Validates square matrix with zero diagonal
+       */
+      function parseMatrix(input) {
+        let matrix;
+        try {
+          // Use Function to parse JSON so we can have Infinity as valid token
+          matrix = (new Function('return ' + input.trim() + ';'))();
+        } catch (e) {
+          throw new Error("Invalid input: Please enter a valid JSON array of arrays.");
+        }
+
+        // Validate
+        if (!Array.isArray(matrix) || matrix.length === 0) {
+          throw new Error("Input must be a non-empty 2D array.");
+        }
+        const n = matrix.length;
+        for (let i = 0; i < n; i++) {
+          if (!Array.isArray(matrix[i]) || matrix[i].length !== n) {
+            throw new Error("Matrix must be square (all rows must have same number of elements as columns).");
+          }
+          for (let j = 0; j < n; j++) {
+            // Replace strings "INF","Infinity"(case-insensitive) with Infinity
+            let val = matrix[i][j];
+            if (typeof val === "string") {
+              if (/^inf(inity)?$/i.test(val.trim())) {
+                matrix[i][j] = Infinity;
+              } else {
+                let num = Number(val);
+                if (isNaN(num)) {
+                  throw new Error(`Invalid matrix element at [${i}][${j}]: must be a number or "INF"/"Infinity".`);
+                }
+                matrix[i][j] = num;
+              }
+            } else if (typeof val !== "number") {
+              throw new Error(`Matrix element at [${i}][${j}] must be a number.`);
+            }
+          }
+          if (typeof matrix[i][i] !== "number" || matrix[i][i] !== 0) {
+            throw new Error("Diagonal elements must be zero.");
+          }
+        }
+        return matrix;
+      }
+
+      // Deep copy matrix
+      function copyMatrix(m) {
+        return m.map(row => row.slice());
+      }
+
+      /**
+       * Build a HTML table to display the matrix with optional highlight cells
+       * @param {number[][]} matrix 
+       * @param {{i?: number, j?: number, k?: number, updatedCell?: [number, number]}=} highlight 
+       *      highlight.k - current intermediate vertex
+       *      highlight.i, highlight.j - current cell in iteration
+       *      highlight.updatedCell - cell where update happened
+       */
+      function buildMatrixTable(matrix, highlight = {}) {
+        const n = matrix.length;
+        const table = document.createElement("table");
+        // Header row
+        const thead = document.createElement("thead");
+        const topRow = document.createElement("tr");
+        topRow.appendChild(document.createElement("th")); // empty top-left corner
+        for (let col = 0; col < n; col++) {
+          const th = document.createElement("th");
+          th.textContent = col;
+          topRow.appendChild(th);
+        }
+        thead.appendChild(topRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        for (let i = 0; i < n; i++) {
+          const tr = document.createElement("tr");
+          const rowHeader = document.createElement("th");
+          rowHeader.textContent = i;
+          tr.appendChild(rowHeader);
+          for (let j = 0; j < n; j++) {
+            const td = document.createElement("td");
+            let val = matrix[i][j];
+            if (val === Infinity) {
+              td.textContent = "∞";
+              td.classList.add("infinity");
+            } else {
+              td.textContent = val.toFixed(2).replace(/\.00$/, "");
+            }
+            // Highlighting logic:
+            if (highlight.updatedCell && highlight.updatedCell[0] === i && highlight.updatedCell[1] === j) {
+              td.classList.add("highlight");
+              td.title = "Updated in this step";
+            } else if (highlight.i === i && highlight.j === j) {
+              td.style.backgroundColor = "#d1ecf1"; // light blue
+              td.title = "Currently considering";
+            }
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        return table;
+      }
+
+      /**
+       * Floyd-Warshall Algorithm with step-by-step recording
+       * Steps contain:
+       *  - k: intermediate vertex considered
+       *  - i: row vertex
+       *  - j: column vertex
+       *  - beforeMatrix: matrix before update at this cell
+       *  - afterMatrix: matrix after update at this cell (only updated if improved)
+       *  - updated: boolean, true if the entry got updated in this inner iteration
+       */
+      function floydWarshallWithSteps(graph) {
+        const n = graph.length;
+        let dist = copyMatrix(graph);
+        const allSteps = [];
+
+        for (let k = 0; k < n; k++) {
+          for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
+              const beforeMatrix = copyMatrix(dist);
+              let updated = false;
+              if (dist[i][k] !== Infinity && dist[k][j] !== Infinity) {
+                const newDist = dist[i][k] + dist[k][j];
+                if (newDist < dist[i][j]) {
+                  dist[i][j] = newDist;
+                  updated = true;
+                }
+              }
+              const afterMatrix = copyMatrix(dist);
+              allSteps.push({
+                k, i, j, beforeMatrix, afterMatrix, updated
+              });
+            }
+          }
+        }
+        return {finalMatrix: dist, steps: allSteps};
+      }
+
+      // Render a step in outputArea
+      function renderStep(step) {
+        outputArea.innerHTML = "";
+        const { k, i, j, beforeMatrix, afterMatrix, updated } = step;
+        const n = beforeMatrix.length;
+
+        const infoDiv = document.createElement("div");
+        infoDiv.style.marginBottom = "10px";
+
+        // Describe the step
+        let msg = `Considering if vertex <strong>${k}</strong> acts as an intermediate between <strong>${i}</strong> and <strong>${j}</strong>:<br>`;
+        let dist_ik = beforeMatrix[i][k];
+        let dist_kj = beforeMatrix[k][j];
+        let dist_ij = beforeMatrix[i][j];
+        let newDist = (dist_ik === Infinity || dist_kj === Infinity) ? Infinity : dist_ik + dist_kj;
+
+        function fmt(v) { return v === Infinity ? "∞" : v.toFixed(2).replace(/\.00$/, ""); }
+
+        msg += `d[${i}][${k}] = ${fmt(dist_ik)}, d[${k}][${j}] = ${fmt(dist_kj)} → `;
+        msg += `sum = ${fmt(newDist)} vs current d[${i}][${j}] = ${fmt(dist_ij)}.<br>`;
+
+        if (newDist < dist_ij) {
+          msg += `<span style="color: green; font-weight: bold;">Update: d[${i}][${j}] will be updated to ${fmt(newDist)}.</span>`;
+        } else {
+          msg += `No update performed.`;
+        }
+        infoDiv.innerHTML = msg;
+        outputArea.appendChild(infoDiv);
+
+        // Show before matrix and after matrix side by side, highlight current cell and updated cell
+        const container = document.createElement("div");
+        container.style.display = "flex";
+        container.style.justifyContent = "space-around";
+        container.style.flexWrap = "wrap";
+        container.style.gap = "20px";
+
+        const beforeDiv = document.createElement("div");
+        beforeDiv.style.flex = "1 1 300px";
+        beforeDiv.innerHTML = `<strong>Before Update</strong>`;
+        beforeDiv.appendChild(buildMatrixTable(beforeMatrix, {i, j, k}));
+        
+        const afterDiv = document.createElement("div");
+        afterDiv.style.flex = "1 1 300px";
+        afterDiv.innerHTML = `<strong>After Update</strong>`;
+        afterDiv.appendChild(buildMatrixTable(afterMatrix, {updatedCell: updated ? [i,j] : null}));
+
+        container.appendChild(beforeDiv);
+        container.appendChild(afterDiv);
+        outputArea.appendChild(container);
+      }
+
+      // Render final result matrix
+      function renderFinalMatrix(matrix) {
+        const finalDiv = document.createElement("div");
+        finalDiv.style.maxWidth = "600px";
+        finalDiv.style.margin = "30px auto 10px auto";
+        finalDiv.innerHTML = `<h2>Final Shortest Path Distance Matrix</h2>`;
+        finalDiv.appendChild(buildMatrixTable(matrix));
+        outputArea.appendChild(finalDiv);
+      }
+
+      function disableStepControls(disabled) {
+        prevStepBtn.disabled = disabled || currentStep === 0;
+        nextStepBtn.disabled = disabled || currentStep >= steps.length - 1;
+      }
+
+      function stopAutoPlay() {
+        if (autoPlayInterval) {
+          clearInterval(autoPlayInterval);
+          autoPlayInterval = null;
+          autoPlayBtn.textContent = "Auto Play";
+        }
+      }
+
+      runButton.addEventListener("click", () => {
+        stopAutoPlay();
+        outputArea.innerHTML = "";
+        status.textContent = "";
+        stepControls.style.display = "none";
+        currentStep = 0;
+        steps = [];
+
+        let matrix;
+        try {
+          matrix = parseMatrix(matrixInput.value);
+        } catch (err) {
+          status.style.color = "red";
+          status.textContent = err.message;
+          return;
+        }
+
+        status.style.color = "black";
+        status.textContent = "Running Floyd-Warshall algorithm...";
+
+        // Run algorithm with steps
+        setTimeout(() => { // timeout so UI updates
+          const result = floydWarshallWithSteps(matrix);
+          steps = result.steps;
+          status.textContent = `Algorithm completed: ${steps.length} steps. Use navigation buttons below to see each step.`;
+          stepControls.style.display = "flex";
+
+          renderStep(steps[currentStep]);
+          disableStepControls(false);
+          renderFinalMatrix(result.finalMatrix);
+        }, 50);
+      });
+
+      prevStepBtn.addEventListener("click", () => {
+        if (currentStep > 0) {
+          currentStep--;
+          renderStep(steps[currentStep]);
+          disableStepControls(false);
+          stopAutoPlay();
+        }
+      });
+
+      nextStepBtn.addEventListener("click", () => {
+        if (currentStep < steps.length - 1) {
+          currentStep++;
+          renderStep(steps[currentStep]);
+          disableStepControls(false);
+          stopAutoPlay();
+        }
+      });
+
+      autoPlayBtn.addEventListener("click", () => {
+        if (autoPlayInterval) {
+          // Stop auto play
+          stopAutoPlay();
+        } else {
+          // Start auto play
+          if (currentStep >= steps.length - 1) {
+            currentStep = 0; // restart from beginning
+          }
+          autoPlayBtn.textContent = "Pause";
+          autoPlayInterval = setInterval(() => {
+            renderStep(steps[currentStep]);
+            disableStepControls(false);
+            if (currentStep < steps.length - 1) {
+              currentStep++;
+            } else {
+              stopAutoPlay();
+            }
+          }, 700);
+        }
+      });
+
+      resetStepsBtn.addEventListener("click", () => {
+        stopAutoPlay();
+        if (steps.length > 0) {
+          currentStep = 0;
+          renderStep(steps[currentStep]);
+          disableStepControls(false);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

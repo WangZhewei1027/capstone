@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Union-Find (Disjoint Set) Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 1em;
+    background: #f5f5f5;
+  }
+  h1 {
+    text-align: center;
+  }
+  #controls {
+    max-width: 600px;
+    margin: 0 auto 1em auto;
+    background: white;
+    padding: 1em;
+    border-radius: 8px;
+    box-shadow: 0 0 10px #ccc;
+  }
+  label {
+    margin-right: 0.5em;
+  }
+  input[type=number] {
+    width: 60px;
+    padding: 0.2em;
+  }
+  button {
+    margin-left: 0.5em;
+    padding: 0.5em 1em;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+  #message {
+    margin-top: 1em;
+    min-height: 1.5em;
+    font-weight: bold;
+  }
+  #canvas-container {
+    max-width: 700px;
+    margin: 1em auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 0 10px #ccc;
+    padding: 1em;
+  }
+  svg {
+    width: 100%;
+    height: 400px;
+  }
+  .node {
+    cursor: pointer;
+    user-select: none;
+  }
+  .node circle {
+    fill: #69b3a2;
+    stroke: #336655;
+    stroke-width: 2px;
+    transition: fill 0.3s;
+  }
+  .node text {
+    fill: white;
+    font-weight: bold;
+    pointer-events: none;
+  }
+  .node.root circle {
+    fill: #d9534f;
+  }
+  .edge {
+    stroke: #888;
+    stroke-width: 2px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Union-Find (Disjoint Set) Visualizer</h1>
+
+<div id="controls">
+  <label for="numElements">Number of elements (max 20):</label>
+  <input type="number" id="numElements" min="2" max="20" value="8" />
+  <button id="initBtn">Initialize</button>
+  <br/><br/>
+  <label for="unionA">Union A:</label>
+  <input type="number" id="unionA" min="0" max="19" value="0" />
+  <label for="unionB">Union B:</label>
+  <input type="number" id="unionB" min="0" max="19" value="1" />
+  <button id="unionBtn" disabled>Union</button>
+  <br/><br/>
+  <label for="findX">Find X:</label>
+  <input type="number" id="findX" min="0" max="19" value="0" />
+  <label for="findY">Find Y:</label>
+  <input type="number" id="findY" min="0" max="19" value="1" />
+  <button id="connectedBtn" disabled>Check Connected</button>
+  <div id="message"></div>
+</div>
+
+<div id="canvas-container">
+  <svg id="graph" viewBox="0 0 700 400" aria-label="Union-Find graph visualization">
+    <!-- Nodes and edges will be dynamically generated here -->
+  </svg>
+</div>
+
+<script>
+(() => {
+  // Union-Find data structure with path compression and union by rank
+  class UnionFind {
+    constructor(n) {
+      this.parent = Array.from({length: n}, (_, i) => i);
+      this.rank = new Array(n).fill(0);
+      this.n = n;
+    }
+
+    find(x) {
+      if (this.parent[x] !== x) {
+        this.parent[x] = this.find(this.parent[x]); // path compression
+      }
+      return this.parent[x];
+    }
+
+    union(x, y) {
+      let rootX = this.find(x);
+      let rootY = this.find(y);
+      if (rootX === rootY) return false; // already connected
+
+      // union by rank
+      if (this.rank[rootX] < this.rank[rootY]) {
+        this.parent[rootX] = rootY;
+      } else if (this.rank[rootX] > this.rank[rootY]) {
+        this.parent[rootY] = rootX;
+      } else {
+        this.parent[rootY] = rootX;
+        this.rank[rootX]++;
+      }
+      return true;
+    }
+
+    connected(x, y) {
+      return this.find(x) === this.find(y);
+    }
+  }
+
+  // Visualization variables
+  const svg = document.getElementById('graph');
+  const msgEl = document.getElementById('message');
+  const initBtn = document.getElementById('initBtn');
+  const unionBtn = document.getElementById('unionBtn');
+  const connectedBtn = document.getElementById('connectedBtn');
+  const numElementsInput = document.getElementById('numElements');
+  const unionAInput = document.getElementById('unionA');
+  const unionBInput = document.getElementById('unionB');
+  const findXInput = document.getElementById('findX');
+  const findYInput = document.getElementById('findY');
+
+  let uf = null;
+  let n = 0;
+
+  // Layout parameters for nodes in circle
+  function calculatePositions(n) {
+    const radius = 140;
+    const centerX = 350;
+    const centerY = 200;
+    const angleGap = (2 * Math.PI) / n;
+    let positions = [];
+    for (let i = 0; i < n; i++) {
+      const angle = i * angleGap - Math.PI/2;
+      positions.push({
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+      });
+    }
+    return positions;
+  }
+
+  // Draw the graph of the Union-Find sets:
+  // Each element is a node.
+  // Edges connect child to its parent.
+  // Roots are colored differently.
+
+  function draw() {
+    svg.innerHTML = '';
+    if (!uf) return;
+    const positions = calculatePositions(n);
+
+    // Draw edges (child -> parent link), except for root nodes
+    for (let i = 0; i < n; i++) {
+      const p = uf.parent[i];
+      if (p !== i) {
+        // Draw line from node i to node p
+        const x1 = positions[i].x;
+        const y1 = positions[i].y;
+        const x2 = positions[p].x;
+        const y2 = positions[p].y;
+
+        // We draw a line with an arrow marker
+        const edge = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        edge.setAttribute('x1', x1);
+        edge.setAttribute('y1', y1);
+        edge.setAttribute('x2', x2);
+        edge.setAttribute('y2', y2);
+        edge.setAttribute('class', 'edge');
+        edge.setAttribute('marker-end', 'url(#arrowhead)');
+        svg.appendChild(edge);
+      }
+    }
+
+    // Define arrow marker
+    if (!svg.querySelector('marker#arrowhead')) {
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+      marker.setAttribute('id', 'arrowhead');
+      marker.setAttribute('markerWidth', '8');
+      marker.setAttribute('markerHeight', '6');
+      marker.setAttribute('refX', '7');
+      marker.setAttribute('refY', '3');
+      marker.setAttribute('orient', 'auto');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M0,0 L8,3 L0,6 Z');
+      path.setAttribute('fill', '#888');
+      marker.appendChild(path);
+      defs.appendChild(marker);
+      svg.appendChild(defs);
+    }
+
+    // Draw nodes
+    for (let i = 0; i < n; i++) {
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      group.setAttribute('class', 'node');
+      group.setAttribute('tabindex', 0);
+      group.setAttribute('aria-label', `Element ${i}, parent ${uf.parent[i]}, rank ${uf.rank[i]}`);
+      group.style.userSelect = 'none';
+      group.dataset.index = i;
+
+      const cx = positions[i].x;
+      const cy = positions[i].y;
+      const r = 22;
+
+      // Root nodes get different styling
+      let isRoot = (uf.parent[i] === i);
+      if (isRoot) group.classList.add('root');
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', cy);
+      circle.setAttribute('r', r);
+      group.appendChild(circle);
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', cx);
+      text.setAttribute('y', cy + 6);
+      text.setAttribute('text-anchor', 'middle');
+      text.style.fontSize = '16px';
+      text.textContent = i;
+      group.appendChild(text);
+
+      svg.appendChild(group);
+    }
+  }
+
+  // Validate if inputs are in range, enable/disable buttons accordingly
+  function refreshControls() {
+    unionBtn.disabled = !uf || !validIndex(unionAInput.value) || !validIndex(unionBInput.value);
+    connectedBtn.disabled = !uf || !validIndex(findXInput.value) || !validIndex(findYInput.value);
+
+    // Update input max attributes in case n changes
+    const maxIndex = n - 1;
+    [unionAInput, unionBInput, findXInput, findYInput].forEach(input => {
+      input.max = maxIndex;
+    });
+  }
+  function validIndex(val) {
+    if (!uf) return false;
+    let v = Number(val);
+    return v >= 0 && v < n && Number.isInteger(v);
+  }
+
+  function showMessage(text, color = 'black') {
+    msgEl.textContent = text;
+    msgEl.style.color = color;
+  }
+
+  // Initialize union-find with n elements
+  function initialize() {
+    let size = Number(numElementsInput.value);
+    if (!Number.isInteger(size) || size < 2 || size > 20) {
+      showMessage('Please enter a valid number of elements (2 to 20).', 'red');
+      return;
+    }
+    n = size;
+    uf = new UnionFind(n);
+    showMessage(`Initialized with ${n} elements (0 to ${n-1}).`, 'green');
+
+    // Set input max values and default values
+    [unionAInput, unionBInput, findXInput, findYInput].forEach(input => {
+      input.max = n - 1;
+      // If current value > max, reset to 0
+      if (Number(input.value) > n-1) {
+        input.value = 0;
+      }
+    });
+
+    refreshControls();
+    draw();
+  }
+
+  // Perform union operation and redraw
+  function performUnion() {
+    const a = Number(unionAInput.value);
+    const b = Number(unionBInput.value);
+    if (!validIndex(a) || !validIndex(b)) {
+      showMessage('Invalid elements for union.', 'red');
+      return;
+    }
+    if (uf.connected(a,b)) {
+      showMessage(`Elements ${a} and ${b} are already connected.`, 'orange');
+      return;
+    }
+    uf.union(a,b);
+    showMessage(`Union performed between elements ${a} and ${b}.`, 'green');
+    draw();
+  }
+
+  // Check connection and display
+  function checkConnected() {
+    const x = Number(findXInput.value);
+    const y = Number(findYInput.value);
+    if (!validIndex(x) || !validIndex(y)) {
+      showMessage('Invalid elements for connected check.', 'red');
+      return;
+    }
+    const res = uf.connected(x,y);
+    showMessage(`Elements ${x} and ${y} are ${res ? '' : 'NOT '}connected.`, res ? 'green' : 'red');
+  }
+
+  // Event listeners
+  initBtn.addEventListener('click', () => {
+    initialize();
+  });
+  unionBtn.addEventListener('click', () => {
+    performUnion();
+  });
+  connectedBtn.addEventListener('click', () => {
+    checkConnected();
+  });
+
+  [numElementsInput, unionAInput, unionBInput, findXInput, findYInput].forEach(input => {
+    input.addEventListener('input', refreshControls);
+  });
+
+  // Initialize at load
+  initialize();
+
+})();
+</script>
+
+</body>
+</html>

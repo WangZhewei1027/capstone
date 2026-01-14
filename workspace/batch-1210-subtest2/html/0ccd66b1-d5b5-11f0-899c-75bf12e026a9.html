@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>K-Means Clustering Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #f9f9f9;
+  }
+  h1 {
+    margin: 1rem;
+    color: #333;
+  }
+  #canvas-container {
+    position: relative;
+    margin: 1rem;
+    border: 2px solid #ccc;
+    background: #fff;
+  }
+  canvas {
+    display: block;
+    background: #fafafa;
+    cursor: crosshair;
+  }
+  #controls {
+    margin: 1rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+  }
+  label {
+    font-weight: 600;
+    color: #555;
+  }
+  input[type=number] {
+    width: 60px;
+    padding: 0.2rem;
+    font-size: 1rem;
+  }
+  button {
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    background-color: #0078d7;
+    transition: background-color 0.3s;
+  }
+  button:hover:not(:disabled) {
+    background-color: #005fa3;
+  }
+  button:disabled {
+    background-color: #999;
+    cursor: not-allowed;
+  }
+  #info {
+    max-width: 600px;
+    margin: 1rem;
+    color: #444;
+    text-align: center;
+    font-size: 0.9rem;
+  }
+  #resetBtn {
+    background-color: #cc4b37;
+  }
+  #resetBtn:hover {
+    background-color: #9f3527;
+  }
+</style>
+</head>
+<body>
+  <h1>K-Means Clustering Interactive Demo</h1>
+
+  <div id="canvas-container">
+    <canvas id="canvas" width="700" height="500" tabindex="0" aria-label="Canvas for K-Means clustering visualization"></canvas>
+  </div>
+
+  <div id="controls">
+    <label for="kInput">Number of Clusters (k):</label>
+    <input type="number" id="kInput" min="1" max="10" value="3" />
+    <button id="startBtn" title="Start K-Means Clustering">Start Clustering</button>
+    <button id="stepBtn" title="Perform one iteration of K-Means" disabled>Step</button>
+    <button id="runBtn" title="Run full K-Means to convergence" disabled>Run</button>
+    <button id="resetBtn" title="Clear all points and start over">Reset</button>
+  </div>
+
+  <div id="info">
+    <p>
+      Click inside the canvas to add 2D points (data). Set the number of clusters <em>k</em>, then start the clustering process. You can step through iterations or run to convergence.
+    </p>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const kInput = document.getElementById('kInput');
+  const startBtn = document.getElementById('startBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const runBtn = document.getElementById('runBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const width = canvas.width;
+  const height = canvas.height;
+  const pointRadius = 5;
+  const centroidRadius = 10;
+
+  let points = [];  // {x, y, cluster}
+  let centroids = []; // {x, y}
+  let k = 3;
+
+  let state = 'input'; // 'input', 'clustering', 'finished'
+  let converged = false;
+
+  // Colors for clusters - repeat if k > colors.length
+  const colors = [
+    '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
+    '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe',
+  ];
+
+  // Utility functions
+  function distanceSquared(p1, p2) {
+    const dx = p1.x - p2.x;
+    const dy = p1.y - p2.y;
+    return dx*dx + dy*dy;
+  }
+
+  function drawPoint(p) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, pointRadius, 0, 2*Math.PI);
+    if (p.cluster === null || p.cluster === undefined) {
+      ctx.fillStyle = '#888'; // unclustered points gray
+    } else {
+      ctx.fillStyle = colors[p.cluster % colors.length];
+      ctx.globalAlpha = 0.7;
+    }
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+    // Draw black outline
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function drawCentroid(c, idx) {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, centroidRadius, 0, 2*Math.PI);
+    ctx.fillStyle = colors[idx % colors.length];
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw label (cluster number)
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(idx + 1, c.x, c.y);
+  }
+
+  function clearCanvas() {
+    ctx.clearRect(0, 0, width, height);
+  }
+
+  // Draw all points and centroids
+  function draw() {
+    clearCanvas();
+
+    // Draw points first
+    for (const p of points) {
+      drawPoint(p);
+    }
+
+    // Draw centroids if any
+    if(state !== 'input') {
+      for (let i=0; i<centroids.length; i++) {
+        drawCentroid(centroids[i], i);
+      }
+    }
+  }
+
+  // Assign each point to the nearest centroid
+  // Returns true if any point changed its cluster assignment
+  function assignClusters() {
+    let changed = false;
+    for (const p of points) {
+      let minDist = Infinity;
+      let bestCluster = null;
+      for (let i = 0; i < centroids.length; i++) {
+        const dist = distanceSquared(p, centroids[i]);
+        if (dist < minDist) {
+          minDist = dist;
+          bestCluster = i;
+        }
+      }
+      if (p.cluster !== bestCluster) {
+        changed = true;
+        p.cluster = bestCluster;
+      }
+    }
+    return changed;
+  }
+
+  // Move centroids to mean of assigned points
+  // Returns true if any centroid changed position significantly
+  function updateCentroids() {
+    let moved = false;
+    for (let i = 0; i < centroids.length; i++) {
+      const clusterPoints = points.filter(p => p.cluster === i);
+      if (clusterPoints.length === 0) continue; // no points assigned
+      const meanX = clusterPoints.reduce((sum,p) => sum + p.x, 0) / clusterPoints.length;
+      const meanY = clusterPoints.reduce((sum,p) => sum + p.y, 0) / clusterPoints.length;
+      const old = centroids[i];
+      const distMoved = Math.sqrt(distanceSquared(old, {x: meanX, y: meanY}));
+      if(distMoved > 1e-3) {
+        moved = true;
+        centroids[i] = {x: meanX, y: meanY};
+      }
+    }
+    return moved;
+  }
+
+  // Initialize centroids randomly from existing points
+  // If fewer points than k, pick random locations inside canvas
+  function initializeCentroids() {
+    centroids = [];
+    if(points.length >= k){
+      // Random unique indices from points
+      const chosenIndices = new Set();
+      while (chosenIndices.size < k) {
+        const idx = Math.floor(Math.random()*points.length);
+        chosenIndices.add(idx);
+      }
+      for (const idx of chosenIndices) {
+        const p = points[idx];
+        centroids.push({x: p.x, y: p.y});
+      }
+    } else {
+      // Less points than k, random places on canvas
+      for (let i=0; i<k; i++) {
+        centroids.push({x: Math.random()*width, y: Math.random()*height});
+      }
+    }
+  }
+
+  // Perform one iteration: assign clusters, update centroids
+  // Returns true if converged this iteration
+  function iterate() {
+    const clusterChanged = assignClusters();
+    const centroidsMoved = updateCentroids();
+    draw();
+    converged = !(clusterChanged || centroidsMoved);
+    if(converged) {
+      state = 'finished';
+      stepBtn.disabled = true;
+      runBtn.disabled = true;
+      startBtn.disabled = false;
+      kInput.disabled = false;
+    }
+    return converged;
+  }
+
+  // Run until convergence with small delay for animation
+  async function runToConvergence() {
+    startBtn.disabled = true;
+    stepBtn.disabled = true;
+    runBtn.disabled = true;
+    kInput.disabled = true;
+    resetBtn.disabled = true;
+
+    while(!converged) {
+      iterate();
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    resetBtn.disabled = false;
+  }
+
+  // Add point at mouse location
+  function handleCanvasClick(e) {
+    if(state !== 'input') return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    points.push({x, y, cluster: null});
+    draw();
+  }
+
+  // Reset everything
+  function reset() {
+    points = [];
+    centroids = [];
+    state = 'input';
+    converged = false;
+    kInput.disabled = false;
+    startBtn.disabled = false;
+    stepBtn.disabled = true;
+    runBtn.disabled = true;
+    draw();
+  }
+
+  // When start button clicked
+  function startClustering() {
+    k = parseInt(kInput.value);
+    if (isNaN(k) || k < 1) {
+      alert('Please enter a valid number of clusters (k >= 1).');
+      return;
+    }
+    if(points.length === 0) {
+      alert('Please add some points by clicking on the canvas before starting clustering.');
+      return;
+    }
+    if(points.length < k) {
+      alert('Number of clusters k should be less or equal to number of points.');
+      return;
+    }
+
+    state = 'clustering';
+    converged = false;
+    kInput.disabled = true;
+    startBtn.disabled = true;
+    stepBtn.disabled = false;
+    runBtn.disabled = false;
+
+    // Clear cluster assignments before new start
+    for(const p of points){
+      p.cluster = null;
+    }
+
+    initializeCentroids();
+
+    draw();
+  }
+
+  // Event listeners
+  canvas.addEventListener('click', handleCanvasClick);
+  startBtn.addEventListener('click', startClustering);
+  stepBtn.addEventListener('click', () => {
+    if(state === 'clustering' && !converged){
+      iterate();
+    }
+  });
+  runBtn.addEventListener('click', () => {
+    if(state === 'clustering' && !converged){
+      runToConvergence();
+    }
+  });
+  resetBtn.addEventListener('click', reset);
+
+  // Initial draw
+  draw();
+
+  // Accessibility: enable keyboard enter key to add point
+  canvas.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){
+      // Add point at center of canvas
+      const x = width/2;
+      const y = height/2;
+      if(state === 'input'){
+        points.push({x, y, cluster:null});
+        draw();
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

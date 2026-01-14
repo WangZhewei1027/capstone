@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Graph Visualization (Directed / Undirected)</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+  }
+  #controls {
+    margin-bottom: 15px;
+  }
+  button {
+    margin-right: 10px;
+    padding: 8px 12px;
+    font-size: 16px;
+  }
+  canvas {
+    border: 1px solid #ccc;
+    background: #fafafa;
+    cursor: grab;
+  }
+  canvas:active {
+    cursor: grabbing;
+  }
+  #info {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+<h1>Graph Visualization: Directed / Undirected</h1>
+
+<div id="controls">
+  <button id="toggleMode">Switch to Undirected</button>
+  <button id="resetGraph">Reset Graph</button>
+  <span>Instructions: Click on canvas to add nodes. Drag from one node to another to add edge. In Directed mode, edges have arrows.</span>
+</div>
+
+<canvas id="graphCanvas" width="800" height="600"></canvas>
+<div id="info"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("graphCanvas");
+  const ctx = canvas.getContext("2d");
+  const toggleBtn = document.getElementById("toggleMode");
+  const resetBtn = document.getElementById("resetGraph");
+  const infoDiv = document.getElementById("info");
+
+  const NODE_RADIUS = 20;
+  const ARROW_HEAD_LENGTH = 12;
+  const ARROW_HEAD_ANGLE = Math.PI / 7;
+
+  let mode = "directed"; // or "undirected"
+  toggleBtn.textContent = "Switch to Undirected";
+
+  // Graph structure
+  const nodes = [];
+  const edges = []; // edges: {from: nodeId, to: nodeId}
+
+  let nodeIdCounter = 0;
+
+  // Interaction state
+  let draggingNode = null;
+  let draggingEdge = null; // {fromNode, toX, toY}
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
+
+  // Helper: distance between two points
+  function dist(x1, y1, x2, y2) {
+    return Math.hypot(x1 - x2, y1 - y2);
+  }
+
+  // Find node under given coordinates
+  function findNodeAt(x, y) {
+    return nodes.find((n) => dist(n.x, n.y, x, y) <= NODE_RADIUS);
+  }
+
+  // Draw arrow head at point (x,y) with direction angle
+  function drawArrowHead(x, y, angle) {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - ARROW_HEAD_LENGTH * Math.cos(angle - ARROW_HEAD_ANGLE), y - ARROW_HEAD_LENGTH * Math.sin(angle - ARROW_HEAD_ANGLE));
+    ctx.lineTo(x - ARROW_HEAD_LENGTH * Math.cos(angle + ARROW_HEAD_ANGLE), y - ARROW_HEAD_LENGTH * Math.sin(angle + ARROW_HEAD_ANGLE));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Draw a node
+  function drawNode(node) {
+    ctx.beginPath();
+    ctx.fillStyle = "#4a90e2";
+    ctx.strokeStyle = "#1c3d73";
+    ctx.lineWidth = 2;
+    ctx.arc(node.x, node.y, NODE_RADIUS, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "white";
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(node.id, node.x, node.y);
+  }
+
+  // Draw edge
+  function drawEdge(edge) {
+    const fromNode = nodes.find((n) => n.id === edge.from);
+    const toNode = nodes.find((n) => n.id === edge.to);
+    if (!fromNode || !toNode) return;
+
+    const dx = toNode.x - fromNode.x;
+    const dy = toNode.y - fromNode.y;
+    const angle = Math.atan2(dy, dx);
+
+    // Start and end positions adjusted to node perimeter
+    const startX = fromNode.x + NODE_RADIUS * Math.cos(angle);
+    const startY = fromNode.y + NODE_RADIUS * Math.sin(angle);
+    let endX = toNode.x - NODE_RADIUS * Math.cos(angle);
+    let endY = toNode.y - NODE_RADIUS * Math.sin(angle);
+
+    // For undirected graphs with edges both ways: offset edges so they don't overlap exactly
+    let offsetX = 0,
+      offsetY = 0;
+    if (mode === "undirected") {
+      // Check if opposite edge exists
+      const oppositeEdge = edges.find(
+        (e) => e.from === edge.to && e.to === edge.from
+      );
+      if (oppositeEdge && edge.from < edge.to) {
+        // Offset edges by 8 px perpendicular to the line
+        const perpAngle = angle + Math.PI / 2;
+        offsetX = 8 * Math.cos(perpAngle);
+        offsetY = 8 * Math.sin(perpAngle);
+      } else if (oppositeEdge && edge.from > edge.to) {
+        const perpAngle = angle + Math.PI / 2;
+        offsetX = -8 * Math.cos(perpAngle);
+        offsetY = -8 * Math.sin(perpAngle);
+      }
+    }
+
+    ctx.strokeStyle = "#333";
+    ctx.fillStyle = "#333";
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.moveTo(startX + offsetX, startY + offsetY);
+    ctx.lineTo(endX + offsetX, endY + offsetY);
+    ctx.stroke();
+
+    if (mode === "directed") {
+      // Draw arrow head
+      drawArrowHead(endX + offsetX, endY + offsetY, angle);
+    }
+  }
+
+  // Redraw entire graph
+  function drawGraph() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw edges first
+    edges.forEach(drawEdge);
+
+    // Draw nodes on top
+    nodes.forEach(drawNode);
+
+    // Draw current dragging edge if any
+    if (draggingEdge) {
+      const fromNode = draggingEdge.fromNode;
+      const fromX = fromNode.x;
+      const fromY = fromNode.y;
+      const toX = draggingEdge.toX;
+      const toY = draggingEdge.toY;
+
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const angle = Math.atan2(dy, dx);
+
+      const startX = fromX + NODE_RADIUS * Math.cos(angle);
+      const startY = fromY + NODE_RADIUS * Math.sin(angle);
+      const endX = toX;
+      const endY = toY;
+
+      ctx.strokeStyle = "rgba(0,0,0,0.6)";
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+
+      if (mode === "directed") {
+        drawArrowHead(endX, endY, angle);
+      }
+    }
+  }
+
+  // Add a node at given position
+  function addNode(x, y) {
+    const node = { id: ++nodeIdCounter, x, y };
+    nodes.push(node);
+    drawGraph();
+    updateInfo();
+  }
+
+  // Add an edge from fromNode to toNode, prevents duplicates
+  function addEdge(fromId, toId) {
+    if (fromId === toId) return; // Prevent self-loops for simplicity
+
+    // Check if edge exists already
+    const exists = edges.some(
+      (e) =>
+        e.from === fromId &&
+        e.to === toId
+    );
+    if (!exists) {
+      edges.push({ from: fromId, to: toId });
+      drawGraph();
+      updateInfo();
+    }
+  }
+
+  // Remove all and reset
+  function resetGraph() {
+    nodes.length = 0;
+    edges.length = 0;
+    nodeIdCounter = 0;
+    drawGraph();
+    updateInfo();
+  }
+
+  // Update info display about graph
+  function updateInfo() {
+    infoDiv.textContent = `Mode: ${mode.toUpperCase()} | Nodes: ${nodes.length} | Edges: ${edges.length}`;
+  }
+
+  // Mouse events
+  let isDragging = false;
+
+  canvas.addEventListener("mousedown", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const node = findNodeAt(x, y);
+    if (node) {
+      // Start dragging node
+      draggingNode = node;
+      dragOffsetX = x - node.x;
+      dragOffsetY = y - node.y;
+      isDragging = true;
+    } else {
+      // Start edge dragging mode? We'll allow click & drag from node to another to create edge.
+      draggingNode = null;
+      isDragging = false;
+    }
+  });
+
+  canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (draggingNode && isDragging) {
+      // Drag to move node
+      draggingNode.x = x - dragOffsetX;
+      draggingNode.y = y - dragOffsetY;
+      drawGraph();
+    } else if (draggingEdge) {
+      // Update end position of edge line
+      draggingEdge.toX = x;
+      draggingEdge.toY = y;
+      drawGraph();
+    }
+  });
+
+  canvas.addEventListener("mouseup", (e) => {
+    if (draggingNode && isDragging) {
+      // Finished dragging node
+      draggingNode = null;
+      isDragging = false;
+    } else if (draggingEdge) {
+      // Finish creating edge if releasing on node
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const toNode = findNodeAt(x, y);
+      if (toNode && toNode.id !== draggingEdge.fromNode.id) {
+        addEdge(draggingEdge.fromNode.id, toNode.id);
+      }
+      draggingEdge = null;
+      drawGraph();
+    }
+  });
+
+  // To create edges: On mousedown on a node + shift key pressed, start dragging edge line
+  // Alternatively: Right click to start edge create dragging
+  // To keep it simple: Ctrl + click and drag from node to node creates edge.
+  canvas.addEventListener("mousedown", (e) => {
+    if (e.ctrlKey) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const node = findNodeAt(x, y);
+      if (node) {
+        draggingEdge = { fromNode: node, toX: x, toY: y };
+        drawGraph();
+        e.preventDefault();
+      }
+    }
+  });
+
+  // Add node on canvas click if not clicked on existing node or edge drag started
+  canvas.addEventListener("click", (e) => {
+    if (draggingEdge || isDragging) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (!findNodeAt(x, y)) {
+      addNode(x, y);
+    }
+  });
+
+  // Switch mode button click
+  toggleBtn.addEventListener("click", () => {
+    mode = mode === "directed" ? "undirected" : "directed";
+    toggleBtn.textContent =
+      mode === "directed" ? "Switch to Undirected" : "Switch to Directed";
+    drawGraph();
+    updateInfo();
+  });
+
+  // Reset button
+  resetBtn.addEventListener("click", () => {
+    resetGraph();
+  });
+
+  // Initial state
+  drawGraph();
+  updateInfo();
+})();
+</script>
+</body>
+</html>

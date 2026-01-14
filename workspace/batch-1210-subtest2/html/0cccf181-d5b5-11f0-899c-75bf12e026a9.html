@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Knapsack Problem Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 1em 2em;
+    max-width: 800px;
+  }
+  h1 {
+    text-align: center;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 1em;
+  }
+  th, td {
+    border: 1px solid #777;
+    text-align: center;
+    padding: 0.3em 0.6em;
+  }
+  th {
+    background: #eee;
+  }
+  input[type="number"] {
+    width: 5em;
+  }
+  button {
+    margin-top: 1em;
+    padding: 0.5em 1em;
+    font-size: 1em;
+    cursor: pointer;
+  }
+  #result {
+    margin-top: 1em;
+    background: #f9f9f9;
+    border: 1px solid #ccc;
+    padding: 1em;
+  }
+  #itemsContainer {
+    margin-bottom: 1em;
+  }
+  .item-row {
+    margin-bottom: 0.5em;
+  }
+  label {
+    margin-right: 0.5em;
+  }
+  #dpTableContainer {
+    margin-top: 2em;
+    overflow-x: auto;
+  }
+  #dpTableContainer table {
+    font-size: 0.8em;
+  }
+</style>
+</head>
+<body>
+
+<h1>0/1 Knapsack Problem</h1>
+
+<p>
+  Given items with weights and values and a maximum carrying capacity (knapsack weight), 
+  find the subset of items that maximizes the total value without exceeding the capacity.
+</p>
+
+<div>
+  <label for="capacity">Knapsack Capacity: </label>
+  <input type="number" id="capacity" min="1" value="10" />
+</div>
+
+<h3>Items (Weight & Value)</h3>
+<div id="itemsContainer"></div>
+
+<button id="addItemBtn">Add Item</button>
+<button id="solveBtn">Solve Knapsack</button>
+
+<div id="result"></div>
+
+<div id="dpTableContainer"></div>
+
+<script>
+  // Initialize some example items
+  let items = [
+    {weight: 3, value: 25},
+    {weight: 2, value: 20},
+    {weight: 1, value: 15},
+    {weight: 4, value: 40},
+    {weight: 5, value: 50}
+  ];
+
+  const itemsContainer = document.getElementById("itemsContainer");
+  const addItemBtn = document.getElementById("addItemBtn");
+  const solveBtn = document.getElementById("solveBtn");
+  const capacityInput = document.getElementById("capacity");
+  const resultDiv = document.getElementById("result");
+  const dpTableContainer = document.getElementById("dpTableContainer");
+
+  // Render items input rows
+  function renderItems() {
+    itemsContainer.innerHTML = "";
+    items.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "item-row";
+
+      // Weight input
+      const wLabel = document.createElement("label");
+      wLabel.textContent = `Weight #${i+1}:`;
+      const wInput = document.createElement("input");
+      wInput.type = "number";
+      wInput.min = 1;
+      wInput.value = item.weight;
+      wInput.dataset.index = i;
+      wInput.dataset.type = "weight";
+
+      // Value input
+      const vLabel = document.createElement("label");
+      vLabel.textContent = `Value #${i+1}:`;
+      const vInput = document.createElement("input");
+      vInput.type = "number";
+      vInput.min = 0;
+      vInput.value = item.value;
+      vInput.dataset.index = i;
+      vInput.dataset.type = "value";
+
+      // Delete button
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "Remove";
+      delBtn.style.marginLeft = "10px";
+      delBtn.dataset.index = i;
+      delBtn.onclick = () => {
+        items.splice(i, 1);
+        renderItems();
+      };
+
+      div.appendChild(wLabel);
+      div.appendChild(wInput);
+      div.appendChild(vLabel);
+      div.appendChild(vInput);
+      div.appendChild(delBtn);
+
+      itemsContainer.appendChild(div);
+    });
+  }
+
+  // Update items array on input change
+  itemsContainer.addEventListener("input", e => {
+    const target = e.target;
+    if (target.tagName === "INPUT") {
+      const i = Number(target.dataset.index);
+      if (target.dataset.type === "weight") {
+        let val = parseInt(target.value);
+        if (val > 0) {
+          items[i].weight = val;
+        }
+      } else if (target.dataset.type === "value") {
+        let val = parseInt(target.value);
+        if (val >= 0) {
+          items[i].value = val;
+        }
+      }
+    }
+  });
+
+  addItemBtn.onclick = () => {
+    items.push({weight: 1, value: 0});
+    renderItems();
+  };
+
+  // Knapsack DP solver
+  function knapsack(weights, values, capacity) {
+    const n = weights.length;
+    // dp[i][w]: max value for first i items with capacity w
+    const dp = Array.from({length: n+1}, () =>
+      new Array(capacity+1).fill(0)
+    );
+
+    for (let i=1; i <= n; i++) {
+      const wt = weights[i-1], val = values[i-1];
+      for (let w=0; w <= capacity; w++) {
+        if (wt > w) {
+          dp[i][w] = dp[i-1][w];
+        } else {
+          dp[i][w] = Math.max(dp[i-1][w], dp[i-1][w - wt] + val);
+        }
+      }
+    }
+
+    // To find chosen items, trace back
+    let w = capacity;
+    const chosen = [];
+    for (let i = n; i > 0; i--) {
+      if (dp[i][w] !== dp[i-1][w]) {
+        chosen.push(i-1); // item chosen
+        w -= weights[i-1];
+      }
+    }
+    chosen.reverse();
+
+    return {maxValue: dp[n][capacity], chosenItems: chosen, dpTable: dp};
+  }
+
+  // Render DP table for educational purposes
+  function renderDPTable(dp, weights, values, capacity) {
+    const n = weights.length;
+
+    // Build table
+    const table = document.createElement("table");
+
+    // Header row: capacity labels
+    const headerRow = document.createElement("tr");
+    let th = document.createElement("th");
+    th.textContent = "Items \\ Capacity";
+    headerRow.appendChild(th);
+    for (let w=0; w <= capacity; w++) {
+      th = document.createElement("th");
+      th.textContent = w;
+      headerRow.appendChild(th);
+    }
+    table.appendChild(headerRow);
+
+    // Rows
+    for (let i=0; i <= n; i++) {
+      const tr = document.createElement("tr");
+      const itemCell = document.createElement("th");
+      if (i === 0) {
+        itemCell.textContent = "0 (no items)";
+      } else {
+        itemCell.textContent = `Item ${i} (w:${weights[i-1]}, v:${values[i-1]})`;
+      }
+      tr.appendChild(itemCell);
+      for (let w=0; w <= capacity; w++) {
+        const td = document.createElement("td");
+        td.textContent = dp[i][w];
+        tr.appendChild(td);
+      }
+      table.appendChild(tr);
+    }
+
+    dpTableContainer.innerHTML = "<h3>DP Table (Maximum Values)</h3>";
+    dpTableContainer.appendChild(table);
+  }
+
+  solveBtn.onclick = () => {
+    // Validate inputs
+    const capacity = parseInt(capacityInput.value);
+    if (!(capacity > 0)) {
+      alert("Please enter a positive knapsack capacity.");
+      return;
+    }
+    if (items.length === 0) {
+      alert("Please add at least one item.");
+      return;
+    }
+    for (const item of items) {
+      if (!(item.weight > 0) || !(item.value >= 0)) {
+        alert("Please enter valid weights and values for all items.");
+        return;
+      }
+    }
+
+    const weights = items.map(i => i.weight);
+    const values = items.map(i => i.value);
+
+    const {maxValue, chosenItems, dpTable} = knapsack(weights, values, capacity);
+
+    let html = `<h3>Result</h3>`;
+    html += `<p><strong>Maximum Value:</strong> ${maxValue}</p>`;
+
+    if (chosenItems.length === 0) {
+      html += "<p>No items can be taken (capacity too small or all items too heavy).</p>";
+    } else {
+      html += "<p><strong>Items chosen:</strong></p><ul>";
+      chosenItems.forEach(i => {
+        html += `<li>Item ${i+1} - Weight: ${weights[i]}, Value: ${values[i]}</li>`;
+      });
+      html += "</ul>";
+    }
+
+    resultDiv.innerHTML = html;
+
+    // Render dp table for visualization
+    renderDPTable(dpTable, weights, values, capacity);
+  };
+
+  // Initial render
+  renderItems();
+
+</script>
+
+</body>
+</html>

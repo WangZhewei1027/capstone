@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prim's Algorithm Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 {
+    margin-top: 20px;
+  }
+  #container {
+    display: flex;
+    margin: 20px;
+    max-width: 1000px;
+    width: 95vw;
+  }
+  #graphCanvas {
+    border: 1px solid #ccc;
+    background: #fff;
+    flex-grow: 1;
+    border-radius: 6px;
+  }
+  #controls {
+    margin-left: 20px;
+    max-width: 300px;
+  }
+  #log {
+    margin-top: 15px;
+    height: 250px;
+    overflow-y: auto;
+    background: #111;
+    color: #eee;
+    font-family: monospace;
+    font-size: 14px;
+    padding: 10px;
+    border-radius: 6px;
+    white-space: pre-wrap;
+  }
+  button, select {
+    padding: 8px 14px;
+    margin-top: 10px;
+    width: 100%;
+    font-size: 14px;
+    border: 1px solid #777;
+    border-radius: 4px;
+    background: #f0f0f0;
+    cursor: pointer;
+  }
+  button:disabled {
+    background: #ddd;
+    cursor: not-allowed;
+  }
+  label {
+    display: block;
+    margin-top: 15px;
+    font-weight: bold;
+  }
+  input[type="number"] {
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: 1px solid #777;
+    box-sizing: border-box;
+  }
+  #graphInputArea {
+    width: 100%;
+    height: 100px;
+    margin-top: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #aaa;
+    resize: vertical;
+  }
+  #exampleGraph {
+    font-size: 14px;
+    margin-top: 8px;
+  }
+  small {
+    color: #666;
+  }
+</style>
+</head>
+<body>
+<h1>Prim's Algorithm Visualization</h1>
+<div id="container">
+  <canvas id="graphCanvas" width="700" height="500" title="Graph Visualization"></canvas>
+  <div id="controls">
+    <label for="exampleGraphs">Load Example Graph:</label>
+    <select id="exampleGraphs">
+      <option value="">-- Select an example --</option>
+      <option value="graph1">Graph 1 (7 nodes)</option>
+      <option value="graph2">Graph 2 (6 nodes)</option>
+      <option value="graph3">Graph 3 (8 nodes)</option>
+    </select>
+
+    <label for="graphInputArea">Or input your graph edges:</label>
+    <small>Format: one edge per line, <br />u v weight (space separated). Nodes numbered from 0.</small>
+    <textarea id="graphInputArea" placeholder="Example:\n0 1 7\n0 3 5\n1 2 8\n..." ></textarea>
+
+    <label for="startNodeInput">Start node:</label>
+    <input type="number" id="startNodeInput" min="0" value="0"/>
+
+    <button id="loadGraphBtn">Load Graph</button>
+    <button id="startBtn" disabled>Start Prim's Algorithm</button>
+    <button id="stepBtn" disabled>Step</button>
+    <button id="resetBtn" disabled>Reset</button>
+
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const exampleGraphsSelect = document.getElementById('exampleGraphs');
+  const graphInputArea = document.getElementById('graphInputArea');
+  const loadGraphBtn = document.getElementById('loadGraphBtn');
+  const startBtn = document.getElementById('startBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const startNodeInput = document.getElementById('startNodeInput');
+  const logDiv = document.getElementById('log');
+
+  // Graph data structures
+  // Nodes will be objects: {id, x, y}
+  // Edges: {u, v, weight}
+
+  let nodes = [];
+  let edges = [];
+  let adjacencyList = [];
+
+  // Prim's Algorithm state
+  let primState = null;
+
+  // Visualization parameters
+  const NODE_RADIUS = 20;
+  const COLORS = {
+    nodeDefault: '#3498db',
+    nodeSelected: '#e74c3c',
+    nodeInMST: '#2ecc71',
+    edgeDefault: '#aaa',
+    edgeSelected: '#e74c3c',
+    edgeInMST: '#2ecc71',
+    edgeCandidate: '#f39c12',
+    textColor: '#222'
+  };
+
+  // Utility for logging messages
+  function log(msg) {
+    logDiv.textContent += msg + '\n';
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  // Clear the log
+  function clearLog() {
+    logDiv.textContent = '';
+  }
+
+  // Example Graphs
+  // Each example: {nodesCount, edges array}
+  // edges: [ {u,v,weight}, ...]
+  const exampleGraphs = {
+    graph1: {
+      nodesCount: 7,
+      edges: [
+        {u:0,v:1,weight:7},{u:0,v:3,weight:5},
+        {u:1,v:2,weight:8},{u:1,v:3,weight:9},{u:1,v:4,weight:7},
+        {u:2,v:4,weight:5},
+        {u:3,v:4,weight:15},{u:3,v:5,weight:6},
+        {u:4,v:5,weight:8},{u:4,v:6,weight:9},
+        {u:5,v:6,weight:11}
+      ]
+    },
+    graph2: {
+      nodesCount: 6,
+      edges: [
+        {u:0,v:1,weight:3},{u:0,v:3,weight:1},
+        {u:1,v:2,weight:1},{u:1,v:3,weight:3},{u:1,v:4,weight:6},
+        {u:2,v:4,weight:5},
+        {u:3,v:4,weight:5},{u:3,v:5,weight:4},
+        {u:4,v:5,weight:2}
+      ]
+    },
+    graph3: {
+      nodesCount: 8,
+      edges: [
+        {u:0,v:1,weight:2},{u:0,v:3,weight:6},{u:1,v:2,weight:3},
+        {u:1,v:3,weight:8},{u:1,v:4,weight:5},{u:2,v:4,weight:7},
+        {u:3,v:4,weight:9},{u:3,v:5,weight:4},{u:4,v:5,weight:2},
+        {u:4,v:6,weight:6},{u:5,v:6,weight:1},{u:6,v:7,weight:7},
+        {u:5,v:7,weight:8}
+      ]
+    }
+  };
+
+  // Generate node positions arranged in circle for visualization
+  function positionNodesCircle(numNodes) {
+    const centerX = canvas.width/2;
+    const centerY = canvas.height/2;
+    const radius = Math.min(canvas.width, canvas.height)/2 - 80;
+    let coords = [];
+    for(let i=0; i<numNodes; i++) {
+      const angle = (2*Math.PI*i)/numNodes - Math.PI/2;
+      coords.push({
+        id: i,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      });
+    }
+    return coords;
+  }
+
+  // Build adjacency list from edges
+  function buildAdjacencyList(numNodes, edges) {
+    let adj = new Array(numNodes);
+    for(let i=0; i<numNodes; i++) adj[i] = [];
+    edges.forEach(({u,v,weight}) => {
+      adj[u].push({to:v,weight});
+      adj[v].push({to:u,weight});
+    });
+    return adj;
+  }
+
+  // Draw graph nodes and edges
+  // primState holds the current MST and candidate edges info
+  // Colors:
+  // - MST edges: green
+  // - candidate edges (frontier): orange
+  // - selected edge in current step: red
+  function drawGraph() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Draw edges first
+    edges.forEach(({u,v,weight}) => {
+      const n1 = nodes[u];
+      const n2 = nodes[v];
+      let color = COLORS.edgeDefault;
+      let lineWidth = 1;
+
+      if (primState) {
+        // Is edge in MST?
+        if (primState.mstEdges.some(e => (e.u===u && e.v===v) || (e.u===v && e.v===u))) {
+          color = COLORS.edgeInMST;
+          lineWidth = 3;
+        } else if (primState.currentEdge && (
+            (primState.currentEdge.u === u && primState.currentEdge.v === v) ||
+            (primState.currentEdge.u === v && primState.currentEdge.v === u)
+          )) {
+          // Edge currently selected in this step
+          color = COLORS.edgeSelected;
+          lineWidth = 3;
+        } else if (primState.candidateEdges.some(e => (e.u===u && e.v===v) || (e.u===v && e.v===u))) {
+          color = COLORS.edgeCandidate;
+          lineWidth = 2;
+        }
+      }
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(n1.x, n1.y);
+      ctx.lineTo(n2.x, n2.y);
+      ctx.stroke();
+
+      // Draw weight label near midpoint
+      const midX = (n1.x + n2.x)/2;
+      const midY = (n1.y + n2.y)/2;
+      ctx.fillStyle = COLORS.textColor;
+      ctx.font = '12px Arial';
+      ctx.fillText(weight, midX + 5, midY - 5);
+    });
+
+    // Draw nodes
+    nodes.forEach(node => {
+      let fillColor = COLORS.nodeDefault;
+      let strokeColor = '#555';
+
+      if (primState) {
+        if (primState.mstNodes.has(node.id)) {
+          fillColor = COLORS.nodeInMST;
+          strokeColor = '#27ae60';
+        }
+        if (primState.currentNode === node.id) {
+          fillColor = COLORS.nodeSelected;
+          strokeColor = '#c0392b';
+        }
+      }
+
+      ctx.fillStyle = fillColor;
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, NODE_RADIUS, 0, 2*Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.id, node.x, node.y);
+    });
+  }
+
+  // Priority queue implementation (min-heap) by weight for edges
+  class MinHeap {
+    constructor() {
+      this.heap = [];
+    }
+    parent(i) {return Math.floor((i-1)/2);}
+    left(i) {return 2*i+1;}
+    right(i) {return 2*i+2;}
+    swap(i,j) {
+      const tmp = this.heap[i];
+      this.heap[i] = this.heap[j];
+      this.heap[j] = tmp;
+    }
+    push(obj) {
+      this.heap.push(obj);
+      this.heapifyUp(this.heap.length-1);
+    }
+    heapifyUp(i) {
+      let current = i;
+      while(current>0 && this.heap[current].weight < this.heap[this.parent(current)].weight) {
+        this.swap(current, this.parent(current));
+        current = this.parent(current);
+      }
+    }
+    heapifyDown(i) {
+      let smallest = i;
+      let left = this.left(i);
+      let right = this.right(i);
+
+      if(left < this.heap.length && this.heap[left].weight < this.heap[smallest].weight) smallest = left;
+      if(right < this.heap.length && this.heap[right].weight < this.heap[smallest].weight) smallest = right;
+
+      if(smallest !== i) {
+        this.swap(i, smallest);
+        this.heapifyDown(smallest);
+      }
+    }
+    pop() {
+      if(this.heap.length === 0) return null;
+      const root = this.heap[0];
+      const last = this.heap.pop();
+      if(this.heap.length > 0) {
+        this.heap[0] = last;
+        this.heapifyDown(0);
+      }
+      return root;
+    }
+    isEmpty() {
+      return this.heap.length === 0;
+    }
+    toArray() {
+      return [...this.heap];
+    }
+  }
+
+  // Prim's Algorithm state and step function
+  function PrimAlgorithm(adjList, startNode){
+    return {
+      mstNodes: new Set(),
+      mstEdges: [],
+      candidateEdges: [],
+      visited: new Array(adjList.length).fill(false),
+      edgePQ: new MinHeap(),
+      currentNode: null,
+      currentEdge: null,
+      started: false,
+
+      init() {
+        this.mstNodes.clear();
+        this.mstEdges = [];
+        this.candidateEdges = [];
+        this.visited.fill(false);
+        this.edgePQ = new MinHeap();
+        this.currentNode = startNode;
+        this.currentEdge = null;
+        this.started = true;
+
+        this.visited[startNode] = true;
+        this.mstNodes.add(startNode);
+
+        for(let e of adjList[startNode]) {
+          this.edgePQ.push({u: startNode, v: e.to, weight: e.weight});
+        }
+        this.updateCandidates();
+      },
+
+      updateCandidates() {
+        // Extract candidate edges from priority queue as array for visualization
+        this.candidateEdges = this.edgePQ.toArray();
+      },
+
+      step() {
+        if(!this.started) {
+          this.init();
+          return {continue:true};
+        }
+        if(this.edgePQ.isEmpty()){
+          // MST complete
+          this.currentEdge = null;
+          this.currentNode = null;
+          return {continue:false};
+        }
+
+        // Pop min edge from pq
+        let edge = this.edgePQ.pop();
+        // Mark currentEdge for visualization
+        this.currentEdge = edge;
+
+        // Check if it connects to a new node
+        if(this.visited[edge.v]) {
+          // Already visited, skip edge and step again recursively
+          this.updateCandidates();
+          return this.step();
+        }
+
+        // Accept this edge
+        this.mstEdges.push(edge);
+        this.currentNode = edge.v;
+        this.mstNodes.add(edge.v);
+        this.visited[edge.v] = true;
+
+        // Add edges from newly added node to pq
+        for(let e of adjList[edge.v]) {
+          if(!this.visited[e.to]) {
+            this.edgePQ.push({u: edge.v, v: e.to, weight: e.weight});
+          }
+        }
+        this.updateCandidates();
+        return {continue:true};
+      }
+    };
+  }
+
+  // Parse input graph from textarea
+  // Returns {nodesCount, edges} or null on error
+  function parseGraphInput(text) {
+    // Input format: lines of "u v w"
+    const lines = text.trim().split('\n');
+    let edgeList = [];
+    let maxNode = -1;
+    for(let i=0; i<lines.length; i++){
+      const line = lines[i].trim();
+      if(line === '') continue;
+      const parts = line.split(/ +/);
+      if(parts.length !== 3){
+        alert(`Invalid edge format at line ${i+1}. Expected: u v weight`);
+        return null;
+      }
+      let u = parseInt(parts[0],10);
+      let v = parseInt(parts[1],10);
+      let w = parseFloat(parts[2]);
+      if(isNaN(u) || isNaN(v) || isNaN(w) || w <= 0){
+        alert(`Invalid numbers at line ${i+1}.`);
+        return null;
+      }
+      edgeList.push({u,v,weight:w});
+      maxNode = Math.max(maxNode, u, v);
+    }
+    return {nodesCount: maxNode+1, edges: edgeList};
+  }
+
+  // Load a graph (nodes + edges)
+  function loadGraph(graphData, startNode) {
+    if (!graphData) return;
+    const {nodesCount, edges: inputEdges} = graphData;
+
+    if(startNode<0 || startNode>=nodesCount){
+      alert(`Start node must be between 0 and ${nodesCount-1}`);
+      return false;
+    }
+
+    nodes = positionNodesCircle(nodesCount);
+    edges = inputEdges;
+
+    adjacencyList = buildAdjacencyList(nodesCount, edges);
+
+    primState = null;
+
+    clearLog();
+    log(`Graph loaded with ${nodesCount} nodes and ${edges.length} edges.`);
+    log(`Start node set to ${startNode}.`);
+
+    startBtn.disabled = false;
+    stepBtn.disabled = true;
+    resetBtn.disabled = true;
+
+    drawGraph();
+    return true;
+  }
+
+  // Event handlers
+  loadGraphBtn.onclick = () => {
+    let graphData = null;
+    const inputText = graphInputArea.value.trim();
+    const startNode = parseInt(startNodeInput.value,10);
+    if(inputText){
+      graphData = parseGraphInput(inputText);
+      if(!graphData) return;
+    } else if(exampleGraphsSelect.value){
+      graphData = exampleGraphs[exampleGraphsSelect.value];
+    } else {
+      alert('Please select an example graph or input your graph edges.');
+      return;
+    }
+    if(loadGraph(graphData, startNode)) {
+      log('Click "Start Prim\'s Algorithm" to begin.');
+    }
+  };
+
+  startBtn.onclick = () => {
+    const startNode = parseInt(startNodeInput.value,10);
+    primState = PrimAlgorithm(adjacencyList, startNode);
+    primState.init();
+
+    startBtn.disabled = true;
+    stepBtn.disabled = false;
+    resetBtn.disabled = false;
+    loadGraphBtn.disabled = true;
+    exampleGraphsSelect.disabled = true;
+    graphInputArea.disabled = true;
+    startNodeInput.disabled = true;
+
+    clearLog();
+    log(`Starting Prim's Algorithm from node ${startNode}.\n`);
+    log(`Added start node ${startNode} to MST.`);
+    drawGraph();
+  };
+
+  stepBtn.onclick = () => {
+    if(!primState) return;
+    const res = primState.step();
+
+    // Logging each step
+    if(primState.currentEdge) {
+      log(`Considering edge (${primState.currentEdge.u} — ${primState.currentEdge.v}) with weight ${primState.currentEdge.weight}`);
+    }
+
+    if(primState.currentNode !== null) {
+      log(`Added node ${primState.currentNode} to MST.`);
+    }
+    drawGraph();
+
+    if(!res.continue){
+      log('\nPrim\'s MST construction complete.');
+      stepBtn.disabled = true;
+    }
+  };
+
+  resetBtn.onclick = () => {
+    primState = null;
+    startBtn.disabled = false;
+    stepBtn.disabled = true;
+    resetBtn.disabled = true;
+    loadGraphBtn.disabled = false;
+    exampleGraphsSelect.disabled = false;
+    graphInputArea.disabled = false;
+    startNodeInput.disabled = false;
+    clearLog();
+    drawGraph();
+  };
+
+  exampleGraphsSelect.onchange = () => {
+    if(exampleGraphsSelect.value) {
+      const graphData = exampleGraphs[exampleGraphsSelect.value];
+      // Auto fill example into textarea for user reference
+      let text = graphData.edges.map(e => `${e.u} ${e.v} ${e.weight}`).join('\n');
+      graphInputArea.value = text;
+      startNodeInput.value = 0;
+    } else {
+      graphInputArea.value = '';
+    }
+  };
+
+  // Initial call to draw empty canvas
+  drawGraph();
+
+})();
+</script>
+</body>
+</html>

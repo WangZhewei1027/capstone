@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Weighted Graph Demo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    text-align: center;
+  }
+  #graph-container {
+    margin: 20px auto;
+    width: 600px;
+    height: 600px;
+    border: 1px solid #ccc;
+    position: relative;
+    background: #f9f9f9;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+  .node circle {
+    fill: #4a90e2;
+    stroke: #2c70b8;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: fill 0.3s;
+  }
+  .node text {
+    pointer-events: none;
+    fill: #fff;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  .edge path {
+    stroke: #666;
+    stroke-width: 2px;
+    fill: none;
+  }
+  .edge text {
+    fill: #333;
+    font-size: 12px;
+    font-weight: bold;
+    user-select: none;
+  }
+  .info {
+    margin-top: 15px;
+    font-size: 16px;
+  }
+  #shortest-path-btn {
+    margin-top: 15px;
+    padding: 10px 20px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  #instructions {
+    margin-bottom: 10px;
+  }
+</style>
+</head>
+<body>
+<h1>Weighted Graph Visualization & Shortest Path</h1>
+<div id="instructions">
+  <strong>Instructions:</strong> Click two nodes (start and end) to find the shortest path using Dijkstra's algorithm.
+</div>
+<div id="graph-container">
+  <svg id="graph-svg" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet"></svg>
+</div>
+<div class="info" id="info">Click a node to select the start point.</div>
+<button id="reset-selection" style="margin-top:10px;">Reset Selection</button>
+
+<script>
+  // Weighted graph data
+  // Nodes with id, label and (x,y) coordinates for visualization
+  const nodes = [
+    {id: 'A', label: 'A', x: 100, y: 100},
+    {id: 'B', label: 'B', x: 300, y: 80},
+    {id: 'C', label: 'C', x: 480, y: 130},
+    {id: 'D', label: 'D', x: 150, y: 300},
+    {id: 'E', label: 'E', x: 350, y: 280},
+    {id: 'F', label: 'F', x: 470, y: 350},
+    {id: 'G', label: 'G', x: 270, y: 450},
+    {id: 'H', label: 'H', x: 430, y: 520},
+  ];
+
+  // Edges as pairs with weights
+  // Undirected edges
+  const edges = [
+    {from: 'A', to: 'B', weight: 4},
+    {from: 'A', to: 'D', weight: 7},
+    {from: 'B', to: 'C', weight: 6},
+    {from: 'B', to: 'E', weight: 5},
+    {from: 'C', to: 'F', weight: 2},
+    {from: 'D', to: 'E', weight: 3},
+    {from: 'D', to: 'G', weight: 8},
+    {from: 'E', to: 'F', weight: 1},
+    {from: 'E', to: 'G', weight: 4},
+    {from: 'F', to: 'H', weight: 7},
+    {from: 'G', to: 'H', weight: 3}
+  ];
+
+  // Setup SVG and draw nodes/edges
+  const svg = document.getElementById('graph-svg');
+
+  // Create groups for edges and nodes
+  const edgesGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  edgesGroup.setAttribute('id', 'edges');
+  svg.appendChild(edgesGroup);
+
+  const nodesGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  nodesGroup.setAttribute('id', 'nodes');
+  svg.appendChild(nodesGroup);
+
+  // Helper: get node by id
+  function getNode(id) {
+    return nodes.find(n => n.id === id);
+  }
+
+  // Draw edges with weight labels
+  edges.forEach(({from, to, weight}) => {
+    const fromNode = getNode(from);
+    const toNode = getNode(to);
+
+    // Draw line as a path (straight line)
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.classList.add('edge');
+    path.setAttribute('d', `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`);
+    path.setAttribute('stroke', '#666');
+    path.setAttribute('stroke-width', 2);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('pointer-events', 'none'); // so clicks go to nodes
+
+    edgesGroup.appendChild(path);
+
+    // Calculate midpoint for weight label
+    const mx = (fromNode.x + toNode.x) / 2;
+    const my = (fromNode.y + toNode.y) / 2;
+
+    // Slight offset the label perpendicular to the edge for clarity
+    const dx = toNode.x - fromNode.x;
+    const dy = toNode.y - fromNode.y;
+    const length = Math.sqrt(dx*dx + dy*dy);
+    const offsetX = -dy / length * 15;
+    const offsetY = dx / length * 15;
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.classList.add('edge');
+    text.setAttribute('x', mx + offsetX);
+    text.setAttribute('y', my + offsetY);
+    text.textContent = weight;
+    text.style.userSelect = 'none';
+    text.setAttribute('pointer-events', 'none');
+
+    edgesGroup.appendChild(text);
+  });
+
+  // Draw nodes
+  nodes.forEach(({id, label, x, y}) => {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.classList.add('node');
+    g.setAttribute('transform', `translate(${x},${y})`);
+    g.dataset.id = id;
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute('r', 20);
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dy', '0.35em');
+    text.textContent = label;
+
+    g.appendChild(circle);
+    g.appendChild(text);
+
+    nodesGroup.appendChild(g);
+  });
+
+  // Selection for shortest path start and end
+  let selectedNodes = [];
+  const info = document.getElementById('info');
+  const resetBtn = document.getElementById('reset-selection');
+
+  function resetSelection() {
+    selectedNodes = [];
+    info.textContent = 'Click a node to select the start point.';
+    clearHighlights();
+  }
+  resetBtn.addEventListener('click', resetSelection);
+
+  // Highlight utilities
+  function clearHighlights() {
+    // Reset edges and nodes styles
+    svg.querySelectorAll('.node circle').forEach(c => {
+      c.style.fill = '#4a90e2';
+      c.style.stroke = '#2c70b8';
+    });
+    svg.querySelectorAll('.edge path').forEach(p => {
+      p.style.stroke = '#666';
+      p.style.strokeWidth = 2;
+    });
+  }
+
+  function highlightPath(path) {
+    clearHighlights();
+    if (!path || path.length < 2) return;
+
+    // Highlight nodes
+    path.forEach(id => {
+      const g = svg.querySelector(`.node[data-id='${id}']`);
+      if (g) {
+        const circle = g.querySelector('circle');
+        circle.style.fill = '#e94e77'; // red highlight
+        circle.style.stroke = '#b9325c';
+      }
+    });
+
+    // Highlight edges connecting path nodes
+    for (let i=0; i<path.length-1; i++) {
+      const from = path[i];
+      const to = path[i+1];
+      edgesGroup.querySelectorAll('path').forEach(pathEl => {
+        // get d attribute and check if it matches edge from->to or to->from
+        // d = "M x1 y1 L x2 y2"
+        const d = pathEl.getAttribute('d');
+        const fromNode = getNode(from);
+        const toNode = getNode(to);
+        const candidates = [
+          `M ${fromNode.x} ${fromNode.y} L ${toNode.x} ${toNode.y}`,
+          `M ${toNode.x} ${toNode.y} L ${fromNode.x} ${fromNode.y}`,
+        ];
+        if (candidates.includes(d)) {
+          pathEl.style.stroke = '#e94e77';
+          pathEl.style.strokeWidth = 4;
+        }
+      });
+    }
+  }
+
+  function dijkstra(startId, endId) {
+    // Build adjacency list
+    const adjacency = {};
+    nodes.forEach(n => adjacency[n.id] = []);
+    edges.forEach(({from, to, weight}) => {
+      adjacency[from].push({node: to, weight});
+      adjacency[to].push({node: from, weight});
+    });
+
+    const distances = {};
+    const prev = {};
+    const visited = new Set();
+
+    nodes.forEach(n => distances[n.id] = Infinity);
+    distances[startId] = 0;
+
+    const pq = new Map(); // simple priority queue with Map: nodeId->distance
+    pq.set(startId, 0);
+
+    while(pq.size > 0) {
+      // Get node with min distance in pq
+      let currentNode = null;
+      let currentDist = Infinity;
+      for (const [nodeId, dist] of pq.entries()) {
+        if (dist < currentDist) {
+          currentDist = dist;
+          currentNode = nodeId;
+        }
+      }
+      pq.delete(currentNode);
+
+      if (currentNode === endId) {
+        break; // shortest path found
+      }
+      visited.add(currentNode);
+
+      adjacency[currentNode].forEach(({node: neighbor, weight}) => {
+        if (visited.has(neighbor)) return;
+        const alt = distances[currentNode] + weight;
+        if (alt < distances[neighbor]) {
+          distances[neighbor] = alt;
+          prev[neighbor] = currentNode;
+          pq.set(neighbor, alt);
+        }
+      });
+    }
+
+    // Reconstruct path
+    const path = [];
+    let u = endId;
+    if (prev[u] !== undefined || u === startId) {
+      while(u) {
+        path.unshift(u);
+        if (u === startId) break;
+        u = prev[u];
+      }
+    }
+    if (path[0] !== startId) return null; // no path
+    return {path, distance: distances[endId]};
+  }
+
+  // Handle node clicks
+  nodesGroup.querySelectorAll('.node').forEach(g => {
+    g.addEventListener('click', e => {
+      const nodeId = g.dataset.id;
+      if (selectedNodes.length === 0) {
+        selectedNodes.push(nodeId);
+        info.textContent = `Start node selected: ${nodeId}. Now select the end node.`;
+        highlightPath([nodeId]);
+      } else if (selectedNodes.length === 1) {
+        if (nodeId === selectedNodes[0]) {
+          info.textContent = `End node cannot be the same as start node. Select a different node.`;
+          return;
+        }
+        selectedNodes.push(nodeId);
+        info.textContent = `End node selected: ${nodeId}. Calculating shortest path...`;
+
+        // Compute shortest path
+        const result = dijkstra(selectedNodes[0], selectedNodes[1]);
+        if (!result) {
+          info.textContent = `No path found between ${selectedNodes[0]} and ${selectedNodes[1]}.`;
+          highlightPath(null);
+        } else {
+          info.textContent = `Shortest path from ${selectedNodes[0]} to ${selectedNodes[1]}: ${result.path.join(' → ')} (Distance: ${result.distance})`;
+          highlightPath(result.path);
+        }
+      } else {
+        info.textContent = `Please reset selection to start again.`;
+      }
+    });
+  });
+</script>
+</body>
+</html>

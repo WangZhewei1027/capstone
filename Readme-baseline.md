@@ -4,4 +4,4 @@ npx playwright test workspace/baseline-html2test-gpt-5-mini/tests/ --workers=100
 
 node validate-tests.mjs workspace/baseline-html2test-gpt-5-mini
 
-node analyze-pass-rate.mjs workspace/baseline-html2test-gpt-5-mini
+node analyze-pass-rate.mjs workspace/baseline-html2test-gpt-4o

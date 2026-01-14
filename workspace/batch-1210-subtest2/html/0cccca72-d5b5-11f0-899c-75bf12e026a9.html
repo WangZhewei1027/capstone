@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Topological Sort Visualization</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f0f2f5;
+  }
+  h1 {
+    text-align: center;
+  }
+  #graphInput {
+    width: 100%;
+    height: 120px;
+    font-family: monospace;
+    font-size: 14px;
+  }
+  #runBtn {
+    margin-top: 10px;
+    padding: 8px 16px;
+    font-size: 16px;
+  }
+  #output {
+    margin-top: 20px;
+    background: white;
+    padding: 15px;
+    border-radius: 6px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    min-height: 60px;
+    font-size: 18px;
+    white-space: pre-wrap;
+  }
+  #error {
+    color: red;
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  label {
+    font-weight: bold;
+  }
+  #explanation {
+    margin-top: 20px;
+    background: #fff8dc;
+    border-left: 5px solid #ffd700;
+    padding: 15px;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<h1>Topological Sort Demo</h1>
+
+<label for="graphInput">Enter graph edges (one per line): <br />
+<small>Format: <code>node -> node1,node2,...</code> or <code>node</code> for isolated nodes. Nodes can be strings without spaces.</small></label>
+<textarea id="graphInput" spellcheck="false">5 -> 0,2
+4 -> 0,1
+2 -> 3
+3 -> 1
+0
+1
+</textarea>
+<br />
+<button id="runBtn">Run Topological Sort</button>
+
+<div id="error"></div>
+
+<div id="output"></div>
+
+<div id="explanation">
+<strong>What is Topological Sort?</strong><br />
+Topological sort is an ordering of the vertices in a directed acyclic graph (DAG) such that for every directed edge <code>U → V</code>, vertex <code>U</code> comes before <code>V</code> in the ordering.<br />
+<br />
+If the graph contains a cycle, a topological ordering is not possible.<br />
+<br />
+This demo uses Depth-First Search (DFS) to perform topological sorting and detects cycles.<br />
+</div>
+
+<script>
+(function() {
+  // Utility to parse input edges to adjacency list
+  function parseInput(text) {
+    // Each line: node -> node1,node2,...
+    // or just node (isolated)
+    const lines = text.trim().split('\n');
+    const graph = Object.create(null); // adjacency list
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let [node, neighbors] = trimmed.split('->').map(s => s.trim());
+      if (!node) continue;
+      if (!graph[node]) graph[node] = [];
+      if (neighbors) {
+        const neighList = neighbors.split(',').map(n => n.trim()).filter(n => n.length);
+        graph[node].push(...neighList);
+        // Ensure all neighbors exist in graph even if no outgoing edges
+        for (const n of neighList) {
+          if (!(n in graph)) graph[n] = [];
+        }
+      } else {
+        // ensure node is in graph even if isolated
+        if (!(node in graph)) graph[node] = [];
+      }
+    }
+    return graph;
+  }
+
+  // Topological sort using DFS
+  // Returns an object - { order: [...], cycle: boolean, cycleNodes: [...] }
+  function topologicalSort(graph) {
+    const visited = new Set();
+    const visiting = new Set();
+    const stack = [];
+    let cycleFound = false;
+    let cyclePath = [];
+
+    // We keep track of parents to reconstruct cycle if found
+    const parents = {};
+
+    function dfs(node) {
+      if (cycleFound) return;
+      visiting.add(node);
+
+      for (const n of graph[node]) {
+        if (!visited.has(n)) {
+          if (visiting.has(n)) {
+            // Cycle detected
+            cycleFound = true;
+            // reconstruct cycle path from n to node
+            cyclePath = [n];
+            let cur = node;
+            while (cur !== n && cur !== undefined) {
+              cyclePath.push(cur);
+              cur = parents[cur];
+            }
+            cyclePath.push(n);
+            cyclePath.reverse();
+            return;
+          }
+          parents[n] = node;
+          dfs(n);
+          if (cycleFound) return;
+        }
+      }
+
+      visiting.delete(node);
+      visited.add(node);
+      stack.push(node);
+    }
+
+    for (const node of Object.keys(graph)) {
+      if (!visited.has(node)) {
+        dfs(node);
+        if (cycleFound) break;
+      }
+    }
+
+    if (cycleFound) {
+      return { order: [], cycle: true, cycleNodes: cyclePath };
+    } else {
+      return { order: stack.reverse(), cycle: false };
+    }
+  }
+
+  function displayGraph(graph) {
+    const lines = [];
+    for (const node in graph) {
+      if (graph[node].length) {
+        lines.push(`${node} → ${graph[node].join(', ')}`);
+      } else {
+        lines.push(`${node} (no outgoing edges)`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  // UI elements
+  const input = document.getElementById('graphInput');
+  const runBtn = document.getElementById('runBtn');
+  const outputDiv = document.getElementById('output');
+  const errorDiv = document.getElementById('error');
+
+  runBtn.onclick = () => {
+    errorDiv.textContent = '';
+    outputDiv.textContent = '';
+
+    let graph;
+    try {
+      graph = parseInput(input.value);
+      if (Object.keys(graph).length === 0) {
+        errorDiv.textContent = 'Graph is empty or invalid format.';
+        return;
+      }
+    } catch(e) {
+      errorDiv.textContent = 'Error parsing graph input.';
+      return;
+    }
+
+    const result = topologicalSort(graph);
+
+    if (result.cycle) {
+      errorDiv.textContent = 'Cycle detected! Topological sort not possible.';
+      outputDiv.innerHTML = `<strong>Cycle path:</strong> ${result.cycleNodes.join(' → ')}`;
+    } else {
+      outputDiv.innerHTML = `<strong>Topological Order:</strong> ${result.order.join(' → ')}`;
+    }
+  };
+})();
+</script>
+</body>
+</html>

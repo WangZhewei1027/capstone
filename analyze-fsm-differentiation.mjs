@@ -12,9 +12,65 @@
 
 import fs from "fs/promises";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const WORKSPACE_PATH = process.argv[2] || "workspace/batch-1207";
 const RESULTS_FILE = path.join(WORKSPACE_PATH, "fsm-similarity-results.json");
+
+/**
+ * Load concept categories mapping from concept-categories.json
+ */
+let CONCEPT_CATEGORIES = {};
+async function loadConceptCategories() {
+  try {
+    const categoriesPath = path.join(__dirname, "concept-categories.json");
+    const data = await fs.readFile(categoriesPath, "utf-8");
+    const categories = JSON.parse(data);
+
+    // Create reverse mapping: concept -> category
+    for (const [category, concepts] of Object.entries(categories)) {
+      for (const concept of concepts) {
+        CONCEPT_CATEGORIES[concept.toLowerCase()] = category;
+      }
+    }
+    console.log(
+      `✅ Loaded ${Object.keys(CONCEPT_CATEGORIES).length} concept mappings`
+    );
+  } catch (error) {
+    console.warn(
+      "⚠️ Unable to load concept-categories.json, using default categorization"
+    );
+  }
+}
+
+/**
+ * Get category for a concept - matches the logic in batch-similarity-eval.mjs
+ * Enhanced with partial matching to handle "Array Example" -> "Array"
+ */
+function getCategoryForConcept(concept) {
+  const normalized = concept.toLowerCase().trim();
+
+  // First try exact match
+  if (CONCEPT_CATEGORIES[normalized]) {
+    return CONCEPT_CATEGORIES[normalized];
+  }
+
+  // Try partial match: check if any known concept is contained in the input
+  // e.g., "Array Example" contains "Array"
+  for (const [knownConcept, category] of Object.entries(CONCEPT_CATEGORIES)) {
+    if (
+      normalized.includes(knownConcept) ||
+      knownConcept.includes(normalized)
+    ) {
+      return category;
+    }
+  }
+
+  return "Other";
+}
 
 // Chart.js templates for visualization
 const CHART_TEMPLATE = `
@@ -502,7 +558,13 @@ async function generateReport(results) {
 
   results.forEach((result) => {
     const model = result.model;
-    const category = result.category || "Other";
+    // Skip undefined or invalid models
+    if (!model || model === "undefined") return;
+
+    // Re-categorize based on concept field using concept-categories.json
+    const category = result.concept
+      ? getCategoryForConcept(result.concept)
+      : "Other";
     const score = (result.similarityResult?.combined_similarity || 0) * 100;
 
     if (!modelGroups[model]) modelGroups[model] = [];
@@ -567,26 +629,26 @@ async function generateReport(results) {
 
   // Define standard category order
   const categoryOrder = [
-    'Data Structures',
-    'Sorting Algorithms',
-    'Searching Algorithms',
-    'Graph Algorithms',
-    'Advanced Algorithms',
-    'Machine Learning',
-    'Other'
+    "Data Structures",
+    "Sorting Algorithms",
+    "Searching Algorithms",
+    "Graph Algorithms",
+    "Advanced Algorithms",
+    "Machine Learning",
+    "Other",
   ];
 
   // Generate comprehensive table with all data
   const comprehensiveTable = modelStats
     .map((m) => {
       // Get category scores for this model
-      const categoryScores = categoryOrder.map(category => {
+      const categoryScores = categoryOrder.map((category) => {
         if (categoryGroups[category] && categoryGroups[category][m.model]) {
           const scores = categoryGroups[category][m.model];
           const stats = calculateStats(scores);
           return stats.mean;
         }
-        return '-';
+        return "-";
       });
 
       return `
@@ -596,12 +658,12 @@ async function generateReport(results) {
             <td>${m.stats.mean}</td>
             <td>${m.stats.median}</td>
             <td>${m.stats.stdDev}</td>
-            ${categoryScores.map(score => `<td>${score}</td>`).join('')}
+            ${categoryScores.map((score) => `<td>${score}</td>`).join("")}
             <td><strong>${m.stats.mean}</strong></td>
         </tr>
       `;
     })
-    .join("");  // Generate category sections
+    .join(""); // Generate category sections
   const categorySections = Object.entries(categoryGroups)
     .map(([category, models]) => {
       const canvasId = "category-" + category.replace(/\s+/g, "-");
@@ -729,6 +791,9 @@ async function generateReport(results) {
 
 async function main() {
   try {
+    // Load concept categories first
+    await loadConceptCategories();
+
     const results = await loadResults();
     const reportPath = await generateReport(results);
 

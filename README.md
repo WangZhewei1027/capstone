@@ -19,10 +19,20 @@ node batch-workflow.mjs -c 100 --html-model "deepseek-chat" --fsm-model "gpt-4o-
 
 node batch-workflow.mjs -c 100 --html-model "Qwen1.5-0.5B-Chat" --fsm-model "gpt-4o-mini" --playwright-model "gpt-5-mini"  -w "batch-1207" -q "./question-list.json"
 
+node batch-workflow.mjs -c 100 --html-model "meta-llama/Llama-3.2-1B-Instruct" --fsm-model "gpt-4o-mini" --playwright-model "gpt-5-mini"  -w "batch-1207" -q "./question-list.json"
+
+
+# ----
+node batch-workflow.mjs -c 100 --html-model "meta-llama/Llama-3.2-1B-Instruct" --fsm-model "gpt-4o-mini" --playwright-model "gpt-4o-mini"  -w "batch-1210-2" -q "./question-list-short.json"
+
 
 
 # 补充生成 Ideal FSM
-node batch-workflow.mjs --ideal-fsm -w "batch-1207" -q "./question-list.json"
+node batch-workflow.mjs -c 100 --ideal-fsm -w "batch-1207" -q "./question-list.json"
+
+node batch-workflow.mjs -c 100 --ideal-fsm -w "batch-1210-subtest2" -q "./question-list.json"
+
+
 
 
 
@@ -40,9 +50,13 @@ node analyze-pass-rate.mjs workspace/{workspace}
 # =================================== FSM Evaluation ==========================================
 # 运行相似度测试：
 node batch-similarity-eval.mjs {workspace}
+node batch-similarity-eval.mjs batch-1207
+node batch-similarity-eval.mjs batch-1210-subtest2
 
 # 统计FSM相似度:
 node analyze-model-similarity.mjs {workspace}
+node analyze-model-similarity.mjs batch-1207
+node analyze-model-similarity.mjs batch-1210-subtest2
 
 # 结果示例：
 工作空间: batch-1207
@@ -73,9 +87,13 @@ Qwen1.5-0.5B-Chat    | 33     | 23.6        % | 44.0    % | 14.9    % | 0.0     
 
 
 # # =================================== FSM 提取与分析 ==========================================
-node analyze-fsm-differentiation.mjs workspace/{workspace}
-node analyze-correlation.mjs workspace/{workspace}
-node analyze-fsm-dimension.mjs workspace/{workspace}
+node analyze-fsm-differentiation.mjs {workspace}
+node analyze-correlation.mjs {workspace}
+node analyze-fsm-dimensions.mjs {workspace}
+
+node analyze-fsm-differentiation.mjs workspace\batch-1207
+node analyze-correlation.mjs workspace\batch-1207
+node analyze-fsm-dimensions.mjs workspace\batch-1207
 
 
 

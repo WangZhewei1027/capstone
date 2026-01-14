@@ -22,7 +22,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function loadFSMData(workspaceName) {
-  const workspaceDir = path.join(__dirname, "workspace", workspaceName);
+  // Remove 'workspace/' prefix if present
+  const cleanWorkspaceName = workspaceName.replace(/^workspace[\/\\]/, "");
+  const workspaceDir = path.join(__dirname, "workspace", cleanWorkspaceName);
   const fsmPath = path.join(workspaceDir, "fsm-similarity-results.json");
   return JSON.parse(fs.readFileSync(fsmPath, "utf-8"));
 }
@@ -32,6 +34,9 @@ function aggregateDimensionsByModel(fsmData) {
 
   fsmData.results.forEach((result) => {
     const model = result.model;
+    // Skip undefined or invalid models
+    if (!model || model === "undefined") return;
+
     if (!modelDimensions[model]) {
       modelDimensions[model] = {
         structural: [],
@@ -723,10 +728,12 @@ function main() {
   console.log("\n📝 Generating HTML report with table and radar charts...");
   const html = generateHTML(workspaceName, modelStats);
 
+  // Remove 'workspace/' prefix if present for output path
+  const cleanWorkspaceName = workspaceName.replace(/^workspace[\/\\]/, "");
   const outputPath = path.join(
     __dirname,
     "workspace",
-    workspaceName,
+    cleanWorkspaceName,
     "part3-fsm-dimensions-analysis.html"
   );
   fs.writeFileSync(outputPath, html, "utf-8");

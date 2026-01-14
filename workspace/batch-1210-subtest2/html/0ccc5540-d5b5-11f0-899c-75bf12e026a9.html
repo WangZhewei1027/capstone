@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Radix Sort Visualization</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f0f0f0;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    #inputSection {
+      max-width: 600px;
+      margin: 0 auto 20px auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+    }
+    input[type="text"] {
+      flex-grow: 1;
+      padding: 8px 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #007bff;
+      border: none;
+      color: white;
+      padding: 10px 18px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    button:disabled {
+      background-color: #6c757d;
+      cursor: default;
+    }
+    button:hover:not(:disabled) {
+      background-color: #0056b3;
+    }
+    #errorMsg {
+      max-width: 600px;
+      margin: 0 auto 10px auto;
+      color: #d93025;
+      font-weight: bold;
+      min-height: 1.2em;
+      text-align: center;
+    }
+    #arrayContainer {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 50px;
+    }
+    .array-element {
+      background-color: #3498db;
+      color: white;
+      padding: 10px 14px;
+      border-radius: 4px;
+      min-width: 40px;
+      text-align: center;
+      font-weight: bold;
+      user-select: none;
+      transition: background-color 0.3s;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      font-family: 'Courier New', Courier, monospace;
+    }
+    .highlight {
+      background-color: #e67e22 !important;
+    }
+    #bucketsContainer {
+      max-width: 880px;
+      margin: 20px auto;
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .bucket {
+      background: white;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      border-radius: 6px;
+      padding: 10px;
+      flex: 1 1 70px;
+      max-width: 75px;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: monospace;
+    }
+    .bucket-label {
+      font-weight: bold;
+      margin-bottom: 6px;
+      font-size: 18px;
+      color: #555;
+    }
+    .bucket-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+      min-height: 40px;
+      justify-content: flex-start;
+      align-items: center;
+      color: #333;
+    }
+    .bucket-element {
+      background-color: #95a5a6;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 3px;
+      width: 90%;
+      text-align: center;
+      font-weight: 600;
+      font-size: 14px;
+      user-select: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    #controls {
+      max-width: 600px;
+      margin: 15px auto;
+      text-align: center;
+    }
+    #stepInfo {
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 10px;
+      min-height: 1.2em;
+      color: #2c3e50;
+    }
+
+    /* Scroll for buckets container if too wide */
+    #bucketsContainer {
+      overflow-x: auto;
+      padding-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Radix Sort Visualization (LSD - Least Significant Digit)</h1>
+  <div id="inputSection">
+    <input type="text" id="inputArray" placeholder="Enter positive integers separated by commas" />
+    <button id="startBtn">Start Sort</button>
+  </div>
+  <div id="errorMsg"></div>
+  <div id="arrayContainer"></div>
+  <div id="bucketsContainer" aria-live="polite" aria-label="Digit buckets"></div>
+  <div id="controls">
+    <button id="prevStep" disabled>Previous Step</button>
+    <button id="nextStep" disabled>Next Step</button>
+    <div id="stepInfo"></div>
+  </div>
+
+  <script>
+  (() => {
+    // Elements
+    const inputArrayEl = document.getElementById('inputArray');
+    const startBtn = document.getElementById('startBtn');
+    const arrayContainer = document.getElementById('arrayContainer');
+    const bucketsContainer = document.getElementById('bucketsContainer');
+    const prevStepBtn = document.getElementById('prevStep');
+    const nextStepBtn = document.getElementById('nextStep');
+    const stepInfo = document.getElementById('stepInfo');
+    const errorMsg = document.getElementById('errorMsg');
+
+    /*
+      Radix Sort Algorithm Outline (LSD):
+        - Find the max number to know number of digits
+        - For d from 0 to maxDigit-1:
+          - Create 10 buckets (0-9)
+          - Put each element in bucket according to d-th digit
+          - Flatten buckets back to array
+      We want to collect snapshots for visualization after each major action:
+        - Start of pass
+        - After distributing into buckets
+        - After concatenating buckets back
+    */
+
+    // State for visualization steps
+    let steps = [];
+    let currentStepIndex = 0;
+
+    // Visualize array as elements
+    function renderArray(arr, highlightIndices=[]) {
+      arrayContainer.innerHTML = '';
+      arr.forEach((num, i) => {
+        const el = document.createElement('div');
+        el.className = 'array-element';
+        if (highlightIndices.includes(i)) {
+          el.classList.add('highlight');
+        }
+        el.textContent = num;
+        arrayContainer.appendChild(el);
+      });
+    }
+
+    // Render buckets, buckets is array of arrays for digits 0..9
+    function renderBuckets(buckets) {
+      bucketsContainer.innerHTML = '';
+      for(let i=0; i<=9; i++) {
+        const bucketEl = document.createElement('div');
+        bucketEl.className = 'bucket';
+        const label = document.createElement('div');
+        label.className = 'bucket-label';
+        label.textContent = i;
+        bucketEl.appendChild(label);
+        const content = document.createElement('div');
+        content.className = 'bucket-content';
+        if(buckets[i].length === 0) {
+          const emptyNote = document.createElement('div');
+          emptyNote.style.color = '#bbb';
+          emptyNote.style.fontSize = '14px';
+          emptyNote.style.fontStyle = 'italic';
+          emptyNote.textContent = '(empty)';
+          content.appendChild(emptyNote);
+        } else {
+          buckets[i].forEach(num => {
+            const numEl = document.createElement('div');
+            numEl.className = 'bucket-element';
+            numEl.textContent = num;
+            content.appendChild(numEl);
+          });
+        }
+        bucketEl.appendChild(content);
+        bucketsContainer.appendChild(bucketEl);
+      }
+    }
+
+    // Add step: array, buckets (nullable), description, highlights in array
+    function addStep(arr, buckets, description, highlightIndices=[]) {
+      // Deep copy arr and buckets to avoid mutations
+      const arrCopy = arr.slice();
+      const bucketsCopy = buckets ? buckets.map(bucket => bucket.slice()) : null;
+      steps.push({arr: arrCopy, buckets: bucketsCopy, description, highlightIndices});
+    }
+
+    // Clear visualization and controls
+    function resetVisualization() {
+      steps = [];
+      currentStepIndex = 0;
+      stepInfo.textContent = '';
+      prevStepBtn.disabled = true;
+      nextStepBtn.disabled = true;
+      bucketsContainer.innerHTML = '';
+      arrayContainer.innerHTML = '';
+      errorMsg.textContent = '';
+    }
+
+    // Update visualization to current step
+    function showStep(index) {
+      if(index < 0 || index >= steps.length) return;
+      const step = steps[index];
+      renderArray(step.arr, step.highlightIndices);
+      if(step.buckets !== null) {
+        renderBuckets(step.buckets);
+        bucketsContainer.style.visibility = 'visible';
+      } else {
+        bucketsContainer.style.visibility = 'hidden';
+        bucketsContainer.innerHTML = '';
+      }
+      stepInfo.textContent = `Step ${index+1} of ${steps.length}: ${step.description}`;
+      prevStepBtn.disabled = index <= 0;
+      nextStepBtn.disabled = index >= steps.length - 1;
+    }
+
+    // Extract digit at position d (0-based from right)
+    function getDigit(num, d) {
+      return Math.floor(num / Math.pow(10, d)) % 10;
+    }
+
+    // Radix sort with step recording
+    function radixSort(arr) {
+      const max = Math.max(...arr);
+      const maxDigit = max.toString().length;
+      let res = arr.slice();
+
+      for(let d=0; d<maxDigit; d++) {
+        addStep(res, null, `Start pass for digit place ${d+1} (0 = ones, 1 = tens, etc)`);
+        // Initialize buckets
+        let buckets = Array.from({length: 10}, () => []);
+        // Distribute elements to buckets based on digit d
+        for(let i=0; i<res.length; i++) {
+          const digit = getDigit(res[i], d);
+          buckets[digit].push(res[i]);
+        }
+        addStep(res, buckets, `After distributing into buckets for digit place ${d+1}`, []);
+        // Flatten buckets
+        res = [].concat(...buckets);
+        addStep(res, null, `After concatenating buckets for digit place ${d+1}`, []);
+      }
+      addStep(res, null, `Final sorted array`, []);
+      return res;
+    }
+
+    // Parse input string into array of positive integers
+    function parseInput(str) {
+      if(!str.trim()) {
+        throw new Error('Input cannot be empty.');
+      }
+      const parts = str.split(',');
+      const numbers = parts.map(p => {
+        const trimmed = p.trim();
+        if(trimmed === '') throw new Error('Empty value detected.');
+        if(!/^\d+$/.test(trimmed)) throw new Error(`Invalid number: "${trimmed}". Only non-negative integers allowed.`);
+        const n = Number(trimmed);
+        if(!Number.isSafeInteger(n)) throw new Error(`Number out of safe integer range: ${n}`);
+        return n;
+      });
+      if(numbers.length === 0) {
+        throw new Error('No valid numbers found.');
+      }
+      return numbers;
+    }
+
+    // Event handlers
+    startBtn.addEventListener('click', () => {
+      resetVisualization();
+      try {
+        const arr = parseInput(inputArrayEl.value);
+        if(arr.some(n => n < 0)) {
+          errorMsg.textContent = "Please enter only non-negative integers (0 or greater).";
+          return;
+        }
+        if(arr.length > 50) {
+          // Limit large inputs for visualization clarity
+          errorMsg.textContent = "Please enter 50 or fewer numbers for good visualization performance.";
+          return;
+        }
+        errorMsg.textContent = '';
+        radixSort(arr);
+        if(steps.length === 0) {
+          errorMsg.textContent = 'No steps generated.';
+          return;
+        }
+        currentStepIndex = 0;
+        showStep(currentStepIndex);
+        prevStepBtn.disabled = true;
+        nextStepBtn.disabled = steps.length <= 1;
+      } catch(e) {
+        errorMsg.textContent = e.message;
+      }
+    });
+
+    prevStepBtn.addEventListener('click', () => {
+      if(currentStepIndex > 0) {
+        currentStepIndex--;
+        showStep(currentStepIndex);
+      }
+    });
+
+    nextStepBtn.addEventListener('click', () => {
+      if(currentStepIndex < steps.length - 1) {
+        currentStepIndex++;
+        showStep(currentStepIndex);
+      }
+    });
+
+    // Allow Enter key start sorting
+    inputArrayEl.addEventListener('keydown', e => {
+      if(e.key === 'Enter') {
+        startBtn.click();
+      }
+    });
+
+    // Initial example placeholder
+    inputArrayEl.value = '170, 45, 75, 90, 802, 24, 2, 66';
+  })();
+  </script>
+
+</body>
+</html>
