@@ -1,0 +1,51 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Floyd-Warshall Algorithm Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Graph Visualization" [level=2] [ref=e5]
+      - generic [ref=e7]:
+        - button "Previous Step" [disabled] [ref=e8]
+        - button "Next Step" [ref=e9] [cursor=pointer]
+        - button "Reset" [ref=e10] [cursor=pointer]
+        - button "Auto Play" [ref=e11] [cursor=pointer]
+      - generic [ref=e12]: "Step 1/65: Initial distance matrix"
+    - generic [ref=e13]:
+      - heading "Distance Matrix" [level=2] [ref=e14]
+      - table [ref=e16]:
+        - row "A B C D" [ref=e17]:
+          - cell [ref=e18]
+          - cell "A" [ref=e19]
+          - cell "B" [ref=e20]
+          - cell "C" [ref=e21]
+          - cell "D" [ref=e22]
+        - row "A 0 3 7" [ref=e23]:
+          - cell "A" [ref=e24]
+          - cell "0" [ref=e25]
+          - cell "3" [ref=e26]
+          - cell [ref=e27]
+          - cell "7" [ref=e28]
+        - row "B 8 0 2" [ref=e29]:
+          - cell "B" [ref=e30]
+          - cell "8" [ref=e31]
+          - cell "0" [ref=e32]
+          - cell "2" [ref=e33]
+          - cell [ref=e34]
+        - row "C 5 0 1" [ref=e35]:
+          - cell "C" [ref=e36]
+          - cell "5" [ref=e37]
+          - cell [ref=e38]
+          - cell "0" [ref=e39]
+          - cell "1" [ref=e40]
+        - row "D 2 0" [ref=e41]:
+          - cell "D" [ref=e42]
+          - cell "2" [ref=e43]
+          - cell [ref=e44]
+          - cell [ref=e45]
+          - cell "0" [ref=e46]
+      - heading "Algorithm Explanation" [level=3] [ref=e47]
+      - paragraph [ref=e48]: The Floyd-Warshall algorithm finds shortest paths between all pairs of vertices in a weighted graph.
+      - paragraph [ref=e49]: "Time Complexity: O(V³) where V is the number of vertices."
+```

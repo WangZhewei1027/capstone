@@ -1,0 +1,97 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - heading "Union-Find (Disjoint Set) Visualization" [level=1] [ref=e2]
+  - paragraph [ref=e3]: Interactive demonstration of the Union-Find data structure with path compression and union by rank
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: Time Complexity
+      - generic [ref=e7]: "Find: O(α(n))"
+      - generic [ref=e8]: "Union: O(α(n))"
+    - generic [ref=e9]:
+      - generic [ref=e10]: Space Complexity
+      - generic [ref=e11]: O(n)
+    - generic [ref=e12]:
+      - generic [ref=e13]: α(n)
+      - generic [ref=e14]: Inverse Ackermann function
+  - generic [ref=e15]:
+    - generic [ref=e16]:
+      - heading "About Union-Find" [level=2] [ref=e17]
+      - paragraph [ref=e18]: "The Union-Find data structure, also known as Disjoint Set Union (DSU), is used to manage a collection of disjoint sets. It supports two main operations:"
+      - list [ref=e19]:
+        - listitem [ref=e20]:
+          - strong [ref=e21]: "Find(x):"
+          - text: Determine which set an element belongs to
+        - listitem [ref=e22]:
+          - strong [ref=e23]: "Union(x, y):"
+          - text: Merge two sets together
+      - paragraph [ref=e24]: This visualization demonstrates the algorithm with path compression and union by rank optimizations, achieving near-constant time complexity per operation.
+      - heading "Algorithm Steps:" [level=3] [ref=e25]
+      - generic [ref=e26]:
+        - strong [ref=e27]: "Initialization:"
+        - text: Each element starts as its own set with parent pointing to itself and rank 0.
+      - generic [ref=e28]:
+        - strong [ref=e29]: "Find (with path compression):"
+        - text: Find the root of the set while flattening the tree for future operations.
+        - code [ref=e30]: "while parent[x] != x: parent[x] = parent[parent[x]]; x = parent[x]"
+      - generic [ref=e31]:
+        - strong [ref=e32]: "Union (by rank):"
+        - text: Attach the root with smaller rank to the root with larger rank to keep trees balanced.
+        - code [ref=e33]: "rootX = Find(x); rootY = Find(y); if rank[rootX] < rank[rootY]: parent[rootX] = rootY else: parent[rootY] = rootX"
+      - generic [ref=e34]:
+        - button "Slow" [ref=e35] [cursor=pointer]
+        - button "Medium" [ref=e36] [cursor=pointer]
+        - button "Fast" [ref=e37] [cursor=pointer]
+    - generic [ref=e38]:
+      - heading "Interactive Visualization" [level=2] [ref=e39]
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - text: "Elements:"
+          - spinbutton "Elements:" [ref=e42]: "10"
+          - button "Initialize" [ref=e43] [cursor=pointer]
+        - generic [ref=e44]:
+          - text: "Element 1:"
+          - spinbutton "Element 1:" [ref=e45]: "0"
+          - text: "Element 2:"
+          - spinbutton "Element 2:" [ref=e46]: "5"
+          - button "Union" [active] [ref=e47] [cursor=pointer]
+        - generic [ref=e48]:
+          - text: "Find:"
+          - spinbutton "Find:" [ref=e49]: "0"
+          - button "Find" [ref=e50] [cursor=pointer]
+        - button "Reset" [ref=e51] [cursor=pointer]
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]: Set with root 0
+          - generic [ref=e55]: "0"
+        - generic [ref=e56]:
+          - generic [ref=e57]: Set with root 1
+          - generic [ref=e58]: "1"
+        - generic [ref=e59]:
+          - generic [ref=e60]: Set with root 2
+          - generic [ref=e61]: "2"
+        - generic [ref=e62]:
+          - generic [ref=e63]: Set with root 3
+          - generic [ref=e64]: "3"
+        - generic [ref=e65]:
+          - generic [ref=e66]: Set with root 4
+          - generic [ref=e67]: "4"
+        - generic [ref=e68]:
+          - generic [ref=e69]: Set with root 5
+          - generic [ref=e70]: "5"
+        - generic [ref=e71]:
+          - generic [ref=e72]: Set with root 6
+          - generic [ref=e73]: "6"
+        - generic [ref=e74]:
+          - generic [ref=e75]: Set with root 7
+          - generic [ref=e76]: "7"
+        - generic [ref=e77]:
+          - generic [ref=e78]: Set with root 8
+          - generic [ref=e79]: "8"
+        - generic [ref=e80]:
+          - generic [ref=e81]: Set with root 9
+          - generic [ref=e82]: "9"
+      - heading "Operation Log" [level=3] [ref=e83]
+      - generic [ref=e85]: Initialized Union-Find with 10 elements
+```

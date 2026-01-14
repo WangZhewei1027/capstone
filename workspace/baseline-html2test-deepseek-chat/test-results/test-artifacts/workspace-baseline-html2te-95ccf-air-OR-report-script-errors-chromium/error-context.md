@@ -1,0 +1,82 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - text: "# Two Pointers Technique Demonstration Below is a comprehensive HTML file demonstrating the two pointers technique with multiple examples and visualizations. ```html"
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - heading "Two Pointers Technique" [level=1] [ref=e4]
+      - paragraph [ref=e5]: An efficient algorithmic pattern for solving problems with linear data structures
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "What is the Two Pointers Technique?" [level=2] [ref=e8]
+        - paragraph [ref=e9]: The Two Pointers technique is a common algorithmic pattern used to solve problems involving arrays, strings, or linked lists. It involves using two pointers (indices or references) that traverse the data structure in a specific manner to find a solution more efficiently than a naive approach.
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - generic [ref=e12]: O(n)
+            - generic [ref=e13]: Time Complexity
+          - generic [ref=e14]:
+            - generic [ref=e15]: O(1)
+            - generic [ref=e16]: Space Complexity
+      - generic [ref=e17]:
+        - 'heading "Problem 1: Pair with Target Sum" [level=2] [ref=e18]'
+        - paragraph [ref=e19]: Find a pair in a sorted array that adds up to a specific target.
+        - generic [ref=e20]:
+          - generic [ref=e21]:
+            - textbox "Enter sorted numbers (e.g., 1,2,3,4,5,6)" [ref=e22]: 1,2,3,4,5,6
+            - spinbutton [ref=e23]: "9"
+            - button "Solve" [ref=e24] [cursor=pointer]
+          - generic [ref=e26]: Result will appear here
+      - generic [ref=e27]:
+        - 'heading "Problem 2: Remove Duplicates from Sorted Array" [level=2] [ref=e28]'
+        - paragraph [ref=e29]: Remove duplicates in-place from a sorted array and return the new length.
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - textbox "Enter sorted numbers (may have duplicates)" [ref=e32]: 0,0,1,1,1,2,2,3,3,4
+            - button "Solve" [ref=e33] [cursor=pointer]
+          - generic [ref=e35]: Result will appear here
+      - generic [ref=e36]:
+        - heading "Common Use Cases" [level=2] [ref=e37]
+        - list [ref=e38]:
+          - listitem [ref=e39]: Finding pairs in a sorted array with a specific sum
+          - listitem [ref=e40]: Removing duplicates from a sorted array
+          - listitem [ref=e41]: Checking if a string is a palindrome
+          - listitem [ref=e42]: Triplet sum problems
+          - listitem [ref=e43]: Finding subarrays with a given sum
+          - listitem [ref=e44]: Merging two sorted arrays
+        - heading "How it works:" [level=3] [ref=e45]
+        - generic [ref=e46]:
+          - text: "// Example: Finding a pair with target sum in a sorted array"
+          - text: "function twoSum(arr, target) {"
+          - text: let left = 0;
+          - text: let right = arr.length - 1;
+          - text: "while (left < right) {"
+          - text: const sum = arr[left] + arr[right];
+          - text: "if (sum === target) {"
+          - text: return [left, right];
+          - text: "} else if (sum < target) {"
+          - text: left++; // Need a larger sum
+          - text: "} else {"
+          - text: right--; // Need a smaller sum
+          - text: "}"
+          - text: "}"
+          - text: return [-1, -1]; // No solution found
+          - text: "}"
+      - generic [ref=e47]:
+        - heading "Practice Problems" [level=2] [ref=e48]
+        - list [ref=e49]:
+          - listitem [ref=e50]: Container With Most Water
+          - listitem [ref=e51]: 3Sum
+          - listitem [ref=e52]: Trapping Rain Water
+          - listitem [ref=e53]: Backspace String Compare
+          - listitem [ref=e54]: Sort Colors
+          - listitem [ref=e55]: Longest Substring Without Repeating Characters
+        - heading "Advantages:" [level=3] [ref=e56]
+        - list [ref=e57]:
+          - listitem [ref=e58]: Reduces time complexity from O(n²) to O(n)
+          - listitem [ref=e59]: Uses constant space (O(1))
+          - listitem [ref=e60]: Elegant and intuitive solution approach
+          - listitem [ref=e61]: Works well with sorted data
+    - contentinfo [ref=e62]:
+      - paragraph [ref=e63]: Two Pointers Technique - Algorithm Visualization
+```

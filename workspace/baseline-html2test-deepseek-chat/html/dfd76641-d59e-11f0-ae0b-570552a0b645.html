@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prim's Algorithm Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .visualization {
+            display: flex;
+            gap: 20px;
+        }
+        .graph-container {
+            flex: 2;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+        .info-panel {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        canvas {
+            border: 1px solid #ddd;
+            background-color: white;
+        }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .step-info {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .node {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: #4CAF50;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .edge {
+            position: absolute;
+            background-color: #333;
+            transform-origin: 0 0;
+        }
+        .weight {
+            position: absolute;
+            background: white;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .mst-edge {
+            background-color: #ff5722;
+            stroke-width: 3;
+        }
+        .current-edge {
+            background-color: #2196F3;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Prim's Algorithm Visualization</h1>
+        
+        <div class="controls">
+            <button id="randomGraph">Generate Random Graph</button>
+            <button id="startPrim">Start Prim's Algorithm</button>
+            <button id="nextStep">Next Step</button>
+            <button id="reset">Reset</button>
+            <label>
+                Number of Nodes: 
+                <input type="number" id="nodeCount" value="6" min="3" max="10">
+            </label>
+        </div>
+
+        <div class="visualization">
+            <div class="graph-container">
+                <canvas id="graphCanvas" width="600" height="500"></canvas>
+            </div>
+            
+            <div class="info-panel">
+                <h3>Algorithm Steps</h3>
+                <div id="stepInfo" class="step-info">Click "Start Prim's Algorithm" to begin</div>
+                <h3>Minimum Spanning Tree</h3>
+                <div id="mstInfo" class="step-info">Total weight: 0</div>
+                <h3>About Prim's Algorithm</h3>
+                <p>Prim's algorithm is a greedy algorithm that finds a minimum spanning tree for a weighted undirected graph.</p>
+                <p><strong>Time Complexity:</strong> O(E log V) using binary heap</p>
+                <p><strong>Steps:</strong></p>
+                <ol>
+                    <li>Start with an arbitrary node</li>
+                    <li>Add the minimum weight edge connecting the tree to a new node</li>
+                    <li>Repeat until all nodes are included</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class Graph {
+            constructor() {
+                this.nodes = [];
+                this.edges = [];
+                this.adjacencyList = {};
+            }
+
+            addNode(id, x, y) {
+                this.nodes.push({ id, x, y });
+                this.adjacencyList[id] = [];
+            }
+
+            addEdge(from, to, weight) {
+                this.edges.push({ from, to, weight });
+                this.adjacencyList[from].push({ node: to, weight });
+                this.adjacencyList[to].push({ node: from, weight });
+            }
+
+            generateRandomGraph(nodeCount) {
+                this.nodes = [];
+                this.edges = [];
+                this.adjacencyList = {};
+
+                // Create nodes in a circular layout
+                const centerX = 300;
+                const centerY = 250;
+                const radius = 150;
+
+                for (let i = 0; i < nodeCount; i++) {
+                    const angle = (2 * Math.PI * i) / nodeCount;
+                    const x = centerX + radius * Math.cos(angle);
+                    const y = centerY + radius * Math.sin(angle);
+                    this.addNode(i, x, y);
+                }
+
+                // Create edges (approximately 2*nodeCount edges)
+                const edgeCount = Math.min(nodeCount * 2, (nodeCount * (nodeCount - 1)) / 2);
+                const createdEdges = new Set();
+
+                while (this.edges.length < edgeCount) {
+                    const from = Math.floor(Math.random() * nodeCount);
+                    let to = Math.floor(Math.random() * nodeCount);
+                    
+                    if (from !== to) {
+                        const edgeKey = `${Math.min(from, to)}-${Math.max(from, to)}`;
+                        if (!createdEdges.has(edgeKey)) {
+                            const weight = Math.floor(Math.random() * 20) + 1;
+                            this.addEdge(from, to, weight);
+                            createdEdges.add(edgeKey);
+                        }
+                    }
+                }
+            }
+        }
+
+        class PrimVisualizer {
+            constructor() {
+                this.canvas = document.getElementById('graphCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.graph = new Graph();
+                this.mstEdges = [];
+                this.visited = new Set();
+                this.priorityQueue = [];
+                this.currentStep = 0;
+                this.isRunning = false;
+                
+                this.initializeEventListeners();
+                this.generateRandomGraph();
+            }
+
+            initializeEventListeners() {
+                document.getElementById('randomGraph').addEventListener('click', () => {
+                    this.generateRandomGraph();
+                });
+
+                document.getElementById('startPrim').addEventListener('click', () => {
+                    this.startPrim();
+                });
+
+                document.getElementById('nextStep').addEventListener('click', () => {
+                    this.nextStep();
+                });
+
+                document.getElementById('reset').addEventListener('click', () => {
+                    this.reset();
+                });
+
+                document.getElementById('nodeCount').addEventListener('change', (e) => {
+                    this.generateRandomGraph();
+                });
+            }
+
+            generateRandomGraph() {
+                const nodeCount = parseInt(document.getElementById('nodeCount').value);
+                this.graph.generateRandomGraph(nodeCount);
+                this.reset();
+                this.drawGraph();
+            }
+
+            reset() {
+                this.mstEdges = [];
+                this.visited.clear();
+                this.priorityQueue = [];
+                this.currentStep = 0;
+                this.isRunning = false;
+                this.updateStepInfo("Algorithm reset. Click 'Start Prim's Algorithm' to begin.");
+                this.drawGraph();
+            }
+
+            startPrim() {
+                if (this.graph.nodes.length === 0) return;
+                
+                this.reset();
+                this.isRunning = true;
+                
+                // Start with first node
+                const startNode = this.graph.nodes[0].id;
+                this.visited.add(startNode);
+                
+                // Add all edges from start node to priority queue
+                this.graph.adjacencyList[startNode].forEach(edge => {
+                    this.priorityQueue.push({
+                        from: startNode,
+                        to: edge.node,
+                        weight: edge.weight
+                    });
+                });
+
+                // Sort priority queue by weight
+                this.priorityQueue.sort((a, b) => a.weight - b.weight);
+                
+                this.updateStepInfo(`Started Prim's algorithm from node ${startNode}`);
+                this.drawGraph();
+            }
+
+            nextStep() {
+                if (!this.isRunning || this.priorityQueue.length === 0) {
+                    if (this.visited.size === this.graph.nodes.length) {
+                        this.updateStepInfo("Algorithm completed! All nodes are in the MST.");
+                        this.isRunning = false;
+                    }
+                    return;
+                }
+
+                this.currentStep++;
+                
+                // Get the minimum weight edge
+                const minEdge = this.priorityQueue.shift();
+                
+                // If the destination node is already visited, skip this edge
+                if (this.visited.has(minEdge.to)) {
+                    this.updateStepInfo(`Skipped edge ${minEdge.from}-${minEdge.to} (weight: ${minEdge.weight}) - node ${minEdge.to} already visited`);
+                    this.drawGraph(minEdge);
+                    setTimeout(() => this.nextStep(), 1000);
+                    return;
+                }
+
+                // Add edge to MST
+                this.mstEdges.push(minEdge);
+                this.visited.add(minEdge.to);
+                
+                // Add new edges from the newly added node
+                this.graph.adjacencyList[minEdge.to].forEach(edge => {
+                    if (!this.visited.has(edge.node)) {
+                        this.priorityQueue.push({
+                            from: minEdge.to,
+                            to: edge.node,
+                            weight: edge.weight
+                        });
+                    }
+                });
+
+                // Re-sort priority queue
+                this.priorityQueue.sort((a, b) => a.weight - b.weight);
+
+                this.updateStepInfo(`Added edge ${minEdge.from}-${minEdge.to} (weight: ${minEdge.weight}) to MST\nVisited nodes: ${Array.from(this.visited).join(', ')}`);
+                this.updateMSTInfo();
+                this.drawGraph(minEdge);
+
+                // Check if algorithm is complete
+                if (this.visited.size === this.graph.nodes.length) {
+                    setTimeout(() => {
+                        this.updateStepInfo("Algorithm completed! All nodes are in the MST.");
+                        this.isRunning = false;
+                    }, 1000);
+                }
+            }
+
+            updateStepInfo(message) {
+                document.getElementById('stepInfo').textContent = message;
+            }
+
+            updateMSTInfo() {
+                const totalWeight = this.mstEdges.reduce((sum, edge) => sum + edge.weight, 0);
+                const edgesInfo = this.mstEdges.map(edge => 
+                    `${edge.from}-${edge.to} (${edge.weight})`
+                ).join(', ');
+                document.getElementById('mstInfo').textContent = 
+                    `Total weight: ${totalWeight}\nEdges: ${edgesInfo}`;
+            }
+
+            drawGraph(currentEdge = null) {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw edges
+                this.graph.edges.forEach(edge => {
+                    const fromNode = this.graph.nodes[edge.from];
+                    const toNode = this.graph.nodes[edge.to];
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(fromNode.x, fromNode.y);
+                    this.ctx.lineTo(toNode.x, toNode.y);
+                    
+                    // Check if this edge is in MST
+                    const isInMST = this.mstEdges.some(e => 
+                        (e.from === edge.from && e.to === edge.to) || 
+                        (e.from === edge.to && e.to === edge.from)
+                    );
+                    
+                    // Check if this is the current edge being considered
+                    const isCurrent = currentEdge && 
+                        ((currentEdge.from === edge.from && currentEdge.to === edge.to) ||
+                         (currentEdge.from === edge.to && currentEdge.to === edge.from));
+
+                    if (isInMST) {
+                        this.ctx.strokeStyle = '#ff5722';
+                        this.ctx.lineWidth = 3;
+                    } else if (isCurrent) {
+                        this.ctx.strokeStyle = '#2196F3';
+                        this.ctx.lineWidth = 3;
+                    } else {
+                        this.ctx.strokeStyle = '#333';
+                        this.ctx.lineWidth = 1;
+                    }
+                    
+                    this.ctx.stroke();
+
+                    // Draw weight
+                    const midX = (fromNode.x + toNode.x) / 2;
+                    const midY = (fromNode.y + toNode.y) / 2;
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.fillRect(midX - 10, midY - 8, 20, 16);
+                    this.ctx.fillStyle = 'black';
+                    this.ctx.font = '12px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(edge.weight.toString(), midX, midY + 4);
+                });
+
+                // Draw nodes
+                this.graph.nodes.forEach(node => {
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, node.y, 15, 0, 2 * Math.PI);
+                    this.ctx.fillStyle = this.visited.has(node.id) ? '#4CAF50' : '#2196F3';
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = '#333';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+
+                    // Draw node ID
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = 'bold 14px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(node.id.toString(), node.x, node.y + 5);
+                });
+
+                // Draw priority queue visualization
+                this.drawPriorityQueue();
+            }
+
+            drawPriorityQueue() {
+                if (!this.isRunning) return;
+
+                this.ctx.fillStyle = 'rgba(240, 240, 240, 0.9)';
+                this.ctx.fillRect(10, 10, 200, 100);
+                
+                this.ctx.fillStyle = 'black';
+                this.ctx.font = '12px Arial';
+                this.ctx.textAlign = 'left';
+                this.ctx.fillText('Priority Queue:', 15, 25);
+                
+                // Show top 5 edges in queue
+                this.priorityQueue.slice(0, 5).forEach((edge, index) => {
+                    this.ctx.fillText(
+                        `${edge.from}-${edge.to} (${edge.weight})`,
+                        15, 45 + index * 15
+                    );
+                });
+                
+                if (this.priorityQueue.length > 5) {
+                    this.ctx.fillText('...', 15, 45 + 5 * 15);
+                }
+            }
+        }
+
+        // Initialize the visualizer when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new PrimVisualizer();
+        });
+    </script>
+</body>
+</html>

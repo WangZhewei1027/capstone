@@ -1,0 +1,52 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Linked List Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - paragraph [ref=e5]: "A linked list is a linear data structure where each element is a separate object. Each element (node) contains:"
+    - list [ref=e6]:
+      - listitem [ref=e7]:
+        - strong [ref=e8]: Data
+        - text: "- the value stored in the node"
+      - listitem [ref=e9]:
+        - strong [ref=e10]: Next
+        - text: "- a reference (pointer) to the next node in the sequence"
+  - generic [ref=e11]:
+    - spinbutton [ref=e12]
+    - button "Add to Head" [ref=e13] [cursor=pointer]
+    - button "Add to Tail" [active] [ref=e14] [cursor=pointer]
+    - button "Remove from Head" [ref=e15] [cursor=pointer]
+    - button "Remove from Tail" [ref=e16] [cursor=pointer]
+    - button "Find Value" [ref=e17] [cursor=pointer]
+    - button "Clear List" [ref=e18] [cursor=pointer]
+  - generic [ref=e19]:
+    - generic [ref=e20]:
+      - heading "Traversal" [level=3] [ref=e21]
+      - button "Start Traversal" [ref=e22] [cursor=pointer]
+      - button "Next Node" [disabled] [ref=e23]
+      - button "Reset" [ref=e24] [cursor=pointer]
+    - generic [ref=e25]:
+      - heading "Insert at Position" [level=3] [ref=e26]
+      - spinbutton [ref=e27]
+      - button "Insert" [ref=e28] [cursor=pointer]
+    - generic [ref=e29]:
+      - heading "Delete by Value" [level=3] [ref=e30]
+      - spinbutton [ref=e31]
+      - button "Delete" [ref=e32] [cursor=pointer]
+  - generic [ref=e34]:
+    - generic [ref=e35]: HEAD
+    - generic [ref=e36]:
+      - generic [ref=e37]: "5"
+      - generic [ref=e38]: ▶
+    - generic [ref=e39]:
+      - generic [ref=e40]: "10"
+      - generic [ref=e41]: ▶
+    - generic [ref=e42]:
+      - generic [ref=e43]: "20"
+      - generic [ref=e44]: ▶
+    - generic [ref=e45]:
+      - generic [ref=e46]: "30"
+      - generic [ref=e47]: "NULL"
+  - generic [ref=e48]: Please enter a valid number
+```

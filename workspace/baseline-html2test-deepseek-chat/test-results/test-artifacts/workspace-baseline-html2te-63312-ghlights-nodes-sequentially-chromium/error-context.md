@@ -1,0 +1,55 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Linked List Visualization" [level=1] [ref=e3]
+  - generic [ref=e5]:
+    - spinbutton [ref=e6]
+    - button "Add Node" [ref=e7] [cursor=pointer]
+    - button "Remove Node" [ref=e8] [cursor=pointer]
+    - button "Find Node" [ref=e9] [cursor=pointer]
+    - button "Clear List" [ref=e10] [cursor=pointer]
+    - combobox [ref=e11]:
+      - option "Traverse List" [selected]
+      - option "Reverse List"
+    - button "Execute Algorithm" [active] [ref=e12] [cursor=pointer]
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]: "7"
+        - generic [ref=e17]: →
+      - generic [ref=e18]: →
+      - generic [ref=e19]:
+        - generic [ref=e20]: "8"
+        - generic [ref=e21]: →
+      - generic [ref=e22]: "NULL"
+    - generic [ref=e23]:
+      - heading "What is a Linked List?" [level=3] [ref=e24]
+      - paragraph [ref=e25]: "A linked list is a linear data structure where each element (node) contains:"
+      - list [ref=e26]:
+        - listitem [ref=e27]:
+          - strong [ref=e28]: Data
+          - text: "- The value stored in the node"
+        - listitem [ref=e29]:
+          - strong [ref=e30]: Pointer/Reference
+          - text: "- A link to the next node in the sequence"
+      - paragraph [ref=e31]: The last node points to NULL, indicating the end of the list.
+    - generic [ref=e32]:
+      - heading "Operations:" [level=4] [ref=e33]
+      - list [ref=e34]:
+        - listitem [ref=e35]:
+          - strong [ref=e36]: Add Node
+          - text: ": Adds a new node with the specified value to the end of the list"
+        - listitem [ref=e37]:
+          - strong [ref=e38]: Remove Node
+          - text: ": Removes the first occurrence of the specified value"
+        - listitem [ref=e39]:
+          - strong [ref=e40]: Find Node
+          - text: ": Highlights the node containing the specified value"
+        - listitem [ref=e41]:
+          - strong [ref=e42]: Traverse
+          - text: ": Visits each node in sequence (animation)"
+        - listitem [ref=e43]:
+          - strong [ref=e44]: Reverse
+          - text: ": Reverses the order of nodes in the list"
+```

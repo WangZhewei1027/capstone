@@ -1,0 +1,200 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL = 'http://127.0.0.1:5500/workspace/baseline-html2test-llama/html/90f74328-d5a1-11f0-80b9-e1f86cea383f.html';
+
+// Simple page object to encapsulate DOM queries and actions for the Recursion Example page
+class RecursionPage {
+  /**
+   * @param {import('@playwright/test').Page} page
+   */
+  constructor(page) {
+    this.page = page;
+  }
+
+  // Navigate to the application page
+  async goto() {
+    await this.page.goto(APP_URL);
+    // Wait a short time to allow any synchronous scripts to run on load
+    await this.page.waitForLoadState('domcontentloaded');
+  }
+
+  // Return the input locator
+  input() {
+    return this.page.locator('#input');
+  }
+
+  // Return the calculate button locator
+  button() {
+    return this.page.locator('button', { hasText: 'Calculate Recursion' });
+  }
+
+  // Return the result paragraph locator
+  result() {
+    return this.page.locator('#result');
+  }
+
+  // Fill the input with a value (as string)
+  async fillInput(value) {
+    await this.input().fill(String(value));
+  }
+
+  // Click the calculate button
+  async clickCalculate() {
+    await this.button().click();
+  }
+
+  // Read result text
+  async getResultText() {
+    return this.result().innerText();
+  }
+}
+
+test.describe('Recursion Example Application (FSM: Recursion)', () => {
+  // Ensure each test has a fresh page and instance
+  test.beforeEach(async ({ page }) => {
+    // No-op here; individual tests call page.goto via page object to capture errors explicitly per-test
+  });
+
+  // Test initial page load and default state
+  test('Initial page load: elements are present and result is empty', async ({ page }) => {
+    const app = new RecursionPage(page);
+
+    // Capture any pageerrors that occur during load
+    const pageErrors = [];
+    page.on('pageerror', (err) => pageErrors.push(err));
+
+    await app.goto();
+
+    // Verify key elements are visible
+    await expect(page.locator('h1')).toHaveText('Recursion Example');
+    await expect(app.input()).toBeVisible();
+    await expect(app.button()).toBeVisible();
+    await expect(app.button()).toHaveText('Calculate Recursion');
+    await expect(app.result()).toBeVisible();
+
+    // The result <p> should be empty on initial load
+    const initialResult = await app.getResultText();
+    expect(initialResult.trim()).toBe('', 'Result paragraph should start empty');
+
+    // Confirm no unexpected page errors occurred on load
+    // Allow a tiny grace period for any synchronous errors to surface
+    await page.waitForTimeout(50);
+    expect(pageErrors.length).toBe(0);
+  });
+
+  // Test that the global functions exist as defined in the page script
+  test('Page defines factorial and calculateRecursion functions (sanity check)', async ({ page }) => {
+    const app1 = new RecursionPage(page);
+    await app.goto();
+
+    // Check that factorial is defined and works as expected in page context
+    const factorialType = await page.evaluate(() => typeof factorial);
+    expect(factorialType).toBe('function');
+
+    // Call factorial(5) inside the page context to verify it returns the expected value
+    const fact5 = await page.evaluate(() => factorial(5));
+    expect(fact5).toBe(120);
+
+    // calculateRecursion should also be defined (it exists in the script)
+    const calculateType = await page.evaluate(() => typeof calculateRecursion);
+    expect(calculateType).toBe('function');
+  });
+
+  // Test clicking the calculate button with a valid number input
+  // Expectation: there is a bug in the implementation where calculateRecursion calls recursion() instead of factorial(),
+  // so clicking the button should raise a ReferenceError in the page context. The DOM should not get the expected result update.
+  test('Clicking Calculate Recursion with valid input triggers ReferenceError (recursion is undefined) and does not update result', async ({ page }) => {
+    const app2 = new RecursionPage(page);
+    await app.goto();
+
+    // Prepare to capture the pageerror triggered by the broken onclick handler
+    const pageErrorPromise = page.waitForEvent('pageerror');
+
+    // Enter a valid number
+    await app.fillInput(5);
+    // Sanity check input value
+    const inputValue = await app.input().inputValue();
+    expect(inputValue).toBe('5');
+
+    // Click the button - this should trigger the ReferenceError in the page context
+    await app.clickCalculate();
+
+    // Wait for the pageerror event and assert its message contains 'recursion' (the undefined identifier)
+    const pageError = await pageErrorPromise;
+    expect(pageError).toBeTruthy();
+    // The message typically contains "recursion is not defined" in browsers; check for the identifier
+    expect(String(pageError.message)).toMatch(/recursion/i);
+
+    // After the error, the result paragraph should remain unchanged (still empty)
+    const resultText = await app.getResultText();
+    expect(resultText.trim()).toBe('', 'Result should not be set because recursion() is not defined');
+  });
+
+  // Test repeated error scenarios and edge inputs: empty, 0, 1
+  test.describe('Edge cases and error scenarios when clicking Calculate Recursion', () => {
+    test('Clicking with empty input triggers ReferenceError and does not update result', async ({ page }) => {
+      const app3 = new RecursionPage(page);
+      await app.goto();
+
+      const pageErrorPromise1 = page.waitForEvent('pageerror');
+      // Ensure input is empty
+      await app.input().fill('');
+      await app.clickCalculate();
+
+      const pageError1 = await pageErrorPromise;
+      expect(String(pageError.message)).toMatch(/recursion/i);
+
+      const resultText1 = await app.getResultText();
+      expect(resultText.trim()).toBe('', 'Empty input should not produce a result due to the missing recursion function');
+    });
+
+    test('Clicking with input 0 triggers ReferenceError and does not update result', async ({ page }) => {
+      const app4 = new RecursionPage(page);
+      await app.goto();
+
+      const pageErrorPromise2 = page.waitForEvent('pageerror');
+      await app.fillInput(0);
+      await app.clickCalculate();
+
+      const pageError2 = await pageErrorPromise;
+      expect(String(pageError.message)).toMatch(/recursion/i);
+
+      const resultText2 = await app.getResultText();
+      expect(resultText.trim()).toBe('', 'Input 0 should not produce a result due to the missing recursion function');
+    });
+
+    test('Clicking with input 1 triggers ReferenceError and does not update result', async ({ page }) {
+      const app5 = new RecursionPage(page);
+      await app.goto();
+
+      const pageErrorPromise3 = page.waitForEvent('pageerror');
+      await app.fillInput(1);
+      await app.clickCalculate();
+
+      const pageError3 = await pageErrorPromise;
+      expect(String(pageError.message)).toMatch(/recursion/i);
+
+      const resultText3 = await app.getResultText();
+      expect(resultText.trim()).toBe('', 'Input 1 should not produce a result due to the missing recursion function');
+    });
+  });
+
+  // Accessibility / visibility checks: ensure interactive controls are enabled and focusable
+  test('Interactive controls are enabled and keyboard focusable', async ({ page }) => {
+    const app6 = new RecursionPage(page);
+    await app.goto();
+
+    // Input should be enabled and focusable
+    await expect(app.input()).toBeEnabled();
+    await app.input().focus();
+    // The focused element should be the input
+    const activeId = await page.evaluate(() => document.activeElement?.id || '');
+    expect(activeId).toBe('input');
+
+    // Button should be enabled and focusable
+    await expect(app.button()).toBeEnabled();
+    await app.button().focus();
+    const activeTag = await page.evaluate(() => document.activeElement?.tagName || '');
+    expect(activeTag.toLowerCase()).toBe('button');
+  });
+});

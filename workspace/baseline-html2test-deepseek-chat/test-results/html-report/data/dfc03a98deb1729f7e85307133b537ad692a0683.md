@@ -1,0 +1,67 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - heading "Binary Tree Visualization" [level=1] [ref=e2]
+  - paragraph [ref=e3]: Visualize and understand binary tree operations
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: Node Value
+        - spinbutton "Node Value" [active] [ref=e8]: "11"
+      - generic [ref=e9]:
+        - generic [ref=e10]: Traversal Type
+        - combobox "Traversal Type" [ref=e11]:
+          - option "In-order" [selected]
+          - option "Pre-order"
+          - option "Post-order"
+          - option "Level-order"
+      - button "Add Node" [ref=e14] [cursor=pointer]
+      - button "Traverse Tree" [ref=e17] [cursor=pointer]
+      - button "Reset Tree" [ref=e20] [cursor=pointer]
+    - generic [ref=e22]: "10"
+    - generic [ref=e23]:
+      - heading "Traversal Result" [level=3] [ref=e24]
+      - generic [ref=e25]: Tree is empty. Add nodes to see traversal.
+    - generic [ref=e26]:
+      - generic [ref=e29]: Normal Node
+      - generic [ref=e32]: Highlighted (During Traversal)
+    - generic [ref=e34]: "// Binary Tree Node Definition class Node { constructor(value) { this.value = value; this.left = null; this.right = null; } } // In-order Traversal (Left, Root, Right) function inOrderTraversal(node) { if (node !== null) { inOrderTraversal(node.left); console.log(node.value); inOrderTraversal(node.right); } } // Pre-order Traversal (Root, Left, Right) function preOrderTraversal(node) { if (node !== null) { console.log(node.value); preOrderTraversal(node.left); preOrderTraversal(node.right); } } // Post-order Traversal (Left, Right, Root) function postOrderTraversal(node) { if (node !== null) { postOrderTraversal(node.left); postOrderTraversal(node.right); console.log(node.value); } }"
+    - generic [ref=e35]:
+      - heading "What is a Binary Tree?" [level=2] [ref=e36]
+      - paragraph [ref=e37]: A binary tree is a hierarchical data structure in which each node has at most two children, referred to as the left child and the right child.
+      - heading "Binary Tree Properties:" [level=2] [ref=e38]
+      - list [ref=e39]:
+        - listitem [ref=e40]:
+          - strong [ref=e41]: "Root:"
+          - text: The top node of the tree
+        - listitem [ref=e42]:
+          - strong [ref=e43]: "Child:"
+          - text: A node directly connected to another node when moving away from the root
+        - listitem [ref=e44]:
+          - strong [ref=e45]: "Parent:"
+          - text: The converse notion of a child
+        - listitem [ref=e46]:
+          - strong [ref=e47]: "Leaf:"
+          - text: A node with no children
+        - listitem [ref=e48]:
+          - strong [ref=e49]: "Depth:"
+          - text: The length of the path from the root to the node
+        - listitem [ref=e50]:
+          - strong [ref=e51]: "Height:"
+          - text: The length of the path from the node to the deepest leaf
+      - heading "Tree Traversal Methods:" [level=2] [ref=e52]
+      - list [ref=e53]:
+        - listitem [ref=e54]:
+          - strong [ref=e55]: "In-order:"
+          - text: Left subtree, Root, Right subtree
+        - listitem [ref=e56]:
+          - strong [ref=e57]: "Pre-order:"
+          - text: Root, Left subtree, Right subtree
+        - listitem [ref=e58]:
+          - strong [ref=e59]: "Post-order:"
+          - text: Left subtree, Right subtree, Root
+        - listitem [ref=e60]:
+          - strong [ref=e61]: "Level-order:"
+          - text: Nodes are visited level by level from top to bottom
+```

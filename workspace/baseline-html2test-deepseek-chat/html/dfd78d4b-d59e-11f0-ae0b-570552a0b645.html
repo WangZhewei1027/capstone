@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-Means Clustering Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        input[type="number"], input[type="range"] {
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .canvas-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            background-color: white;
+        }
+        .status {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+        .iteration-info {
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        .cluster-info {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .cluster-color {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>K-Means Clustering Visualization</h1>
+        
+        <div class="controls">
+            <label for="kValue">Number of clusters (K):</label>
+            <input type="number" id="kValue" min="2" max="10" value="3">
+            
+            <label for="pointsCount">Number of points:</label>
+            <input type="number" id="pointsCount" min="10" max="500" value="100">
+            
+            <button id="generatePoints">Generate Points</button>
+            <button id="runKMeans" disabled>Run K-Means</button>
+            <button id="stepForward" disabled>Step Forward</button>
+            <button id="reset">Reset</button>
+            
+            <label for="speed">Animation Speed:</label>
+            <input type="range" id="speed" min="1" max="10" value="5">
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="clusteringCanvas" width="800" height="500"></canvas>
+            <div class="status" id="status">Click "Generate Points" to start</div>
+            <div class="iteration-info" id="iterationInfo"></div>
+        </div>
+        
+        <div class="cluster-info" id="clusterInfo"></div>
+    </div>
+
+    <script>
+        class KMeans {
+            constructor(k, points) {
+                this.k = k;
+                this.points = points;
+                this.centroids = [];
+                this.clusters = [];
+                this.iterations = 0;
+                this.clusterColors = this.generateColors(k);
+                this.initializeCentroids();
+            }
+            
+            generateColors(k) {
+                const colors = [];
+                for (let i = 0; i < k; i++) {
+                    const hue = (i * 360 / k) % 360;
+                    colors.push(`hsl(${hue}, 70%, 50%)`);
+                }
+                return colors;
+            }
+            
+            initializeCentroids() {
+                this.centroids = [];
+                const shuffled = [...this.points].sort(() => 0.5 - Math.random());
+                this.centroids = shuffled.slice(0, this.k);
+            }
+            
+            assignPointsToClusters() {
+                this.clusters = Array(this.k).fill().map(() => []);
+                
+                for (const point of this.points) {
+                    let minDistance = Infinity;
+                    let closestCentroidIndex = 0;
+                    
+                    for (let i = 0; i < this.centroids.length; i++) {
+                        const distance = this.euclideanDistance(point, this.centroids[i]);
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            closestCentroidIndex = i;
+                        }
+                    }
+                    
+                    this.clusters[closestCentroidIndex].push(point);
+                }
+            }
+            
+            updateCentroids() {
+                const newCentroids = [];
+                let centroidsChanged = false;
+                
+                for (let i = 0; i < this.k; i++) {
+                    if (this.clusters[i].length === 0) {
+                        newCentroids.push(this.centroids[i]);
+                        continue;
+                    }
+                    
+                    const sumX = this.clusters[i].reduce((sum, point) => sum + point.x, 0);
+                    const sumY = this.clusters[i].reduce((sum, point) => sum + point.y, 0);
+                    const newCentroid = {
+                        x: sumX / this.clusters[i].length,
+                        y: sumY / this.clusters[i].length
+                    };
+                    
+                    newCentroids.push(newCentroid);
+                    
+                    if (this.euclideanDistance(newCentroid, this.centroids[i]) > 0.1) {
+                        centroidsChanged = true;
+                    }
+                }
+                
+                this.centroids = newCentroids;
+                this.iterations++;
+                return centroidsChanged;
+            }
+            
+            euclideanDistance(point1, point2) {
+                return Math.sqrt(Math.pow(point1.x - point2.x, 2) + Math.pow(point1.y - point2.y, 2));
+            }
+            
+            runStep() {
+                this.assignPointsToClusters();
+                const centroidsChanged = this.updateCentroids();
+                return !centroidsChanged;
+            }
+        }
+        
+        class KMeansVisualizer {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.kmeans = null;
+                this.points = [];
+                this.animationId = null;
+                this.isAnimating = false;
+                this.setupEventListeners();
+            }
+            
+            setupEventListeners() {
+                document.getElementById('generatePoints').addEventListener('click', () => this.generatePoints());
+                document.getElementById('runKMeans').addEventListener('click', () => this.runKMeans());
+                document.getElementById('stepForward').addEventListener('click', () => this.stepForward());
+                document.getElementById('reset').addEventListener('click', () => this.reset());
+                
+                document.getElementById('kValue').addEventListener('change', () => {
+                    if (this.kmeans) {
+                        this.resetKMeans();
+                    }
+                });
+            }
+            
+            generatePoints() {
+                const pointsCount = parseInt(document.getElementById('pointsCount').value);
+                const k = parseInt(document.getElementById('kValue').value);
+                
+                // Generate clusters with some overlap
+                this.points = [];
+                const clusters = Math.min(k, 5); // Limit to 5 actual clusters for generation
+                
+                for (let i = 0; i < clusters; i++) {
+                    const centerX = 100 + Math.random() * 600;
+                    const centerY = 100 + Math.random() * 300;
+                    const pointsInCluster = Math.floor(pointsCount / clusters) + 
+                                         (i === clusters - 1 ? pointsCount % clusters : 0);
+                    
+                    for (let j = 0; j < pointsInCluster; j++) {
+                        this.points.push({
+                            x: centerX + (Math.random() - 0.5) * 150,
+                            y: centerY + (Math.random() - 0.5) * 150
+                        });
+                    }
+                }
+                
+                this.kmeans = new KMeans(k, this.points);
+                this.updateUIState(true);
+                this.draw();
+            }
+            
+            resetKMeans() {
+                if (this.kmeans && this.points.length > 0) {
+                    const k = parseInt(document.getElementById('kValue').value);
+                    this.kmeans = new KMeans(k, this.points);
+                    this.draw();
+                }
+            }
+            
+            runKMeans() {
+                if (!this.kmeans) return;
+                
+                this.isAnimating = true;
+                this.updateUIState(false);
+                this.animateStep();
+            }
+            
+            animateStep() {
+                if (!this.isAnimating) return;
+                
+                const converged = this.kmeans.runStep();
+                this.draw();
+                this.updateClusterInfo();
+                
+                if (converged) {
+                    this.isAnimating = false;
+                    this.updateUIState(true);
+                    document.getElementById('status').textContent = `Converged after ${this.kmeans.iterations} iterations`;
+                } else {
+                    const speed = parseInt(document.getElementById('speed').value);
+                    const delay = 1100 - (speed * 100); // 100ms to 1000ms
+                    this.animationId = setTimeout(() => this.animateStep(), delay);
+                }
+            }
+            
+            stepForward() {
+                if (!this.kmeans) return;
+                
+                const converged = this.kmeans.runStep();
+                this.draw();
+                this.updateClusterInfo();
+                
+                if (converged) {
+                    document.getElementById('status').textContent = `Converged after ${this.kmeans.iterations} iterations`;
+                    document.getElementById('runKMeans').disabled = true;
+                    document.getElementById('stepForward').disabled = true;
+                }
+            }
+            
+            reset() {
+                if (this.animationId) {
+                    clearTimeout(this.animationId);
+                    this.animationId = null;
+                }
+                this.isAnimating = false;
+                this.kmeans = null;
+                this.points = [];
+                this.updateUIState(false);
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                document.getElementById('status').textContent = 'Click "Generate Points" to start';
+                document.getElementById('iterationInfo').textContent = '';
+                document.getElementById('clusterInfo').innerHTML = '';
+            }
+            
+            updateUIState(hasPoints) {
+                document.getElementById('runKMeans').disabled = !hasPoints;
+                document.getElementById('stepForward').disabled = !hasPoints;
+                
+                if (hasPoints) {
+                    document.getElementById('status').textContent = `Ready - ${this.points.length} points, K=${this.kmeans.k}`;
+                }
+            }
+            
+            draw() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                if (!this.kmeans) return;
+                
+                // Draw points
+                for (let i = 0; i < this.kmeans.clusters.length; i++) {
+                    for (const point of this.kmeans.clusters[i]) {
+                        this.ctx.fillStyle = this.kmeans.clusterColors[i];
+                        this.ctx.beginPath();
+                        this.ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+                        this.ctx.fill();
+                    }
+                }
+                
+                // Draw centroids
+                for (let i = 0; i < this.kmeans.centroids.length; i++) {
+                    this.ctx.fillStyle = this.kmeans.clusterColors[i];
+                    this.ctx.beginPath();
+                    this.ctx.arc(this.kmeans.centroids[i].x, this.kmeans.centroids[i].y, 8, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                    
+                    // Draw cross inside centroid
+                    this.ctx.strokeStyle = 'white';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.kmeans.centroids[i].x - 5, this.kmeans.centroids[i].y);
+                    this.ctx.lineTo(this.kmeans.centroids[i].x + 5, this.kmeans.centroids[i].y);
+                    this.ctx.moveTo(this.kmeans.centroids[i].x, this.kmeans.centroids[i].y - 5);
+                    this.ctx.lineTo(this.kmeans.centroids[i].x, this.kmeans.centroids[i].y + 5);
+                    this.ctx.stroke();
+                }
+                
+                // Update iteration info
+                document.getElementById('iterationInfo').textContent = 
+                    `Iteration: ${this.kmeans.iterations} | ${this.kmeans.clusters.map(c => c.length).join(' | ')} points per cluster`;
+            }
+            
+            updateClusterInfo() {
+                const clusterInfo = document.getElementById('clusterInfo');
+                clusterInfo.innerHTML = '';
+                
+                for (let i = 0; i < this.kmeans.k; i++) {
+                    const clusterDiv = document.createElement('div');
+                    clusterDiv.innerHTML = `
+                        <span class="cluster-color" style="background-color: ${this.kmeans.clusterColors[i]}"></span>
+                        Cluster ${i + 1}: ${this.kmeans.clusters[i]?.length || 0} points
+                    `;
+                    clusterInfo.appendChild(clusterDiv);
+                }
+            }
+        }
+        
+        // Initialize the visualizer when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new KMeansVisualizer('clusteringCanvas');
+        });
+    </script>
+</body>
+</html>

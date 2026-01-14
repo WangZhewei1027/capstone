@@ -1,0 +1,64 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Linear Search Algorithm Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - heading "What is Linear Search?" [level=3] [ref=e5]
+    - paragraph [ref=e6]: Linear Search is a simple searching algorithm that checks each element in a list sequentially until the target element is found or the entire list has been searched.
+    - list [ref=e7]:
+      - listitem [ref=e8]:
+        - strong [ref=e9]: "Time Complexity:"
+        - text: O(n) - worst case scenario
+      - listitem [ref=e10]:
+        - strong [ref=e11]: "Space Complexity:"
+        - text: O(1) - constant space
+      - listitem [ref=e12]:
+        - strong [ref=e13]: "Best Case:"
+        - text: The element is found at the first position
+      - listitem [ref=e14]:
+        - strong [ref=e15]: "Worst Case:"
+        - text: The element is not in the list or is at the last position
+  - generic [ref=e16]:
+    - spinbutton [ref=e17]
+    - button "Start Search" [ref=e18] [cursor=pointer]
+    - button "Generate New Array" [ref=e19] [cursor=pointer]
+    - 'button "Auto Search: Off" [ref=e20] [cursor=pointer]'
+  - generic [ref=e21]:
+    - generic [ref=e22]: "43"
+    - generic [ref=e23]: "50"
+    - generic [ref=e24]: "24"
+    - generic [ref=e25]: "8"
+    - generic [ref=e26]: "34"
+    - generic [ref=e27]: "9"
+    - generic [ref=e28]: "5"
+    - generic [ref=e29]: "34"
+    - generic [ref=e30]: "33"
+    - generic [ref=e31]: "20"
+    - generic [ref=e32]: "44"
+    - generic [ref=e33]: "30"
+    - generic [ref=e34]: "26"
+    - generic [ref=e35]: "49"
+    - generic [ref=e36]: "46"
+  - generic [ref=e37]:
+    - paragraph [ref=e38]:
+      - strong [ref=e39]: "Status:"
+      - text: Ready to search
+    - paragraph [ref=e40]:
+      - strong [ref=e41]: "Comparisons:"
+      - text: "0"
+    - paragraph [ref=e42]:
+      - strong [ref=e43]: "Target:"
+      - text: "-"
+  - generic [ref=e44]:
+    - heading "Algorithm Steps:" [level=3] [ref=e45]
+    - list [ref=e46]:
+      - listitem [ref=e47]: Start from the first element of the array
+      - listitem [ref=e48]: Compare the current element with the target value
+      - listitem [ref=e49]: If they match, return the current index
+      - listitem [ref=e50]: If they don't match, move to the next element
+      - listitem [ref=e51]: Repeat steps 2-4 until the element is found or the end of the array is reached
+      - listitem [ref=e52]: If the element is not found, return -1
+    - heading "Code Example:" [level=3] [ref=e53]
+    - generic [ref=e54]: "function linearSearch(arr, target) { for (let i = 0; i < arr.length; i++) { if (arr[i] === target) { return i; // Element found at index i } } return -1; // Element not found }"
+```

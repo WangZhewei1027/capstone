@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Depth-First Search Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .canvas-container {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        canvas {
+            border: 1px solid #ddd;
+        }
+        .info-panel {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .current {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+        .visited {
+            background: #e2e3e5;
+            border: 1px solid #d6d8db;
+        }
+        .stack {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Depth-First Search Visualization</h1>
+        
+        <div class="controls">
+            <button onclick="startDFS()">Start DFS</button>
+            <button onclick="nextStep()">Next Step</button>
+            <button onclick="resetDFS()">Reset</button>
+            <button onclick="generateRandomGraph()">Generate Random Graph</button>
+            <select id="speed" onchange="updateSpeed()">
+                <option value="1000">Slow</option>
+                <option value="500" selected>Medium</option>
+                <option value="200">Fast</option>
+            </select>
+            <span>Start Node: <input type="number" id="startNode" min="0" max="7" value="0" style="width: 50px;"></span>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="graphCanvas" width="800" height="400"></canvas>
+        </div>
+
+        <div class="info-panel">
+            <h3>DFS Status</h3>
+            <div id="status" class="status">
+                Ready to start DFS traversal...
+            </div>
+            <h4>Algorithm Steps:</h4>
+            <ol id="steps"></ol>
+            <h4>Stack Contents:</h4>
+            <div id="stackContents" class="status stack"></div>
+            <h4>Visited Nodes:</h4>
+            <div id="visitedNodes" class="status visited"></div>
+        </div>
+    </div>
+
+    <script>
+        class Graph {
+            constructor() {
+                this.adjacencyList = {};
+                this.nodes = [];
+                this.edges = [];
+            }
+
+            addNode(id, x, y) {
+                this.nodes.push({ id, x, y });
+                this.adjacencyList[id] = [];
+            }
+
+            addEdge(from, to) {
+                this.edges.push({ from, to });
+                this.adjacencyList[from].push(to);
+                // For undirected graph, add reverse edge
+                if (!this.adjacencyList[to].includes(from)) {
+                    this.adjacencyList[to].push(from);
+                }
+            }
+
+            getNeighbors(node) {
+                return this.adjacencyList[node] || [];
+            }
+        }
+
+        class DFSVisualizer {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.graph = new Graph();
+                this.visited = new Set();
+                this.stack = [];
+                this.currentNode = null;
+                this.isRunning = false;
+                this.animationSpeed = 500;
+                this.animationId = null;
+                this.steps = [];
+                this.currentStep = 0;
+
+                this.initializeGraph();
+            }
+
+            initializeGraph() {
+                // Create a sample graph with 8 nodes
+                const nodePositions = [
+                    {x: 200, y: 100}, {x: 400, y: 100}, {x: 600, y: 100},
+                    {x: 100, y: 200}, {x: 300, y: 200}, {x: 500, y: 200}, {x: 700, y: 200},
+                    {x: 400, y: 300}
+                ];
+
+                for (let i = 0; i < 8; i++) {
+                    this.graph.addNode(i, nodePositions[i].x, nodePositions[i].y);
+                }
+
+                // Add edges to create an interesting graph
+                this.graph.addEdge(0, 1);
+                this.graph.addEdge(0, 3);
+                this.graph.addEdge(1, 2);
+                this.graph.addEdge(1, 4);
+                this.graph.addEdge(2, 5);
+                this.graph.addEdge(3, 4);
+                this.graph.addEdge(4, 5);
+                this.graph.addEdge(4, 7);
+                this.graph.addEdge(5, 6);
+                this.graph.addEdge(6, 7);
+
+                this.drawGraph();
+            }
+
+            drawGraph() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw edges
+                this.ctx.strokeStyle = '#666';
+                this.ctx.lineWidth = 2;
+                this.graph.edges.forEach(edge => {
+                    const fromNode = this.graph.nodes[edge.from];
+                    const toNode = this.graph.nodes[edge.to];
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(fromNode.x, fromNode.y);
+                    this.ctx.lineTo(toNode.x, toNode.y);
+                    this.ctx.stroke();
+                });
+
+                // Draw nodes
+                this.graph.nodes.forEach(node => {
+                    let color = '#007bff'; // Default color
+                    
+                    if (this.visited.has(node.id)) {
+                        color = '#28a745'; // Visited nodes
+                    }
+                    if (node.id === this.currentNode) {
+                        color = '#dc3545'; // Current node
+                    }
+                    if (this.stack.includes(node.id)) {
+                        color = '#ffc107'; // Nodes in stack
+                    }
+
+                    this.ctx.fillStyle = color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, node.y, 20, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                    
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = '16px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(node.id, node.x, node.y);
+                });
+            }
+
+            dfsStep() {
+                if (this.stack.length === 0) {
+                    this.isRunning = false;
+                    this.updateStatus("DFS completed!");
+                    return;
+                }
+
+                this.currentNode = this.stack.pop();
+                this.steps.push(`Processing node ${this.currentNode}`);
+
+                if (!this.visited.has(this.currentNode)) {
+                    this.visited.add(this.currentNode);
+                    this.steps.push(`Visited node ${this.currentNode}`);
+
+                    // Get unvisited neighbors and add to stack
+                    const neighbors = this.graph.getNeighbors(this.currentNode);
+                    const unvisitedNeighbors = neighbors.filter(node => !this.visited.has(node));
+                    
+                    unvisitedNeighbors.forEach(neighbor => {
+                        this.stack.push(neighbor);
+                        this.steps.push(`Added node ${neighbor} to stack`);
+                    });
+                }
+
+                this.drawGraph();
+                this.updateDisplay();
+                this.currentStep++;
+            }
+
+            startDFS(startNode = 0) {
+                if (this.isRunning) return;
+
+                this.resetDFS();
+                this.isRunning = true;
+                this.visited.clear();
+                this.stack = [startNode];
+                this.steps = [`Starting DFS from node ${startNode}`];
+                this.currentStep = 0;
+                
+                this.updateStatus(`Starting DFS from node ${startNode}`);
+                this.animateDFS();
+            }
+
+            animateDFS() {
+                if (!this.isRunning) return;
+
+                this.dfsStep();
+                
+                if (this.isRunning) {
+                    this.animationId = setTimeout(() => {
+                        this.animateDFS();
+                    }, this.animationSpeed);
+                }
+            }
+
+            nextStep() {
+                if (!this.isRunning) {
+                    if (this.stack.length === 0 && this.visited.size === 0) {
+                        const startNode = parseInt(document.getElementById('startNode').value);
+                        this.stack = [startNode];
+                        this.steps = [`Starting DFS from node ${startNode}`];
+                        this.isRunning = true;
+                    }
+                }
+                
+                if (this.isRunning) {
+                    this.dfsStep();
+                }
+            }
+
+            resetDFS() {
+                this.isRunning = false;
+                this.visited.clear();
+                this.stack = [];
+                this.currentNode = null;
+                this.steps = [];
+                this.currentStep = 0;
+                clearTimeout(this.animationId);
+                this.drawGraph();
+                this.updateStatus("DFS reset - ready to start");
+                this.updateDisplay();
+            }
+
+            updateDisplay() {
+                const statusDiv = document.getElementById('status');
+                const stepsList = document.getElementById('steps');
+                const stackDiv = document.getElementById('stackContents');
+                const visitedDiv = document.getElementById('visitedNodes');
+
+                // Update status
+                if (this.currentNode !== null) {
+                    statusDiv.innerHTML = `<strong>Current Node:</strong> ${this.currentNode}`;
+                    statusDiv.className = 'status current';
+                }
+
+                // Update steps
+                stepsList.innerHTML = '';
+                this.steps.slice(-10).forEach(step => {
+                    const li = document.createElement('li');
+                    li.textContent = step;
+                    stepsList.appendChild(li);
+                });
+
+                // Update stack
+                stackDiv.textContent = this.stack.length > 0 ? this.stack.join(' → ') : 'Empty';
+                stackDiv.className = 'status stack';
+
+                // Update visited nodes
+                visitedDiv.textContent = this.visited.size > 0 ? 
+                    Array.from(this.visited).join(', ') : 'None';
+                visitedDiv.className = 'status visited';
+            }
+
+            updateStatus(message) {
+                document.getElementById('status').textContent = message;
+            }
+
+            setSpeed(speed) {
+                this.animationSpeed = speed;
+            }
+
+            generateRandomGraph() {
+                this.resetDFS();
+                this.graph = new Graph();
+                
+                const nodeCount = 8;
+                const nodePositions = [
+                    {x: 200, y: 100}, {x: 400, y: 100}, {x: 600, y: 100},
+                    {x: 100, y: 200}, {x: 300, y: 200}, {x: 500, y: 200}, {x: 700, y: 200},
+                    {x: 400, y: 300}
+                ];
+
+                // Add nodes
+                for (let i = 0; i < nodeCount; i++) {
+                    this.graph.addNode(i, nodePositions[i].x, nodePositions[i].y);
+                }
+
+                // Add random edges (ensuring connectivity)
+                const edges = new Set();
+                
+                // Create a spanning tree to ensure connectivity
+                for (let i = 1; i < nodeCount; i++) {
+                    const j = Math.floor(Math.random() * i);
+                    edges.add(`${Math.min(i, j)}-${Math.max(i, j)}`);
+                }
+
+                // Add some additional random edges
+                const additionalEdges = Math.floor(Math.random() * 5) + 3;
+                for (let i = 0; i < additionalEdges; i++) {
+                    const from = Math.floor(Math.random() * nodeCount);
+                    const to = Math.floor(Math.random() * nodeCount);
+                    if (from !== to) {
+                        edges.add(`${Math.min(from, to)}-${Math.max(from, to)}`);
+                    }
+                }
+
+                // Add edges to graph
+                edges.forEach(edge => {
+                    const [from, to] = edge.split('-').map(Number);
+                    this.graph.addEdge(from, to);
+                });
+
+                this.drawGraph();
+                this.updateStatus("New random graph generated!");
+            }
+        }
+
+        // Initialize the visualizer
+        let visualizer;
+
+        function initialize() {
+            const canvas = document.getElementById('graphCanvas');
+            visualizer = new DFSVisualizer(canvas);
+        }
+
+        function startDFS() {
+            const startNode = parseInt(document.getElementById('startNode').value);
+            visualizer.startDFS(startNode);
+        }
+
+        function nextStep() {
+            visualizer.nextStep();
+        }
+
+        function resetDFS() {
+            visualizer.resetDFS();
+        }
+
+        function generateRandomGraph() {
+            visualizer.generateRandomGraph();
+        }
+
+        function updateSpeed() {
+            const speed = parseInt(document.getElementById('speed').value);
+            visualizer.setSpeed(speed);
+        }
+
+        // Initialize when page loads
+        window.onload = initialize;
+    </script>
+</body>
+</html>

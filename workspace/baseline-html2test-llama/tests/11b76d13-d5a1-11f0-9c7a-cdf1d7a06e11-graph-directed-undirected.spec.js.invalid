@@ -1,0 +1,152 @@
+import { test, expect } from '@playwright/test';
+
+// Page object for the Graph application
+class GraphPage {
+  /**
+   * @param {import('@playwright/test').Page} page
+   */
+  constructor(page) {
+    this.page = page;
+    this.url = 'http://127.0.0.1:5500/workspace/baseline-html2test-llama/html/11b76d13-d5a1-11f0-9c7a-cdf1d7a06e11.html';
+    this.input = page.locator('#input-field');
+    this.button = page.locator('#graph-button');
+    this.graph = page.locator('#graph');
+  }
+
+  async goto() {
+    await this.page.goto(this.url);
+  }
+
+  async enterNodes(text) {
+    await this.input.fill(text);
+  }
+
+  async clickGraph() {
+    await this.button.click();
+  }
+
+  // Returns count of direct children in #graph with given class name
+  async countElementsByClass(className) {
+    return this.page.locator(`#graph > .${className}`).count();
+  }
+
+  // Returns count of .node that are children of a node container (i.e., inside a .node container)
+  async countNodeContainerChildren() {
+    // The implementation in the app creates a nodeContainer with class 'node' and then
+    // creates child .node elements inside it. We will find the first .node child that itself contains children.
+    const containers = await this.page.locator('#graph > .node').elementHandles();
+    for (const handle of containers) {
+      const childNodes = await handle.$$('.node');
+      if (childNodes.length > 0) {
+        return childNodes.length;
+      }
+    }
+    return 0;
+  }
+
+  // Count all elements with given selector anywhere under #graph
+  async countUnderGraph(selector) {
+    return this.page.locator(`#graph ${selector}`).count();
+  }
+}
+
+test.describe('Graph (Directed/Undirected) App - 11b76d13-d5a1-11f0-9c7a-cdf1d7a06e11', () => {
+  // Collect console errors and page errors for each test
+  test.beforeEach(async ({ page }) => {
+    // No-op here; individual tests will instantiate GraphPage and attach listeners.
+  });
+
+  // Test initial load: elements are present and default graph empty
+  test('Initial load: input, button, and empty graph container are visible with no console/page errors', async ({ page }) => {
+    // Collect console errors and page errors
+    const consoleErrors = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    const pageErrors = [];
+    page.on('pageerror', err => pageErrors.push(err.message));
+
+    const graphPage = new GraphPage(page);
+    await graphPage.goto();
+
+    // Verify that the input and button are visible and enabled
+    await expect(graphPage.input).toBeVisible();
+    await expect(graphPage.input).toBeEnabled();
+    await expect(graphPage.button).toBeVisible();
+    await expect(graphPage.button).toBeEnabled();
+
+    // The graph container should be present and initially empty (no direct children)
+    const graphChildren = await page.locator('#graph').locator('> *').count();
+    expect(graphChildren).toBe(0);
+
+    // Ensure no console errors or uncaught page errors on load
+    expect(consoleErrors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+
+  // Test creating a graph with three nodes (A B C)
+  test('Create graph with three nodes: verifies node container, child nodes, edges, and no errors', async ({ page }) => {
+    // Listen for console errors and page errors during the test
+    const consoleErrors1 = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    const pageErrors1 = [];
+    page.on('pageerror', err => pageErrors.push(err.message));
+
+    const graphPage1 = new GraphPage(page);
+    await graphPage.goto();
+
+    // Enter three nodes separated by single spaces (normal use)
+    await graphPage.enterNodes('A B C');
+    await graphPage.clickGraph();
+
+    // After click, there should be one node container appended as a direct child of #graph
+    const nodeContainers = await page.locator('#graph > .node').count();
+    // The first node container is the container created by the script; there may be additional .node elements inside it.
+    expect(nodeContainers).toBeGreaterThanOrEqual(1);
+
+    // The node container should contain exactly 3 child .node elements (one for each node A,B,C)
+    const firstContainer = page.locator('#graph > .node').first();
+    const childNodesCount = await firstContainer.locator('> .node').count();
+    expect(childNodesCount).toBe(3);
+
+    // Edges: with 3 nodes, the script generates edges for each pair => 3 edges
+    const edgeCount = await page.locator('#graph > .edge').count();
+    expect(edgeCount).toBe(3);
+
+    // Verify the DOM contains the expected number of .node elements overall (1 container + 3 child nodes = 4)
+    const totalNodes = await page.locator('#graph .node').count();
+    expect(totalNodes).toBeGreaterThanOrEqual(4);
+
+    // Ensure no console errors or page errors occurred
+    expect(consoleErrors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+
+  // Test single-node input: should create a container and one node, but no edges
+  test('Single node input results in one child node and zero edges', async ({ page }) => {
+    const consoleErrors2 = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    const pageErrors2 = [];
+    page.on('pageerror', err => pageErrors.push(err.message));
+
+    const graphPage2 = new GraphPage(page);
+    await graphPage.goto();
+
+    await graphPage.enterNodes('X');
+    await graphPage.clickGraph();
+
+    // One node container should exist (direct child with class 'node')
+    const containers1 = await page.locator('#graph > .node').count();
+    expect(containers).toBeGreaterThanOrEqual(1);
+
+    // That container should have exactly 1 child node element
+    const firstContainer1 = page.locator('#graph > .node').first();
+    const childNodesCount1 = await firstContainer.locator('> .node').count();
+    expect(childNodesCount).toBe(1);
+
+    // No edges should be created for a single node
+    const edgeCount1 = await page.locator('#graph > .edge').count

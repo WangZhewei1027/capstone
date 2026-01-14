@@ -68,7 +68,7 @@ export async function runBatchHTMLToTest(config) {
   const {
     workspace,
     model,
-    questionListPath = "./question-list-short.json",
+    questionListPath = "./question-list.json",
     concurrency = 3,
     models = {},
   } = config;
@@ -162,12 +162,18 @@ export async function runBatchHTMLToTest(config) {
       } catch (error) {
         stats.failed++;
         console.error(`💥 [${taskId}] ${topic} - 异常: ${error.message}`);
+        console.error(`   🔍 错误详情:`, error);
+        if (error.stack) {
+          console.error(`   📍 堆栈跟踪:\n${error.stack}`);
+        }
         results.push({
           taskId,
           topic,
           question,
           success: false,
           error: error.message,
+          errorDetails: error.toString(),
+          errorStack: error.stack,
         });
       } finally {
         stats.completed++;
@@ -263,7 +269,7 @@ function parseArgs() {
     workspace: "html-to-test-" + timestamp,
     model: "gpt-4o",
     concurrency: 3,
-    questionListPath: "./question-list-short.json",
+    questionListPath: "./question-list.json",
   };
 
   for (let i = 0; i < args.length; i++) {

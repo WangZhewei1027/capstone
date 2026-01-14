@@ -1,0 +1,199 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL = 'http://127.0.0.1:5500/workspace/baseline-html2test-llama/html/90f6f501-d5a1-11f0-80b9-e1f86cea383f.html';
+
+test.describe('Heap Sort Algorithm - Interactive App (90f6f501-d5a1-11f0-80b9-e1f86cea383f)', () => {
+  // Navigate to the page before each test
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+  });
+
+  // Utility: click a selector and wait for the first pageerror produced by that click.
+  async function clickAndCapturePageError(page, selector) {
+    // Wait concurrently for a pageerror and the click to occur.
+    const [error] = await Promise.all([
+      page.waitForEvent('pageerror'),
+      page.click(selector)
+    ]);
+    return error;
+  }
+
+  test('Initial page load: UI elements present and output is empty', async ({ page }) => {
+    // Purpose: verify page loaded, important interactive elements exist and there are no immediate runtime errors
+    const pageErrors = [];
+    page.on('pageerror', (err) => pageErrors.push(err));
+
+    // Check title and buttons existence
+    await expect(page).toHaveTitle(/Heap Sort Algorithm/);
+
+    const buttonIds = [
+      '#heap-sort-btn',
+      '#in-place-btn',
+      '#bubble-sort-btn',
+      '#selection-sort-btn',
+      '#insertion-sort-btn',
+      '#merge-sort-btn',
+      '#quick-sort-btn',
+      '#random-sort-btn',
+      '#custom-sort-btn'
+    ];
+
+    for (const id of buttonIds) {
+      const btn = page.locator(id);
+      await expect(btn).toBeVisible();
+    }
+
+    // Output container should exist and be empty (renderOutput sets innerText = '')
+    const output = page.locator('#output');
+    await expect(output).toBeVisible();
+    await expect(output).toHaveText('');
+
+    // Allow brief time to capture any synchronous page errors (there should be none on initial load)
+    await page.waitForTimeout(150);
+    expect(pageErrors.length).toBe(0);
+  });
+
+  test.describe('Button click interactions should trigger page errors (observing broken implementation)', () => {
+    test('Clicking "Heap Sort" sets window.heap and then throws a ReferenceError for missing renderArray', async ({ page }) => {
+      // Purpose: clicking heap sort should assign heap and attempt to render -> renderArray is not defined -> error
+      const error = await clickAndCapturePageError(page, '#heap-sort-btn');
+      // The runtime should report a ReferenceError or similar complaining a symbol is not defined.
+      expect(error).toBeTruthy();
+      expect(error.message).toMatch(/(renderArray|is not defined)/);
+
+      // Even though render failed, the heap assignment occurs before renderOutput() so heap should be set and sorted
+      const vars = await page.evaluate(() => {
+        return {
+          heap: window.heap,
+          arr: window.arr
+        };
+      });
+
+      // heap should be an array matching arr sorted ascending
+      expect(Array.isArray(vars.heap)).toBe(true);
+      expect(vars.heap.slice().sort((a, b) => a - b)).toEqual(vars.heap);
+      // original arr should remain an array of numbers with expected length
+      expect(Array.isArray(vars.arr)).toBe(true);
+      expect(vars.arr.length).toBeGreaterThan(0);
+    });
+
+    test('Clicking "In-Place Heap Sort" sets inPlace flag then errors due to missing renderArray', async ({ page }) => {
+      // Purpose: verify the boolean flag is set before render causes an error
+      const errorPromise = page.waitForEvent('pageerror');
+      await page.click('#in-place-btn');
+      const error1 = await errorPromise;
+
+      expect(error).toBeTruthy();
+      expect(error.message).toMatch(/renderArray|is not defined/);
+
+      // The flag inPlace should have been set to true before renderOutput caused the error
+      const inPlaceFlag = await page.evaluate(() => window.inPlace);
+      expect(inPlaceFlag).toBe(true);
+    });
+
+    test('Clicking "Bubble Sort" triggers ReferenceError for missing bubbleSortHelper (or later renderArray)', async ({ page }) {
+      // Purpose: bubbleSort handler references bubbleSortHelper which is not defined - expect a ReferenceError
+      const error2 = await clickAndCapturePageError(page, '#bubble-sort-btn');
+
+      expect(error).toBeTruthy();
+      // Either bubbleSortHelper or renderArray (if helper existed) will be reported; ensure "is not defined" present
+      expect(error.message).toMatch(/(bubbleSortHelper|renderArray|is not defined)/);
+    });
+
+    test('Clicking "Selection Sort" runs helper then errors on missing renderArray', async ({ page }) {
+      // Purpose: selectionSortHelper exists but renderArray is missing so expect an error regarding renderArray
+      const error3 = await clickAndCapturePageError(page, '#selection-sort-btn');
+
+      expect(error).toBeTruthy();
+      expect(error.message).toMatch(/renderArray|is not defined/);
+
+      // Verify that arr still exists and length is preserved after attempted operation
+      const arrAfter = await page.evaluate(() => window.arr);
+      expect(Array.isArray(arrAfter)).toBe(true);
+      expect(arrAfter.length).toBeGreaterThan(0);
+    });
+
+    test('Clicking "Insertion Sort" runs helper then errors (renderArray missing)', async ({ page }) {
+      // Purpose: check insertion flow triggers an error and arr remains valid
+      const error4 = await clickAndCapturePageError(page, '#insertion-sort-btn');
+
+      expect(error).toBeTruthy();
+      expect(error.message).toMatch(/renderArray|is not defined/);
+
+      const arrAfter1 = await page.evaluate(() => window.arr);
+      expect(Array.isArray(arrAfter)).toBe(true);
+      expect(arrAfter.length).toBeGreaterThan(0);
+    });
+
+    test('Clicking "Merge Sort" runs helper then errors (renderArray missing)', async ({ page }) {
+      // Purpose: mergeSortHelper exists (though implementation is flawed), ensure a page error occurs during rendering
+      const error5 = await clickAndCapturePageError(page, '#merge-sort-btn');
+
+      expect(error).toBeTruthy();
+      expect(error.message).toMatch(/renderArray|is not defined/);
+
+      const arrAfter2 = await page.evaluate(() => window.arr);
+      expect(Array.isArray(arrAfter)).toBe(true);
+    });
+
+    test('Clicking "Quick Sort" runs helper then errors (renderArray missing)', async ({ page }) {
+      // Purpose: quickSortHelper exists but render triggers a ReferenceError
+      const error6 = await clickAndCapturePageError(page, '#quick-sort-btn');
+
+      expect(error).toBeTruthy();
+      expect(error.message).toMatch(/renderArray|is not defined/);
+
+      const arrAfter3 = await page.evaluate(() => window.arr);
+      expect(Array.isArray(arrAfter)).toBe(true);
+    });
+
+    test('Clicking "Random Sort" shuffles arr then errors on render; arr should still contain same multiset of values', async ({ page }) {
+      // Purpose: ensure the random shuffle modified arr (or at least left a valid array) and that a page error occurs
+      const originalArr = await page.evaluate(() => window.arr.slice());
+      const error7 = await clickAndCapturePageError(page, '#random-sort-btn');
+
+      expect(error).toBeTruthy();
+      expect(error.message).toMatch(/renderArray|is not defined/);
+
+      const arrAfter4 = await page.evaluate(() => window.arr.slice());
+      expect(Array.isArray(arrAfter)).toBe(true);
+      // Check the multiset of numbers is preserved (same elements, maybe different order)
+      expect(arrAfter.slice().sort((a, b) => a - b)).toEqual(originalArr.slice().sort((a, b) => a - b));
+    });
+
+    test('Clicking "Custom Sort" runs helper then errors on render', async ({ page }) {
+      // Purpose: customSortHelper exists and will run; rendering then fails - ensure arr is still valid
+      const error8 = await clickAndCapturePageError(page, '#custom-sort-btn');
+
+      expect(error).toBeTruthy();
+      expect(error.message).toMatch(/renderArray|is not defined/);
+
+      const arrAfter5 = await page.evaluate(() => window.arr);
+      expect(Array.isArray(arrAfter)).toBe(true);
+    });
+  });
+
+  test.describe('Accessibility and visibility checks for interactive controls', () => {
+    test('All sorting buttons are accessible and have descriptive text', async ({ page }) => {
+      // Purpose: ensure each button is visible and has non-empty text content for accessibility
+      const ids = [
+        '#heap-sort-btn',
+        '#in-place-btn',
+        '#bubble-sort-btn',
+        '#selection-sort-btn',
+        '#insertion-sort-btn',
+        '#merge-sort-btn',
+        '#quick-sort-btn',
+        '#random-sort-btn',
+        '#custom-sort-btn'
+      ];
+
+      for (const id of ids) {
+        const el = page.locator(id);
+        await expect(el).toBeVisible();
+        const text = await el.innerText();
+        expect(text.trim().length).toBeGreaterThan(0);
+      }
+    });
+  });
+});

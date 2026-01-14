@@ -754,3 +754,13 @@ timeout: 10000  // 10秒
 - [MULTI-AGENT-README.md](MULTI-AGENT-README.md) - 多 Agent 架构说明
 - [Playwright 文档](https://playwright.dev/)
 - [OpenAI API 文档](https://platform.openai.com/docs/)
+
+
+node compare-models.mjs \
+  workspace/baseline-html2test-gpt-3.5-turbo \
+  workspace/baseline-html2test-gpt-4o \
+  workspace/baseline-html2test-gpt-4o-mini \
+  workspace/baseline-html2test-gpt-5-mini \
+  workspace/baseline-html2test-deepseek-chat \
+  workspace/baseline-html2test-qwen1-5 \
+  workspace/baseline-html2test-llama

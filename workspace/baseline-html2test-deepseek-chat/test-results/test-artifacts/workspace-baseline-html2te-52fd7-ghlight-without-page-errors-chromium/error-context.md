@@ -1,0 +1,47 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Adjacency Matrix" [level=1] [ref=e4]
+    - generic [ref=e5]: Interactive Graph Representation
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - heading "Graph Visualization" [level=2] [ref=e8]
+      - generic [ref=e11]:
+        - button "Add Node" [ref=e12] [cursor=pointer]
+        - button "Add Edge Mode" [ref=e13] [cursor=pointer]
+        - button "Clear Edges" [ref=e14] [cursor=pointer]
+        - button "Reset Graph" [ref=e15] [cursor=pointer]
+      - generic [ref=e16]:
+        - paragraph [ref=e17]: Click on nodes to select them, then click another node to create an edge between them.
+        - paragraph [ref=e18]: Nodes are represented as circles, edges as lines connecting them.
+    - generic [ref=e19]:
+      - heading "Adjacency Matrix" [level=2] [ref=e20]
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e24] [cursor=pointer]: A
+          - generic [ref=e25] [cursor=pointer]: B
+          - generic [ref=e26] [cursor=pointer]: C
+        - generic [ref=e27]:
+          - generic [ref=e28] [cursor=pointer]: A
+          - generic [ref=e29] [cursor=pointer]: "0"
+          - generic [ref=e30] [cursor=pointer]: "0"
+          - generic [ref=e31] [cursor=pointer]: "0"
+        - generic [ref=e32]:
+          - generic [ref=e33] [cursor=pointer]: B
+          - generic [ref=e34] [cursor=pointer]: "0"
+          - generic [ref=e35] [cursor=pointer]: "0"
+          - generic [ref=e36] [cursor=pointer]: "0"
+        - generic [ref=e37]:
+          - generic [ref=e38] [cursor=pointer]: C
+          - generic [ref=e39] [cursor=pointer]: "0"
+          - generic [ref=e40] [cursor=pointer]: "0"
+          - generic [ref=e41] [cursor=pointer]: "0"
+      - generic [ref=e42]:
+        - paragraph [ref=e43]: An adjacency matrix is a square matrix used to represent a finite graph.
+        - paragraph [ref=e44]: Matrix element [i][j] is 1 if there is an edge from vertex i to vertex j, otherwise 0.
+        - paragraph [ref=e45]: Click matrix cells to see the corresponding edge highlighted in the graph.
+  - contentinfo [ref=e46]:
+    - paragraph [ref=e47]: Adjacency Matrix Visualization | Graph Theory Demonstration
+```

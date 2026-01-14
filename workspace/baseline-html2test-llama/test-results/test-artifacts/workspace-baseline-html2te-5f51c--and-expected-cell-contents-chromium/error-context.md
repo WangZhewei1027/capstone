@@ -1,0 +1,52 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Two Pointers Concept" [level=1] [ref=e2]
+  - table [ref=e3]:
+    - rowgroup [ref=e4]:
+      - row "Index Value Sum" [ref=e5]:
+        - cell "Index" [ref=e6]
+        - cell "Value" [ref=e7]
+        - cell "Sum" [ref=e8]
+      - row "0 10 10" [ref=e9]:
+        - cell "0" [ref=e10]
+        - cell "10" [ref=e11]
+        - cell "10" [ref=e12]
+      - row "1 20 20" [ref=e13]:
+        - cell "1" [ref=e14]
+        - cell "20" [ref=e15]
+        - cell "20" [ref=e16]
+      - row "2 15 15" [ref=e17]:
+        - cell "2" [ref=e18]
+        - cell "15" [ref=e19]
+        - cell "15" [ref=e20]
+      - row "3 25 25" [ref=e21]:
+        - cell "3" [ref=e22]
+        - cell "25" [ref=e23]
+        - cell "25" [ref=e24]
+      - row "4 5 5" [ref=e25]:
+        - cell "4" [ref=e26]
+        - cell "5" [ref=e27]
+        - cell "5" [ref=e28]
+      - row "5 15 15" [ref=e29]:
+        - cell "5" [ref=e30]
+        - cell "15" [ref=e31]
+        - cell "15" [ref=e32]
+      - row "6 10 10" [ref=e33]:
+        - cell "6" [ref=e34]
+        - cell "10" [ref=e35]
+        - cell "10" [ref=e36]
+      - row "7 20 20" [ref=e37]:
+        - cell "7" [ref=e38]
+        - cell "20" [ref=e39]
+        - cell "20" [ref=e40]
+      - row "8 15 15" [ref=e41]:
+        - cell "8" [ref=e42]
+        - cell "15" [ref=e43]
+        - cell "15" [ref=e44]
+      - row "9 5 5" [ref=e45]:
+        - cell "9" [ref=e46]
+        - cell "5" [ref=e47]
+        - cell "5" [ref=e48]
+```

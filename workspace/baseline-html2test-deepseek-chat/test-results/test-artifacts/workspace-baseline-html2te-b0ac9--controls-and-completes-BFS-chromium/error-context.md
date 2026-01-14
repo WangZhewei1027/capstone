@@ -1,0 +1,46 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Breadth-First Search (BFS) Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - button "Start BFS" [ref=e5] [cursor=pointer]
+    - button "Reset" [ref=e6] [cursor=pointer]
+    - button "Step Forward" [ref=e7] [cursor=pointer]
+    - combobox [ref=e8]:
+      - option "Slow"
+      - option "Medium" [selected]
+      - option "Fast"
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e19] [cursor=pointer]: A
+      - generic [ref=e20] [cursor=pointer]: B
+      - generic [ref=e21] [cursor=pointer]: C
+      - generic [ref=e22] [cursor=pointer]: D
+      - generic [ref=e23] [cursor=pointer]: E
+      - generic [ref=e24] [cursor=pointer]: F
+      - generic [ref=e25] [cursor=pointer]: G
+    - generic [ref=e26]:
+      - heading "BFS Algorithm Info" [level=3] [ref=e27]
+      - paragraph [ref=e28]:
+        - strong [ref=e29]: "Current Step:"
+        - text: Starting BFS from node A
+      - paragraph [ref=e30]:
+        - strong [ref=e31]: "Visited Nodes:"
+        - text: A
+      - paragraph [ref=e32]:
+        - strong [ref=e33]: "Queue Contents:"
+      - generic [ref=e35]: A
+      - heading "BFS Algorithm Steps:" [level=3] [ref=e36]
+      - list [ref=e37]:
+        - listitem [ref=e38]: Start from the root node
+        - listitem [ref=e39]: Visit all neighbors at current depth
+        - listitem [ref=e40]: Move to next depth level
+        - listitem [ref=e41]: Use a queue to track nodes to visit
+      - paragraph [ref=e42]:
+        - strong [ref=e43]: "Time Complexity:"
+        - text: O(V + E)
+      - paragraph [ref=e44]:
+        - strong [ref=e45]: "Space Complexity:"
+        - text: O(V)
+```

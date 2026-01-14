@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear Regression Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 20px 0;
+        }
+        .stats {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .equation {
+            font-family: monospace;
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Linear Regression Demonstration</h1>
+        
+        <div class="controls">
+            <button onclick="generateRandomData()">Generate Random Data</button>
+            <button onclick="addCustomPoint()">Add Custom Point</button>
+            <button onclick="clearAllPoints()">Clear All Points</button>
+            <div>
+                <label>X: <input type="number" id="xInput" value="5" step="0.1"></label>
+                <label>Y: <input type="number" id="yInput" value="5" step="0.1"></label>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="regressionChart"></canvas>
+        </div>
+
+        <div class="stats">
+            <h3>Regression Statistics</h3>
+            <div class="equation" id="equation">y = mx + b</div>
+            <div id="statsDetails">Add points to see statistics</div>
+        </div>
+
+        <div>
+            <h3>How Linear Regression Works</h3>
+            <p>Linear regression finds the best-fit line through a set of data points by minimizing the sum of squared errors between the actual y-values and the predicted y-values.</p>
+            <p><strong>Formula:</strong> y = mx + b, where:</p>
+            <ul>
+                <li>m = slope = Σ((x - x̄)(y - ȳ)) / Σ((x - x̄)²)</li>
+                <li>b = y-intercept = ȳ - m*x̄</li>
+                <li>R² = coefficient of determination (how well the line fits the data)</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let dataPoints = [];
+        let regressionLine = null;
+        let chart = null;
+
+        // Initialize chart
+        function initializeChart() {
+            const ctx = document.getElementById('regressionChart').getContext('2d');
+            
+            chart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Data Points',
+                            data: dataPoints,
+                            backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'X Values'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Y Values'
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `(${context.parsed.x}, ${context.parsed.y})`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Calculate linear regression
+        function calculateRegression() {
+            if (dataPoints.length < 2) {
+                updateStats('Need at least 2 points for regression');
+                return null;
+            }
+
+            const n = dataPoints.length;
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+
+            dataPoints.forEach(point => {
+                sumX += point.x;
+                sumY += point.y;
+                sumXY += point.x * point.y;
+                sumX2 += point.x * point.x;
+            });
+
+            const meanX = sumX / n;
+            const meanY = sumY / n;
+
+            // Calculate slope (m) and intercept (b)
+            const m = (sumXY - n * meanX * meanY) / (sumX2 - n * meanX * meanX);
+            const b = meanY - m * meanX;
+
+            // Calculate R-squared
+            let ssTotal = 0, ssResidual = 0;
+            dataPoints.forEach(point => {
+                const yPred = m * point.x + b;
+                ssTotal += Math.pow(point.y - meanY, 2);
+                ssResidual += Math.pow(point.y - yPred, 2);
+            });
+            const rSquared = 1 - (ssResidual / ssTotal);
+
+            return { m, b, rSquared, meanX, meanY };
+        }
+
+        // Update regression line on chart
+        function updateRegressionLine() {
+            const regression = calculateRegression();
+            
+            if (!regression) {
+                if (regressionLine) {
+                    chart.data.datasets = chart.data.datasets.filter(ds => ds !== regressionLine);
+                    regressionLine = null;
+                    chart.update();
+                }
+                return;
+            }
+
+            // Remove existing regression line
+            if (regressionLine) {
+                chart.data.datasets = chart.data.datasets.filter(ds => ds !== regressionLine);
+            }
+
+            // Create new regression line
+            const minX = Math.min(...dataPoints.map(p => p.x));
+            const maxX = Math.max(...dataPoints.map(p => p.x));
+            
+            regressionLine = {
+                label: 'Regression Line',
+                data: [
+                    { x: minX, y: regression.m * minX + regression.b },
+                    { x: maxX, y: regression.m * maxX + regression.b }
+                ],
+                type: 'line',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: false,
+                showLine: true
+            };
+
+            chart.data.datasets.push(regressionLine);
+            chart.update();
+
+            // Update statistics display
+            updateStats(regression);
+        }
+
+        // Update statistics display
+        function updateStats(regression) {
+            const equationElement = document.getElementById('equation');
+            const statsElement = document.getElementById('statsDetails');
+
+            if (typeof regression === 'string') {
+                equationElement.textContent = regression;
+                statsElement.textContent = '';
+                return;
+            }
+
+            equationElement.textContent = `y = ${regression.m.toFixed(3)}x + ${regression.b.toFixed(3)}`;
+            
+            statsElement.innerHTML = `
+                <p><strong>Slope (m):</strong> ${regression.m.toFixed(4)}</p>
+                <p><strong>Y-Intercept (b):</strong> ${regression.b.toFixed(4)}</p>
+                <p><strong>R² (Goodness of Fit):</strong> ${regression.rSquared.toFixed(4)}</p>
+                <p><strong>Mean X:</strong> ${regression.meanX.toFixed(2)}</p>
+                <p><strong>Mean Y:</strong> ${regression.meanY.toFixed(2)}</p>
+                <p><strong>Number of Points:</strong> ${dataPoints.length}</p>
+            `;
+        }
+
+        // Add a data point
+        function addDataPoint(x, y) {
+            dataPoints.push({ x, y });
+            chart.data.datasets[0].data = dataPoints;
+            chart.update();
+            updateRegressionLine();
+        }
+
+        // Generate random data points
+        function generateRandomData() {
+            dataPoints = [];
+            for (let i = 0; i < 20; i++) {
+                const x = Math.random() * 10;
+                const y = 2 * x + 3 + (Math.random() - 0.5) * 4; // y = 2x + 3 + noise
+                dataPoints.push({ x: Number(x.toFixed(2)), y: Number(y.toFixed(2)) });
+            }
+            chart.data.datasets[0].data = dataPoints;
+            chart.update();
+            updateRegressionLine();
+        }
+
+        // Add custom point from input
+        function addCustomPoint() {
+            const x = parseFloat(document.getElementById('xInput').value);
+            const y = parseFloat(document.getElementById('yInput').value);
+            
+            if (!isNaN(x) && !isNaN(y)) {
+                addDataPoint(x, y);
+            }
+        }
+
+        // Clear all points
+        function clearAllPoints() {
+            dataPoints = [];
+            chart.data.datasets[0].data = dataPoints;
+            chart.update();
+            updateRegressionLine();
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            initializeChart();
+            // Add some initial points
+            addDataPoint(1, 2);
+            addDataPoint(2, 4);
+            addDataPoint(3, 6);
+            addDataPoint(4, 8);
+        };
+
+        // Allow adding points by clicking on the chart
+        document.getElementById('regressionChart').onclick = function(evt) {
+            if (chart) {
+                const points = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+                if (points.length === 0) {
+                    const canvas = evt.target;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = evt.clientX - rect.left;
+                    const y = evt.clientY - rect.top;
+                    
+                    const xScale = chart.scales.x;
+                    const yScale = chart.scales.y;
+                    
+                    const xValue = xScale.getValueForPixel(x);
+                    const yValue = yScale.getValueForPixel(y);
+                    
+                    addDataPoint(Number(xValue.toFixed(2)), Number(yValue.toFixed(2)));
+                }
+            }
+        };
+    </script>
+</body>
+</html>

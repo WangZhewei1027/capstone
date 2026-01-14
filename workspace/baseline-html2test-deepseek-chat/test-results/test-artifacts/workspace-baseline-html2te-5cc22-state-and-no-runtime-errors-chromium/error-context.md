@@ -1,0 +1,72 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Two Pointers Algorithm Visualization" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - heading "What is the Two Pointers Technique?" [level=2] [ref=e5]
+    - paragraph [ref=e6]: The two pointers technique is an algorithmic approach where we use two pointers (indices) to traverse data structures like arrays or linked lists. It's commonly used to solve problems with O(n) time complexity instead of O(n²).
+    - generic [ref=e7]:
+      - strong [ref=e8]: "Common Use Cases:"
+      - list [ref=e9]:
+        - listitem [ref=e10]: Finding pairs in a sorted array that sum to a target value
+        - listitem [ref=e11]: Checking if a sequence is a palindrome
+        - listitem [ref=e12]: Removing duplicates from a sorted array
+        - listitem [ref=e13]: Merging two sorted arrays
+  - generic [ref=e14]:
+    - 'heading "Interactive Demo: Pair Sum Problem" [level=2] [ref=e15]'
+    - paragraph [ref=e16]: Find two numbers in a sorted array that add up to a target value.
+    - generic [ref=e17]:
+      - text: "Target Sum:"
+      - spinbutton "Target Sum:" [ref=e18]: "9"
+      - button "Reset Demo" [ref=e19] [cursor=pointer]
+      - button "Step Forward" [ref=e20] [cursor=pointer]
+      - button "Run Full Demo" [ref=e21] [cursor=pointer]
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]: "1"
+        - generic [ref=e25]: "2"
+        - generic [ref=e26]: "3"
+        - generic [ref=e27]: "4"
+        - generic [ref=e28]: "5"
+        - generic [ref=e29]: "6"
+        - generic [ref=e30]: "7"
+        - generic [ref=e31]: "8"
+      - generic [ref=e32]: Left
+      - generic [ref=e33]: Right
+      - generic [ref=e34]: "Current Sum: 1 + 8 = 9 | Target: 9"
+    - paragraph [ref=e36]:
+      - strong [ref=e37]: "Initial state: Left pointer at index 0, Right pointer at index 7"
+    - generic [ref=e38]:
+      - text: // Two Pointers Algorithm for Pair Sum Problem
+      - text: "function twoSum(nums, target) {"
+      - text: let left = 0;
+      - text: let right = nums.length - 1;
+      - text: "while (left < right) {"
+      - text: const sum = nums[left] + nums[right];
+      - text: "if (sum === target) {"
+      - text: return [left, right]; // Found the pair!
+      - text: "} else if (sum < target) {"
+      - text: left++; // Need a larger sum
+      - text: "} else {"
+      - text: right--; // Need a smaller sum
+      - text: "}"
+      - text: "}"
+      - text: return []; // No pair found
+      - text: "}"
+  - generic [ref=e39]:
+    - heading "How It Works" [level=2] [ref=e40]
+    - paragraph [ref=e41]: The algorithm starts with one pointer at the beginning (left) and another at the end (right) of the sorted array.
+    - list [ref=e42]:
+      - listitem [ref=e43]: Calculate the sum of elements at both pointers
+      - listitem [ref=e44]: If the sum equals the target, we found our pair
+      - listitem [ref=e45]: If the sum is less than target, move the left pointer right (increase sum)
+      - listitem [ref=e46]: If the sum is greater than target, move the right pointer left (decrease sum)
+      - listitem [ref=e47]: Repeat until pointers meet or pair is found
+    - paragraph [ref=e48]:
+      - strong [ref=e49]: "Time Complexity:"
+      - text: O(n) - We traverse the array at most once
+    - paragraph [ref=e50]:
+      - strong [ref=e51]: "Space Complexity:"
+      - text: O(1) - We only use two pointers
+```

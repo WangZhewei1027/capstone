@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear Regression Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .description {
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .canvas-container {
+            position: relative;
+            margin: 30px 0;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            background-color: #fafafa;
+            cursor: crosshair;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.clear {
+            background-color: #f44336;
+        }
+        button.clear:hover {
+            background-color: #da190b;
+        }
+        .equation {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            font-family: monospace;
+            font-size: 16px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-item {
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Linear Regression Visualization</h1>
+        
+        <div class="description">
+            <p>Linear regression is a statistical method that models the relationship between a dependent variable (y) and one or more independent variables (x) using a linear equation.</p>
+            <p><strong>Click on the canvas below to add data points.</strong> The algorithm will automatically calculate and draw the best-fit line using the least squares method.</p>
+        </div>
+
+        <div class="controls">
+            <button onclick="calculateRegression()">Calculate Regression</button>
+            <button onclick="addRandomPoints(10)">Add 10 Random Points</button>
+            <button class="clear" onclick="clearCanvas()">Clear All Points</button>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="regressionCanvas" width="800" height="400"></canvas>
+        </div>
+
+        <div class="equation" id="equationDisplay">
+            Regression equation will appear here
+        </div>
+
+        <div class="stats" id="statsDisplay">
+            <!-- Statistics will be populated here -->
+        </div>
+    </div>
+
+    <script>
+        // Canvas and context
+        const canvas = document.getElementById('regressionCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Data points array
+        let points = [];
+        
+        // Initialize canvas
+        function initCanvas() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            drawGrid();
+            
+            // Draw existing points and regression line if available
+            redrawAll();
+        }
+        
+        // Draw grid on canvas
+        function drawGrid() {
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 0.5;
+            
+            // Vertical lines
+            for (let x = 0; x <= canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Horizontal lines
+            for (let y = 0; y <= canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Axis
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height);
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, canvas.height);
+            ctx.stroke();
+        }
+        
+        // Add point on canvas click
+        canvas.addEventListener('click', function(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            // Store point (convert to Cartesian coordinates with origin at bottom-left)
+            points.push({x: x, y: canvas.height - y});
+            
+            redrawAll();
+        });
+        
+        // Redraw everything (points and regression line)
+        function redrawAll() {
+            initCanvas();
+            
+            // Draw points
+            points.forEach(point => {
+                drawPoint(point.x, canvas.height - point.y);
+            });
+            
+            // Calculate and draw regression line if we have enough points
+            if (points.length >= 2) {
+                calculateRegression();
+            }
+        }
+        
+        // Draw a point on the canvas
+        function drawPoint(x, y) {
+            ctx.fillStyle = '#2196F3';
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Draw regression line
+        function drawLine(slope, intercept) {
+            // Convert slope and intercept to canvas coordinates
+            // y = mx + b in Cartesian becomes: canvasY = slope * canvasX + intercept
+            // But we need to convert to canvas coordinates where y increases downward
+            
+            // Calculate start and end points for the line
+            const startX = 0;
+            const startY = canvas.height - (slope * startX + intercept);
+            const endX = canvas.width;
+            const endY = canvas.height - (slope * endX + intercept);
+            
+            ctx.strokeStyle = '#FF5722';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        }
+        
+        // Calculate linear regression using least squares method
+        function calculateRegression() {
+            if (points.length < 2) {
+                document.getElementById('equationDisplay').textContent = 
+                    'Need at least 2 points to calculate regression';
+                return;
+            }
+            
+            // Calculate means
+            const n = points.length;
+            const sumX = points.reduce((sum, point) => sum + point.x, 0);
+            const sumY = points.reduce((sum, point) => sum + point.y, 0);
+            const meanX = sumX / n;
+            const meanY = sumY / n;
+            
+            // Calculate slope (m) and intercept (b)
+            let numerator = 0;
+            let denominator = 0;
+            
+            for (let i = 0; i < n; i++) {
+                numerator += (points[i].x - meanX) * (points[i].y - meanY);
+                denominator += (points[i].x - meanX) * (points[i].x - meanX);
+            }
+            
+            const slope = numerator / denominator;
+            const intercept = meanY - slope * meanX;
+            
+            // Draw the regression line
+            drawLine(slope, intercept);
+            
+            // Calculate R-squared (coefficient of determination)
+            let ssTotal = 0;
+            let ssResidual = 0;
+            
+            for (let i = 0; i < n; i++) {
+                const yPredicted = slope * points[i].x + intercept;
+                ssTotal += Math.pow(points[i].y - meanY, 2);
+                ssResidual += Math.pow(points[i].y - yPredicted, 2);
+            }
+            
+            const rSquared = 1 - (ssResidual / ssTotal);
+            
+            // Update equation display
+            document.getElementById('equationDisplay').innerHTML = 
+                `<strong>Regression Equation:</strong> y = ${slope.toFixed(4)}x + ${intercept.toFixed(4)}<br>
+                 <strong>R² (coefficient of determination):</strong> ${rSquared.toFixed(4)}`;
+            
+            // Update statistics
+            updateStatistics(slope, intercept, rSquared);
+        }
+        
+        // Update statistics display
+        function updateStatistics(slope, intercept, rSquared) {
+            const statsHTML = `
+                <div class="stat-item">
+                    <strong>Number of Points:</strong><br>${points.length}
+                </div>
+                <div class="stat-item">
+                    <strong>Slope (m):</strong><br>${slope.toFixed(4)}
+                </div>
+                <div class="stat-item">
+                    <strong>Intercept (b):</strong><br>${intercept.toFixed(4)}
+                </div>
+                <div class="stat-item">
+                    <strong>R² Value:</strong><br>${rSquared.toFixed(4)}
+                </div>
+            `;
+            
+            document.getElementById('statsDisplay').innerHTML = statsHTML;
+        }
+        
+        // Add random points for demonstration
+        function addRandomPoints(count) {
+            for (let i = 0; i < count; i++) {
+                const x = Math.random() * (canvas.width - 100) + 50; // Avoid edges
+                const y = Math.random() * (canvas.height - 100) + 50; // Avoid edges
+                points.push({x: x, y: canvas.height - y});
+            }
+            redrawAll();
+        }
+        
+        // Clear all points
+        function clearCanvas() {
+            points = [];
+            initCanvas();
+            document.getElementById('equationDisplay').textContent = 
+                'Regression equation will appear here';
+            document.getElementById('statsDisplay').innerHTML = '';
+        }
+        
+        // Initialize on load
+        window.onload = initCanvas;
+    </script>
+</body>
+</html>

@@ -3,9 +3,9 @@ import fs from "fs";
 import path from "path";
 
 /**
- * 分析测试得分分布并生成可视化HTML报告
- * 用法: node analyze-scores.mjs <workspace-path>
- * 示例: node analyze-scores.mjs workspace/11-08-0003
+ * Analyze test score distribution and generate visualization HTML report
+ * Usage: node analyze-scores.mjs <workspace-path>
+ * Example: node analyze-scores.mjs workspace/11-08-0003
  */
 
 // 计算平均值
@@ -76,13 +76,18 @@ function chiSquareTest(observed, expected) {
 // 生成HTML报告
 function generateHTMLReport(stats, outputPath) {
   const html = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>测试得分分布分析</title>
+    <title>Test Score Distribution Analysis</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        @media print {
+            body { margin: 0; background: white; }
+            .no-print { display: none; }
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -90,238 +95,268 @@ function generateHTMLReport(stats, outputPath) {
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px;
-            min-height: 100vh;
+            font-family: 'Times New Roman', Times, serif;
+            background: white;
+            color: #000;
+            padding: 40px;
+            line-height: 1.6;
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
         }
         
         h1 {
-            color: white;
+            font-size: 18pt;
+            font-weight: bold;
             text-align: center;
             margin-bottom: 30px;
-            font-size: 2.5rem;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            color: #000;
+            letter-spacing: 0.5px;
         }
         
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 20px;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
+            border: 1px solid #000;
         }
         
         .stat-card {
             background: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+            text-align: center;
+        }
+        
+        .stat-card:nth-child(3n) {
+            border-right: none;
         }
         
         .stat-label {
-            color: #666;
-            font-size: 0.9rem;
+            font-size: 10pt;
             margin-bottom: 8px;
-            font-weight: 500;
+            font-weight: normal;
+            color: #000;
         }
         
         .stat-value {
-            color: #333;
-            font-size: 2rem;
+            font-size: 16pt;
             font-weight: bold;
-        }
-        
-        .stat-value.large {
-            font-size: 2.5rem;
-            color: #667eea;
+            color: #000;
+            font-family: 'Times New Roman', Times, serif;
         }
         
         .chart-container {
             background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
+            padding: 20px;
+            margin-bottom: 40px;
+            border: 1px solid #000;
         }
         
         .chart-title {
-            font-size: 1.5rem;
-            color: #333;
-            margin-bottom: 20px;
-            font-weight: 600;
+            font-size: 12pt;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 15px;
+            text-align: center;
         }
         
         canvas {
             max-height: 400px;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }
         
         .distribution-table {
             background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
+            padding: 20px;
+            margin-bottom: 40px;
+            border: 1px solid #000;
         }
         
         table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 10pt;
         }
         
         th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
+            padding: 8px 12px;
+            text-align: center;
+            border: 1px solid #000;
         }
         
         th {
-            background: #f5f5f5;
-            font-weight: 600;
-            color: #333;
-        }
-        
-        tr:hover {
-            background: #f9f9f9;
+            background: #f0f0f0;
+            font-weight: bold;
+            color: #000;
         }
         
         .progress-bar {
-            height: 20px;
-            background: #e0e0e0;
-            border-radius: 10px;
-            overflow: hidden;
+            height: 16px;
+            background: white;
+            border: 1px solid #000;
             position: relative;
+            margin: 0 auto;
+            width: 100%;
         }
         
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            transition: width 0.3s ease;
+            background: repeating-linear-gradient(
+                45deg,
+                #000,
+                #000 2px,
+                #fff 2px,
+                #fff 4px
+            );
         }
         
         .analysis-section {
             background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
+            padding: 20px;
+            margin-bottom: 40px;
+            border: 1px solid #000;
         }
         
         .analysis-title {
-            font-size: 1.3rem;
-            color: #333;
+            font-size: 12pt;
+            font-weight: bold;
+            color: #000;
             margin-bottom: 15px;
-            font-weight: 600;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
         }
         
         .analysis-content {
-            color: #666;
-            line-height: 1.6;
+            font-size: 10pt;
+            color: #000;
+            line-height: 1.8;
+        }
+        
+        .analysis-content p {
+            margin-bottom: 10px;
         }
         
         .conclusion {
-            background: #e8f5e9;
-            border-left: 4px solid #4caf50;
+            border: 2px solid #000;
             padding: 15px;
-            margin-top: 15px;
-            border-radius: 5px;
-        }
-        
-        .conclusion.warning {
-            background: #fff3e0;
-            border-left-color: #ff9800;
-        }
-        
-        .conclusion.error {
-            background: #ffebee;
-            border-left-color: #f44336;
+            margin-top: 20px;
+            background: #f9f9f9;
         }
         
         .percentile-info {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
             margin-top: 20px;
+            border: 1px solid #000;
         }
         
         .percentile-card {
             background: #f5f5f5;
-            padding: 15px;
-            border-radius: 10px;
+            padding: 12px;
             text-align: center;
+            border-right: 1px solid #000;
+        }
+        
+        .percentile-card:last-child {
+            border-right: none;
         }
         
         .percentile-label {
-            font-size: 0.85rem;
-            color: #666;
+            font-size: 9pt;
+            color: #000;
             margin-bottom: 5px;
         }
         
         .percentile-value {
-            font-size: 1.5rem;
+            font-size: 14pt;
             font-weight: bold;
-            color: #667eea;
+            color: #000;
+        }
+        
+        .figure-caption {
+            font-size: 10pt;
+            text-align: center;
+            margin-top: 10px;
+            font-style: italic;
+            color: #000;
+        }
+        
+        .table-caption {
+            font-size: 10pt;
+            text-align: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #000;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📊 测试得分分布分析报告</h1>
+        <h1>Test Score Distribution Analysis Report</h1>
         
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-label">总测试数</div>
-                <div class="stat-value large">${stats.total}</div>
+                <div class="stat-label">Sample Size (n)</div>
+                <div class="stat-value">${stats.total}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">平均分</div>
+                <div class="stat-label">Mean (μ)</div>
                 <div class="stat-value">${(stats.mean * 100).toFixed(2)}%</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">中位数</div>
+                <div class="stat-label">Median</div>
                 <div class="stat-value">${(stats.median * 100).toFixed(
                   2
                 )}%</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">标准差</div>
+                <div class="stat-label">Std. Dev (σ)</div>
                 <div class="stat-value">${(stats.stdDev * 100).toFixed(
                   2
                 )}%</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">最高分</div>
+                <div class="stat-label">Maximum</div>
                 <div class="stat-value">${(stats.max * 100).toFixed(2)}%</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">最低分</div>
+                <div class="stat-label">Minimum</div>
                 <div class="stat-value">${(stats.min * 100).toFixed(2)}%</div>
             </div>
         </div>
         
         <div class="chart-container">
-            <div class="chart-title">得分分布直方图（实际 vs 正态分布）</div>
+            <div class="chart-title">Figure 1. Score Distribution Histogram (Observed vs. Normal Distribution)</div>
             <canvas id="histogramChart"></canvas>
+            <div class="figure-caption">Comparison of observed score distribution with theoretical normal distribution (n=${
+              stats.total
+            }, μ=${(stats.mean * 100).toFixed(2)}%, σ=${(
+    stats.stdDev * 100
+  ).toFixed(2)}%)</div>
         </div>
         
         <div class="chart-container">
-            <div class="chart-title">累积分布函数（CDF）</div>
+            <div class="chart-title">Figure 2. Cumulative Distribution Function (CDF)</div>
             <canvas id="cdfChart"></canvas>
+            <div class="figure-caption">Empirical cumulative distribution function of test scores</div>
         </div>
         
         <div class="distribution-table">
-            <div class="chart-title">分数段详细统计</div>
+            <div class="table-caption">Table I. Score Range Distribution Statistics</div>
             <table>
                 <thead>
                     <tr>
-                        <th>分数段</th>
-                        <th>数量</th>
-                        <th>百分比</th>
-                        <th>可视化</th>
+                        <th>Score Range</th>
+                        <th>Count</th>
+                        <th>Percentage</th>
+                        <th>Visualization</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -346,91 +381,91 @@ function generateHTMLReport(stats, outputPath) {
         </div>
         
         <div class="analysis-section">
-            <div class="analysis-title">📈 分布特征分析</div>
+            <div class="analysis-title">I. DISTRIBUTION CHARACTERISTICS</div>
             <div class="analysis-content">
-                <p><strong>偏度 (Skewness):</strong> ${stats.skewness.toFixed(
+                <p><strong>A. Skewness:</strong> ${stats.skewness.toFixed(
                   3
                 )}</p>
-                <p style="margin-top: 10px;">
+                <p style="margin-left: 20px;">
                     ${
                       Math.abs(stats.skewness) < 0.5
-                        ? "✅ 接近对称分布（正态分布的特征之一）"
+                        ? "The distribution exhibits near-symmetric characteristics, consistent with normal distribution properties."
                         : stats.skewness > 0
-                        ? "⚠️ 右偏分布（低分较多，高分较少）"
-                        : "⚠️ 左偏分布（高分较多，低分较少）"
+                        ? "The distribution shows positive skewness (right-skewed), indicating a concentration of lower scores."
+                        : "The distribution shows negative skewness (left-skewed), indicating a concentration of higher scores."
                     }
                 </p>
                 
-                <p style="margin-top: 15px;"><strong>峰度 (Kurtosis):</strong> ${stats.kurtosis.toFixed(
+                <p style="margin-top: 15px;"><strong>B. Kurtosis:</strong> ${stats.kurtosis.toFixed(
                   3
                 )}</p>
-                <p style="margin-top: 10px;">
+                <p style="margin-left: 20px;">
                     ${
                       Math.abs(stats.kurtosis) < 0.5
-                        ? "✅ 接近正态分布的峰度"
+                        ? "The kurtosis value approximates that of a normal distribution (excess kurtosis ≈ 0)."
                         : stats.kurtosis > 0
-                        ? "⚠️ 尖峰分布（数据集中度高）"
-                        : "⚠️ 平峰分布（数据分散度高）"
+                        ? "The distribution exhibits leptokurtic characteristics (positive excess kurtosis), indicating high concentration around the mean."
+                        : "The distribution exhibits platykurtic characteristics (negative excess kurtosis), indicating high dispersion."
                     }
                 </p>
                 
-                <p style="margin-top: 15px;"><strong>卡方检验统计量:</strong> ${stats.chiSquare.toFixed(
+                <p style="margin-top: 15px;"><strong>C. Chi-Square Test Statistic:</strong> ${stats.chiSquare.toFixed(
                   3
                 )}</p>
-                <p style="margin-top: 10px;">
+                <p style="margin-left: 20px;">
                     ${
                       stats.chiSquare < 15.507
-                        ? "✅ 通过正态分布检验（p > 0.05）"
+                        ? "The distribution passes the normality test (χ² < 15.507, p > 0.05, df=9)."
                         : stats.chiSquare < 20.09
-                        ? "⚠️ 边缘通过（p ≈ 0.05）"
-                        : "❌ 未通过正态分布检验（p < 0.05）"
+                        ? "The distribution marginally passes the normality test (p ≈ 0.05)."
+                        : "The distribution fails the normality test (χ² > 20.09, p < 0.05, df=9)."
                     }
                 </p>
                 
-                <div class="percentile-info">
-                    <div class="percentile-card">
-                        <div class="percentile-label">25th 百分位</div>
-                        <div class="percentile-value">${(
-                          stats.percentiles.p25 * 100
-                        ).toFixed(1)}%</div>
-                    </div>
-                    <div class="percentile-card">
-                        <div class="percentile-label">50th 百分位 (中位数)</div>
-                        <div class="percentile-value">${(
-                          stats.percentiles.p50 * 100
-                        ).toFixed(1)}%</div>
-                    </div>
-                    <div class="percentile-card">
-                        <div class="percentile-label">75th 百分位</div>
-                        <div class="percentile-value">${(
-                          stats.percentiles.p75 * 100
-                        ).toFixed(1)}%</div>
-                    </div>
-                    <div class="percentile-card">
-                        <div class="percentile-label">90th 百分位</div>
-                        <div class="percentile-value">${(
-                          stats.percentiles.p90 * 100
-                        ).toFixed(1)}%</div>
+                <div style="margin-top: 20px;">
+                    <p><strong>D. Percentile Analysis:</strong></p>
+                    <div class="percentile-info">
+                        <div class="percentile-card">
+                            <div class="percentile-label">25th Percentile</div>
+                            <div class="percentile-value">${(
+                              stats.percentiles.p25 * 100
+                            ).toFixed(1)}%</div>
+                        </div>
+                        <div class="percentile-card">
+                            <div class="percentile-label">50th Percentile</div>
+                            <div class="percentile-value">${(
+                              stats.percentiles.p50 * 100
+                            ).toFixed(1)}%</div>
+                        </div>
+                        <div class="percentile-card">
+                            <div class="percentile-label">75th Percentile</div>
+                            <div class="percentile-value">${(
+                              stats.percentiles.p75 * 100
+                            ).toFixed(1)}%</div>
+                        </div>
+                        <div class="percentile-card">
+                            <div class="percentile-label">90th Percentile</div>
+                            <div class="percentile-value">${(
+                              stats.percentiles.p90 * 100
+                            ).toFixed(1)}%</div>
+                        </div>
                     </div>
                 </div>
                 
-                <div class="conclusion ${
-                  stats.normalityScore >= 0.8
-                    ? ""
-                    : stats.normalityScore >= 0.6
-                    ? "warning"
-                    : "error"
-                }">
-                    <strong>📊 正态性综合评分: ${(
-                      stats.normalityScore * 100
-                    ).toFixed(1)}%</strong>
+                <div class="conclusion">
+                    <strong>II. NORMALITY ASSESSMENT</strong>
+                    <p style="margin-top: 10px;">
+                        Normality Score: ${(stats.normalityScore * 100).toFixed(
+                          1
+                        )}%
+                    </p>
                     <p style="margin-top: 10px;">
                         ${
                           stats.normalityScore >= 0.8
-                            ? "✅ 得分分布基本符合正态分布，测试结果可靠。"
+                            ? "The score distribution demonstrates strong adherence to normality, indicating reliable test results with appropriate difficulty calibration."
                             : stats.normalityScore >= 0.6
-                            ? "⚠️ 得分分布部分符合正态分布，建议进一步优化测试用例。"
-                            : "❌ 得分分布偏离正态分布较大，建议检查测试设计和实现质量。"
+                            ? "The score distribution partially conforms to normality. Further optimization of test cases is recommended to improve distribution characteristics."
+                            : "The score distribution exhibits significant deviation from normality. Review of test design and implementation quality is strongly recommended."
                         }
                     </p>
                 </div>
@@ -439,7 +474,13 @@ function generateHTMLReport(stats, outputPath) {
     </div>
     
     <script>
-        // 直方图 - 实际分布 vs 正态分布
+        // Configure Chart.js for academic black and white style
+        Chart.defaults.font.family = "'Times New Roman', Times, serif";
+        Chart.defaults.font.size = 11;
+        Chart.defaults.color = '#000';
+        Chart.defaults.borderColor = '#000';
+        
+        // Histogram Chart - Observed vs Normal Distribution
         const histogramCtx = document.getElementById('histogramChart').getContext('2d');
         new Chart(histogramCtx, {
             type: 'bar',
@@ -448,22 +489,26 @@ function generateHTMLReport(stats, outputPath) {
                   Object.values(stats.bins).map((b) => b.range)
                 )},
                 datasets: [{
-                    label: '实际分布',
+                    label: 'Observed Distribution',
                     data: ${JSON.stringify(
                       Object.values(stats.bins).map((b) => b.count)
                     )},
-                    backgroundColor: 'rgba(102, 126, 234, 0.6)',
-                    borderColor: 'rgba(102, 126, 234, 1)',
-                    borderWidth: 2
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    borderColor: '#000',
+                    borderWidth: 1
                 }, {
-                    label: '理论正态分布',
+                    label: 'Theoretical Normal Distribution',
                     data: ${JSON.stringify(stats.expectedNormal)},
                     type: 'line',
-                    borderColor: 'rgba(244, 67, 54, 0.8)',
-                    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                    borderColor: '#000',
+                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
                     borderWidth: 2,
-                    fill: true,
-                    tension: 0.4
+                    fill: false,
+                    tension: 0.4,
+                    borderDash: [5, 5],
+                    pointRadius: 3,
+                    pointBackgroundColor: '#000',
+                    pointBorderColor: '#000'
                 }]
             },
             options: {
@@ -472,11 +517,25 @@ function generateHTMLReport(stats, outputPath) {
                 plugins: {
                     legend: {
                         display: true,
-                        position: 'top'
+                        position: 'top',
+                        labels: {
+                            color: '#000',
+                            font: {
+                                family: "'Times New Roman', Times, serif",
+                                size: 11
+                            },
+                            usePointStyle: true,
+                            boxWidth: 15
+                        }
                     },
                     tooltip: {
                         mode: 'index',
-                        intersect: false
+                        intersect: false,
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        titleColor: '#000',
+                        bodyColor: '#000',
+                        borderColor: '#000',
+                        borderWidth: 1
                     }
                 },
                 scales: {
@@ -484,33 +543,66 @@ function generateHTMLReport(stats, outputPath) {
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: '数量'
+                            text: 'Frequency',
+                            color: '#000',
+                            font: {
+                                family: "'Times New Roman', Times, serif",
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        },
+                        ticks: {
+                            color: '#000'
+                        },
+                        grid: {
+                            color: '#ccc',
+                            drawBorder: true,
+                            borderColor: '#000',
+                            borderWidth: 2
                         }
                     },
                     x: {
                         title: {
                             display: true,
-                            text: '得分区间'
+                            text: 'Score Range (%)',
+                            color: '#000',
+                            font: {
+                                family: "'Times New Roman', Times, serif",
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        },
+                        ticks: {
+                            color: '#000'
+                        },
+                        grid: {
+                            color: '#ccc',
+                            drawBorder: true,
+                            borderColor: '#000',
+                            borderWidth: 2
                         }
                     }
                 }
             }
         });
         
-        // CDF 图表
+        // CDF Chart
         const cdfCtx = document.getElementById('cdfChart').getContext('2d');
         new Chart(cdfCtx, {
             type: 'line',
             data: {
                 labels: ${JSON.stringify(stats.cdfData.labels)},
                 datasets: [{
-                    label: '累积分布',
+                    label: 'Cumulative Distribution',
                     data: ${JSON.stringify(stats.cdfData.values)},
-                    borderColor: 'rgba(102, 126, 234, 1)',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    borderWidth: 3,
+                    borderColor: '#000',
+                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                    borderWidth: 2,
                     fill: true,
-                    tension: 0.4
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointBackgroundColor: '#000',
+                    pointBorderColor: '#000'
                 }]
             },
             options: {
@@ -518,7 +610,21 @@ function generateHTMLReport(stats, outputPath) {
                 maintainAspectRatio: true,
                 plugins: {
                     legend: {
-                        display: true
+                        display: true,
+                        labels: {
+                            color: '#000',
+                            font: {
+                                family: "'Times New Roman', Times, serif",
+                                size: 11
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        titleColor: '#000',
+                        bodyColor: '#000',
+                        borderColor: '#000',
+                        borderWidth: 1
                     }
                 },
                 scales: {
@@ -527,13 +633,43 @@ function generateHTMLReport(stats, outputPath) {
                         max: 100,
                         title: {
                             display: true,
-                            text: '累积百分比 (%)'
+                            text: 'Cumulative Percentage (%)',
+                            color: '#000',
+                            font: {
+                                family: "'Times New Roman', Times, serif",
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        },
+                        ticks: {
+                            color: '#000'
+                        },
+                        grid: {
+                            color: '#ccc',
+                            drawBorder: true,
+                            borderColor: '#000',
+                            borderWidth: 2
                         }
                     },
                     x: {
                         title: {
                             display: true,
-                            text: '得分'
+                            text: 'Score (%)',
+                            color: '#000',
+                            font: {
+                                family: "'Times New Roman', Times, serif",
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        },
+                        ticks: {
+                            color: '#000'
+                        },
+                        grid: {
+                            color: '#ccc',
+                            drawBorder: true,
+                            borderColor: '#000',
+                            borderWidth: 2
                         }
                     }
                 }
@@ -546,20 +682,67 @@ function generateHTMLReport(stats, outputPath) {
   fs.writeFileSync(outputPath, html, "utf8");
 }
 
-function analyzeScores(workspacePath) {
+// Helper function to calculate pass rate
+function calculatePassRate(testResults) {
+  const passed = testResults.filter((t) => t.status === "passed").length;
+  const total = testResults.length;
+  return total > 0 ? passed / total : 0;
+}
+
+// Extract scores from test-results/results.json (new format)
+function extractScoresFromTestResults(workspacePath) {
+  const resultsPath = path.join(workspacePath, "test-results", "results.json");
+
+  if (!fs.existsSync(resultsPath)) {
+    return null;
+  }
+
+  const testResults = JSON.parse(fs.readFileSync(resultsPath, "utf8"));
+
+  if (!testResults.suites || testResults.suites.length === 0) {
+    return null;
+  }
+
+  const scores = [];
+
+  testResults.suites.forEach((suite) => {
+    if (suite.suites && suite.suites.length > 0) {
+      suite.suites.forEach((subSuite) => {
+        if (subSuite.specs && subSuite.specs.length > 0) {
+          const allTests = [];
+          subSuite.specs.forEach((spec) => {
+            if (spec.tests && spec.tests.length > 0) {
+              spec.tests.forEach((test) => {
+                if (test.results && test.results.length > 0) {
+                  allTests.push(...test.results);
+                }
+              });
+            }
+          });
+
+          if (allTests.length > 0) {
+            const passRate = calculatePassRate(allTests);
+            scores.push(passRate);
+          }
+        }
+      });
+    }
+  });
+
+  return scores.length > 0 ? scores : null;
+}
+
+// Extract scores from data/data.json (old format)
+function extractScoresFromDataJson(workspacePath) {
   const dataPath = path.join(workspacePath, "data", "data.json");
 
   if (!fs.existsSync(dataPath)) {
-    console.error(`❌ 数据文件不存在: ${dataPath}`);
-    process.exit(1);
+    return null;
   }
 
-  // 读取数据
   const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
-
-  // 提取所有有效的测试得分
-  const scores = [];
   const dataArray = Array.isArray(data) ? data : Object.values(data);
+  const scores = [];
 
   dataArray.forEach((item) => {
     if (item.testStats && typeof item.testStats.score === "number") {
@@ -567,12 +750,31 @@ function analyzeScores(workspacePath) {
     }
   });
 
-  if (scores.length === 0) {
-    console.error("❌ 未找到有效的测试得分数据");
+  return scores.length > 0 ? scores : null;
+}
+
+function analyzeScores(workspacePath) {
+  // Try new format first (test-results/results.json)
+  let scores = extractScoresFromTestResults(workspacePath);
+  let dataSource = "test-results/results.json (pass rates)";
+
+  // Fall back to old format (data/data.json)
+  if (!scores) {
+    scores = extractScoresFromDataJson(workspacePath);
+    dataSource = "data/data.json (test scores)";
+  }
+
+  if (!scores) {
+    console.error("❌ No valid score data found");
+    console.error("   Tried:");
+    console.error("   - test-results/results.json");
+    console.error("   - data/data.json");
     process.exit(1);
   }
 
-  console.log(`📊 分析 ${scores.length} 个测试得分...\n`);
+  console.log(
+    `📊 Analyzing ${scores.length} test scores from ${dataSource}...\n`
+  );
 
   // 排序
   const sortedScores = [...scores].sort((a, b) => a - b);
@@ -660,27 +862,27 @@ function analyzeScores(workspacePath) {
   };
 
   // 输出控制台摘要
-  console.log("📈 基本统计:");
-  console.log(`   总数: ${stats.total}`);
-  console.log(`   平均分: ${(avg * 100).toFixed(2)}%`);
-  console.log(`   中位数: ${(median * 100).toFixed(2)}%`);
-  console.log(`   标准差: ${(stdDev * 100).toFixed(2)}%`);
-  console.log(`   最高分: ${(max * 100).toFixed(2)}%`);
-  console.log(`   最低分: ${(min * 100).toFixed(2)}%`);
+  console.log("📈 Basic Statistics:");
+  console.log(`   Sample Size: ${stats.total}`);
+  console.log(`   Mean: ${(avg * 100).toFixed(2)}%`);
+  console.log(`   Median: ${(median * 100).toFixed(2)}%`);
+  console.log(`   Std. Deviation: ${(stdDev * 100).toFixed(2)}%`);
+  console.log(`   Maximum: ${(max * 100).toFixed(2)}%`);
+  console.log(`   Minimum: ${(min * 100).toFixed(2)}%`);
 
-  console.log("\n📊 分布特征:");
-  console.log(`   偏度: ${skewness.toFixed(3)}`);
-  console.log(`   峰度: ${kurtosis.toFixed(3)}`);
-  console.log(`   卡方统计量: ${chiSquare.toFixed(3)}`);
-  console.log(`   正态性评分: ${(normalityScore * 100).toFixed(1)}%`);
+  console.log("\n📊 Distribution Characteristics:");
+  console.log(`   Skewness: ${skewness.toFixed(3)}`);
+  console.log(`   Kurtosis: ${kurtosis.toFixed(3)}`);
+  console.log(`   Chi-Square: ${chiSquare.toFixed(3)}`);
+  console.log(`   Normality Score: ${(normalityScore * 100).toFixed(1)}%`);
 
-  console.log("\n📉 百分位数:");
+  console.log("\n📉 Percentiles:");
   console.log(`   25%: ${(percentiles.p25 * 100).toFixed(1)}%`);
   console.log(`   50%: ${(percentiles.p50 * 100).toFixed(1)}%`);
   console.log(`   75%: ${(percentiles.p75 * 100).toFixed(1)}%`);
   console.log(`   90%: ${(percentiles.p90 * 100).toFixed(1)}%`);
 
-  console.log("\n📋 分数段分布:");
+  console.log("\n📋 Score Distribution:");
   Object.entries(bins).forEach(([key, bin]) => {
     if (bin.count > 0) {
       const bar = "█".repeat(Math.ceil(parseFloat(bin.percentage) / 2));
@@ -693,16 +895,18 @@ function analyzeScores(workspacePath) {
   // 生成HTML报告
   const reportPath = path.join(workspacePath, "score-analysis-report.html");
   generateHTMLReport(stats, reportPath);
-  console.log(`\n✅ 分析报告已生成: ${reportPath}`);
+  console.log(`\n✅ Analysis report generated: ${reportPath}`);
 
   // 正态性结论
-  console.log("\n🎯 正态性结论:");
+  console.log("\n🎯 Normality Conclusion:");
   if (normalityScore >= 0.8) {
-    console.log("   ✅ 得分分布基本符合正态分布");
+    console.log("   ✅ Score distribution conforms to normality");
   } else if (normalityScore >= 0.6) {
-    console.log("   ⚠️  得分分布部分符合正态分布");
+    console.log("   ⚠️  Score distribution partially conforms to normality");
   } else {
-    console.log("   ❌ 得分分布偏离正态分布较大");
+    console.log(
+      "   ❌ Score distribution deviates significantly from normality"
+    );
   }
 }
 
@@ -710,8 +914,8 @@ function analyzeScores(workspacePath) {
 const workspacePath = process.argv[2];
 
 if (!workspacePath) {
-  console.error("用法: node analyze-scores.mjs <workspace-path>");
-  console.error("示例: node analyze-scores.mjs workspace/11-08-0003");
+  console.error("Usage: node analyze-scores.mjs <workspace-path>");
+  console.error("Example: node analyze-scores.mjs workspace/11-08-0003");
   process.exit(1);
 }
 

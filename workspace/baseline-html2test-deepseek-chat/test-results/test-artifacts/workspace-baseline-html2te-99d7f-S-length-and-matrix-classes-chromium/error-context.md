@@ -1,0 +1,110 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Longest Common Subsequence (LCS) Algorithm" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: "String 1:"
+      - textbox "String 1:" [ref=e7]:
+        - /placeholder: Enter first string
+        - text: ABCDGH
+    - generic [ref=e8]:
+      - generic [ref=e9]: "String 2:"
+      - textbox "String 2:" [ref=e10]:
+        - /placeholder: Enter second string
+        - text: AEDFHR
+  - button "Calculate LCS" [ref=e11] [cursor=pointer]
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - heading "Input Strings:" [level=3] [ref=e14]
+      - paragraph [ref=e15]:
+        - text: "String 1:"
+        - strong [ref=e16]: ABCDGH
+      - paragraph [ref=e17]:
+        - text: "String 2:"
+        - strong [ref=e18]: AEDFHR
+    - generic [ref=e19]:
+      - heading "Longest Common Subsequence:" [level=3] [ref=e20]
+      - generic [ref=e21]: ADH
+      - paragraph [ref=e22]:
+        - text: "Length:"
+        - strong [ref=e23]: "3"
+    - generic [ref=e24]:
+      - heading "Dynamic Programming Matrix:" [level=3] [ref=e25]
+      - generic [ref=e26]:
+        - generic [ref=e29]: A
+        - generic [ref=e30]: E
+        - generic [ref=e31]: D
+        - generic [ref=e32]: F
+        - generic [ref=e33]: H
+        - generic [ref=e34]: R
+        - generic [ref=e36]: "0"
+        - generic [ref=e37]: "0"
+        - generic [ref=e38]: "0"
+        - generic [ref=e39]: "0"
+        - generic [ref=e40]: "0"
+        - generic [ref=e41]: "0"
+        - generic [ref=e42]: "0"
+        - generic [ref=e43]: "0"
+        - generic [ref=e44]: A
+        - generic [ref=e45]: "1"
+        - generic [ref=e46]: "0"
+        - generic [ref=e47]: "1"
+        - generic [ref=e48]: "1"
+        - generic [ref=e49]: "1"
+        - generic [ref=e50]: "1"
+        - generic [ref=e51]: "1"
+        - generic [ref=e52]: "1"
+        - generic [ref=e53]: B
+        - generic [ref=e54]: "2"
+        - generic [ref=e55]: "0"
+        - generic [ref=e56]: "1"
+        - generic [ref=e57]: "1"
+        - generic [ref=e58]: "1"
+        - generic [ref=e59]: "1"
+        - generic [ref=e60]: "1"
+        - generic [ref=e61]: "1"
+        - generic [ref=e62]: C
+        - generic [ref=e63]: "3"
+        - generic [ref=e64]: "0"
+        - generic [ref=e65]: "1"
+        - generic [ref=e66]: "1"
+        - generic [ref=e67]: "1"
+        - generic [ref=e68]: "1"
+        - generic [ref=e69]: "1"
+        - generic [ref=e70]: "1"
+        - generic [ref=e71]: D
+        - generic [ref=e72]: "4"
+        - generic [ref=e73]: "0"
+        - generic [ref=e74]: "1"
+        - generic [ref=e75]: "1"
+        - generic [ref=e76]: "2"
+        - generic [ref=e77]: "2"
+        - generic [ref=e78]: "2"
+        - generic [ref=e79]: "2"
+        - generic [ref=e80]: G
+        - generic [ref=e81]: "5"
+        - generic [ref=e82]: "0"
+        - generic [ref=e83]: "1"
+        - generic [ref=e84]: "1"
+        - generic [ref=e85]: "2"
+        - generic [ref=e86]: "2"
+        - generic [ref=e87]: "2"
+        - generic [ref=e88]: "2"
+        - generic [ref=e89]: H
+        - generic [ref=e90]: "6"
+        - generic [ref=e91]: "0"
+        - generic [ref=e92]: "1"
+        - generic [ref=e93]: "1"
+        - generic [ref=e94]: "2"
+        - generic [ref=e95]: "2"
+        - generic [ref=e96]: "3"
+        - generic [ref=e97]: "3"
+    - generic [ref=e98]:
+      - heading "How it works:" [level=3] [ref=e99]
+      - generic [ref=e100]: 1. Create a 2D table where rows represent String 1 and columns represent String 2
+      - generic [ref=e101]: "2. Fill the table: if characters match, take diagonal + 1; else take max of left or top"
+      - generic [ref=e102]: 3. Yellow cells show the backtracking path to reconstruct the LCS
+      - generic [ref=e103]: 4. Green diagonal cells indicate matching characters
+```

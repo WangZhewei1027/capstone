@@ -1,0 +1,52 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - heading "Radix Sort Visualization" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Input & Controls" [level=2] [ref=e5]
+      - text: "Enter numbers (comma-separated):"
+      - textbox "Enter numbers (comma-separated):" [ref=e6]: 170, 45, 75, 90, 802, 24, 2, 66
+      - text: "Radix Sort Type:"
+      - combobox "Radix Sort Type:" [ref=e7]:
+        - option "LSD (Least Significant Digit)" [selected]
+        - option "MSD (Most Significant Digit)"
+      - generic [ref=e8]:
+        - generic [ref=e9]: "Speed:"
+        - slider "Speed:" [ref=e10]: "5"
+      - button "Start Sorting" [ref=e11] [cursor=pointer]
+      - button "Reset" [ref=e12] [cursor=pointer]
+      - button "Next Step" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - heading "How Radix Sort Works" [level=3] [ref=e15]
+        - paragraph [ref=e16]: Radix Sort is a non-comparative sorting algorithm that sorts numbers by processing individual digits.
+        - paragraph [ref=e17]:
+          - strong [ref=e18]: "LSD Radix Sort:"
+          - text: Starts from the least significant digit and moves towards the most significant digit.
+        - paragraph [ref=e19]:
+          - strong [ref=e20]: "MSD Radix Sort:"
+          - text: Starts from the most significant digit and moves towards the least significant digit.
+        - paragraph [ref=e21]: "Time Complexity: O(d*(n+b)) where d is the number of digits, n is the number of elements, and b is the base (usually 10)."
+    - generic [ref=e22]:
+      - heading "Sorting Process" [level=2] [ref=e23]
+      - generic [ref=e24]:
+        - 'generic "Digits: 1, 7, 0" [ref=e25]': "170"
+        - 'generic "Digits: 0, 4, 5" [ref=e26]': "45"
+        - 'generic "Digits: 0, 7, 5" [ref=e27]': "75"
+        - 'generic "Digits: 0, 9, 0" [ref=e28]': "90"
+        - 'generic "Digits: 8, 0, 2" [ref=e29]': "802"
+        - 'generic "Digits: 0, 2, 4" [ref=e30]': "24"
+        - 'generic "Digits: 0, 0, 2" [ref=e31]': "2"
+        - 'generic "Digits: 0, 6, 6" [ref=e32]': "66"
+      - generic [ref=e33]: "Original array: [170, 45, 75, 90, 802, 24, 2, 66]"
+      - generic [ref=e34]:
+        - 'generic "Digits: 1, 7, 0" [ref=e35]': "170"
+        - 'generic "Digits: 0, 4, 5" [ref=e36]': "45"
+        - 'generic "Digits: 0, 7, 5" [ref=e37]': "75"
+        - 'generic "Digits: 0, 9, 0" [ref=e38]': "90"
+        - 'generic "Digits: 8, 0, 2" [ref=e39]': "802"
+        - 'generic "Digits: 0, 2, 4" [ref=e40]': "24"
+        - 'generic "Digits: 0, 0, 2" [ref=e41]': "2"
+        - 'generic "Digits: 0, 6, 6" [ref=e42]': "66"
+```

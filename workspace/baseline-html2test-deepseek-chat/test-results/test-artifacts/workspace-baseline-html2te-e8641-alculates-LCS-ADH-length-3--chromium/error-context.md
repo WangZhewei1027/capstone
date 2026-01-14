@@ -1,0 +1,130 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Longest Common Subsequence" [level=1] [ref=e4]
+    - generic [ref=e5]: Find the longest sequence that appears in both strings in the same order
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - heading "Input Strings" [level=2] [ref=e8]
+      - generic [ref=e9]:
+        - generic [ref=e10]: "First String:"
+        - textbox "First String:" [ref=e11]:
+          - /placeholder: e.g., ABCBDAB
+          - text: ABCBDAB
+      - generic [ref=e12]:
+        - generic [ref=e13]: "Second String:"
+        - textbox "Second String:" [ref=e14]:
+          - /placeholder: e.g., BDCAB
+          - text: BDCAB
+      - button "Calculate LCS" [ref=e15] [cursor=pointer]
+      - button "Load Example" [ref=e16] [cursor=pointer]
+      - generic [ref=e17]:
+        - heading "How it works:" [level=3] [ref=e18]
+        - paragraph [ref=e19]: The Longest Common Subsequence (LCS) algorithm finds the longest sequence of characters that appear in both input strings in the same order (but not necessarily consecutively).
+        - paragraph [ref=e20]:
+          - strong [ref=e21]: "Example:"
+          - text: LCS of "ABCBDAB" and "BDCAB" is "BCAB" (length 4)
+    - generic [ref=e22]:
+      - heading "Results" [level=2] [ref=e23]
+      - generic [ref=e24]:
+        - generic [ref=e25]:
+          - heading "Longest Common Subsequence:" [level=3] [ref=e26]
+          - generic [ref=e27]: BCAB
+        - generic [ref=e28]:
+          - heading "Length of LCS:" [level=3] [ref=e29]
+          - generic [ref=e30]: "4"
+      - generic [ref=e31]:
+        - heading "Dynamic Programming Matrix:" [level=3] [ref=e32]
+        - table [ref=e34]:
+          - rowgroup [ref=e35]:
+            - row "# B D C A B" [ref=e36]:
+              - cell [ref=e37]
+              - cell "#" [ref=e38]
+              - cell "B" [ref=e39]
+              - cell "D" [ref=e40]
+              - cell "C" [ref=e41]
+              - cell "A" [ref=e42]
+              - cell "B" [ref=e43]
+            - row "# 0 0 0 0 0 0 0" [ref=e44]:
+              - cell "#" [ref=e45]
+              - cell "0" [ref=e46]:
+                - strong [ref=e47]: "0"
+              - cell "0" [ref=e48]
+              - cell "0" [ref=e49]
+              - cell "0" [ref=e50]
+              - cell "0" [ref=e51]
+              - cell "0" [ref=e52]
+              - cell "0" [ref=e53]
+            - row "A 1 0 0 0 0 1 1" [ref=e54]:
+              - cell "A" [ref=e55]
+              - cell "1" [ref=e56]:
+                - strong [ref=e57]: "1"
+              - cell "0" [ref=e58]
+              - cell "0" [ref=e59]
+              - cell "0" [ref=e60]
+              - cell "0" [ref=e61]
+              - cell "1" [ref=e62]
+              - cell "1" [ref=e63]
+            - row "B 2 0 1 1 1 1 2" [ref=e64]:
+              - cell "B" [ref=e65]
+              - cell "2" [ref=e66]:
+                - strong [ref=e67]: "2"
+              - cell "0" [ref=e68]
+              - cell "1" [ref=e69]
+              - cell "1" [ref=e70]
+              - cell "1" [ref=e71]
+              - cell "1" [ref=e72]
+              - cell "2" [ref=e73]
+            - row "C 3 0 1 1 2 2 2" [ref=e74]:
+              - cell "C" [ref=e75]
+              - cell "3" [ref=e76]:
+                - strong [ref=e77]: "3"
+              - cell "0" [ref=e78]
+              - cell "1" [ref=e79]
+              - cell "1" [ref=e80]
+              - cell "2" [ref=e81]
+              - cell "2" [ref=e82]
+              - cell "2" [ref=e83]
+            - row "B 4 0 1 1 2 2 3" [ref=e84]:
+              - cell "B" [ref=e85]
+              - cell "4" [ref=e86]:
+                - strong [ref=e87]: "4"
+              - cell "0" [ref=e88]
+              - cell "1" [ref=e89]
+              - cell "1" [ref=e90]
+              - cell "2" [ref=e91]
+              - cell "2" [ref=e92]
+              - cell "3" [ref=e93]
+            - row "D 5 0 1 2 2 2 3" [ref=e94]:
+              - cell "D" [ref=e95]
+              - cell "5" [ref=e96]:
+                - strong [ref=e97]: "5"
+              - cell "0" [ref=e98]
+              - cell "1" [ref=e99]
+              - cell "2" [ref=e100]
+              - cell "2" [ref=e101]
+              - cell "2" [ref=e102]
+              - cell "3" [ref=e103]
+            - row "A 6 0 1 2 2 3 3" [ref=e104]:
+              - cell "A" [ref=e105]
+              - cell "6" [ref=e106]:
+                - strong [ref=e107]: "6"
+              - cell "0" [ref=e108]
+              - cell "1" [ref=e109]
+              - cell "2" [ref=e110]
+              - cell "2" [ref=e111]
+              - cell "3" [ref=e112]
+              - cell "3" [ref=e113]
+            - row "B 7 0 1 2 2 3 4" [ref=e114]:
+              - cell "B" [ref=e115]
+              - cell "7" [ref=e116]:
+                - strong [ref=e117]: "7"
+              - cell "0" [ref=e118]
+              - cell "1" [ref=e119]
+              - cell "2" [ref=e120]
+              - cell "2" [ref=e121]
+              - cell "3" [ref=e122]
+              - cell "4" [ref=e123]
+```
